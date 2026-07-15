@@ -11,7 +11,11 @@
 > [!IMPORTANT]
 > All callsigns in this game are fictional and unrelated to real-world callsigns. Any resemblance is purely coincidental.
 
-<!-- The selected pixel-anime hero image will be inserted here after visual approval. -->
+<p align="center">
+  <img src="./docs/images/game-morse-adventurer-hero.png" alt="Game-Morse-Adventurer — friends camping and operating an amateur-radio station beside a mountain lake" width="100%">
+</p>
+
+**Tags:** Morse code · amateur radio · CW · telegraphy · game
 
 ## About
 

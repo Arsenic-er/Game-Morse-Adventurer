@@ -11,6 +11,12 @@
 > [!IMPORTANT]
 > ゲーム内のコールサインはすべて架空であり、実在するコールサインとは無関係です。類似があってもすべて偶然です。
 
+<p align="center">
+  <img src="./docs/images/game-morse-adventurer-hero.png" alt="Game-Morse-Adventurer — 山と湖を望むキャンプ場でアマチュア無線を楽しむ仲間たち" width="100%">
+</p>
+
+**タグ：** モールス信号 · アマチュア無線 · CW · 電信 · ゲーム
+
 ## ゲームについて
 
 Game-Morse-Adventurer は、ローカルで動作する Windows 向け CW 無線局シミュレーションゲームのプロトタイプです。シンプルな squid01 CW キットを操作し、架空局を受信し、縦振り電鍵または自動パドルで応答して QSO を完成させ、オフライン世界地図で伝搬状況を確認できます。

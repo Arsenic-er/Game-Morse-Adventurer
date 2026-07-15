@@ -11,6 +11,12 @@
 > [!IMPORTANT]
 > 本游戏内所有呼号均为虚构内容，与现实生活中的真实呼号无关；如有雷同，纯属巧合。
 
+<p align="center">
+  <img src="./docs/images/game-morse-adventurer-hero.png" alt="Game-Morse-Adventurer——少年少女在山湖边露营并进行业余无线电通联" width="100%">
+</p>
+
+**标签：** 摩尔斯电码 · 业余无线电 · CW · 电报 · 游戏
+
 ## 游戏简介
 
 Game-Morse-Adventurer 是一款本地运行的 Windows CW 台站模拟游戏原型。玩家可以操作简单的 squid01 CW 套件，收听虚构台站、使用手键或自动双桨回应、完成标准化通联，并通过离线世界地图观察不同传播条件。
