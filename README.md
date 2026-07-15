@@ -9,7 +9,7 @@
 </div>
 
 > [!IMPORTANT]
-> All callsigns in this game are fictional and unrelated to real-world callsigns. Any resemblance is purely coincidental.
+> All callsigns in this game are fictional and unrelated to real-world callsigns. Any resemblance is purely coincidental.(It's still  a prototype. Any issues are welcomed!!!)
 
 <p align="center">
   <img src="./docs/images/game-morse-adventurer-hero.png" alt="Game-Morse-Adventurer — friends camping and operating an amateur-radio station beside a mountain lake" width="100%">
