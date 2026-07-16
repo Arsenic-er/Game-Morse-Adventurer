@@ -1,6 +1,7 @@
-const { app, BrowserWindow, Menu } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain } = require("electron");
 const path = require("path");
 const { runQaCapture } = require("./qa-capture.cjs");
+const { readWindowsWifiStatus } = require("./network-status.cjs");
 
 const qaCaptureMode = process.argv.includes("--qa-capture");
 
@@ -10,6 +11,8 @@ if (!gotLock) {
   app.quit();
 } else {
   let mainWindow = null;
+
+  ipcMain.handle("cwgame:network-status", () => readWindowsWifiStatus());
 
   function createWindow() {
     mainWindow = new BrowserWindow({
@@ -27,6 +30,7 @@ if (!gotLock) {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
+        preload: path.join(__dirname, "preload.cjs"),
       },
     });
 

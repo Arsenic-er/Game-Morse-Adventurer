@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { WifiHigh, WifiLow, WifiMedium, WifiX } from "@phosphor-icons/react";
+import { useEffect, useMemo, useState } from "react";
 
 const LABELS = {
   "zh-CN": { good: "网络良好", medium: "网络一般", poor: "网络较差", offline: "无网络" },
@@ -8,29 +7,54 @@ const LABELS = {
   en: { good: "Network good", medium: "Network medium", poor: "Network poor", offline: "Offline" },
 };
 
-function readNetworkState() {
-  if (!navigator.onLine) return "offline";
-  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  if (!connection) return "good";
-  if (connection.saveData || ["slow-2g", "2g"].includes(connection.effectiveType)) return "poor";
-  if (connection.effectiveType === "3g" || (connection.downlink && connection.downlink < 4)) return "medium";
-  return "good";
+function browserNetworkState() {
+  return navigator.onLine ? "good" : "offline";
 }
+
 export function NetworkIndicator({ language = "en" }) {
-  const [state, setState] = useState(readNetworkState);
+  const [status, setStatus] = useState(() => ({ state: browserNetworkState(), signalPercent: null }));
+
   useEffect(() => {
-    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-    const update = () => setState(readNetworkState());
+    let cancelled = false;
+
+    async function update() {
+      if (!navigator.onLine) {
+        if (!cancelled) setStatus({ state: "offline", signalPercent: 0 });
+        return;
+      }
+      try {
+        const systemStatus = await window.cwgameSystem?.getNetworkStatus?.();
+        if (!cancelled && systemStatus?.available && systemStatus.state) {
+          setStatus({ state: systemStatus.state, signalPercent: systemStatus.signalPercent });
+          return;
+        }
+      } catch {
+        // Browser online state remains the safe fallback when Windows hides WLAN telemetry.
+      }
+      if (!cancelled) setStatus({ state: browserNetworkState(), signalPercent: null });
+    }
+
+    update();
+    const timer = window.setInterval(update, 5000);
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
-    connection?.addEventListener?.("change", update);
     return () => {
+      cancelled = true;
+      window.clearInterval(timer);
       window.removeEventListener("online", update);
       window.removeEventListener("offline", update);
-      connection?.removeEventListener?.("change", update);
     };
   }, []);
-  const Icon = state === "good" ? WifiHigh : state === "medium" ? WifiMedium : state === "poor" ? WifiLow : WifiX;
-  const label = (LABELS[language] ?? LABELS.en)[state];
-  return <div className={`network-indicator network-${state}`} title={label} aria-label={label}><Icon size={30} weight="bold" /><span>{label}</span></div>;
+
+  const label = useMemo(() => {
+    const base = (LABELS[language] ?? LABELS.en)[status.state];
+    return status.signalPercent === null ? base : `${base} · ${status.signalPercent}%`;
+  }, [language, status]);
+
+  return (
+    <div className={`network-indicator network-${status.state}`} title={label} role="img" aria-label={label}>
+      <span className="network-signal-icon" aria-hidden="true" />
+      {status.state === "offline" && <span className="network-offline-cross" aria-hidden="true" />}
+    </div>
+  );
 }

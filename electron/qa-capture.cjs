@@ -21,6 +21,22 @@ async function click(window, selector) {
   })()`, true);
 }
 
+async function hover(window, selector) {
+  const point = await window.webContents.executeJavaScript(`(() => {
+    const node = document.querySelector(${JSON.stringify(selector)});
+    if (!node) throw new Error(${JSON.stringify("Missing hover target: ")} + ${JSON.stringify(selector)});
+    const bounds = node.getBoundingClientRect();
+    return { x: Math.round(bounds.left + bounds.width / 2), y: Math.round(bounds.top + bounds.height / 2) };
+  })()`, true);
+  window.webContents.sendInputEvent({ type: "mouseMove", x: point.x, y: point.y });
+  await new Promise((resolve) => setTimeout(resolve, 250));
+}
+
+async function clearHover(window) {
+  window.webContents.sendInputEvent({ type: "mouseMove", x: 840, y: 24 });
+  await new Promise((resolve) => setTimeout(resolve, 120));
+}
+
 async function capture(window, outputDir, filename) {
   await window.webContents.executeJavaScript(`Promise.all(Array.from(document.images).map(async (image) => {
     if (!image.complete) await new Promise((resolve) => { image.addEventListener("load", resolve, { once: true }); image.addEventListener("error", resolve, { once: true }); });
@@ -62,6 +78,15 @@ async function runQaCapture(window) {
   await click(window, ".save-primary-action");
   await waitFor(window, ".home-screen");
   await capture(window, outputDir, "home-1672x941.png");
+  await capture(window, outputDir, "home-motion-a-1672x941.png");
+  await new Promise((resolve) => setTimeout(resolve, 1400));
+  await capture(window, outputDir, "home-motion-b-1672x941.png");
+  await clearHover(window);
+  await hover(window, ".hotspot-warehouse");
+  await capture(window, outputDir, "home-hover-warehouse-1672x941.png");
+  await clearHover(window);
+  await hover(window, ".hotspot-achievements");
+  await capture(window, outputDir, "home-hover-achievements-1672x941.png");
 
   await click(window, ".home-topbar button");
   await waitFor(window, ".qsl-slot.occupied");
@@ -90,6 +115,10 @@ async function runQaCapture(window) {
       "start-1672x941.png",
       "save-create-1672x941.png",
       "home-1672x941.png",
+      "home-motion-a-1672x941.png",
+      "home-motion-b-1672x941.png",
+      "home-hover-warehouse-1672x941.png",
+      "home-hover-achievements-1672x941.png",
       "save-loaded-1672x941.png",
       "station-off-1672x941.png",
       "propagation-map-1672x941.png",

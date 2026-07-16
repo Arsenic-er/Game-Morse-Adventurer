@@ -38,15 +38,16 @@ export function HomeScreen({ language, save, onEnterStation, onBack, onSettings 
   const localTime = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: location.timeZone });
   return (
     <main className="screen home-screen">
-      <div className="home-window-slot"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="home-window-artwork" /></div>
+      <div className="home-window-slot"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="home-window-artwork" animated /></div>
       <img className="home-room-overlay" src="./assets/home-room-overlay.png" alt="" />
+      <span className="home-lantern-flicker" aria-hidden="true" />
       <header className="home-topbar"><h1>{t.title}</h1><span><Radio size={18} weight="fill" />21.060 MHz · CW</span><b>{save.callsign}</b><span>{t.local} {localTime}</span><button onClick={onBack} aria-label={t.back}><ArrowLeft size={21} /></button><button onClick={onSettings} aria-label={t.settings}><GearSix size={21} /></button></header>
 
-      <button className="home-hotspot hotspot-warehouse" onClick={() => setPanel("warehouse")}><span><Warehouse size={22} weight="fill" />{t.warehouse}</span></button>
-      <button className="home-hotspot hotspot-station" onClick={onEnterStation}><span><Radio size={22} weight="fill" />{t.station}</span></button>
-      <button className="home-hotspot hotspot-store" onClick={() => setPanel("store")}><span><Laptop size={22} weight="fill" />{t.store}</span></button>
-      <button className="home-hotspot hotspot-log" onClick={() => setPanel("log")}><span><Notebook size={22} weight="fill" />{t.log}</span></button>
-      <button className="home-hotspot hotspot-achievements" onClick={() => setPanel("achievements")}><span><Trophy size={22} weight="fill" />{t.achievements}</span></button>
+      <button className="home-hotspot hotspot-warehouse" aria-label={t.warehouse} onClick={() => setPanel("warehouse")}><span><Warehouse size={22} weight="fill" />{t.warehouse}</span></button>
+      <button className="home-hotspot hotspot-station" aria-label={t.station} onClick={onEnterStation}><span><Radio size={22} weight="fill" />{t.station}</span></button>
+      <button className="home-hotspot hotspot-store" aria-label={t.store} onClick={() => setPanel("store")}><span><Laptop size={22} weight="fill" />{t.store}</span></button>
+      <button className="home-hotspot hotspot-log" aria-label={t.log} onClick={() => setPanel("log")}><span><Notebook size={22} weight="fill" />{t.log}</span></button>
+      <button className="home-hotspot hotspot-achievements" aria-label={t.achievements} onClick={() => setPanel("achievements")}><span><Trophy size={22} weight="fill" />{t.achievements}</span></button>
       <span className="home-newspaper-callsign" aria-hidden="true">{save.callsign}</span>
       <span className="home-location-label"><Radio size={15} />{locationName(location, language)}</span>
       {panel && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
