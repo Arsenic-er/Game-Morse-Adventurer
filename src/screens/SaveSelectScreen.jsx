@@ -3,6 +3,7 @@ import {
   ArrowLeft, Coins, DownloadSimple, FloppyDisk, MapPin, Plus, Radio, Trash,
 } from "@phosphor-icons/react";
 import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";
+import { equipmentName, getKeyOption } from "../game/equipmentCatalog.js";
 import { LocationArtwork } from "../game/LocationArtwork.jsx";
 import { LOCATIONS, REGION_ORDER, getLocation, locationName, regionName } from "../game/locations.js";
 import { MAX_SAVE_SLOTS, createSave, formatSaveTime, isValidCallsign, sanitizeCallsign } from "../game/saveStore.js";
@@ -105,7 +106,7 @@ export function SaveSelectScreen({ language, saves, activeSaveId, onLoad, onCrea
               <div className="save-call-lockup"><h2>{selectedSave.callsign}</h2><p><MapPin size={17} weight="fill" />{locationName(selectedLocation, language)}</p></div>
             </div>
             <dl className="save-facts">
-              <div><dt><Radio size={22} />{t.equipment}</dt><dd>SQUID-01</dd></div>
+              <div><dt><Radio size={22} />{t.equipment}</dt><dd>SQUID-01 · {equipmentName(getKeyOption(selectedSave.keyType), language)}</dd></div>
               <div><dt><Radio size={22} />{t.antenna}</dt><dd>{antennaName(selectedAntenna, language)}</dd></div>
               <div><dt><Coins size={22} />{t.credits}</dt><dd>{selectedSave.credits.toLocaleString()}</dd></div>
             </dl>

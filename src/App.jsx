@@ -8,6 +8,7 @@ import { NetworkIndicator } from "./components/NetworkIndicator.jsx";
 import { useCwCore } from "./cw/useCwCore.js";
 import { tailPreview } from "./cw/display.js";
 import { LocationArtwork } from "./game/LocationArtwork.jsx";
+import { getAntenna } from "./game/antennaCatalog.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
 import {
   loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves,
@@ -32,6 +33,14 @@ const ASSETS = {
   automatic: "./assets/automatic-key.png",
   world: "./assets/world-map.png",
   propagation: "./assets/propagation-map.png",
+};
+
+const BUILD_VERSION = "0.7.0";
+const ANTENNA_STATUS = {
+  "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
+  "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
+  ja: { missing: "アンテナ未装備のため無線交信は停止中", equip: "管理センターの倉庫でアンテナを装備してください" },
+  en: { missing: "No antenna equipped — RF operation disabled", equip: "Equip an antenna in the Management Center warehouse" },
 };
 
 const LANGUAGES = [
@@ -166,7 +175,7 @@ function StartScreen({ language, setLanguage, onStart, onPractice, onSettings })
         <button onClick={() => window.alert(t.fieldGuide)}><BookOpenText size={22} />{t.fieldGuide}</button>
       </nav>
       <p className="callsign-disclaimer">{t.callsignDisclaimer}</p>
-      <div className="build-tag">{t.prototype} · v0.6.0</div>
+      <div className="build-tag">{t.prototype} · v{BUILD_VERSION}</div>
       <div className="start-language">
         {languageOpen && <LanguageMenu language={language} onSelect={(value) => { setLanguage(value); setLanguageOpen(false); }} compact />}
         <IconButton className="language-globe" label={t.language} onClick={() => setLanguageOpen((value) => !value)} aria-expanded={languageOpen}>
@@ -240,7 +249,11 @@ function MapModal({ language, mapMode, setMapMode, propagationMap, onClose }) {
 
 function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBack, inputBlocked = false }) {
   const t = COPY[language];
+  const antennaStatus = ANTENNA_STATUS[language] ?? ANTENNA_STATUS.en;
   const location = getLocation(save.locationId);
+  const antenna = getAntenna(save.antennaId);
+  const antennaReady = antenna.id !== "none";
+  const playerEquipmentBonus = antenna.propagationBonus;
   const playerLocation = useMemo(() => toPropagationLocation(location), [location]);
   const [mapOpen, setMapOpen] = useState(false);
   const [mapMode, setMapMode] = useState("propagation");
@@ -252,7 +265,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const [qsoSerial, setQsoSerial] = useState(0);
   const propagationKey = `${clock.getUTCFullYear()}-${clock.getUTCMonth()}-${clock.getUTCDate()}-${clock.getUTCHours()}-${Math.floor(clock.getUTCMinutes() / 10)}`;
   const propagationMap = useMemo(() => generatePropagationMap({ playerLocation, utc: clock }), [playerLocation, propagationKey]);
-  const initialNpc = useMemo(() => selectNpcForQso(propagationMap, { seed: `${propagationKey}:0` }), [propagationMap, propagationKey]);
+  const initialNpc = useMemo(() => selectNpcForQso(propagationMap, { playerEquipmentBonus, seed: `${propagationKey}:0` }), [playerEquipmentBonus, propagationMap, propagationKey]);
   const [qso, setQso] = useState(() => createQso({ npc: initialNpc, playerCallsign: save.callsign }));
   const cw = useCwCore({ targetText: qso.expectedPlayer ?? "" });
   const isTx = cw.isTransmitting;
@@ -265,7 +278,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
 
   useEffect(() => {
     function onDown(event) {
-      if (mapOpen || inputBlocked || !powered) return;
+      if (mapOpen || inputBlocked || !powered || !antennaReady) return;
       if (["Space", "KeyZ", "KeyX", "F1", "F2", "F3"].includes(event.code)) event.preventDefault();
       if (event.repeat) return;
       if (event.code === "F1") { playNpcMessage(); return; }
@@ -287,10 +300,10 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
     };
-  }, [cw.beginManual, cw.endManual, cw.tapAutomatic, inputBlocked, keyType, mapOpen, powered, qso]);
+  }, [antennaReady, cw.beginManual, cw.endManual, cw.tapAutomatic, inputBlocked, keyType, mapOpen, powered, qso]);
 
   async function playNpcMessage() {
-    if (!powered || !qsoNeedsNpcPlayback(qso) || cw.isPlaying || cw.isKeying) return;
+    if (!powered || !antennaReady || !qsoNeedsNpcPlayback(qso) || cw.isPlaying || cw.isKeying) return;
     const played = await cw.playIncoming(qso.npcMessage, qso.npc.wpm, npcChannel);
     if (!played) return;
     const next = onNpcPlaybackFinished(qso);
@@ -306,7 +319,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   }
 
   async function submitReply() {
-    if (!powered || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
+    if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
     const decoded = cw.analysis.decoded;
     await cw.replayInput();
     setQso(submitPlayerMessage(qso, decoded));
@@ -315,7 +328,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
 
   function startNewQso() {
     const nextSerial = qsoSerial + 1;
-    const nextNpc = selectNpcForQso(propagationMap, { seed: `${propagationKey}:${nextSerial}` });
+    const nextNpc = selectNpcForQso(propagationMap, { playerEquipmentBonus, seed: `${propagationKey}:${nextSerial}` });
     setQsoSerial(nextSerial);
     setQso(createQso({ npc: nextNpc, playerCallsign: save.callsign }));
     setSaved(false);
@@ -335,7 +348,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   }
 
   function handleKeyPointerDown(event) {
-    if (!powered || !qsoCanAcceptPlayer(qso)) return;
+    if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso)) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     if (keyType === "manual") {
       cw.beginManual();
@@ -373,7 +386,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const decodedPreview = tailPreview(decodedText, 40, "---");
   const f3Label = qso.phase === QSO_PHASES.QSO_FAILED ? t.restartQso : saved ? t.saved : t.saveLog;
   return (
-    <main className={`screen station-screen ${isTx ? "transmitting" : ""} ${powered ? "station-powered" : "station-off"}`} style={{ "--room": `url(${location.scene})` }}>
+    <main className={`screen station-screen ${isTx ? "transmitting" : ""} ${powered ? "station-powered" : "station-off"} ${antennaReady ? "" : "antenna-missing"}`} style={{ "--room": `url(${location.scene})` }}>
       <header className="station-topbar">
         <div className="clock-group"><span>UTC <b>{utc}</b></span><i /><span>LOCAL <b>{local}</b></span></div>
         <div className="station-name"><Radio size={18} weight="fill" /> {save.callsign} · {t.station} · {t.credits} {credits}</div>
@@ -392,11 +405,11 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <div className="panel-actions"><button onClick={startNewQso}>{t.newContact}</button><button className="muted" onClick={cw.clearInput}>{t.delete}</button></div>
         </aside>
         <section className={`hardware-panel metal-panel ${powered ? "powered" : "power-off"}`}>
-          <div className="board-stage"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="station-board-scenery" /><img className="board-asset" src={isTx ? ASSETS.boardOn : ASSETS.boardOff} alt={`squid01 yellow PCB under an acrylic cover — ${isTx ? t.tx : powered ? t.idle : t.powerOff}`} /></div>
+          <div className="board-stage"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="station-board-scenery" /><img className="board-asset" src={isTx ? ASSETS.boardOn : ASSETS.boardOff} alt={`squid01 yellow PCB under an acrylic cover — ${isTx ? t.tx : powered ? t.idle : t.powerOff}`} />{!antennaReady && <div className="antenna-warning"><Broadcast size={17} weight="fill" /><span>{antennaStatus.missing}</span></div>}</div>
           <div className="hardware-status">
             <button className={`station-power ${powered ? "on" : ""}`} onClick={togglePower} aria-pressed={powered} aria-label={powered ? t.powerOff : t.powerOn}><Power size={16} weight="fill" /> SQUID01 / {powered ? "ON" : "OFF"}</button>
             <span>{t.detectedSpeed}: <b>{powered ? `${cw.analysis.wpm} WPM` : "--"}</b></span>
-            <span className={isTx ? "tx-active" : cw.status === "playing" && powered ? "rx-active" : ""}><Broadcast size={16} weight="fill" />{!powered ? t.powerOff : isTx ? t.tx : cw.status === "playing" ? t.cwReceiving : t.idle}</span>
+            <span className={isTx ? "tx-active" : cw.status === "playing" && powered ? "rx-active" : ""}><Broadcast size={16} weight="fill" />{!powered ? t.powerOff : !antennaReady ? antennaStatus.equip : isTx ? t.tx : cw.status === "playing" ? t.cwReceiving : t.idle}</span>
           </div>
           <div className="key-stage">
             <img className={cw.isKeying ? "key-active" : ""} src={keyType === "manual" ? ASSETS.manual : ASSETS.automatic} alt={keyType === "manual" ? t.manual : t.automatic} aria-disabled={!powered}
@@ -416,8 +429,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <span>{displayLine}</span>
           <small>{phaseText}{qso.lastError ? ` // ${t.invalidReply} (${qso.attempts}/2)` : ""} // {t.decoded}: {decodedPreview} // {t.accuracy}: {cw.analysis.accuracy}% // {t.rhythm}: {cw.analysis.rhythm}%</small>
         </div>
-        <button className="reply-button" onClick={playNpcMessage} disabled={!powered || !qsoNeedsNpcPlayback(qso) || cw.isPlaying || cw.isKeying}><Lightning size={23} weight="fill" />{t.playNpc}<kbd>F1</kbd></button>
-        <button onClick={submitReply} disabled={!powered || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Broadcast size={20} />{t.submitReply}<kbd>F2</kbd></button>
+        <button className="reply-button" onClick={playNpcMessage} disabled={!powered || !antennaReady || !qsoNeedsNpcPlayback(qso) || cw.isPlaying || cw.isKeying}><Lightning size={23} weight="fill" />{t.playNpc}<kbd>F1</kbd></button>
+        <button onClick={submitReply} disabled={!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Broadcast size={20} />{t.submitReply}<kbd>F2</kbd></button>
         <button onClick={saveOrRestart} disabled={![QSO_PHASES.QSO_COMPLETE, QSO_PHASES.QSO_FAILED].includes(qso.phase) || saved}><FloppyDisk size={20} />{f3Label}<kbd>F3</kbd></button>
       </footer>
       {mapOpen && <MapModal language={language} mapMode={mapMode} setMapMode={setMapMode} propagationMap={propagationMap} onClose={() => setMapOpen(false)} />}
@@ -442,6 +455,8 @@ export function App() {
   }
 
   function selectSave(saveId) {
+    const selected = saves.find((save) => save.id === saveId);
+    if (selected) setKeyType(selected.keyType ?? "manual");
     setActiveSaveId(saveId);
     persistActiveSaveId(saveId);
     setScreen("home");
@@ -466,16 +481,26 @@ export function App() {
     commitSaves(saves.map((save) => save.id === activeSave.id ? { ...save, ...patch, updatedAt: new Date().toISOString() } : save));
   }
 
+  function updateHomeLoadout(patch) {
+    if (patch.keyType) setKeyType(patch.keyType);
+    updateActiveSave(patch);
+  }
+
+  function changeKeyType(value) {
+    setKeyType(value);
+    if (activeSave && ["home", "station"].includes(screen)) updateActiveSave({ keyType: value });
+  }
+
   let currentScreen;
   if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => setScreen("practice")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onEnterStation={() => setScreen("station")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onSaveUpdate={updateHomeLoadout} onEnterStation={() => setScreen("station")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") currentScreen = <PracticeScreen language={language} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("start")} />;
-  else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={keyType} save={activeSave} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
+  else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
   else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   return <>
     {currentScreen}
     <NetworkIndicator language={language} />
-    {settingsOpen && <SettingsModal language={language} setLanguage={setLanguage} keyType={keyType} setKeyType={setKeyType} onClose={() => setSettingsOpen(false)} />}
+    {settingsOpen && <SettingsModal language={language} setLanguage={setLanguage} keyType={activeSave && ["home", "station"].includes(screen) ? activeSave.keyType : keyType} setKeyType={changeKeyType} onClose={() => setSettingsOpen(false)} />}
   </>;
 }

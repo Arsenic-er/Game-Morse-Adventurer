@@ -1,4 +1,5 @@
 import { getAntenna } from "./antennaCatalog.js";
+import { getKeyOption, getTransmitter } from "./equipmentCatalog.js";
 import { getLocation } from "./locations.js";
 
 export const SAVE_STORAGE_KEY = "game-morse-adventurer.saves.v1";
@@ -12,7 +13,7 @@ export function isValidCallsign(value) {
   return /^[A-Z0-9]{1,7}$/.test(String(value ?? ""));
 }
 
-export function createSave({ callsign, locationId, antennaId = "dipole" }) {
+export function createSave({ callsign, locationId, antennaId = "dipole", keyType = "manual" }) {
   const cleanCallsign = sanitizeCallsign(callsign);
   if (!isValidCallsign(cleanCallsign)) throw new Error("INVALID_CALLSIGN");
   const now = new Date().toISOString();
@@ -20,8 +21,9 @@ export function createSave({ callsign, locationId, antennaId = "dipole" }) {
     id: globalThis.crypto?.randomUUID?.() ?? `save-${Date.now()}`,
     callsign: cleanCallsign,
     locationId: getLocation(locationId).id,
-    equipmentId: "squid-01",
+    equipmentId: getTransmitter("squid-01").id,
     antennaId: getAntenna(antennaId).id,
+    keyType: getKeyOption(keyType).id,
     credits: 0,
     createdAt: now,
     updatedAt: now,
@@ -35,8 +37,9 @@ export function normalizeSave(save) {
     id: String(save.id || `save-${Date.now()}`),
     callsign,
     locationId: getLocation(save.locationId).id,
-    equipmentId: "squid-01",
+    equipmentId: getTransmitter(save.equipmentId).id,
     antennaId: getAntenna(save.antennaId).id,
+    keyType: getKeyOption(save.keyType).id,
     credits: Number.isFinite(Number(save.credits)) ? Math.max(0, Number(save.credits)) : 0,
     createdAt: save.createdAt || new Date().toISOString(),
     updatedAt: save.updatedAt || new Date().toISOString(),

@@ -4,6 +4,8 @@ const { runQaCapture } = require("./qa-capture.cjs");
 const { readWindowsWifiStatus } = require("./network-status.cjs");
 
 const qaCaptureMode = process.argv.includes("--qa-capture");
+const qaWidth = Math.max(1280, Number(process.env.CWGAME_QA_WIDTH) || 1672);
+const qaHeight = Math.max(720, Number(process.env.CWGAME_QA_HEIGHT) || 941);
 
 const gotLock = app.requestSingleInstanceLock();
 
@@ -16,8 +18,8 @@ if (!gotLock) {
 
   function createWindow() {
     mainWindow = new BrowserWindow({
-      width: qaCaptureMode ? 1672 : 1600,
-      height: qaCaptureMode ? 941 : 900,
+      width: qaCaptureMode ? qaWidth : 1600,
+      height: qaCaptureMode ? qaHeight : 900,
       useContentSize: qaCaptureMode,
       frame: !qaCaptureMode,
       minWidth: 1280,

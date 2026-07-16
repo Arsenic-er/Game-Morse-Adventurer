@@ -20,12 +20,22 @@ test("callsigns are uppercase, alphanumeric, and capped at seven characters", ()
   assert.equal(isValidCallsign("ABCDEFGH"), false);
 });
 
-test("save records preserve a fixed location and swappable antenna id", () => {
-  const save = createSave({ callsign: "bh1abc", locationId: "china-beijing-outskirts", antennaId: "none" });
+test("save records preserve fixed hardware and swappable loadout ids", () => {
+  const save = createSave({ callsign: "bh1abc", locationId: "china-beijing-outskirts", antennaId: "none", keyType: "automatic" });
   assert.equal(save.callsign, "BH1ABC");
   assert.equal(save.locationId, "china-beijing-outskirts");
   assert.equal(save.antennaId, "none");
+  assert.equal(save.keyType, "automatic");
+  assert.equal(save.equipmentId, "squid-01");
   assert.equal(save.credits, 0);
+});
+
+test("legacy saves receive safe equipment defaults", () => {
+  const storage = storageStub();
+  storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{ id: "old", callsign: "JA1OLD", locationId: "japan-tokyo-kanto", antennaId: "dipole" }]));
+  const [save] = loadSaves(storage);
+  assert.equal(save.keyType, "manual");
+  assert.equal(save.equipmentId, "squid-01");
 });
 
 test("only three normalized save slots are persisted", () => {

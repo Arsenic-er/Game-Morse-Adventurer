@@ -49,6 +49,9 @@ async function capture(window, outputDir, filename) {
 
 async function runQaCapture(window) {
   const outputDir = process.env.CWGAME_QA_OUTPUT || path.join(process.cwd(), "qa-artifacts");
+  const [captureWidth, captureHeight] = window.getContentSize();
+  const suffix = process.env.CWGAME_QA_SUFFIX || `${captureWidth}x${captureHeight}`;
+  const shot = (stem) => `${stem}-${suffix}.png`;
   await fs.mkdir(outputDir, { recursive: true });
   const consoleErrors = [];
   const onConsoleMessage = (_event, levelOrDetails, message) => {
@@ -61,7 +64,7 @@ async function runQaCapture(window) {
   await window.webContents.session.clearStorageData();
   await window.reload();
   await waitFor(window, ".start-screen");
-  await capture(window, outputDir, "start-1672x941.png");
+  await capture(window, outputDir, shot("start"));
 
   await click(window, ".menu-primary");
   await waitFor(window, ".save-select-screen");
@@ -73,34 +76,50 @@ async function runQaCapture(window) {
     input.dispatchEvent(new Event("change", { bubbles: true }));
     document.querySelectorAll(".location-picker button")[1].click();
   })()`, true);
-  await capture(window, outputDir, "save-create-1672x941.png");
+  await capture(window, outputDir, shot("save-create"));
 
   await click(window, ".save-primary-action");
   await waitFor(window, ".home-screen");
-  await capture(window, outputDir, "home-1672x941.png");
-  await capture(window, outputDir, "home-motion-a-1672x941.png");
+  await capture(window, outputDir, shot("home"));
+  await capture(window, outputDir, shot("home-motion-a"));
   await new Promise((resolve) => setTimeout(resolve, 1400));
-  await capture(window, outputDir, "home-motion-b-1672x941.png");
+  await capture(window, outputDir, shot("home-motion-b"));
   await clearHover(window);
   await hover(window, ".hotspot-warehouse");
-  await capture(window, outputDir, "home-hover-warehouse-1672x941.png");
+  await capture(window, outputDir, shot("home-hover-warehouse"));
+  await click(window, ".hotspot-warehouse");
+  await waitFor(window, ".warehouse-screen");
+  await click(window, ".warehouse-category-rail button:nth-of-type(2)");
+  await click(window, ".warehouse-category-rail button:nth-of-type(1)");
+  // The hidden QA window can return the previous compositor frame on its first capture.
+  await capture(window, outputDir, shot("warehouse-radio-warmup"));
+  await capture(window, outputDir, shot("warehouse-radio"));
+  await click(window, ".warehouse-category-rail button:nth-of-type(3)");
+  await capture(window, outputDir, shot("warehouse-accessories"));
+  await click(window, ".warehouse-category-rail button:nth-of-type(2)");
+  await click(window, '[data-antenna-id="yagi-3el"]');
+  await capture(window, outputDir, shot("warehouse-antenna-selected"));
+  await click(window, ".rack-equip-button");
+  await capture(window, outputDir, shot("warehouse-antenna-equipped"));
+  await click(window, ".warehouse-return");
+  await waitFor(window, ".home-screen");
   await clearHover(window);
   await hover(window, ".hotspot-achievements");
-  await capture(window, outputDir, "home-hover-achievements-1672x941.png");
+  await capture(window, outputDir, shot("home-hover-achievements"));
 
   await click(window, ".home-topbar button");
   await waitFor(window, ".qsl-slot.occupied");
-  await capture(window, outputDir, "save-loaded-1672x941.png");
+  await capture(window, outputDir, shot("save-loaded"));
 
   await click(window, ".save-primary-action");
   await waitFor(window, ".home-screen");
   await click(window, ".hotspot-station");
   await waitFor(window, ".station-screen");
-  await capture(window, outputDir, "station-off-1672x941.png");
+  await capture(window, outputDir, shot("station-off"));
 
   await click(window, ".map-preview");
   await waitFor(window, ".map-modal");
-  await capture(window, outputDir, "propagation-map-1672x941.png");
+  await capture(window, outputDir, shot("propagation-map"));
 
   await fs.writeFile(
     path.join(outputDir, "runtime-console-errors.json"),
@@ -112,17 +131,11 @@ async function runQaCapture(window) {
   return {
     outputDir,
     captures: [
-      "start-1672x941.png",
-      "save-create-1672x941.png",
-      "home-1672x941.png",
-      "home-motion-a-1672x941.png",
-      "home-motion-b-1672x941.png",
-      "home-hover-warehouse-1672x941.png",
-      "home-hover-achievements-1672x941.png",
-      "save-loaded-1672x941.png",
-      "station-off-1672x941.png",
-      "propagation-map-1672x941.png",
-    ],
+      "start", "save-create", "home", "home-motion-a", "home-motion-b",
+      "home-hover-warehouse", "warehouse-radio", "warehouse-accessories",
+      "warehouse-antenna-selected", "warehouse-antenna-equipped",
+      "home-hover-achievements", "save-loaded", "station-off", "propagation-map",
+    ].map(shot),
   };
 }
 
