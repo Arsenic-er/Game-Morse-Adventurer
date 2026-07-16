@@ -1,6 +1,7 @@
 import { getAntenna } from "./antennaCatalog.js";
 import { getKeyOption, getTransmitter } from "./equipmentCatalog.js";
 import { getLocation } from "./locations.js";
+import { normalizeQsoLogEntries, normalizeQsoRecords } from "../qso/qsoLog.js";
 
 export const SAVE_STORAGE_KEY = "game-morse-adventurer.saves.v1";
 export const ACTIVE_SAVE_KEY = "game-morse-adventurer.active-save.v1";
@@ -11,6 +12,11 @@ export function sanitizeCallsign(value) {
 }
 export function isValidCallsign(value) {
   return /^[A-Z0-9]{1,7}$/.test(String(value ?? ""));
+}
+
+function normalizeCredits(value) {
+  const credits = Number(value);
+  return Number.isFinite(credits) ? Math.max(0, Math.floor(credits)) : 0;
 }
 
 export function createSave({ callsign, locationId, antennaId = "dipole", keyType = "manual" }) {
@@ -25,6 +31,8 @@ export function createSave({ callsign, locationId, antennaId = "dipole", keyType
     antennaId: getAntenna(antennaId).id,
     keyType: getKeyOption(keyType).id,
     credits: 0,
+    qsoLogs: [],
+    qsoRecords: normalizeQsoRecords(null, []),
     createdAt: now,
     updatedAt: now,
   };
@@ -33,6 +41,8 @@ export function createSave({ callsign, locationId, antennaId = "dipole", keyType
 export function normalizeSave(save) {
   const callsign = sanitizeCallsign(save?.callsign);
   if (!isValidCallsign(callsign)) return null;
+  const qsoLogSource = Array.isArray(save?.qsoLogs) ? save.qsoLogs : save?.qsoLogEntries;
+  const qsoLogs = normalizeQsoLogEntries(qsoLogSource);
   return {
     id: String(save.id || `save-${Date.now()}`),
     callsign,
@@ -40,7 +50,9 @@ export function normalizeSave(save) {
     equipmentId: getTransmitter(save.equipmentId).id,
     antennaId: getAntenna(save.antennaId).id,
     keyType: getKeyOption(save.keyType).id,
-    credits: Number.isFinite(Number(save.credits)) ? Math.max(0, Number(save.credits)) : 0,
+    credits: normalizeCredits(save.credits),
+    qsoLogs,
+    qsoRecords: normalizeQsoRecords(save?.qsoRecords, qsoLogs),
     createdAt: save.createdAt || new Date().toISOString(),
     updatedAt: save.updatedAt || new Date().toISOString(),
   };

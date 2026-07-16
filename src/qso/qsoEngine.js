@@ -1,4 +1,6 @@
 import { normalizeCwText } from "../cw/morse.js";
+import { greatCircleDistanceDegrees } from "../propagation/propagationEngine.js";
+import { normalizeQsoLogEntry } from "./qsoLog.js";
 
 export const QSO_PHASES = Object.freeze({
   WAITING_CQ: "WAITING_CQ",
@@ -117,20 +119,57 @@ export function qsoNeedsNpcPlayback(qso) {
   return [QSO_PHASES.WAITING_CQ, QSO_PHASES.NPC_RST, QSO_PHASES.NPC_73_AND_SK].includes(qso.phase);
 }
 
-export function createQsoLogEntry(qso) {
+export function createQsoLogEntry(qso, {
+  frequencyMhz = 21.06,
+  playerLocation = null,
+  playerLocationId,
+  equipmentId = "squid-01",
+  antennaId = "none",
+  propagationSource = "OFFLINE_DEFAULT",
+  wpm,
+  copyAccuracy = null,
+  keyingScore = null,
+} = {}) {
   if (qso.phase !== QSO_PHASES.QSO_COMPLETE) throw new Error("Only completed QSOs can be logged.");
+  const started = new Date(qso.startedAt);
   const completed = new Date(qso.completedAt);
-  return {
+  if (!Number.isFinite(started.getTime()) || !Number.isFinite(completed.getTime()) || completed < started) {
+    throw new Error("Completed QSOs require valid chronological timestamps.");
+  }
+  const npcLatitude = Number(qso.npc.latitude);
+  const npcLongitude = Number(qso.npc.longitude);
+  const hasNpcCoordinates = Number.isFinite(npcLatitude) && Number.isFinite(npcLongitude);
+  const hasPlayerCoordinates = Number.isFinite(Number(playerLocation?.latitude)) && Number.isFinite(Number(playerLocation?.longitude));
+  const distanceKm = hasNpcCoordinates && hasPlayerCoordinates
+    ? greatCircleDistanceDegrees(playerLocation, qso.npc) * 111.195
+    : 0;
+  const entry = {
     id: `${qso.npc.callsign}-${completed.getTime()}`,
-    time: completed.toISOString().slice(11, 16),
+    startedAt: started.toISOString(),
+    completedAt: completed.toISOString(),
+    playerCallsign: qso.playerCallsign,
     callsign: qso.npc.callsign,
-    frequency: "21.060",
+    frequencyMhz,
     mode: "CW",
     sent: qso.sentRst,
     received: qso.receivedRst,
     location: qso.npc.regionId ?? "SIM",
-    isFictional: true,
+    npcLatitude: hasNpcCoordinates ? npcLatitude : null,
+    npcLongitude: hasNpcCoordinates ? npcLongitude : null,
+    distanceKm,
+    basePropagationLevel: qso.npc.baseLevel,
+    finalPropagationLevel: qso.npc.finalLevel,
+    propagationSource,
+    equipmentId,
+    antennaId,
+    playerLocationId: playerLocationId ?? playerLocation?.id ?? "unknown",
+    wpm: wpm ?? qso.npc.wpm,
+    copyAccuracy,
+    keyingScore,
+    isFictional: qso.npc.isFictional !== false,
     credits: qso.creditsAwarded,
   };
+  const normalized = normalizeQsoLogEntry(entry);
+  if (!normalized) throw new Error("Completed QSO could not be normalized into a log entry.");
+  return normalized;
 }
-

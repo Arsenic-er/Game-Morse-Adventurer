@@ -1,4 +1,5 @@
 const { app, BrowserWindow, Menu, ipcMain } = require("electron");
+const fs = require("fs");
 const path = require("path");
 const { runQaCapture } = require("./qa-capture.cjs");
 const { readWindowsWifiStatus } = require("./network-status.cjs");
@@ -6,6 +7,7 @@ const { readWindowsWifiStatus } = require("./network-status.cjs");
 const qaCaptureMode = process.argv.includes("--qa-capture");
 const qaWidth = Math.max(1280, Number(process.env.CWGAME_QA_WIDTH) || 1672);
 const qaHeight = Math.max(720, Number(process.env.CWGAME_QA_HEIGHT) || 941);
+if (qaCaptureMode) app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 
 const gotLock = app.requestSingleInstanceLock();
 
@@ -45,6 +47,11 @@ if (!gotLock) {
           process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
           app.exit(0);
         } catch (error) {
+          const outputDir = process.env.CWGAME_QA_OUTPUT;
+          if (outputDir) {
+            fs.mkdirSync(outputDir, { recursive: true });
+            fs.writeFileSync(path.join(outputDir, "qa-failure.txt"), `${error.stack || error}\n`, "utf8");
+          }
           process.stderr.write(`${error.stack || error}\n`);
           app.exit(1);
         }

@@ -73,10 +73,12 @@ export function useCwCore({ targetText = "CQ" } = {}) {
     setPlaybackMode("tx");
     setIsKeying(true);
     let toneStarted = false;
-    try {
-      toneStarted = await engine().startSidetone();
-    } catch {
-      toneStarted = false;
+    if (!window.cwgameSystem?.qaCapture) {
+      try {
+        toneStarted = await engine().startSidetone();
+      } catch {
+        toneStarted = false;
+      }
     }
     if (automaticTimerRef.current !== request) {
       engineRef.current?.stopSidetone();

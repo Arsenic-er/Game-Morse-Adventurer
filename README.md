@@ -31,6 +31,9 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - Straight-key input with `Space`; automatic paddle input with `Z` for dot and `X` for dash.
 - Independent CW practice for characters, fictional callsigns, straight key, and paddle.
 - A complete fictional QSO loop: CQ, callsigns, RST, 73/SK, credits, failure/restart, and logging.
+- Persistent QSO result pages and logbook entries, including callsign, region, distance, RST, propagation, equipment, WPM, accuracy, and rhythm.
+- Atomic, idempotent credit settlement prevents a completed QSO from being rewarded more than once.
+- Station clocks display both the selected station's local time and UTC.
 - Deterministic offline propagation based on station location, UTC, and 21.060 MHz.
 - Propagation levels affect NPC availability, signal gain, noise, QSB, and small frequency offsets.
 - Local Windows x64 portable build; no account or network connection required for gameplay.
@@ -55,11 +58,11 @@ pnpm run dev
 pnpm run desktop:build
 ```
 
-The project currently has 26 automated tests covering the CW core, practice engine, QSO state machine, propagation model, and save data rules.
+The project currently has 44 automated tests covering the CW core, practice engine, QSO state machine, persistent QSO logs and results, idempotent credit settlement, propagation model, and save data rules.
 
 ## Project status
 
-This repository contains a playable prototype. The Windows executable and generated build directories are intentionally excluded from source control. A downloadable release can be published separately after final visual selection and release verification.
+Version **v0.8.0** is a playable prototype with persistent QSO results and logbook history. The Windows executable and generated build directories are intentionally excluded from source control. A downloadable release can be published separately after final visual selection and release verification.
 
 ## Rights and third-party software
 

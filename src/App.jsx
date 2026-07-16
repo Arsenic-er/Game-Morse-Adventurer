@@ -22,7 +22,9 @@ import {
   QSO_PHASES, createQso, createQsoLogEntry, onNpcPlaybackFinished,
   qsoCanAcceptPlayer, qsoNeedsNpcPlayback, restartQso, submitPlayerMessage,
 } from "./qso/qsoEngine.js";
+import { recordCompletedQso } from "./qso/qsoLog.js";
 import { HomeScreen } from "./screens/HomeScreen.jsx";
+import { QsoResultModal } from "./screens/QsoResultModal.jsx";
 import { SaveSelectScreen } from "./screens/SaveSelectScreen.jsx";
 
 const ASSETS = {
@@ -35,7 +37,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.7.0";
+const BUILD_VERSION = "0.8.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -124,13 +126,6 @@ const COPY = {
     phaseFinal: "Play 73 / SK", phaseComplete: "QSO complete; save the log", phaseFailed: "QSO failed; restart", invalidReply: "Reply format is not valid",
   },
 };
-
-const INITIAL_LOG_ROWS = [
-  { id: "SIM9AK-1", time: "13:12", callsign: "SIM9AK", frequency: "21.060", mode: "CW", sent: "559", received: "579", location: "EU-W", isFictional: true },
-  { id: "SIM7QX-1", time: "13:09", callsign: "SIM7QX", frequency: "21.060", mode: "CW", sent: "559", received: "579", location: "NA-W", isFictional: true },
-  { id: "SIM8CW-1", time: "13:05", callsign: "SIM8CW", frequency: "21.060", mode: "CW", sent: "559", received: "579", location: "OC-AU", isFictional: true },
-  { id: "SIM2DX-1", time: "12:58", callsign: "SIM2DX", frequency: "21.060", mode: "CW", sent: "559", received: "579", location: "AF-S", isFictional: true },
-];
 
 function detectLanguage() {
   const language = navigator.language || "en";
@@ -258,15 +253,21 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const [mapOpen, setMapOpen] = useState(false);
   const [mapMode, setMapMode] = useState("propagation");
   const [saved, setSaved] = useState(false);
+  const [resultDismissed, setResultDismissed] = useState(false);
+  const [settlementMeta, setSettlementMeta] = useState(null);
   const [powered, setPowered] = useState(true);
   const [clock, setClock] = useState(() => new Date());
-  const [credits, setCredits] = useState(save.credits);
-  const [logRows, setLogRows] = useState(INITIAL_LOG_ROWS);
+  const [selectedLogId, setSelectedLogId] = useState(null);
+  const [qsoMetrics, setQsoMetrics] = useState({ samples: 0, wpm: 0, accuracy: 0, rhythm: 0 });
   const [qsoSerial, setQsoSerial] = useState(0);
   const propagationKey = `${clock.getUTCFullYear()}-${clock.getUTCMonth()}-${clock.getUTCDate()}-${clock.getUTCHours()}-${Math.floor(clock.getUTCMinutes() / 10)}`;
   const propagationMap = useMemo(() => generatePropagationMap({ playerLocation, utc: clock }), [playerLocation, propagationKey]);
   const initialNpc = useMemo(() => selectNpcForQso(propagationMap, { playerEquipmentBonus, seed: `${propagationKey}:0` }), [playerEquipmentBonus, propagationMap, propagationKey]);
   const [qso, setQso] = useState(() => createQso({ npc: initialNpc, playerCallsign: save.callsign }));
+  const logRows = save.qsoLogs ?? [];
+  const recentLogRows = logRows.slice(0, 6);
+  const selectedLog = logRows.find((entry) => entry.id === selectedLogId) ?? null;
+  const credits = save.credits;
   const cw = useCwCore({ targetText: qso.expectedPlayer ?? "" });
   const isTx = cw.isTransmitting;
   const npcChannel = useMemo(() => channelProfileForLevel(qso.npc.finalLevel, qso.npc), [qso.npc]);
@@ -304,46 +305,81 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
 
   async function playNpcMessage() {
     if (!powered || !antennaReady || !qsoNeedsNpcPlayback(qso) || cw.isPlaying || cw.isKeying) return;
-    const played = await cw.playIncoming(qso.npcMessage, qso.npc.wpm, npcChannel);
+    const played = window.cwgameSystem?.qaCapture ? true : await cw.playIncoming(qso.npcMessage, qso.npc.wpm, npcChannel);
     if (!played) return;
     const next = onNpcPlaybackFinished(qso);
     setQso(next);
     cw.clearInput();
-    if (next.phase === QSO_PHASES.QSO_COMPLETE) {
-      setCredits((current) => {
-        const total = current + next.creditsAwarded;
-        onSaveUpdate({ credits: total });
-        return total;
-      });
-    }
+    if (next.phase === QSO_PHASES.QSO_COMPLETE) setResultDismissed(false);
   }
 
   async function submitReply() {
     if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
     const decoded = cw.analysis.decoded;
-    await cw.replayInput();
+    const sample = { wpm: cw.analysis.wpm, accuracy: cw.analysis.accuracy, rhythm: cw.analysis.rhythm };
+    if (!window.cwgameSystem?.qaCapture) await cw.replayInput();
     setQso(submitPlayerMessage(qso, decoded));
+    setQsoMetrics((current) => ({
+      samples: current.samples + 1,
+      wpm: current.wpm + sample.wpm,
+      accuracy: current.accuracy + sample.accuracy,
+      rhythm: current.rhythm + sample.rhythm,
+    }));
     cw.clearInput();
   }
 
   function startNewQso() {
+    if (qso.phase === QSO_PHASES.QSO_COMPLETE && !saved) return;
     const nextSerial = qsoSerial + 1;
     const nextNpc = selectNpcForQso(propagationMap, { playerEquipmentBonus, seed: `${propagationKey}:${nextSerial}` });
     setQsoSerial(nextSerial);
     setQso(createQso({ npc: nextNpc, playerCallsign: save.callsign }));
     setSaved(false);
+    setResultDismissed(false);
+    setSettlementMeta(null);
+    setSelectedLogId(null);
+    setQsoMetrics({ samples: 0, wpm: 0, accuracy: 0, rhythm: 0 });
     cw.clearInput();
+  }
+
+  function createCurrentLogEntry() {
+    const samples = Math.max(1, qsoMetrics.samples);
+    return createQsoLogEntry(qso, {
+      frequencyMhz: propagationMap.frequencyMhz,
+      playerLocation,
+      playerLocationId: save.locationId,
+      equipmentId: save.equipmentId,
+      antennaId: save.antennaId,
+      propagationSource: propagationMap.source,
+      wpm: Number((qsoMetrics.wpm / samples).toFixed(1)),
+      copyAccuracy: Number((qsoMetrics.accuracy / samples).toFixed(1)),
+      keyingScore: Number((qsoMetrics.rhythm / samples).toFixed(1)),
+    });
   }
 
   function saveOrRestart() {
     if (qso.phase === QSO_PHASES.QSO_FAILED) {
       setQso(restartQso(qso));
+      setQsoMetrics({ samples: 0, wpm: 0, accuracy: 0, rhythm: 0 });
+      setResultDismissed(false);
       cw.clearInput();
       return;
     }
     if (qso.phase !== QSO_PHASES.QSO_COMPLETE || saved) return;
-    const entry = createQsoLogEntry(qso);
-    setLogRows((current) => [entry, ...current].slice(0, 6));
+    const entry = createCurrentLogEntry();
+    const settlement = recordCompletedQso(save, entry);
+    if (settlement.added) {
+      onSaveUpdate({
+        credits: settlement.save.credits,
+        qsoLogs: settlement.save.qsoLogs,
+        qsoRecords: settlement.save.qsoRecords,
+      });
+    }
+    setSettlementMeta({
+      newRegion: settlement.newRegion,
+      newDistanceRecord: settlement.newDistanceRecord,
+      creditsAwarded: settlement.added ? entry.credits : 0,
+    });
     setSaved(true);
   }
 
@@ -385,8 +421,29 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const displayLine = tailPreview(displayLineFull, 64);
   const decodedPreview = tailPreview(decodedText, 40, "---");
   const f3Label = qso.phase === QSO_PHASES.QSO_FAILED ? t.restartQso : saved ? t.saved : t.saveLog;
+  const resultEntry = qso.phase === QSO_PHASES.QSO_COMPLETE ? createCurrentLogEntry() : null;
+  const pendingSettlement = resultEntry ? recordCompletedQso(save, resultEntry) : null;
+  const resultMeta = settlementMeta ?? (pendingSettlement ? {
+    newRegion: pendingSettlement.newRegion,
+    newDistanceRecord: pendingSettlement.newDistanceRecord,
+    creditsAwarded: pendingSettlement.added ? resultEntry.credits : 0,
+  } : null);
+  const contactCallsign = selectedLog?.callsign ?? qso.npc.callsign;
+  const contactSent = selectedLog?.sent ?? qso.sentRst ?? "---";
+  const contactReceived = selectedLog?.received ?? qso.receivedRst ?? "---";
+  const contactLocation = selectedLog?.location ?? qso.npc.regionId;
+  const contactLevel = selectedLog?.finalPropagationLevel ?? qso.npc.finalLevel;
+  const contactTime = selectedLog
+    ? new Date(selectedLog.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })
+    : utc;
   return (
-    <main className={`screen station-screen ${isTx ? "transmitting" : ""} ${powered ? "station-powered" : "station-off"} ${antennaReady ? "" : "antenna-missing"}`} style={{ "--room": `url(${location.scene})` }}>
+    <main
+      className={`screen station-screen ${isTx ? "transmitting" : ""} ${powered ? "station-powered" : "station-off"} ${antennaReady ? "" : "antenna-missing"}`}
+      data-qso-phase={qso.phase}
+      data-decoded={cw.analysis.decoded}
+      data-pulse-count={cw.analysis.pulseCount}
+      style={{ "--room": `url(${location.scene})` }}
+    >
       <header className="station-topbar">
         <div className="clock-group"><span>UTC <b>{utc}</b></span><i /><span>LOCAL <b>{local}</b></span></div>
         <div className="station-name"><Radio size={18} weight="fill" /> {save.callsign} · {t.station} · {t.credits} {credits}</div>
@@ -396,13 +453,13 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
         <aside className="log-panel metal-panel">
           <div className="panel-title"><span>{t.log}</span><b>LOG // {String(logRows.length).padStart(3, "0")}</b></div>
           <div className="log-head"><span>{t.time}</span><span>{t.call}</span><span>{t.frequency}</span><span>{t.mode}</span></div>
-          <div className="log-list">{logRows.map((row, index) => <button key={row.id} className={index === 0 ? "active" : ""}><span>{row.time}</span><span>{row.callsign}</span><span>{row.frequency}</span><span>{row.mode}</span></button>)}</div>
-          <div className="contact-card"><span className="panel-kicker">{t.contact} · SIM</span><h2>{qso.npc.callsign}</h2><dl>
-            <div><dt>{t.time}</dt><dd>{utc} UTC</dd></div><div><dt>{t.frequency}</dt><dd>21.060 MHz</dd></div>
-            <div><dt>{t.mode}</dt><dd>CW</dd></div><div><dt>{t.sent}</dt><dd>{qso.sentRst ?? "---"}</dd></div><div><dt>{t.received}</dt><dd>{qso.receivedRst ?? "---"}</dd></div>
-            <div><dt>{t.location}</dt><dd>{qso.npc.regionId}</dd></div><div><dt>{t.notes}</dt><dd>SIM / P{qso.npc.finalLevel}</dd></div>
+          <div className="log-list">{recentLogRows.map((row) => <button key={row.id} className={row.id === selectedLogId ? "active" : ""} onClick={() => setSelectedLogId(row.id)}><span>{new Date(row.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })}</span><span>{row.callsign}</span><span>{Number(row.frequencyMhz).toFixed(3)}</span><span>{row.mode}</span></button>)}</div>
+          <div className="contact-card"><span className="panel-kicker">{t.contact} · SIM</span><h2>{contactCallsign}</h2><dl>
+            <div><dt>{t.time}</dt><dd>{contactTime} UTC</dd></div><div><dt>{t.frequency}</dt><dd>{selectedLog ? Number(selectedLog.frequencyMhz).toFixed(3) : "21.060"} MHz</dd></div>
+            <div><dt>{t.mode}</dt><dd>CW</dd></div><div><dt>{t.sent}</dt><dd>{contactSent}</dd></div><div><dt>{t.received}</dt><dd>{contactReceived}</dd></div>
+            <div><dt>{t.location}</dt><dd>{contactLocation}</dd></div><div><dt>{t.notes}</dt><dd>SIM / P{contactLevel}</dd></div>
           </dl></div>
-          <div className="panel-actions"><button onClick={startNewQso}>{t.newContact}</button><button className="muted" onClick={cw.clearInput}>{t.delete}</button></div>
+          <div className="panel-actions"><button onClick={startNewQso} disabled={qso.phase === QSO_PHASES.QSO_COMPLETE && !saved}>{t.newContact}</button><button className="muted" onClick={() => { setSelectedLogId(null); cw.clearInput(); }}>{t.delete}</button></div>
         </aside>
         <section className={`hardware-panel metal-panel ${powered ? "powered" : "power-off"}`}>
           <div className="board-stage"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="station-board-scenery" /><img className="board-asset" src={isTx ? ASSETS.boardOn : ASSETS.boardOff} alt={`squid01 yellow PCB under an acrylic cover — ${isTx ? t.tx : powered ? t.idle : t.powerOff}`} />{!antennaReady && <div className="antenna-warning"><Broadcast size={17} weight="fill" /><span>{antennaStatus.missing}</span></div>}</div>
@@ -429,11 +486,17 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <span>{displayLine}</span>
           <small>{phaseText}{qso.lastError ? ` // ${t.invalidReply} (${qso.attempts}/2)` : ""} // {t.decoded}: {decodedPreview} // {t.accuracy}: {cw.analysis.accuracy}% // {t.rhythm}: {cw.analysis.rhythm}%</small>
         </div>
-        <button className="reply-button" onClick={playNpcMessage} disabled={!powered || !antennaReady || !qsoNeedsNpcPlayback(qso) || cw.isPlaying || cw.isKeying}><Lightning size={23} weight="fill" />{t.playNpc}<kbd>F1</kbd></button>
-        <button onClick={submitReply} disabled={!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Broadcast size={20} />{t.submitReply}<kbd>F2</kbd></button>
-        <button onClick={saveOrRestart} disabled={![QSO_PHASES.QSO_COMPLETE, QSO_PHASES.QSO_FAILED].includes(qso.phase) || saved}><FloppyDisk size={20} />{f3Label}<kbd>F3</kbd></button>
+        <button className="reply-button" data-action="play-npc" onClick={playNpcMessage} disabled={!powered || !antennaReady || !qsoNeedsNpcPlayback(qso) || cw.isPlaying || cw.isKeying}><Lightning size={23} weight="fill" />{t.playNpc}<kbd>F1</kbd></button>
+        <button data-action="submit-reply" onClick={submitReply} disabled={!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Broadcast size={20} />{t.submitReply}<kbd>F2</kbd></button>
+        <button data-action="save-or-restart" onClick={saveOrRestart} disabled={![QSO_PHASES.QSO_COMPLETE, QSO_PHASES.QSO_FAILED].includes(qso.phase) || saved}><FloppyDisk size={20} />{f3Label}<kbd>F3</kbd></button>
       </footer>
       {mapOpen && <MapModal language={language} mapMode={mapMode} setMapMode={setMapMode} propagationMap={propagationMap} onClose={() => setMapOpen(false)} />}
+      {!mapOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_FAILED && <QsoResultModal language={language} failed onRestart={saveOrRestart} />}
+      {!mapOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_COMPLETE && <QsoResultModal
+        language={language} entry={resultEntry} creditsAwarded={resultMeta?.creditsAwarded ?? 0} saved={saved}
+        newRegion={resultMeta?.newRegion} newDistanceRecord={resultMeta?.newDistanceRecord}
+        onSave={saveOrRestart} onNext={startNewQso} onClose={() => saved && setResultDismissed(true)}
+      />}
     </main>
   );
 }

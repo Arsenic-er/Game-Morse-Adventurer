@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
-  ArrowLeft, Broadcast, Check, GearSix, Laptop, Notebook, Package, Radio,
-  Storefront, Trophy, Warehouse, Wrench, X,
+  ArrowLeft, Broadcast, Check, Coins, GearSix, Laptop, MapPin, Notebook,
+  Package, Radio, Storefront, Trophy, Warehouse, Wrench, X,
 } from "@phosphor-icons/react";
 import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";
 import { equipmentName, getTransmitter } from "../game/equipmentCatalog.js";
@@ -23,6 +23,192 @@ const WAREHOUSE_TEXT = {
 };
 
 const PANEL_ICONS = { store: Storefront, log: Notebook, achievements: Trophy };
+
+const QSO_LOG_TEXT = {
+  "zh-CN": {
+    title: "通联日志", kicker: "台站记录", records: "记录", latest: "最新", dateTime: "台站当地 / UTC", callsign: "呼号",
+    frequency: "频率", rst: "发送 / 接收 RST", region: "地区", distance: "距离", propagation: "传播等级", antenna: "天线",
+    equipment: "设备", wpm: "速度", performance: "准确率 / 节奏", credits: "信用点", sim: "SIM · 虚构台站",
+    stationTime: "台站当地", utcTime: "协调世界时",
+    emptyTitle: "尚无通联记录", emptyText: "完成一次通联并保存日志后，记录会出现在这里。", back: "返回管理中心", close: "关闭通联日志",
+  },
+  "zh-TW": {
+    title: "通聯日誌", kicker: "臺站記錄", records: "記錄", latest: "最新", dateTime: "臺站當地 / UTC", callsign: "呼號",
+    frequency: "頻率", rst: "發送 / 接收 RST", region: "地區", distance: "距離", propagation: "傳播等級", antenna: "天線",
+    equipment: "設備", wpm: "速度", performance: "準確率 / 節奏", credits: "信用點", sim: "SIM · 虛構臺站",
+    stationTime: "臺站當地", utcTime: "協調世界時",
+    emptyTitle: "尚無通聯記錄", emptyText: "完成一次通聯並儲存日誌後，記錄會顯示在這裡。", back: "返回管理中心", close: "關閉通聯日誌",
+  },
+  ja: {
+    title: "交信ログ", kicker: "局運用記録", records: "件", latest: "最新", dateTime: "局の現地 / UTC", callsign: "コールサイン",
+    frequency: "周波数", rst: "送信 / 受信 RST", region: "地域", distance: "距離", propagation: "伝搬レベル", antenna: "アンテナ",
+    equipment: "無線機", wpm: "速度", performance: "正確率 / リズム", credits: "クレジット", sim: "SIM · 架空局",
+    stationTime: "局の現地時刻", utcTime: "協定世界時",
+    emptyTitle: "交信記録はありません", emptyText: "交信を完了してログを保存すると、ここに記録されます。", back: "管理センターへ戻る", close: "交信ログを閉じる",
+  },
+  en: {
+    title: "QSO Log", kicker: "Station Record", records: "records", latest: "Latest", dateTime: "Station local / UTC", callsign: "Callsign",
+    frequency: "Frequency", rst: "Sent / Received RST", region: "Region", distance: "Distance", propagation: "Propagation", antenna: "Antenna",
+    equipment: "Equipment", wpm: "Speed", performance: "Accuracy / Rhythm", credits: "Credits", sim: "SIM · Fictional station",
+    stationTime: "Station local", utcTime: "Coordinated UTC",
+    emptyTitle: "No QSO records yet", emptyText: "Complete a contact and save its log to add the first record.", back: "Back to Management Center", close: "Close QSO log",
+  },
+};
+
+function firstValue(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== "");
+}
+
+function formatDateTimeInZone(date, locale, timeZone) {
+  return {
+    date: date.toLocaleDateString(locale, { year: "numeric", month: "2-digit", day: "2-digit", timeZone }),
+    time: date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false, timeZone }),
+  };
+}
+
+function logDateTime(entry, language, stationTimeZone) {
+  const locale = language === "zh-CN" ? "zh-CN" : language === "zh-TW" ? "zh-TW" : language === "ja" ? "ja-JP" : "en-US";
+  const raw = firstValue(entry.completedAt, entry.timestamp, entry.dateTime, entry.createdAt);
+  const parsed = raw ? new Date(raw) : null;
+  if (parsed && !Number.isNaN(parsed.getTime())) {
+    const local = formatDateTimeInZone(parsed, locale, stationTimeZone);
+    const utc = formatDateTimeInZone(parsed, locale, "UTC");
+    return {
+      timestamp: parsed.getTime(),
+      date: local.date,
+      time: local.time,
+      local,
+      utc,
+      timeZone: stationTimeZone,
+    };
+  }
+  const local = { date: firstValue(entry.date, "----/--/--"), time: firstValue(entry.time, "--:--") };
+  return { timestamp: null, date: local.date, time: local.time, local, utc: { date: "—", time: "—" }, timeZone: stationTimeZone };
+}
+
+function formatMetric(value, suffix = "") {
+  if (value === undefined || value === null || value === "") return "—";
+  const text = String(value);
+  return suffix && !text.toLowerCase().endsWith(suffix.toLowerCase()) ? `${text}${suffix}` : text;
+}
+
+function formatCredits(value) {
+  const text = formatMetric(value);
+  return text === "—" ? text : `+${text}`;
+}
+
+function antennaSnapshotName(entry, language) {
+  const explicit = firstValue(entry.antennaName, entry.antennaLabel);
+  if (explicit) return explicit;
+  const antennaId = firstValue(entry.antennaId, entry.antenna);
+  const item = ANTENNAS.find((antenna) => antenna.id === antennaId);
+  return item ? antennaName(item, language) : "—";
+}
+
+function equipmentSnapshotName(entry, language) {
+  const explicit = firstValue(entry.equipmentName, entry.equipmentLabel);
+  if (explicit) return explicit;
+  const equipmentId = firstValue(entry.equipmentId, entry.equipment);
+  return equipmentId ? equipmentName(getTransmitter(equipmentId), language) : "—";
+}
+
+function QsoLogModal({ language, save, onClose }) {
+  const t = QSO_LOG_TEXT[language] ?? QSO_LOG_TEXT.en;
+  const stationLocation = getLocation(save.locationId);
+  const stationTimeZone = stationLocation.timeZone;
+  const source = Array.isArray(save.qsoLogs) ? save.qsoLogs.filter((entry) => entry && typeof entry === "object") : [];
+  const records = source.map((entry, index) => ({
+    entry,
+    originalIndex: index,
+    key: String(firstValue(entry.id, entry.completedAt, entry.timestamp, `${entry.callsign ?? "QSO"}-${index}`)),
+    dateTime: logDateTime(entry, language, stationTimeZone),
+  })).sort((left, right) => {
+    if (left.dateTime.timestamp !== null && right.dateTime.timestamp !== null) return right.dateTime.timestamp - left.dateTime.timestamp;
+    if (left.dateTime.timestamp !== null) return -1;
+    if (right.dateTime.timestamp !== null) return 1;
+    return left.originalIndex - right.originalIndex;
+  });
+  const [selectedKey, setSelectedKey] = useState(() => records[0]?.key ?? null);
+  const selectedRecord = records.find((record) => record.key === selectedKey) ?? records[0] ?? null;
+  const selected = selectedRecord?.entry ?? null;
+
+  useEffect(() => {
+    function closeOnEscape(event) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  const distance = selected ? firstValue(selected.distanceKm, selected.distance) : null;
+  const propagation = selected ? firstValue(selected.finalPropagationLevel, selected.propagationLevel, selected.finalLevel, selected.level) : null;
+  const accuracy = selected ? firstValue(selected.accuracy, selected.copyAccuracy) : null;
+  const rhythm = selected ? firstValue(selected.rhythm, selected.keyingScore, selected.rhythmScore) : null;
+  const isSim = selected ? firstValue(selected.isFictional, selected.sim, true) !== false : true;
+
+  return (
+    <div className="modal-backdrop home-modal-backdrop qso-log-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="qso-log-modal" role="dialog" aria-modal="true" aria-labelledby="qso-log-title">
+        <header>
+          <Notebook size={30} weight="fill" />
+          <div><span>{t.kicker} // {save.callsign}</span><h2 id="qso-log-title">{t.title}</h2></div>
+          <b>LOG // {String(records.length).padStart(3, "0")}</b>
+          <button className="icon-button" onClick={onClose} aria-label={t.close}><X size={22} /></button>
+        </header>
+
+        {!records.length ? (
+          <div className="qso-log-empty">
+            <span><Notebook size={76} weight="duotone" /></span>
+            <h3>{t.emptyTitle}</h3>
+            <p>{t.emptyText}</p>
+            <code>{save.callsign} // LOG 000</code>
+          </div>
+        ) : (
+          <div className="qso-log-body">
+            <aside className="qso-log-index" aria-label={t.records}>
+              <div className="qso-log-index-heading"><span>{t.dateTime}</span><span>{t.callsign}</span><span>{t.credits}</span></div>
+              <div className="qso-log-records" role="listbox" aria-label={t.title}>
+                {records.map((record, index) => (
+                  <button key={record.key} className={record.key === selectedRecord.key ? "selected" : ""} role="option" aria-selected={record.key === selectedRecord.key} onClick={() => setSelectedKey(record.key)}>
+                    <span><small>{t.stationTime} · {record.dateTime.local.date}</small><strong>{record.dateTime.local.time}</strong><i>UTC · {record.dateTime.utc.date} {record.dateTime.utc.time}</i></span>
+                    <b>{formatMetric(record.entry.callsign)}</b>
+                    <em>{index === 0 && <small>{t.latest}</small>}{formatCredits(firstValue(record.entry.credits, record.entry.creditsAwarded))}</em>
+                  </button>
+                ))}
+              </div>
+            </aside>
+
+            <article className="qso-log-detail">
+              <div className="qso-log-hero">
+                <div>
+                  <span className="qso-log-local-time"><b>{t.stationTime}</b>{selectedRecord.dateTime.local.date} · {selectedRecord.dateTime.local.time}<i>{selectedRecord.dateTime.timeZone}</i></span>
+                  <span className="qso-log-utc-time"><b>{t.utcTime}</b>{selectedRecord.dateTime.utc.date} · {selectedRecord.dateTime.utc.time} UTC</span>
+                  <h3>{formatMetric(selected.callsign)}</h3>
+                </div>
+                <div className="qso-log-frequency"><small>{t.frequency}</small><strong>{formatMetric(firstValue(selected.frequencyMhz, selected.frequency), " MHz")}</strong><span>{formatMetric(selected.mode)}</span></div>
+                {isSim && <span className="qso-log-sim-badge">{t.sim}</span>}
+              </div>
+
+              <dl className="qso-log-facts">
+                <div><dt>{t.rst}</dt><dd>{formatMetric(firstValue(selected.sent, selected.rstSent))} / {formatMetric(firstValue(selected.received, selected.rstReceived))}</dd></div>
+                <div><dt>{t.region}</dt><dd><MapPin size={16} weight="fill" />{formatMetric(firstValue(selected.region, selected.regionId, selected.location))}</dd></div>
+                <div><dt>{t.distance}</dt><dd>{formatMetric(distance, " km")}</dd></div>
+                <div><dt>{t.propagation}</dt><dd><Broadcast size={16} weight="fill" />{propagation === null || propagation === undefined ? "—" : formatMetric(propagation, "").startsWith("P") ? formatMetric(propagation) : `P${formatMetric(propagation)}`}</dd></div>
+                <div><dt>{t.antenna}</dt><dd><Wrench size={16} />{antennaSnapshotName(selected, language)}</dd></div>
+                <div><dt>{t.equipment}</dt><dd><Radio size={16} weight="fill" />{equipmentSnapshotName(selected, language)}</dd></div>
+                <div><dt>{t.wpm}</dt><dd>{formatMetric(firstValue(selected.wpm, selected.speedWpm), " WPM")}</dd></div>
+                <div><dt>{t.performance}</dt><dd>{formatMetric(accuracy, "%")} / {formatMetric(rhythm, "%")}</dd></div>
+                <div className="qso-log-credit-fact"><dt>{t.credits}</dt><dd><Coins size={17} weight="fill" />{formatCredits(firstValue(selected.credits, selected.creditsAwarded))}</dd></div>
+              </dl>
+            </article>
+          </div>
+        )}
+
+        <footer><span>{String(records.length).padStart(3, "0")} {t.records} · {save.callsign}</span><button className="qso-log-return" onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.back}</button></footer>
+      </section>
+    </div>
+  );
+}
 
 function HomePlaceholder({ kind, language, onClose }) {
   const t = TEXT[language] ?? TEXT.en;
@@ -152,7 +338,8 @@ export function HomeScreen({ language, save, onSaveUpdate, onEnterStation, onBac
       <span className="home-newspaper-callsign" aria-hidden="true">{save.callsign}</span>
       <span className="home-location-label"><Radio size={15} />{locationName(location, language)}</span>
       {panel === "warehouse" && <WarehouseModal language={language} save={save} onApply={onSaveUpdate} onClose={() => setPanel(null)} />}
-      {panel && panel !== "warehouse" && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
+      {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
+      {panel && !["warehouse", "log"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
     </main>
   );
 }
