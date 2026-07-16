@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { locationFromNormalizedPoint } from "./propagationEngine.js";
 
 const BASE_MAP = "./assets/world-map.png";
-const LEVEL_COLORS = ["#102d48", "#13725b", "#b6b72f", "#ef7b20", "#d82f2a"];
+const LEVEL_COLORS = ["#1597a4", "#16895f", "#d7c632", "#ef7b20", "#dd352f"];
 
 export function PropagationMap({ map, mode = "propagation", onSelect, ariaLabel = "Propagation map", className = "" }) {
   const canvasRef = useRef(null);
@@ -24,17 +24,16 @@ export function PropagationMap({ map, mode = "propagation", onSelect, ariaLabel 
       if (mode === "propagation") {
         const cellWidth = canvas.width / map.gridWidth;
         const cellHeight = canvas.height / map.gridHeight;
-        context.globalAlpha = .62;
+        context.globalAlpha = .78;
         for (let y = 0; y < map.gridHeight; y += 1) {
           for (let x = 0; x < map.gridWidth; x += 1) {
             context.fillStyle = LEVEL_COLORS[map.cells[y * map.gridWidth + x]];
             context.fillRect(Math.floor(x * cellWidth), Math.floor(y * cellHeight), Math.ceil(cellWidth), Math.ceil(cellHeight));
           }
         }
-        context.globalAlpha = 1;
-        context.globalCompositeOperation = "multiply";
+        context.globalAlpha = .3;
         context.drawImage(base, 0, 0, canvas.width, canvas.height);
-        context.globalCompositeOperation = "source-over";
+        context.globalAlpha = 1;
       }
 
       const player = map.playerLocation;
@@ -59,4 +58,3 @@ export function PropagationMap({ map, mode = "propagation", onSelect, ariaLabel 
 
   return <canvas ref={canvasRef} className={`propagation-canvas ${className}`} width="720" height="360" role="img" aria-label={ariaLabel} onPointerDown={handlePointer} />;
 }
-

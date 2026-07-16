@@ -41,7 +41,11 @@ function cellLevel({ latitude, longitude, playerLocation, utcHour, template }) {
   const latitudePenalty = Math.max(0, (Math.abs(latitude) - 58) / 35);
   const wave = .28 * Math.sin(radians(longitude * 2 + template * 47)) + .22 * Math.cos(radians(latitude * 3 - template * 31));
   const score = .35 + 1.65 * Math.sqrt(targetDay * Math.max(.2, playerDay)) + 1.25 * pathFactor + .45 * grayLine + wave - latitudePenalty;
-  return Math.round(clamp(score, 0, 4));
+  if (score < .75) return 0;
+  if (score < 1.35) return 1;
+  if (score < 1.9) return 2;
+  if (score < 2.35) return 3;
+  return 4;
 }
 
 export function generatePropagationMap({ playerLocation = DEFAULT_PLAYER_LOCATION, utc = new Date() } = {}) {
@@ -150,4 +154,3 @@ export function locationFromNormalizedPoint(x, y) {
     longitude: Number((-180 + clamp(x, 0, 1) * 360).toFixed(2)),
   };
 }
-

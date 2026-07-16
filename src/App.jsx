@@ -4,22 +4,30 @@ import {
   GlobeHemisphereWest, GridFour, Lightning, MapTrifold, Play,
   Power, Radio, Translate, X,
 } from "@phosphor-icons/react";
+import { NetworkIndicator } from "./components/NetworkIndicator.jsx";
 import { useCwCore } from "./cw/useCwCore.js";
 import { tailPreview } from "./cw/display.js";
+import { LocationArtwork } from "./game/LocationArtwork.jsx";
+import { getLocation, toPropagationLocation } from "./game/locations.js";
+import {
+  loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves,
+} from "./game/saveStore.js";
 import { PracticeScreen } from "./practice/PracticeScreen.jsx";
 import { PropagationMap } from "./propagation/PropagationMap.jsx";
-import { StationLocationModal } from "./propagation/StationLocationModal.jsx";
 import {
-  DEFAULT_PLAYER_LOCATION, channelProfileForLevel, generatePropagationMap, selectNpcForQso,
+  channelProfileForLevel, generatePropagationMap, selectNpcForQso,
 } from "./propagation/propagationEngine.js";
 import {
   QSO_PHASES, createQso, createQsoLogEntry, onNpcPlaybackFinished,
   qsoCanAcceptPlayer, qsoNeedsNpcPlayback, restartQso, submitPlayerMessage,
 } from "./qso/qsoEngine.js";
+import { HomeScreen } from "./screens/HomeScreen.jsx";
+import { SaveSelectScreen } from "./screens/SaveSelectScreen.jsx";
 
 const ASSETS = {
   room: "./assets/radio-room-bg.png",
-  board: "./assets/squid01-board.png",
+  boardOff: "./assets/squid01-board-off.png",
+  boardOn: "./assets/squid01-board-on.png",
   manual: "./assets/manual-key.png",
   automatic: "./assets/automatic-key.png",
   world: "./assets/world-map.png",
@@ -158,7 +166,7 @@ function StartScreen({ language, setLanguage, onStart, onPractice, onSettings })
         <button onClick={() => window.alert(t.fieldGuide)}><BookOpenText size={22} />{t.fieldGuide}</button>
       </nav>
       <p className="callsign-disclaimer">{t.callsignDisclaimer}</p>
-      <div className="build-tag">{t.prototype} · v0.5.1</div>
+      <div className="build-tag">{t.prototype} · v0.6.0</div>
       <div className="start-language">
         {languageOpen && <LanguageMenu language={language} onSelect={(value) => { setLanguage(value); setLanguageOpen(false); }} compact />}
         <IconButton className="language-globe" label={t.language} onClick={() => setLanguageOpen((value) => !value)} aria-expanded={languageOpen}>
@@ -230,20 +238,22 @@ function MapModal({ language, mapMode, setMapMode, propagationMap, onClose }) {
   );
 }
 
-function StationScreen({ language, keyType, playerLocation, onSettings, onBack, inputBlocked = false }) {
+function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBack, inputBlocked = false }) {
   const t = COPY[language];
+  const location = getLocation(save.locationId);
+  const playerLocation = useMemo(() => toPropagationLocation(location), [location]);
   const [mapOpen, setMapOpen] = useState(false);
   const [mapMode, setMapMode] = useState("propagation");
   const [saved, setSaved] = useState(false);
   const [powered, setPowered] = useState(true);
   const [clock, setClock] = useState(() => new Date());
-  const [credits, setCredits] = useState(0);
+  const [credits, setCredits] = useState(save.credits);
   const [logRows, setLogRows] = useState(INITIAL_LOG_ROWS);
   const [qsoSerial, setQsoSerial] = useState(0);
   const propagationKey = `${clock.getUTCFullYear()}-${clock.getUTCMonth()}-${clock.getUTCDate()}-${clock.getUTCHours()}-${Math.floor(clock.getUTCMinutes() / 10)}`;
   const propagationMap = useMemo(() => generatePropagationMap({ playerLocation, utc: clock }), [playerLocation, propagationKey]);
   const initialNpc = useMemo(() => selectNpcForQso(propagationMap, { seed: `${propagationKey}:0` }), [propagationMap, propagationKey]);
-  const [qso, setQso] = useState(() => createQso({ npc: initialNpc, playerCallsign: "SIM-K7QX" }));
+  const [qso, setQso] = useState(() => createQso({ npc: initialNpc, playerCallsign: save.callsign }));
   const cw = useCwCore({ targetText: qso.expectedPlayer ?? "" });
   const isTx = cw.isTransmitting;
   const npcChannel = useMemo(() => channelProfileForLevel(qso.npc.finalLevel, qso.npc), [qso.npc]);
@@ -286,7 +296,13 @@ function StationScreen({ language, keyType, playerLocation, onSettings, onBack, 
     const next = onNpcPlaybackFinished(qso);
     setQso(next);
     cw.clearInput();
-    if (next.phase === QSO_PHASES.QSO_COMPLETE) setCredits((current) => current + next.creditsAwarded);
+    if (next.phase === QSO_PHASES.QSO_COMPLETE) {
+      setCredits((current) => {
+        const total = current + next.creditsAwarded;
+        onSaveUpdate({ credits: total });
+        return total;
+      });
+    }
   }
 
   async function submitReply() {
@@ -301,7 +317,7 @@ function StationScreen({ language, keyType, playerLocation, onSettings, onBack, 
     const nextSerial = qsoSerial + 1;
     const nextNpc = selectNpcForQso(propagationMap, { seed: `${propagationKey}:${nextSerial}` });
     setQsoSerial(nextSerial);
-    setQso(createQso({ npc: nextNpc, playerCallsign: "SIM-K7QX" }));
+    setQso(createQso({ npc: nextNpc, playerCallsign: save.callsign }));
     setSaved(false);
     cw.clearInput();
   }
@@ -349,7 +365,7 @@ function StationScreen({ language, keyType, playerLocation, onSettings, onBack, 
   }[qso.phase];
   const decodedText = cw.analysis.decoded || "---";
   const utc = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
-  const local = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  const local = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: location.timeZone });
   const displayLineFull = qso.phase === QSO_PHASES.QSO_COMPLETE ? `QSO COMPLETE +${qso.creditsAwarded}`
     : qso.phase === QSO_PHASES.QSO_FAILED ? "QSO FAILED"
       : qsoCanAcceptPlayer(qso) ? (cw.analysis.decoded || "...") : qso.npcMessage;
@@ -357,10 +373,10 @@ function StationScreen({ language, keyType, playerLocation, onSettings, onBack, 
   const decodedPreview = tailPreview(decodedText, 40, "---");
   const f3Label = qso.phase === QSO_PHASES.QSO_FAILED ? t.restartQso : saved ? t.saved : t.saveLog;
   return (
-    <main className={`screen station-screen ${isTx ? "transmitting" : ""} ${powered ? "station-powered" : "station-off"}`} style={{ "--room": `url(${ASSETS.room})` }}>
+    <main className={`screen station-screen ${isTx ? "transmitting" : ""} ${powered ? "station-powered" : "station-off"}`} style={{ "--room": `url(${location.scene})` }}>
       <header className="station-topbar">
         <div className="clock-group"><span>UTC <b>{utc}</b></span><i /><span>LOCAL <b>{local}</b></span></div>
-        <div className="station-name"><Radio size={18} weight="fill" /> SIM-K7QX · {t.station} · {t.credits} {credits}</div>
+        <div className="station-name"><Radio size={18} weight="fill" /> {save.callsign} · {t.station} · {t.credits} {credits}</div>
         <div className="top-actions"><IconButton label={t.back} onClick={onBack}><ArrowLeft size={21} /></IconButton><IconButton label={t.settings} onClick={onSettings}><GearSix size={21} /></IconButton></div>
       </header>
       <div className="station-grid">
@@ -376,7 +392,7 @@ function StationScreen({ language, keyType, playerLocation, onSettings, onBack, 
           <div className="panel-actions"><button onClick={startNewQso}>{t.newContact}</button><button className="muted" onClick={cw.clearInput}>{t.delete}</button></div>
         </aside>
         <section className={`hardware-panel metal-panel ${powered ? "powered" : "power-off"}`}>
-          <div className="board-stage"><img className="board-asset" src={ASSETS.board} alt="squid01 yellow PCB under an acrylic cover" /><span className={`tx-led ${isTx ? "on" : ""}`} aria-label={isTx ? t.tx : powered ? t.idle : t.powerOff}><i />TX</span></div>
+          <div className="board-stage"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="station-board-scenery" /><img className="board-asset" src={isTx ? ASSETS.boardOn : ASSETS.boardOff} alt={`squid01 yellow PCB under an acrylic cover — ${isTx ? t.tx : powered ? t.idle : t.powerOff}`} /></div>
           <div className="hardware-status">
             <button className={`station-power ${powered ? "on" : ""}`} onClick={togglePower} aria-pressed={powered} aria-label={powered ? t.powerOff : t.powerOn}><Power size={16} weight="fill" /> SQUID01 / {powered ? "ON" : "OFF"}</button>
             <span>{t.detectedSpeed}: <b>{powered ? `${cw.analysis.wpm} WPM` : "--"}</b></span>
@@ -414,16 +430,52 @@ export function App() {
   const [keyType, setKeyType] = useState("manual");
   const [screen, setScreen] = useState("start");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [locationOpen, setLocationOpen] = useState(false);
-  const [playerLocation, setPlayerLocation] = useState(DEFAULT_PLAYER_LOCATION);
+  const [saves, setSaves] = useState(() => loadSaves());
+  const [activeSaveId, setActiveSaveId] = useState(() => loadActiveSaveId());
+  const activeSave = saves.find((save) => save.id === activeSaveId) ?? null;
   useEffect(() => { document.documentElement.lang = language; }, [language]);
+
+  function commitSaves(nextSaves) {
+    const stored = persistSaves(nextSaves);
+    setSaves(stored);
+    return stored;
+  }
+
+  function selectSave(saveId) {
+    setActiveSaveId(saveId);
+    persistActiveSaveId(saveId);
+    setScreen("home");
+  }
+
+  function createAndSelect(save) {
+    const next = commitSaves([...saves, save]);
+    const created = next.find((item) => item.id === save.id) ?? next[next.length - 1];
+    if (created) selectSave(created.id);
+  }
+
+  function deleteSave(saveId) {
+    commitSaves(saves.filter((save) => save.id !== saveId));
+    if (activeSaveId === saveId) {
+      setActiveSaveId(null);
+      persistActiveSaveId(null);
+    }
+  }
+
+  function updateActiveSave(patch) {
+    if (!activeSave) return;
+    commitSaves(saves.map((save) => save.id === activeSave.id ? { ...save, ...patch, updatedAt: new Date().toISOString() } : save));
+  }
+
   let currentScreen;
-  if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setLocationOpen(true)} onPractice={() => setScreen("practice")} onSettings={() => setSettingsOpen(true)} />;
+  if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => setScreen("practice")} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
+  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onEnterStation={() => setScreen("station")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") currentScreen = <PracticeScreen language={language} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("start")} />;
-  else currentScreen = <StationScreen language={language} keyType={keyType} playerLocation={playerLocation} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("start")} />;
+  else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={keyType} save={activeSave} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
+  else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   return <>
     {currentScreen}
+    <NetworkIndicator language={language} />
     {settingsOpen && <SettingsModal language={language} setLanguage={setLanguage} keyType={keyType} setKeyType={setKeyType} onClose={() => setSettingsOpen(false)} />}
-    {locationOpen && <StationLocationModal language={language} current={playerLocation} onClose={() => setLocationOpen(false)} onConfirm={(location) => { setPlayerLocation(location); setLocationOpen(false); setScreen("station"); }} />}
   </>;
 }

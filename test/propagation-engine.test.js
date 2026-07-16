@@ -14,6 +14,7 @@ test("generates a deterministic 72x36 offline propagation map", () => {
   assert.deepEqual(first.cells, second.cells);
   assert.equal(first.source, "OFFLINE_DEFAULT");
   assert.ok(first.cells.every((level) => Number.isInteger(level) && level >= 0 && level <= 4));
+  assert.deepEqual([...new Set(first.cells)].sort(), [0, 1, 2, 3, 4]);
 });
 
 test("map result changes with UTC template or player location", () => {
@@ -48,4 +49,3 @@ test("normalized map clicks convert to latitude and longitude", () => {
   assert.deepEqual(locationFromNormalizedPoint(.5, .5), { latitude: 0, longitude: 0 });
   assert.deepEqual(locationFromNormalizedPoint(1, 0), { latitude: 90, longitude: 180 });
 });
-

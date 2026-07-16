@@ -25,6 +25,8 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 
 - Hard-edged dark pixel UI using the Fusion Bold Pixel font family.
 - English, Simplified Chinese, Traditional Chinese, and Japanese interfaces.
+- A location-aware Home management center with interactive station, warehouse, shop, log, and achievement hotspots.
+- Three local save slots with a seven-character uppercase callsign, fixed starting location, swappable equipment, and credits.
 - Standard Morse timing, fixed 650 Hz sidetone, decoding, rhythm scoring, and automatic WPM detection.
 - Straight-key input with `Space`; automatic paddle input with `Z` for dot and `X` for dash.
 - Independent CW practice for characters, fictional callsigns, straight key, and paddle.
@@ -53,7 +55,7 @@ pnpm run dev
 pnpm run desktop:build
 ```
 
-The project currently has 23 automated tests covering the CW core, practice engine, QSO state machine, and propagation model.
+The project currently has 26 automated tests covering the CW core, practice engine, QSO state machine, propagation model, and save data rules.
 
 ## Project status
 

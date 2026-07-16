@@ -1,5 +1,8 @@
 const { app, BrowserWindow, Menu } = require("electron");
 const path = require("path");
+const { runQaCapture } = require("./qa-capture.cjs");
+
+const qaCaptureMode = process.argv.includes("--qa-capture");
 
 const gotLock = app.requestSingleInstanceLock();
 
@@ -10,10 +13,12 @@ if (!gotLock) {
 
   function createWindow() {
     mainWindow = new BrowserWindow({
-      width: 1280,
-      height: 720,
-      minWidth: 1180,
-      minHeight: 680,
+      width: qaCaptureMode ? 1672 : 1600,
+      height: qaCaptureMode ? 941 : 900,
+      useContentSize: qaCaptureMode,
+      frame: !qaCaptureMode,
+      minWidth: 1280,
+      minHeight: 720,
       show: false,
       autoHideMenuBar: true,
       backgroundColor: "#02090e",
@@ -27,7 +32,20 @@ if (!gotLock) {
 
     Menu.setApplicationMenu(null);
     mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
-    mainWindow.once("ready-to-show", () => mainWindow.show());
+    if (qaCaptureMode) {
+      mainWindow.webContents.once("did-finish-load", async () => {
+        try {
+          const result = await runQaCapture(mainWindow);
+          process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+          app.exit(0);
+        } catch (error) {
+          process.stderr.write(`${error.stack || error}\n`);
+          app.exit(1);
+        }
+      });
+    } else {
+      mainWindow.once("ready-to-show", () => mainWindow.show());
+    }
     mainWindow.on("closed", () => { mainWindow = null; });
   }
 
