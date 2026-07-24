@@ -21,7 +21,7 @@
 
 ## About
 
-Game-Morse-Adventurer is a local Windows game prototype for learning and using Morse code in a fictional amateur-radio station. Operate a simple squid01 CW kit, listen to simulated stations, send replies with a straight key or automatic paddle, complete QSOs, and explore propagation conditions across an offline world map.
+Game-Morse-Adventurer is a local Windows game prototype for learning and using Morse code in a fictional amateur-radio station. Enter the station to open the receiver and hear live background noise, call CQ with a straight key or automatic paddle, wait for a propagation-dependent fictional response, complete the QSO, and explore conditions across an offline world map.
 
 ## Highlights
 
@@ -32,7 +32,7 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - Standard Morse timing, fixed 650 Hz sidetone, decoding, rhythm scoring, and straight-key WPM detection.
 - Straight-key input with `Space`; adjustable 5–40 WPM automatic paddle input with `Z` for dot and `X` for dash, including continuous hold-to-repeat.
 - Independent CW practice for characters, fictional callsigns, straight key, and paddle.
-- A complete fictional QSO loop: CQ, callsigns, RST, 73/SK, credits, failure/restart, and logging.
+- A player-led fictional QSO loop: the receiver opens automatically, the player calls CQ, propagation determines whether a station responds, and a successful contact continues through callsigns, RST, 73/SK, credits, and logging.
 - Persistent QSO result pages and logbook entries, including callsign, region, distance, RST, propagation, equipment, WPM, accuracy, and rhythm.
 - Atomic, idempotent credit settlement prevents a completed QSO from being rewarded more than once.
 - A four-language station store supports atomic purchases, persistent ownership, and warehouse-only equipment changes.
@@ -48,8 +48,7 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 | Straight key | Hold `Space` |
 | Automatic paddle — dot | `Z` |
 | Automatic paddle — dash | `X` |
-| Play the current NPC message | `F1` |
-| Send/replay the captured reply | `F2` |
+| Send/replay the captured CQ or reply | `F2` |
 | Save log or restart a failed QSO | `F3` |
 
 ## Development
@@ -61,11 +60,11 @@ pnpm run dev
 pnpm run desktop:build
 ```
 
-The project currently has 64 automated tests covering the CW core and repeating keyer, practice engine, QSO state machine, persistent QSO logs and results, idempotent credit settlement, store economy, owned inventory, propagation model, map projection, and save data rules.
+The project currently has 68 automated tests covering the CW core and repeating keyer, practice engine, player-led QSO state machine, CQ response probability, persistent QSO logs and results, idempotent credit settlement, store economy, owned inventory, propagation model, map projection, and save data rules.
 
 ## Project status
 
-Version **v0.9.3** replaces the malformed world-map artwork with a single 2:1 equirectangular map, removing the duplicated Japan while keeping station markers aligned with real latitude and longitude. It remains a playable prototype with persistent QSO results, logbook history, a credit-based station store, owned-equipment inventory, protected warehouse loadouts, adjustable automatic-key speed, and deterministic Z/X hold-to-repeat. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
+Version **v0.10.0** changes the station into a continuously listening receiver: background noise begins on entry, the player must call CQ first, and propagation strength determines whether a fictional station responds before the rest of the exchange plays automatically. The contact identity and propagation detail stay hidden until a response is actually received. It remains a playable prototype with persistent QSO results, logbook history, a credit-based station store, owned-equipment inventory, protected warehouse loadouts, adjustable automatic-key speed, and deterministic Z/X hold-to-repeat. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
 
 ## Rights and third-party software
 

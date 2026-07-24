@@ -5,6 +5,7 @@ export class CwAudioEngine {
     this.context = null;
     this.playback = null;
     this.sidetone = null;
+    this.receiverNoise = null;
   }
 
   ensureContext() {
@@ -97,7 +98,7 @@ export class CwAudioEngine {
       sources[1].stop(startAt + cursorMs / 1000 + 0.02);
     }
 
-    if ((Number(channel.noiseGain) || 0) > 0) {
+    if (!this.receiverNoise && (Number(channel.noiseGain) || 0) > 0) {
       const frameCount = Math.ceil((cursorMs / 1000 + .08) * context.sampleRate);
       const noiseBuffer = context.createBuffer(1, frameCount, context.sampleRate);
       const noiseData = noiseBuffer.getChannelData(0);
@@ -157,6 +158,7 @@ export class CwAudioEngine {
   async startSidetone() {
     if (this.sidetone) return true;
     this.stopPlayback();
+    this.setReceiverNoiseMuted(true);
     const context = await this.resume();
     const oscillator = context.createOscillator();
     const gain = context.createGain();
@@ -171,7 +173,10 @@ export class CwAudioEngine {
   }
 
   stopSidetone() {
-    if (!this.sidetone || !this.context) return;
+    if (!this.sidetone || !this.context) {
+      this.setReceiverNoiseMuted(false);
+      return;
+    }
     const { oscillator, gain } = this.sidetone;
     const stopAt = this.context.currentTime + 0.006;
     gain.gain.cancelScheduledValues(this.context.currentTime);
@@ -179,6 +184,64 @@ export class CwAudioEngine {
     gain.gain.linearRampToValueAtTime(0, stopAt);
     try { oscillator.stop(stopAt + 0.002); } catch { /* already stopped */ }
     this.sidetone = null;
+    this.setReceiverNoiseMuted(false);
+  }
+
+  receiverGainForChannel(channel = {}) {
+    const channelNoise = Number.isFinite(Number(channel.noiseGain)) ? Number(channel.noiseGain) : .06;
+    return Math.min(.045, Math.max(.008, channelNoise * .19));
+  }
+
+  async startReceiverNoise(channel = {}) {
+    const context = await this.resume();
+    if (context.state !== "running") return false;
+    const baseGain = this.receiverGainForChannel(channel);
+    if (this.receiverNoise) {
+      this.receiverNoise.baseGain = baseGain;
+      this.setReceiverNoiseMuted(this.receiverNoise.muted);
+      return true;
+    }
+
+    const frameCount = context.sampleRate * 2;
+    const buffer = context.createBuffer(1, frameCount, context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let index = 0; index < data.length; index += 1) data[index] = Math.random() * 2 - 1;
+
+    const source = context.createBufferSource();
+    const filter = context.createBiquadFilter();
+    const gain = context.createGain();
+    source.buffer = buffer;
+    source.loop = true;
+    filter.type = "bandpass";
+    filter.frequency.value = 1150;
+    filter.Q.value = .35;
+    gain.gain.setValueAtTime(0, context.currentTime);
+    gain.gain.linearRampToValueAtTime(baseGain, context.currentTime + .08);
+    source.connect(filter).connect(gain).connect(context.destination);
+    source.start();
+    this.receiverNoise = { source, filter, gain, baseGain, muted: false };
+    return true;
+  }
+
+  setReceiverNoiseMuted(muted) {
+    if (!this.receiverNoise || !this.context) return;
+    const target = muted ? .0005 : this.receiverNoise.baseGain;
+    const now = this.context.currentTime;
+    this.receiverNoise.muted = Boolean(muted);
+    this.receiverNoise.gain.gain.cancelScheduledValues(now);
+    this.receiverNoise.gain.gain.setValueAtTime(this.receiverNoise.gain.gain.value, now);
+    this.receiverNoise.gain.gain.linearRampToValueAtTime(target, now + .025);
+  }
+
+  stopReceiverNoise() {
+    if (!this.receiverNoise || !this.context) return;
+    const { source, gain } = this.receiverNoise;
+    const stopAt = this.context.currentTime + .035;
+    gain.gain.cancelScheduledValues(this.context.currentTime);
+    gain.gain.setValueAtTime(gain.gain.value, this.context.currentTime);
+    gain.gain.linearRampToValueAtTime(0, stopAt);
+    try { source.stop(stopAt + .005); } catch { /* already stopped */ }
+    this.receiverNoise = null;
   }
 
   stopAll() {
@@ -188,6 +251,7 @@ export class CwAudioEngine {
 
   async dispose() {
     this.stopAll();
+    this.stopReceiverNoise();
     if (this.context && this.context.state !== "closed") await this.context.close();
     this.context = null;
   }

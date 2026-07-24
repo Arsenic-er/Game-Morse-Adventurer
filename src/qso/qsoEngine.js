@@ -3,9 +3,9 @@ import { greatCircleDistanceDegrees } from "../propagation/propagationEngine.js"
 import { normalizeQsoLogEntry } from "./qsoLog.js";
 
 export const QSO_PHASES = Object.freeze({
-  WAITING_CQ: "WAITING_CQ",
-  PLAYER_REPLY: "PLAYER_REPLY",
-  NPC_RST: "NPC_RST",
+  PLAYER_CQ: "PLAYER_CQ",
+  WAITING_RESPONSE: "WAITING_RESPONSE",
+  NPC_REPLY: "NPC_REPLY",
   PLAYER_RST_AND_73: "PLAYER_RST_AND_73",
   NPC_73_AND_SK: "NPC_73_AND_SK",
   QSO_COMPLETE: "QSO_COMPLETE",
@@ -25,14 +25,20 @@ function hasCallsign(tokens, callsign) {
   return tokens.some((token) => normalizeCallsign(token) === expected);
 }
 
+function expectedCq(playerCallsign) {
+  return `CQ CQ DE ${playerCallsign} ${playerCallsign} K`;
+}
+
 export function createQso({ npc, playerCallsign = "SIM-K7QX", startedAt = new Date().toISOString() }) {
   if (!npc?.callsign) throw new Error("NPC callsign is required.");
   return {
-    phase: QSO_PHASES.WAITING_CQ,
+    phase: QSO_PHASES.PLAYER_CQ,
     npc,
     playerCallsign,
-    npcMessage: `CQ CQ DE ${npc.callsign} K`,
-    expectedPlayer: `${npc.callsign} DE ${playerCallsign} K`,
+    npcMessage: null,
+    expectedPlayer: expectedCq(playerCallsign),
+    hasContact: false,
+    unansweredCalls: 0,
     sentRst: null,
     receivedRst: null,
     attempts: 0,
@@ -44,10 +50,7 @@ export function createQso({ npc, playerCallsign = "SIM-K7QX", startedAt = new Da
 }
 
 export function onNpcPlaybackFinished(qso, completedAt = new Date().toISOString()) {
-  if (qso.phase === QSO_PHASES.WAITING_CQ) {
-    return { ...qso, phase: QSO_PHASES.PLAYER_REPLY, lastError: null };
-  }
-  if (qso.phase === QSO_PHASES.NPC_RST) {
+  if (qso.phase === QSO_PHASES.NPC_REPLY) {
     return { ...qso, phase: QSO_PHASES.PLAYER_RST_AND_73, lastError: null };
   }
   if (qso.phase === QSO_PHASES.NPC_73_AND_SK) {
@@ -58,14 +61,15 @@ export function onNpcPlaybackFinished(qso, completedAt = new Date().toISOString(
 
 export function validatePlayerMessage(qso, message) {
   const tokens = tokenized(message);
-  if (qso.phase === QSO_PHASES.PLAYER_REPLY) {
-    if (!hasCallsign(tokens, qso.npc.callsign)) return { valid: false, reason: "missingNpcCallsign" };
+  if (qso.phase === QSO_PHASES.PLAYER_CQ) {
+    const cqIndex = tokens.indexOf("CQ");
+    if (cqIndex < 0) return { valid: false, reason: "missingCq" };
     if (!tokens.includes("DE")) return { valid: false, reason: "missingDe" };
     if (!hasCallsign(tokens, qso.playerCallsign)) return { valid: false, reason: "missingPlayerCallsign" };
-    const npcIndex = tokens.findIndex((token) => normalizeCallsign(token) === normalizeCallsign(qso.npc.callsign));
     const deIndex = tokens.indexOf("DE");
     const playerIndex = tokens.findIndex((token) => normalizeCallsign(token) === normalizeCallsign(qso.playerCallsign));
-    if (!(npcIndex < deIndex && deIndex < playerIndex)) return { valid: false, reason: "wrongCallsignOrder" };
+    if (!(cqIndex < deIndex && deIndex < playerIndex)) return { valid: false, reason: "wrongCqOrder" };
+    if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
     return { valid: true, reason: null };
   }
   if (qso.phase === QSO_PHASES.PLAYER_RST_AND_73) {
@@ -85,15 +89,14 @@ export function submitPlayerMessage(qso, message, { npcRst = "579" } = {}) {
     const attempts = qso.attempts + 1;
     return { ...qso, attempts, lastError: validation.reason, phase: attempts >= 2 ? QSO_PHASES.QSO_FAILED : qso.phase };
   }
-  if (qso.phase === QSO_PHASES.PLAYER_REPLY) {
+  if (qso.phase === QSO_PHASES.PLAYER_CQ) {
     return {
       ...qso,
-      phase: QSO_PHASES.NPC_RST,
+      phase: QSO_PHASES.WAITING_RESPONSE,
       attempts: 0,
       lastError: null,
-      receivedRst: npcRst,
-      npcMessage: `${qso.playerCallsign} DE ${qso.npc.callsign} RST ${npcRst} K`,
-      expectedPlayer: `${qso.npc.callsign} DE ${qso.playerCallsign} RST 559 73 K`,
+      npcMessage: null,
+      expectedPlayer: null,
     };
   }
   return {
@@ -102,8 +105,33 @@ export function submitPlayerMessage(qso, message, { npcRst = "579" } = {}) {
     attempts: 0,
     lastError: null,
     sentRst: validation.rst,
-    npcMessage: "R 73 SK",
+    receivedRst: npcRst,
+    npcMessage: `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} 73 SK`,
     expectedPlayer: null,
+  };
+}
+
+export function resolveCqResponse(qso, npc) {
+  if (qso.phase !== QSO_PHASES.WAITING_RESPONSE) return qso;
+  if (!npc?.callsign) {
+    return {
+      ...qso,
+      phase: QSO_PHASES.PLAYER_CQ,
+      unansweredCalls: qso.unansweredCalls + 1,
+      lastError: "noResponse",
+      npcMessage: null,
+      expectedPlayer: expectedCq(qso.playerCallsign),
+      hasContact: false,
+    };
+  }
+  return {
+    ...qso,
+    phase: QSO_PHASES.NPC_REPLY,
+    npc,
+    lastError: null,
+    npcMessage: `${qso.playerCallsign} DE ${npc.callsign} ${npc.callsign} K`,
+    expectedPlayer: `${npc.callsign} DE ${qso.playerCallsign} RST 559 73 K`,
+    hasContact: true,
   };
 }
 
@@ -112,11 +140,11 @@ export function restartQso(qso, startedAt = new Date().toISOString()) {
 }
 
 export function qsoCanAcceptPlayer(qso) {
-  return qso.phase === QSO_PHASES.PLAYER_REPLY || qso.phase === QSO_PHASES.PLAYER_RST_AND_73;
+  return qso.phase === QSO_PHASES.PLAYER_CQ || qso.phase === QSO_PHASES.PLAYER_RST_AND_73;
 }
 
 export function qsoNeedsNpcPlayback(qso) {
-  return [QSO_PHASES.WAITING_CQ, QSO_PHASES.NPC_RST, QSO_PHASES.NPC_73_AND_SK].includes(qso.phase);
+  return [QSO_PHASES.NPC_REPLY, QSO_PHASES.NPC_73_AND_SK].includes(qso.phase);
 }
 
 export function createQsoLogEntry(qso, {

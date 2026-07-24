@@ -160,7 +160,8 @@
 - 直键发报练习；
 - 双桨发报练习；
 - 可开关的视觉辅助；
-- NPC 呼叫 CQ；
+- 进入电台即开启接收机与连续背景噪声；
+- 玩家先呼叫 CQ，传播系统决定 NPC 是否回应；
 - 最小 QSO 状态流程；
 - 默认 21 MHz 全球传播地图；
 - 背景噪声、QSB 和轻微频偏；
@@ -194,10 +195,10 @@
 进入游戏
 → 查看当前时间和传播地图
 → 进入练习台或电台
-→ 调整音调和速度
-→ 听取 NPC 的 CQ
-→ 抄收 NPC 呼号
-→ 使用直键或双桨回应
+→ 进入电台并自动开启接收机背景噪声
+→ 使用直键或双桨呼叫 CQ
+→ 等待传播系统判定是否有 NPC 回应
+→ 抄收回应台站的呼号
 → 交换 RST
 → 发送 73
 → 完成 QSO
@@ -580,9 +581,9 @@ NPC 呼号 = 地区呼号前缀 + 随机 1—2 个英文字母
 ### 12.2 QSO 状态
 
 ```text
-WAITING_CQ
-→ PLAYER_REPLY
-→ NPC_RST
+PLAYER_CQ
+→ WAITING_RESPONSE
+→ NPC_REPLY
 → PLAYER_RST_AND_73
 → NPC_73_AND_SK
 → QSO_COMPLETE
@@ -590,22 +591,16 @@ WAITING_CQ
 
 ### 12.3 示例流程
 
-NPC：
-
-```text
-CQ CQ DE [NPC呼号] K
-```
-
 玩家：
 
 ```text
-[NPC呼号] DE [玩家呼号] K
+CQ CQ DE [玩家呼号] [玩家呼号] K
 ```
 
 NPC：
 
 ```text
-[玩家呼号] DE [NPC呼号] RST 579 K
+[玩家呼号] DE [NPC呼号] [NPC呼号] K
 ```
 
 玩家：
@@ -617,8 +612,10 @@ NPC：
 NPC：
 
 ```text
-R 73 SK
+[玩家呼号] DE [NPC呼号] R RST 579 73 SK
 ```
+
+若传播判定无人回应，则回到 `PLAYER_CQ`，允许玩家再次呼叫；这不计为格式错误或 QSO 失败。
 
 ### 12.4 成功条件
 

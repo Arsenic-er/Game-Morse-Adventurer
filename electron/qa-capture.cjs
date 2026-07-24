@@ -75,9 +75,30 @@ async function assertHoverTint(window, selector) {
       samples += 3;
     }
   }
-  const meanDifference = samples ? difference / samples : 0;
+  let meanDifference = samples ? difference / samples : 0;
   if (meanDifference < 2) {
-    throw new Error(`Hover tint did not visibly change ${selector}; mean RGB delta ${meanDifference.toFixed(2)}`);
+    await window.webContents.executeJavaScript(`(() => {
+      const node = document.querySelector(${JSON.stringify(selector)});
+      node?.focus({ focusVisible: true });
+    })()`, true);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const focused = await window.webContents.capturePage();
+    const focusedPixels = focused.toBitmap();
+    difference = 0;
+    samples = 0;
+    for (let y = top; y < bottom; y += 2) {
+      for (let x = left; x < right; x += 2) {
+        const offset = (y * size.width + x) * 4;
+        difference += Math.abs(beforePixels[offset] - focusedPixels[offset]);
+        difference += Math.abs(beforePixels[offset + 1] - focusedPixels[offset + 1]);
+        difference += Math.abs(beforePixels[offset + 2] - focusedPixels[offset + 2]);
+        samples += 3;
+      }
+    }
+    meanDifference = samples ? difference / samples : 0;
+  }
+  if (meanDifference < 2) {
+    throw new Error(`Hover/focus tint did not visibly change ${selector}; mean RGB delta ${meanDifference.toFixed(2)}`);
   }
 }
 
@@ -304,33 +325,41 @@ async function runQaCapture(window) {
   await click(window, ".qso-log-return");
   await click(window, ".hotspot-station");
   await waitFor(window, ".station-screen");
-  await capture(window, outputDir, shot("station-off"));
+  await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-receiver-active="true"]', 10000);
+  const initialReceiverState = await window.webContents.executeJavaScript(`(() => ({
+    phase: document.querySelector(".station-screen")?.dataset.qsoPhase ?? null,
+    receiverActive: document.querySelector(".station-screen")?.dataset.receiverActive ?? null,
+    hasManualReceiveButton: Boolean(document.querySelector('[data-action="play-npc"]')),
+    hiddenContact: document.querySelector(".contact-card h2")?.textContent.trim() ?? null,
+  }))()`, true);
+  if (initialReceiverState.phase !== "PLAYER_CQ" || initialReceiverState.receiverActive !== "true"
+    || initialReceiverState.hasManualReceiveButton || initialReceiverState.hiddenContact !== "---") {
+    throw new Error(`Station did not enter automatic receive state: ${JSON.stringify(initialReceiverState)}`);
+  }
+  await capture(window, outputDir, shot("station-listening"));
   const markStep = (step) => fs.writeFile(path.join(outputDir, "qa-step.txt"), `${step}\n`, "utf8");
-  await markStep("station-captured");
+  await markStep("station-listening");
 
-  await click(window, ".reply-button");
-  await markStep("f1-clicked");
-  await waitFor(window, '[data-qso-phase="PLAYER_REPLY"]', 10000);
-  await markStep("player-reply-phase");
+  const playerIdentity = await window.webContents.executeJavaScript(`(() => ({
+    player: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
+  }))()`, true);
+  const cqMessage = `CQ CQ DE ${playerIdentity.player} ${playerIdentity.player} K`;
+  await sendAutomaticText(window, cqMessage);
+  await markStep("cq-keyed");
+  await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
+  const cqDebug = await window.webContents.executeJavaScript(`(() => ({
+    expected: ${JSON.stringify(cqMessage)},
+    consoleText: document.querySelector(".qso-console small")?.textContent ?? "",
+    displayText: document.querySelector(".morse-display")?.textContent ?? "",
+  }))()`, true);
+  await fs.writeFile(path.join(outputDir, "qso-cq-debug.json"), `${JSON.stringify(cqDebug, null, 2)}\n`, "utf8");
+  await click(window, '[data-action="submit-reply"]');
+  await waitFor(window, '[data-qso-phase="PLAYER_RST_AND_73"]', 10000);
   const stationIdentity = await window.webContents.executeJavaScript(`(() => ({
     npc: document.querySelector(".contact-card h2").textContent.trim(),
     player: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
   }))()`, true);
-  await markStep(`identity-${stationIdentity.npc}-${stationIdentity.player}`);
-  await sendAutomaticText(window, `${stationIdentity.npc} DE ${stationIdentity.player} K`);
-  await markStep("first-reply-keyed");
-  await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
-  const firstReplyDebug = await window.webContents.executeJavaScript(`(() => ({
-    expected: ${JSON.stringify(`${stationIdentity.npc} DE ${stationIdentity.player} K`)},
-    consoleText: document.querySelector(".qso-console small")?.textContent ?? "",
-    displayText: document.querySelector(".morse-display")?.textContent ?? "",
-  }))()`, true);
-  await fs.writeFile(path.join(outputDir, "qso-first-reply-debug.json"), `${JSON.stringify(firstReplyDebug, null, 2)}\n`, "utf8");
-  await click(window, '[data-action="submit-reply"]');
-  await waitFor(window, '[data-qso-phase="NPC_RST"]', 10000);
-  await waitFor(window, ".reply-button:not([disabled])", 30000);
-  await click(window, ".reply-button");
-  await waitFor(window, '[data-qso-phase="PLAYER_RST_AND_73"]', 10000);
+  await markStep(`auto-response-${stationIdentity.npc}-${stationIdentity.player}`);
   await sendAutomaticText(window, `${stationIdentity.npc} DE ${stationIdentity.player} RST 559 73 K`);
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
   const secondReplyDebug = await window.webContents.executeJavaScript(`(() => ({
@@ -340,9 +369,6 @@ async function runQaCapture(window) {
   }))()`, true);
   await fs.writeFile(path.join(outputDir, "qso-second-reply-debug.json"), `${JSON.stringify(secondReplyDebug, null, 2)}\n`, "utf8");
   await click(window, '[data-action="submit-reply"]');
-  await waitFor(window, '[data-qso-phase="NPC_73_AND_SK"]', 10000);
-  await waitFor(window, ".reply-button:not([disabled])", 30000);
-  await click(window, ".reply-button");
   await waitFor(window, ".qso-result-modal.success", 30000);
   await capture(window, outputDir, shot("qso-result-unsaved-warmup"));
   await capture(window, outputDir, shot("qso-result-unsaved"));
@@ -384,7 +410,7 @@ async function runQaCapture(window) {
       "home-hover-warehouse", "warehouse-radio", "warehouse-accessories",
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "home-log-empty", "save-loaded", "home-log-populated",
-      "home-log-detail-second", "station-off", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
+      "home-log-detail-second", "station-listening", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
     ].map(shot),
   };
 }

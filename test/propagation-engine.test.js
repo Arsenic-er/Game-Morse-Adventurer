@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_PLAYER_LOCATION, GRID_HEIGHT, GRID_WIDTH, NPC_STATIONS, baseLevelAt,
   channelProfileForLevel, evaluatedNpcStations, finalPropagationLevel,
-  generatePropagationMap, locationFromNormalizedPoint, normalizedPointFromLocation, selectNpcForQso,
+  cqResponseProbabilityForLevel, generatePropagationMap, locationFromNormalizedPoint,
+  normalizedPointFromLocation, selectNpcForQso, selectNpcResponseForCq,
 } from "../src/propagation/propagationEngine.js";
 
 test("generates a deterministic 72x36 offline propagation map", () => {
@@ -65,4 +66,30 @@ test("station coordinates use the equirectangular map projection", () => {
   assert.ok(Math.abs(japan.x - .888222) < .000001);
   assert.ok(Math.abs(japan.y - .301778) < .000001);
   assert.deepEqual(normalizedPointFromLocation({ latitude: 120, longitude: 220 }), { x: 1, y: 0 });
+});
+
+test("CQ response probability rises with the propagation level", () => {
+  assert.deepEqual([0, 1, 2, 3, 4].map(cqResponseProbabilityForLevel), [0, .15, .45, .75, .95]);
+});
+
+test("CQ responder selection can return silence and is deterministic", () => {
+  const station = {
+    callsign: "SIMTEST", latitude: 0, longitude: 0, stationBonus: 0,
+    isStrongStation: false, isFictional: true,
+  };
+  const silentMap = {
+    ...generatePropagationMap({ utc: "2026-07-15T09:00:00Z" }),
+    cells: new Array(GRID_WIDTH * GRID_HEIGHT).fill(0),
+  };
+  assert.equal(selectNpcResponseForCq(silentMap, { stations: [station], seed: "fixed" }), null);
+  assert.equal(selectNpcResponseForCq(silentMap, { stations: [station], seed: "fixed", rfEnabled: false }), null);
+
+  const strongMap = { ...silentMap, cells: new Array(GRID_WIDTH * GRID_HEIGHT).fill(4) };
+  const first = selectNpcResponseForCq(strongMap, { stations: [station], seed: "respond-1" });
+  const second = selectNpcResponseForCq(strongMap, { stations: [station], seed: "respond-1" });
+  assert.deepEqual(first, second);
+  const responses = Array.from({ length: 100 }, (_, index) => (
+    selectNpcResponseForCq(strongMap, { stations: [station], seed: `sample-${index}` })
+  )).filter(Boolean);
+  assert.ok(responses.length >= 85 && responses.length <= 100);
 });

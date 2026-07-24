@@ -126,6 +126,33 @@ export function selectNpcForQso(map, { playerEquipmentBonus = 0, stations = NPC_
   return candidates[candidates.length - 1];
 }
 
+const CQ_RESPONSE_PROBABILITIES = Object.freeze([0, .15, .45, .75, .95]);
+
+export function cqResponseProbabilityForLevel(level) {
+  return CQ_RESPONSE_PROBABILITIES[Math.round(clamp(level, 0, 4))];
+}
+
+export function selectNpcResponseForCq(map, {
+  playerEquipmentBonus = 0,
+  stations = NPC_STATIONS,
+  seed,
+  rfEnabled = true,
+} = {}) {
+  if (!rfEnabled) return null;
+  const eligible = evaluatedNpcStations(map, { playerEquipmentBonus, stations })
+    .filter((npc) => npc.eligible && npc.weight > 0);
+  if (!eligible.length) return null;
+  const bucket = seed ?? `${map.generatedAtUtc.slice(0, 16)}:${map.playerLocation.latitude.toFixed(1)}:${map.playerLocation.longitude.toFixed(1)}`;
+  const selected = selectNpcForQso(map, {
+    playerEquipmentBonus,
+    stations: eligible,
+    seed: `${bucket}:station`,
+  });
+  if (!selected) return null;
+  const roll = hashString(`${bucket}:response`) / 0xffffffff;
+  return roll < cqResponseProbabilityForLevel(selected.finalLevel) ? selected : null;
+}
+
 export function channelProfileForLevel(level, npc = {}, modifiers = {}) {
   const profiles = [
     { noiseGain: .2, qsbDepth: .9, qsbRateHz: .7, signalGain: .25, offset: 9 },

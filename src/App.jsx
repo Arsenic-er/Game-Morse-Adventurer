@@ -23,11 +23,11 @@ import {
 import { PracticeScreen } from "./practice/PracticeScreen.jsx";
 import { PropagationMap } from "./propagation/PropagationMap.jsx";
 import {
-  channelProfileForLevel, generatePropagationMap, selectNpcForQso,
+  channelProfileForLevel, generatePropagationMap, selectNpcForQso, selectNpcResponseForCq,
 } from "./propagation/propagationEngine.js";
 import {
   QSO_PHASES, createQso, createQsoLogEntry, onNpcPlaybackFinished,
-  qsoCanAcceptPlayer, qsoNeedsNpcPlayback, restartQso, submitPlayerMessage,
+  qsoCanAcceptPlayer, qsoNeedsNpcPlayback, resolveCqResponse, restartQso, submitPlayerMessage,
 } from "./qso/qsoEngine.js";
 import { recordCompletedQso } from "./qso/qsoLog.js";
 import { HomeScreen } from "./screens/HomeScreen.jsx";
@@ -44,7 +44,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.9.3";
+const BUILD_VERSION = "0.10.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -131,6 +131,37 @@ const COPY = {
     playNpc: "Play station", submitReply: "Send reply", restartQso: "Restart", credits: "Credits", sim: "Fictional station", propLevel: "Propagation level",
     phaseWaiting: "Play the NPC calling message", phaseReply: "Send both callsigns", phaseNpcRst: "Play the NPC RST", phasePlayerRst: "Send RST and 73",
     phaseFinal: "Play 73 / SK", phaseComplete: "QSO complete; save the log", phaseFailed: "QSO failed; restart", invalidReply: "Reply format is not valid",
+  },
+};
+
+const STATION_FLOW_COPY = {
+  "zh-CN": {
+    sendCq: "发送 CQ", sendMessage: "发送电文", receiverLive: "接收机已开启 · 背景噪声",
+    phaseCq: "请发送 CQ 呼叫", phaseWaitingResponse: "CQ 已发出，正在守听…",
+    phaseNpcReply: "收到回应，正在自动接收对方呼号…", phasePlayerRst: "请发送双方呼号、RST 与 73",
+    phaseFinal: "正在自动接收对方 73 / SK", noResponse: "本轮无人回应，可再次呼叫 CQ",
+    invalidCq: "CQ 格式不正确", noContact: "尚无回应", listeningLine: "LISTENING // 21.060 MHz",
+  },
+  "zh-TW": {
+    sendCq: "發送 CQ", sendMessage: "發送電文", receiverLive: "接收機已開啟 · 背景雜訊",
+    phaseCq: "請發送 CQ 呼叫", phaseWaitingResponse: "CQ 已發出，正在守聽…",
+    phaseNpcReply: "收到回應，正在自動接收對方呼號…", phasePlayerRst: "請發送雙方呼號、RST 與 73",
+    phaseFinal: "正在自動接收對方 73 / SK", noResponse: "本輪無人回應，可再次呼叫 CQ",
+    invalidCq: "CQ 格式不正確", noContact: "尚無回應", listeningLine: "LISTENING // 21.060 MHz",
+  },
+  ja: {
+    sendCq: "CQ を送信", sendMessage: "電文を送信", receiverLive: "受信機動作中・バックグラウンドノイズ",
+    phaseCq: "CQ 呼出を送信してください", phaseWaitingResponse: "CQ を送信しました。応答を待っています…",
+    phaseNpcReply: "応答局のコールサインを自動受信中…", phasePlayerRst: "両局のコール、RST、73 を送信",
+    phaseFinal: "相手局の 73 / SK を自動受信中", noResponse: "今回は応答がありません。もう一度 CQ を出せます",
+    invalidCq: "CQ の形式が正しくありません", noContact: "応答局なし", listeningLine: "LISTENING // 21.060 MHz",
+  },
+  en: {
+    sendCq: "Send CQ", sendMessage: "Send message", receiverLive: "Receiver open · background noise",
+    phaseCq: "Send a CQ call", phaseWaitingResponse: "CQ sent. Listening for replies…",
+    phaseNpcReply: "Automatically receiving a responding station…", phasePlayerRst: "Send both callsigns, RST, and 73",
+    phaseFinal: "Automatically receiving 73 / SK", noResponse: "No reply this time. You may call CQ again.",
+    invalidCq: "CQ format is not valid", noContact: "No response yet", listeningLine: "LISTENING // 21.060 MHz",
   },
 };
 
@@ -281,6 +312,7 @@ function MapModal({ language, mapMode, setMapMode, propagationMap, onClose }) {
 
 function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBack, inputBlocked = false }) {
   const t = COPY[language];
+  const flow = STATION_FLOW_COPY[language] ?? STATION_FLOW_COPY.en;
   const antennaStatus = ANTENNA_STATUS[language] ?? ANTENNA_STATUS.en;
   const location = getLocation(save.locationId);
   const antenna = getAntenna(save.antennaId);
@@ -314,6 +346,10 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     () => channelProfileForLevel(qso.npc.finalLevel, qso.npc, antenna),
     [antenna, qso.npc],
   );
+  const receiverChannel = useMemo(
+    () => (qso.hasContact ? npcChannel : { noiseGain: .065 }),
+    [npcChannel, qso.hasContact],
+  );
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(new Date()), 1000);
@@ -321,11 +357,60 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   }, []);
 
   useEffect(() => {
+    if (!powered) {
+      cw.stopListening();
+      return undefined;
+    }
+    cw.startListening(receiverChannel);
+    return () => cw.stopListening();
+  }, [cw.startListening, cw.stopListening, powered, receiverChannel]);
+
+  useEffect(() => {
+    if (qso.phase !== QSO_PHASES.WAITING_RESPONSE || !powered || !antennaReady) return undefined;
+    const delay = window.cwgameSystem?.qaCapture ? 60 : 1800;
+    const timer = window.setTimeout(() => {
+      const seed = `${propagationKey}:${qsoSerial}:${qso.unansweredCalls}:${save.callsign}`;
+      const responder = window.cwgameSystem?.qaCapture
+        ? selectNpcForQso(propagationMap, { playerEquipmentBonus, seed })
+        : selectNpcResponseForCq(propagationMap, { playerEquipmentBonus, seed, rfEnabled: antennaReady });
+      setQso((current) => (
+        current.phase === QSO_PHASES.WAITING_RESPONSE ? resolveCqResponse(current, responder) : current
+      ));
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [
+    antennaReady, playerEquipmentBonus, powered, propagationKey, propagationMap,
+    qso.phase, qso.unansweredCalls, qsoSerial, save.callsign,
+  ]);
+
+  useEffect(() => {
+    if (!qsoNeedsNpcPlayback(qso) || !powered || !antennaReady) return undefined;
+    const activePhase = qso.phase;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const played = window.cwgameSystem?.qaCapture
+        ? true
+        : await cw.playIncoming(qso.npcMessage, qso.npc.wpm, npcChannel);
+      if (cancelled || !played) return;
+      setQso((current) => (
+        current.phase === activePhase ? onNpcPlaybackFinished(current) : current
+      ));
+      cw.clearInput();
+    }, window.cwgameSystem?.qaCapture ? 60 : 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    antennaReady, cw.clearInput, cw.playIncoming, npcChannel, powered,
+    qso.npc.wpm, qso.npcMessage, qso.phase,
+  ]);
+
+  useEffect(() => {
     function onDown(event) {
       if (mapOpen || inputBlocked || !powered || !antennaReady) return;
-      if (["Space", "KeyZ", "KeyX", "F1", "F2", "F3"].includes(event.code)) event.preventDefault();
+      if (["Space", "KeyZ", "KeyX", "F2", "F3"].includes(event.code)) event.preventDefault();
       if (event.repeat) return;
-      if (event.code === "F1") { playNpcMessage(); return; }
       if (event.code === "F2") { submitReply(); return; }
       if (event.code === "F3") { saveOrRestart(); return; }
       if (!qsoCanAcceptPlayer(qso)) return;
@@ -358,16 +443,6 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       cw.stopAll();
     };
   }, [antennaReady, cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll, inputBlocked, keyType, mapOpen, powered, qso]);
-
-  async function playNpcMessage() {
-    if (!powered || !antennaReady || !qsoNeedsNpcPlayback(qso) || cw.isPlaying || cw.isKeying) return;
-    const played = window.cwgameSystem?.qaCapture ? true : await cw.playIncoming(qso.npcMessage, qso.npc.wpm, npcChannel);
-    if (!played) return;
-    const next = onNpcPlaybackFinished(qso);
-    setQso(next);
-    cw.clearInput();
-    if (next.phase === QSO_PHASES.QSO_COMPLETE) setResultDismissed(false);
-  }
 
   async function submitReply() {
     if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
@@ -462,16 +537,19 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   }
 
   function togglePower() {
-    if (powered) cw.stopAll();
+    if (powered) {
+      cw.stopAll();
+      cw.stopListening();
+    }
     setPowered((current) => !current);
   }
 
   const phaseText = {
-    [QSO_PHASES.WAITING_CQ]: t.phaseWaiting,
-    [QSO_PHASES.PLAYER_REPLY]: t.phaseReply,
-    [QSO_PHASES.NPC_RST]: t.phaseNpcRst,
-    [QSO_PHASES.PLAYER_RST_AND_73]: t.phasePlayerRst,
-    [QSO_PHASES.NPC_73_AND_SK]: t.phaseFinal,
+    [QSO_PHASES.PLAYER_CQ]: flow.phaseCq,
+    [QSO_PHASES.WAITING_RESPONSE]: flow.phaseWaitingResponse,
+    [QSO_PHASES.NPC_REPLY]: flow.phaseNpcReply,
+    [QSO_PHASES.PLAYER_RST_AND_73]: flow.phasePlayerRst,
+    [QSO_PHASES.NPC_73_AND_SK]: flow.phaseFinal,
     [QSO_PHASES.QSO_COMPLETE]: t.phaseComplete,
     [QSO_PHASES.QSO_FAILED]: t.phaseFailed,
   }[qso.phase];
@@ -480,6 +558,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const local = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: location.timeZone });
   const displayLineFull = qso.phase === QSO_PHASES.QSO_COMPLETE ? `QSO COMPLETE +${qso.creditsAwarded}`
     : qso.phase === QSO_PHASES.QSO_FAILED ? "QSO FAILED"
+      : qso.phase === QSO_PHASES.WAITING_RESPONSE ? flow.listeningLine
       : qsoCanAcceptPlayer(qso) ? (cw.analysis.decoded || "...") : qso.npcMessage;
   const displayLine = tailPreview(displayLineFull, 64);
   const decodedPreview = tailPreview(decodedText, 40, "---");
@@ -491,20 +570,22 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     newDistanceRecord: pendingSettlement.newDistanceRecord,
     creditsAwarded: pendingSettlement.added ? resultEntry.credits : 0,
   } : null);
-  const contactCallsign = selectedLog?.callsign ?? qso.npc.callsign;
+  const contactVisible = Boolean(selectedLog || qso.hasContact);
+  const contactCallsign = selectedLog?.callsign ?? (contactVisible ? qso.npc.callsign : "---");
   const contactSent = selectedLog?.sent ?? qso.sentRst ?? "---";
   const contactReceived = selectedLog?.received ?? qso.receivedRst ?? "---";
-  const contactLocation = selectedLog?.location ?? qso.npc.regionId;
-  const contactLevel = selectedLog?.finalPropagationLevel ?? qso.npc.finalLevel;
+  const contactLocation = selectedLog?.location ?? (contactVisible ? qso.npc.regionId : "---");
+  const contactLevel = selectedLog?.finalPropagationLevel ?? (contactVisible ? qso.npc.finalLevel : "--");
   const contactTime = selectedLog
     ? new Date(selectedLog.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })
-    : utc;
+    : contactVisible ? utc : "--:--";
   return (
     <main
       className={`screen station-screen ${isTx ? "transmitting" : ""} ${powered ? "station-powered" : "station-off"} ${antennaReady ? "" : "antenna-missing"}`}
       data-qso-phase={qso.phase}
       data-decoded={cw.analysis.decoded}
       data-pulse-count={cw.analysis.pulseCount}
+      data-receiver-active={cw.isListening}
       style={{ "--room": `url(${location.scene})` }}
     >
       <header className="station-topbar">
@@ -517,7 +598,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <div className="panel-title"><span>{t.log}</span><b>LOG // {String(logRows.length).padStart(3, "0")}</b></div>
           <div className="log-head"><span>{t.time}</span><span>{t.call}</span><span>{t.frequency}</span><span>{t.mode}</span></div>
           <div className="log-list">{recentLogRows.map((row) => <button key={row.id} className={row.id === selectedLogId ? "active" : ""} onClick={() => setSelectedLogId(row.id)}><span>{new Date(row.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })}</span><span>{row.callsign}</span><span>{Number(row.frequencyMhz).toFixed(3)}</span><span>{row.mode}</span></button>)}</div>
-          <div className="contact-card"><span className="panel-kicker">{t.contact} · SIM</span><h2>{contactCallsign}</h2><dl>
+          <div className="contact-card"><span className="panel-kicker">{t.contact} · SIM</span><h2>{contactCallsign}</h2>{!contactVisible && <small>{flow.noContact}</small>}<dl>
             <div><dt>{t.time}</dt><dd>{contactTime} UTC</dd></div><div><dt>{t.frequency}</dt><dd>{selectedLog ? Number(selectedLog.frequencyMhz).toFixed(3) : "21.060"} MHz</dd></div>
             <div><dt>{t.mode}</dt><dd>CW</dd></div><div><dt>{t.sent}</dt><dd>{contactSent}</dd></div><div><dt>{t.received}</dt><dd>{contactReceived}</dd></div>
             <div><dt>{t.location}</dt><dd>{contactLocation}</dd></div><div><dt>{t.notes}</dt><dd>SIM / P{contactLevel}</dd></div>
@@ -529,7 +610,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <div className="hardware-status">
             <button className={`station-power ${powered ? "on" : ""}`} onClick={togglePower} aria-pressed={powered} aria-label={powered ? t.powerOff : t.powerOn}><Power size={16} weight="fill" /> SQUID01 / {powered ? "ON" : "OFF"}</button>
             <span>{keyType === "automatic" ? t.configuredSpeed : t.detectedSpeed}: <b>{powered ? `${keyType === "automatic" ? normalizeAutomaticKeyWpm(save.automaticKeyWpm) : cw.analysis.wpm} WPM` : "--"}</b></span>
-            <span className={isTx ? "tx-active" : cw.status === "playing" && powered ? "rx-active" : ""}><Broadcast size={16} weight="fill" />{!powered ? t.powerOff : !antennaReady ? antennaStatus.equip : isTx ? t.tx : cw.status === "playing" ? t.cwReceiving : t.idle}</span>
+            <span className={isTx ? "tx-active" : (cw.status === "playing" || cw.isListening) && powered ? "rx-active" : ""}><Broadcast size={16} weight="fill" />{!powered ? t.powerOff : !antennaReady ? antennaStatus.equip : isTx ? t.tx : cw.status === "playing" ? t.cwReceiving : flow.receiverLive}</span>
           </div>
           <div className="key-stage">
             <img className={cw.isKeying ? "key-active" : ""} src={keyType === "manual" ? ASSETS.manual : ASSETS.automatic} alt={keyType === "manual" ? t.manual : t.automatic} aria-disabled={!powered}
@@ -541,16 +622,16 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <div className="panel-title"><span>{t.propagation}</span><b>HF / LIVE</b></div>
           <button className="map-preview" onClick={() => setMapOpen(true)} aria-label={t.openMap}><PropagationMap map={propagationMap} mode={mapMode} ariaLabel="" /><span><MapTrifold size={19} />{t.openMap}</span></button>
           <div className="mini-legend">{[0, 1, 2, 3, 4].map((level) => <span key={level}><i className={`level-${level}`} />{level}</span>)}</div>
-          <div className="signal-note"><span>21.060 MHz</span><strong>{t.propLevel}: P{qso.npc.finalLevel}</strong><small>{qso.npc.regionId} · {qso.npc.isStrongStation ? "DX+" : "SIM"} · {t.fixedToneHint}</small></div>
+          <div className="signal-note"><span>21.060 MHz</span><strong>{t.propLevel}: P{contactVisible ? qso.npc.finalLevel : "--"}</strong><small>{contactVisible ? `${qso.npc.regionId} · ${qso.npc.isStrongStation ? "DX+" : "SIM"}` : flow.receiverLive} · {t.fixedToneHint}</small></div>
         </aside>
       </div>
       <footer className="qso-console metal-panel">
         <div className="morse-display" aria-live="polite">
           <span>{displayLine}</span>
-          <small>{phaseText}{qso.lastError ? ` // ${t.invalidReply} (${qso.attempts}/2)` : ""} // {t.decoded}: {decodedPreview} // {t.accuracy}: {cw.analysis.accuracy}% // {t.rhythm}: {cw.analysis.rhythm}%</small>
+          <small>{phaseText}{qso.lastError === "noResponse" ? ` // ${flow.noResponse}` : qso.lastError ? ` // ${qso.phase === QSO_PHASES.PLAYER_CQ ? flow.invalidCq : t.invalidReply} (${qso.attempts}/2)` : ""} // {t.decoded}: {decodedPreview} // {t.accuracy}: {cw.analysis.accuracy}% // {t.rhythm}: {cw.analysis.rhythm}%</small>
         </div>
-        <button className="reply-button" data-action="play-npc" onClick={playNpcMessage} disabled={!powered || !antennaReady || !qsoNeedsNpcPlayback(qso) || cw.isPlaying || cw.isKeying}><Lightning size={23} weight="fill" />{t.playNpc}<kbd>F1</kbd></button>
-        <button data-action="submit-reply" onClick={submitReply} disabled={!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Broadcast size={20} />{t.submitReply}<kbd>F2</kbd></button>
+        <div className={`receiver-live ${powered && cw.isListening ? "active" : ""}`} data-action="receiver-status"><Broadcast size={21} weight="fill" /><span>{powered ? flow.receiverLive : t.powerOff}</span></div>
+        <button data-action="submit-reply" onClick={submitReply} disabled={!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Broadcast size={20} />{qso.phase === QSO_PHASES.PLAYER_CQ ? flow.sendCq : flow.sendMessage}<kbd>F2</kbd></button>
         <button data-action="save-or-restart" onClick={saveOrRestart} disabled={![QSO_PHASES.QSO_COMPLETE, QSO_PHASES.QSO_FAILED].includes(qso.phase) || saved}><FloppyDisk size={20} />{f3Label}<kbd>F3</kbd></button>
       </footer>
       {mapOpen && <MapModal language={language} mapMode={mapMode} setMapMode={setMapMode} propagationMap={propagationMap} onClose={() => setMapOpen(false)} />}

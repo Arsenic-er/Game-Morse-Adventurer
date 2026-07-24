@@ -16,12 +16,14 @@ export function useCwCore({ targetText = "CQ", automaticWpm = 18 } = {}) {
   const manualStartRef = useRef(null);
   const automaticKeyerRef = useRef(null);
   const automaticTokenRef = useRef(null);
+  const listeningTokenRef = useRef(null);
   const automaticWpmRef = useRef(normalizeAutomaticKeyWpm(automaticWpm));
   const detectedWpmRef = useRef(18);
   const appendPulseRef = useRef(null);
   const [analysis, setAnalysis] = useState(EMPTY_ANALYSIS);
   const [isKeying, setIsKeying] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [toneActive, setToneActive] = useState(false);
   const [playbackMode, setPlaybackMode] = useState("rx");
 
@@ -58,6 +60,7 @@ export function useCwCore({ targetText = "CQ", automaticWpm = 18 } = {}) {
     setIsKeying(true);
     setToneActive(true);
     engine().startSidetone().catch(() => {
+      engineRef.current?.setReceiverNoiseMuted(false);
       setToneActive(false);
       setIsKeying(false);
     });
@@ -96,6 +99,7 @@ export function useCwCore({ targetText = "CQ", automaticWpm = 18 } = {}) {
           }
           setToneActive(Boolean(started));
         }).catch(() => {
+          engineRef.current?.setReceiverNoiseMuted(false);
           if (automaticTokenRef.current === token) setToneActive(false);
         });
       },
@@ -131,17 +135,20 @@ export function useCwCore({ targetText = "CQ", automaticWpm = 18 } = {}) {
     setPlaybackMode(mode);
     setIsPlaying(true);
     setToneActive(false);
+    if (mode === "tx") engineRef.current?.setReceiverNoiseMuted(true);
     try {
-      await engine().play(events, {
+      const result = await engine().play(events, {
         onTone: setToneActive,
         onFinish: () => { setIsPlaying(false); setToneActive(false); },
         channel,
       });
-      return true;
+      return !result?.stopped;
     } catch {
       setIsPlaying(false);
       setToneActive(false);
       return false;
+    } finally {
+      if (mode === "tx") engineRef.current?.setReceiverNoiseMuted(false);
     }
   }, [endManual, engine]);
 
@@ -151,6 +158,33 @@ export function useCwCore({ targetText = "CQ", automaticWpm = 18 } = {}) {
   }, [playEvents]);
 
   const replayInput = useCallback(() => playEvents(pulsesToPlaybackEvents(pulsesRef.current), "tx"), [playEvents]);
+
+  const startListening = useCallback(async (channel) => {
+    const token = Symbol("receiver-listening");
+    listeningTokenRef.current = token;
+    if (window.cwgameSystem?.qaCapture) {
+      setIsListening(true);
+      return true;
+    }
+    try {
+      const started = await engine().startReceiverNoise(channel);
+      if (listeningTokenRef.current !== token) {
+        if (listeningTokenRef.current === null) engineRef.current?.stopReceiverNoise();
+        return false;
+      }
+      setIsListening(Boolean(started));
+      return Boolean(started);
+    } catch {
+      if (listeningTokenRef.current === token) setIsListening(false);
+      return false;
+    }
+  }, [engine]);
+
+  const stopListening = useCallback(() => {
+    listeningTokenRef.current = null;
+    engineRef.current?.stopReceiverNoise();
+    setIsListening(false);
+  }, []);
 
   const clearInput = useCallback(() => {
     stopPlayback();
@@ -191,12 +225,15 @@ export function useCwCore({ targetText = "CQ", automaticWpm = 18 } = {}) {
     endAutomatic,
     endManual,
     isKeying,
+    isListening,
     isPlaying,
     isTransmitting: toneActive && (isKeying || (isPlaying && playbackMode === "tx")),
     playIncoming,
     replayInput,
     status,
+    startListening,
     stopAll,
+    stopListening,
     tapAutomatic,
     toneActive,
   };

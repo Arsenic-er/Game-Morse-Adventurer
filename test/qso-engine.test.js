@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   QSO_PHASES, createQso, createQsoLogEntry, onNpcPlaybackFinished,
+  qsoCanAcceptPlayer, qsoNeedsNpcPlayback, resolveCqResponse,
   restartQso, submitPlayerMessage, validatePlayerMessage,
 } from "../src/qso/qsoEngine.js";
 
@@ -12,12 +13,14 @@ const npc = {
 
 test("completes the minimum QSO state machine", () => {
   let qso = createQso({ npc, playerCallsign: "SIM-K7QX", startedAt: "2026-07-15T00:00:00.000Z" });
-  assert.equal(qso.phase, QSO_PHASES.WAITING_CQ);
+  assert.equal(qso.phase, QSO_PHASES.PLAYER_CQ);
+  assert.equal(qso.expectedPlayer, "CQ CQ DE SIM-K7QX SIM-K7QX K");
+  qso = submitPlayerMessage(qso, "CQ CQ DE SIM-K7QX K");
+  assert.equal(qso.phase, QSO_PHASES.WAITING_RESPONSE);
+  qso = resolveCqResponse(qso, npc);
+  assert.equal(qso.phase, QSO_PHASES.NPC_REPLY);
   qso = onNpcPlaybackFinished(qso);
-  assert.equal(qso.phase, QSO_PHASES.PLAYER_REPLY);
-  qso = submitPlayerMessage(qso, "SIM7QX DE SIM-K7QX K");
-  assert.equal(qso.phase, QSO_PHASES.NPC_RST);
-  qso = onNpcPlaybackFinished(qso);
+  assert.equal(qso.phase, QSO_PHASES.PLAYER_RST_AND_73);
   qso = submitPlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 73 K");
   assert.equal(qso.phase, QSO_PHASES.NPC_73_AND_SK);
   qso = onNpcPlaybackFinished(qso, "2026-07-15T00:05:00.000Z");
@@ -65,19 +68,39 @@ test("only completed QSOs with chronological timestamps can be logged", () => {
 });
 
 test("rejects malformed replies and records failure", () => {
-  let qso = onNpcPlaybackFinished(createQso({ npc }));
-  assert.equal(validatePlayerMessage(qso, "SIM-K7QX DE SIM7QX").reason, "wrongCallsignOrder");
+  let qso = createQso({ npc });
+  assert.equal(validatePlayerMessage(qso, "SIM-K7QX DE CQ K").reason, "wrongCqOrder");
   qso = submitPlayerMessage(qso, "BAD");
-  assert.equal(qso.phase, QSO_PHASES.PLAYER_REPLY);
+  assert.equal(qso.phase, QSO_PHASES.PLAYER_CQ);
   qso = submitPlayerMessage(qso, "BAD");
   assert.equal(qso.phase, QSO_PHASES.QSO_FAILED);
-  assert.equal(restartQso(qso).phase, QSO_PHASES.WAITING_CQ);
+  assert.equal(restartQso(qso).phase, QSO_PHASES.PLAYER_CQ);
 });
 
 test("requires a valid RST and 73", () => {
-  let qso = onNpcPlaybackFinished(createQso({ npc }));
-  qso = submitPlayerMessage(qso, "SIM7QX DE SIM-K7QX K");
+  let qso = submitPlayerMessage(createQso({ npc }), "CQ CQ DE SIM-K7QX K");
+  qso = resolveCqResponse(qso, npc);
   qso = onNpcPlaybackFinished(qso);
   assert.equal(validatePlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 999 73 K").reason, "invalidRst");
   assert.equal(validatePlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 K").reason, "missing73");
+});
+
+test("an unanswered CQ returns to calling without counting as a failed attempt", () => {
+  let qso = submitPlayerMessage(createQso({ npc }), "CQ CQ DE SIM-K7QX K");
+  qso = resolveCqResponse(qso, null);
+  assert.equal(qso.phase, QSO_PHASES.PLAYER_CQ);
+  assert.equal(qso.unansweredCalls, 1);
+  assert.equal(qso.attempts, 0);
+  assert.equal(qso.lastError, "noResponse");
+  assert.equal(qsoCanAcceptPlayer(qso), true);
+  assert.equal(qsoNeedsNpcPlayback(qso), false);
+});
+
+test("only actual incoming phases request automatic playback", () => {
+  let qso = createQso({ npc });
+  assert.equal(qsoNeedsNpcPlayback(qso), false);
+  qso = submitPlayerMessage(qso, "CQ CQ DE SIM-K7QX K");
+  assert.equal(qsoNeedsNpcPlayback(qso), false);
+  qso = resolveCqResponse(qso, npc);
+  assert.equal(qsoNeedsNpcPlayback(qso), true);
 });
