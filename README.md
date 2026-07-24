@@ -6,6 +6,8 @@
 
 [**English**](./README.md) · [**简体中文**](./README.zh-CN.md) · [**繁體中文**](./README.zh-TW.md) · [**日本語**](./README.ja.md)
 
+[![Windows portable](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml/badge.svg)](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml)
+
 </div>
 
 > [!IMPORTANT]
@@ -63,7 +65,7 @@ The project currently has 56 automated tests covering the CW core, practice engi
 
 ## Project status
 
-Version **v0.9.0** is a playable prototype with persistent QSO results, logbook history, a credit-based station store, owned-equipment inventory, and protected warehouse loadouts. The vertical antenna reduces QSB depth, while the three-element Yagi improves propagation level. The Windows executable and generated build directories are intentionally excluded from source control. A downloadable release can be published separately after final visual selection and release verification.
+Version **v0.9.1** is a playable prototype with persistent QSO results, logbook history, a credit-based station store, owned-equipment inventory, and protected warehouse loadouts. The vertical antenna reduces QSB depth, while the three-element Yagi improves propagation level. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
 
 ## Rights and third-party software
 
