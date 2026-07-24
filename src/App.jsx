@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowCounterClockwise, ArrowLeft, BookOpenText, Broadcast, Check, FloppyDisk, GearSix,
   GlobeHemisphereWest, GridFour, Lightning, MapTrifold, Play,
@@ -9,6 +9,7 @@ import { useCwCore } from "./cw/useCwCore.js";
 import { tailPreview } from "./cw/display.js";
 import { LocationArtwork } from "./game/LocationArtwork.jsx";
 import { getAntenna } from "./game/antennaCatalog.js";
+import { equipOwnedItem, purchaseItem } from "./game/economy.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
 import {
   loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves,
@@ -37,7 +38,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.8.0";
+const BUILD_VERSION = "0.9.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -270,7 +271,10 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const credits = save.credits;
   const cw = useCwCore({ targetText: qso.expectedPlayer ?? "" });
   const isTx = cw.isTransmitting;
-  const npcChannel = useMemo(() => channelProfileForLevel(qso.npc.finalLevel, qso.npc), [qso.npc]);
+  const npcChannel = useMemo(
+    () => channelProfileForLevel(qso.npc.finalLevel, qso.npc, antenna),
+    [antenna, qso.npc],
+  );
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(new Date()), 1000);
@@ -507,18 +511,23 @@ export function App() {
   const [screen, setScreen] = useState("start");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [saves, setSaves] = useState(() => loadSaves());
+  const savesRef = useRef(saves);
   const [activeSaveId, setActiveSaveId] = useState(() => loadActiveSaveId());
   const activeSave = saves.find((save) => save.id === activeSaveId) ?? null;
   useEffect(() => { document.documentElement.lang = language; }, [language]);
 
-  function commitSaves(nextSaves) {
+  function commitSaves(nextSavesOrUpdater) {
+    const nextSaves = typeof nextSavesOrUpdater === "function"
+      ? nextSavesOrUpdater(savesRef.current)
+      : nextSavesOrUpdater;
     const stored = persistSaves(nextSaves);
+    savesRef.current = stored;
     setSaves(stored);
     return stored;
   }
 
   function selectSave(saveId) {
-    const selected = saves.find((save) => save.id === saveId);
+    const selected = savesRef.current.find((save) => save.id === saveId);
     if (selected) setKeyType(selected.keyType ?? "manual");
     setActiveSaveId(saveId);
     persistActiveSaveId(saveId);
@@ -526,13 +535,13 @@ export function App() {
   }
 
   function createAndSelect(save) {
-    const next = commitSaves([...saves, save]);
+    const next = commitSaves((current) => [...current, save]);
     const created = next.find((item) => item.id === save.id) ?? next[next.length - 1];
     if (created) selectSave(created.id);
   }
 
   function deleteSave(saveId) {
-    commitSaves(saves.filter((save) => save.id !== saveId));
+    commitSaves((current) => current.filter((save) => save.id !== saveId));
     if (activeSaveId === saveId) {
       setActiveSaveId(null);
       persistActiveSaveId(null);
@@ -540,13 +549,32 @@ export function App() {
   }
 
   function updateActiveSave(patch) {
-    if (!activeSave) return;
-    commitSaves(saves.map((save) => save.id === activeSave.id ? { ...save, ...patch, updatedAt: new Date().toISOString() } : save));
+    if (!activeSaveId) return;
+    commitSaves((current) => current.map((save) => save.id === activeSaveId
+      ? { ...save, ...patch, updatedAt: new Date().toISOString() }
+      : save));
   }
 
-  function updateHomeLoadout(patch) {
-    if (patch.keyType) setKeyType(patch.keyType);
-    updateActiveSave(patch);
+  function purchaseForActiveSave(request) {
+    if (!activeSaveId) return null;
+    let transaction = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      transaction = purchaseItem(save, request);
+      return transaction.save;
+    }));
+    return transaction;
+  }
+
+  function equipForActiveSave(request) {
+    if (!activeSaveId) return null;
+    let transaction = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      transaction = equipOwnedItem(save, request);
+      return transaction.save;
+    }));
+    return transaction;
   }
 
   function changeKeyType(value) {
@@ -557,7 +585,7 @@ export function App() {
   let currentScreen;
   if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => setScreen("practice")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onSaveUpdate={updateHomeLoadout} onEnterStation={() => setScreen("station")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onEnterStation={() => setScreen("station")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") currentScreen = <PracticeScreen language={language} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("start")} />;
   else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
   else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;

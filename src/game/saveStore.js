@@ -1,5 +1,5 @@
-import { getAntenna } from "./antennaCatalog.js";
-import { getKeyOption, getTransmitter } from "./equipmentCatalog.js";
+import { ANTENNAS } from "./antennaCatalog.js";
+import { KEY_OPTIONS, TRANSMITTERS } from "./equipmentCatalog.js";
 import { getLocation } from "./locations.js";
 import { normalizeQsoLogEntries, normalizeQsoRecords } from "../qso/qsoLog.js";
 
@@ -14,22 +14,36 @@ export function isValidCallsign(value) {
   return /^[A-Z0-9]{1,7}$/.test(String(value ?? ""));
 }
 
-function normalizeCredits(value) {
+export function normalizeCredits(value) {
   const credits = Number(value);
-  return Number.isFinite(credits) ? Math.max(0, Math.floor(credits)) : 0;
+  return Number.isFinite(credits) ? Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(credits))) : 0;
 }
 
-export function createSave({ callsign, locationId, antennaId = "dipole", keyType = "manual" }) {
+function exactId(catalog, value, fallback) {
+  return catalog.some((item) => item.id === value) ? value : fallback;
+}
+
+function normalizeOwned(values, catalog, starterIds) {
+  const requested = Array.isArray(values) ? new Set(values) : new Set();
+  starterIds.forEach((id) => requested.add(id));
+  return catalog.map((item) => item.id).filter((id) => id !== "none" && requested.has(id));
+}
+
+export function createSave({ callsign, locationId, keyType = "manual" }) {
   const cleanCallsign = sanitizeCallsign(callsign);
   if (!isValidCallsign(cleanCallsign)) throw new Error("INVALID_CALLSIGN");
   const now = new Date().toISOString();
   return {
+    inventoryVersion: 1,
     id: globalThis.crypto?.randomUUID?.() ?? `save-${Date.now()}`,
     callsign: cleanCallsign,
     locationId: getLocation(locationId).id,
-    equipmentId: getTransmitter("squid-01").id,
-    antennaId: getAntenna(antennaId).id,
-    keyType: getKeyOption(keyType).id,
+    equipmentId: "squid-01",
+    antennaId: "dipole",
+    keyType: exactId(KEY_OPTIONS, keyType, "manual"),
+    ownedEquipment: ["squid-01"],
+    ownedAntennas: ["dipole"],
+    accessories: [],
     credits: 0,
     qsoLogs: [],
     qsoRecords: normalizeQsoRecords(null, []),
@@ -41,15 +55,42 @@ export function createSave({ callsign, locationId, antennaId = "dipole", keyType
 export function normalizeSave(save) {
   const callsign = sanitizeCallsign(save?.callsign);
   if (!isValidCallsign(callsign)) return null;
+  const hasOwn = (key) => Object.prototype.hasOwnProperty.call(save ?? {}, key);
+  const hasInventory = save?.inventoryVersion === 1
+    || hasOwn("ownedEquipment")
+    || hasOwn("ownedAntennas")
+    || hasOwn("accessories");
+  const legacyEquipmentId = exactId(TRANSMITTERS, save?.equipmentId, "squid-01");
+  const legacyAntennaId = exactId(ANTENNAS, save?.antennaId, "dipole");
+  const ownedEquipment = normalizeOwned(
+    hasInventory ? save?.ownedEquipment : [legacyEquipmentId],
+    TRANSMITTERS,
+    ["squid-01"],
+  );
+  const ownedAntennas = normalizeOwned(
+    hasInventory ? save?.ownedAntennas : [legacyAntennaId],
+    ANTENNAS,
+    ["dipole"],
+  );
+  const requestedEquipmentId = exactId(TRANSMITTERS, save?.equipmentId, "squid-01");
+  const requestedAntennaId = exactId(ANTENNAS, save?.antennaId, "dipole");
+  const equipmentId = ownedEquipment.includes(requestedEquipmentId) ? requestedEquipmentId : "squid-01";
+  const antennaId = requestedAntennaId === "none" || ownedAntennas.includes(requestedAntennaId)
+    ? requestedAntennaId
+    : "dipole";
   const qsoLogSource = Array.isArray(save?.qsoLogs) ? save.qsoLogs : save?.qsoLogEntries;
   const qsoLogs = normalizeQsoLogEntries(qsoLogSource);
   return {
+    inventoryVersion: 1,
     id: String(save.id || `save-${Date.now()}`),
     callsign,
     locationId: getLocation(save.locationId).id,
-    equipmentId: getTransmitter(save.equipmentId).id,
-    antennaId: getAntenna(save.antennaId).id,
-    keyType: getKeyOption(save.keyType).id,
+    equipmentId,
+    antennaId,
+    keyType: exactId(KEY_OPTIONS, save.keyType, "manual"),
+    ownedEquipment,
+    ownedAntennas,
+    accessories: [],
     credits: normalizeCredits(save.credits),
     qsoLogs,
     qsoRecords: normalizeQsoRecords(save?.qsoRecords, qsoLogs),

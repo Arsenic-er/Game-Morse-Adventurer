@@ -126,7 +126,7 @@ export function selectNpcForQso(map, { playerEquipmentBonus = 0, stations = NPC_
   return candidates[candidates.length - 1];
 }
 
-export function channelProfileForLevel(level, npc = {}) {
+export function channelProfileForLevel(level, npc = {}, modifiers = {}) {
   const profiles = [
     { noiseGain: .2, qsbDepth: .9, qsbRateHz: .7, signalGain: .25, offset: 9 },
     { noiseGain: .14, qsbDepth: .72, qsbRateHz: .55, signalGain: .42, offset: 7 },
@@ -137,10 +137,13 @@ export function channelProfileForLevel(level, npc = {}) {
   const safeLevel = Math.round(clamp(level, 0, 4));
   const base = profiles[safeLevel];
   const direction = hashString(npc.callsign ?? "SIM") % 2 ? 1 : -1;
+  const qsbDepthMultiplier = Number.isFinite(modifiers.qsbDepthMultiplier)
+    ? clamp(modifiers.qsbDepthMultiplier, 0, 2)
+    : 1;
   return {
     level: safeLevel,
     noiseGain: base.noiseGain,
-    qsbDepth: base.qsbDepth,
+    qsbDepth: base.qsbDepth * qsbDepthMultiplier,
     qsbRateHz: base.qsbRateHz,
     signalGain: base.signalGain,
     frequencyOffsetHz: direction * (Number.isFinite(npc.frequencyOffsetHz) ? Math.abs(npc.frequencyOffsetHz) : base.offset),

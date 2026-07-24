@@ -88,6 +88,10 @@ test("records a completed QSO atomically and idempotently", () => {
   const save = {
     id: "save-1",
     credits: 25,
+    inventoryVersion: 1,
+    ownedEquipment: ["squid-01"],
+    ownedAntennas: ["dipole", "vertical"],
+    accessories: [],
     qsoLogs: [entry({ id: "old", location: "AS-JA", distanceKm: 200, credits: 50 })],
     qsoRecords: { total: 7, longestDistanceKm: 200, longestQsoId: "old", contactedRegions: ["AS-JA"] },
   };
@@ -96,6 +100,9 @@ test("records a completed QSO atomically and idempotently", () => {
   assert.equal(first.newRegion, true);
   assert.equal(first.newDistanceRecord, true);
   assert.equal(first.save.credits, 125);
+  assert.deepEqual(first.save.ownedEquipment, ["squid-01"]);
+  assert.deepEqual(first.save.ownedAntennas, ["dipole", "vertical"]);
+  assert.deepEqual(first.save.accessories, []);
   assert.equal(first.save.qsoLogs.length, 2);
   assert.deepEqual(first.save.qsoRecords, {
     total: 8,

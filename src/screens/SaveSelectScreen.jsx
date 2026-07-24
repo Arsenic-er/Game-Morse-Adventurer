@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, Coins, DownloadSimple, FloppyDisk, MapPin, Plus, Radio, Trash,
 } from "@phosphor-icons/react";
-import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";
+import { antennaName, getAntenna } from "../game/antennaCatalog.js";
 import { equipmentName, getKeyOption } from "../game/equipmentCatalog.js";
 import { LocationArtwork } from "../game/LocationArtwork.jsx";
 import { LOCATIONS, REGION_ORDER, getLocation, locationName, regionName } from "../game/locations.js";
@@ -13,25 +13,25 @@ const TEXT = {
     title: "读取存档", save: "存档", empty: "空存档·新建", lastSaved: "最后保存", callsign: "呼号", equipment: "设备",
     antenna: "天线", credits: "信用点", location: "初始地点", load: "载入存档", create: "建立并载入", back: "返回",
     enterCall: "输入电台呼号", callRule: "仅限 A–Z / 0–9，最多 7 位，自动转为大写", chooseRegion: "选择地区", chooseLocation: "选择地点",
-    chooseAntenna: "初始天线", noSave: "选择一个空存档开始新的值守记录", delete: "删除存档", deleteConfirm: "确定删除这个存档吗？",
+    chooseAntenna: "初始天线", starterIncluded: "初始装备已包含半波偶极天线", noSave: "选择一个空存档开始新的值守记录", delete: "删除存档", deleteConfirm: "确定删除这个存档吗？",
   },
   "zh-TW": {
     title: "讀取存檔", save: "存檔", empty: "空存檔·新建", lastSaved: "最後儲存", callsign: "呼號", equipment: "設備",
     antenna: "天線", credits: "信用點", location: "初始地點", load: "載入存檔", create: "建立並載入", back: "返回",
     enterCall: "輸入電臺呼號", callRule: "僅限 A–Z / 0–9，最多 7 位，自動轉為大寫", chooseRegion: "選擇地區", chooseLocation: "選擇地點",
-    chooseAntenna: "初始天線", noSave: "選擇一個空存檔開始新的值守記錄", delete: "刪除存檔", deleteConfirm: "確定刪除這個存檔嗎？",
+    chooseAntenna: "初始天線", starterIncluded: "初始裝備已包含半波偶極天線", noSave: "選擇一個空存檔開始新的值守記錄", delete: "刪除存檔", deleteConfirm: "確定刪除這個存檔嗎？",
   },
   ja: {
     title: "セーブ選択", save: "セーブ", empty: "空き·新規", lastSaved: "最終保存", callsign: "コールサイン", equipment: "装置",
     antenna: "アンテナ", credits: "クレジット", location: "開始地点", load: "ロード", create: "作成して開始", back: "戻る",
     enterCall: "コールサインを入力", callRule: "A–Z / 0–9 のみ、最大7文字、自動大文字", chooseRegion: "地域を選択", chooseLocation: "地点を選択",
-    chooseAntenna: "初期アンテナ", noSave: "空きスロットから新しい運用記録を作成", delete: "セーブ削除", deleteConfirm: "このセーブを削除しますか？",
+    chooseAntenna: "初期アンテナ", starterIncluded: "初期装備に半波長ダイポールが含まれます", noSave: "空きスロットから新しい運用記録を作成", delete: "セーブ削除", deleteConfirm: "このセーブを削除しますか？",
   },
   en: {
     title: "Load Save", save: "Save", empty: "Empty · New", lastSaved: "Last saved", callsign: "Callsign", equipment: "Equipment",
     antenna: "Antenna", credits: "Credits", location: "Starting location", load: "Load Save", create: "Create & Load", back: "Back",
     enterCall: "Enter station callsign", callRule: "A–Z / 0–9 only, maximum 7 characters, auto uppercase", chooseRegion: "Choose region", chooseLocation: "Choose location",
-    chooseAntenna: "Starting antenna", noSave: "Choose an empty slot to begin a new station record", delete: "Delete save", deleteConfirm: "Delete this save?",
+    chooseAntenna: "Starting antenna", starterIncluded: "A half-wave dipole is included with the starter station", noSave: "Choose an empty slot to begin a new station record", delete: "Delete save", deleteConfirm: "Delete this save?",
   },
 };
 
@@ -45,11 +45,10 @@ export function SaveSelectScreen({ language, saves, activeSaveId, onLoad, onCrea
   const [callsign, setCallsign] = useState("");
   const [region, setRegion] = useState("japan");
   const [locationId, setLocationId] = useState(LOCATIONS[0].id);
-  const [antennaId, setAntennaId] = useState("dipole");
   const slots = Array.from({ length: MAX_SAVE_SLOTS }, (_, index) => saves[index] ?? null);
   const selectedSave = slots[selectedSlot];
   const selectedLocation = getLocation(selectedSave?.locationId ?? locationId);
-  const selectedAntenna = getAntenna(selectedSave?.antennaId ?? antennaId);
+  const selectedAntenna = getAntenna(selectedSave?.antennaId ?? "dipole");
   const regionLocations = useMemo(() => LOCATIONS.filter((location) => location.region === region), [region]);
 
   useEffect(() => {
@@ -58,7 +57,7 @@ export function SaveSelectScreen({ language, saves, activeSaveId, onLoad, onCrea
 
   function createCurrentSave() {
     if (!isValidCallsign(callsign) || saves.length >= MAX_SAVE_SLOTS) return;
-    onCreate(createSave({ callsign, locationId, antennaId }));
+    onCreate(createSave({ callsign, locationId }));
   }
 
   function removeCurrentSave() {
@@ -120,7 +119,7 @@ export function SaveSelectScreen({ language, saves, activeSaveId, onLoad, onCrea
               </label>
               <fieldset className="region-picker"><legend>{t.chooseRegion}</legend>{REGION_ORDER.map((regionId) => <button type="button" key={regionId} className={region === regionId ? "selected" : ""} onClick={() => setRegion(regionId)}>{regionName(regionId, language)}</button>)}</fieldset>
               <fieldset className="location-picker"><legend>{t.chooseLocation}</legend>{regionLocations.map((location) => <button type="button" key={location.id} className={locationId === location.id ? "selected" : ""} onClick={() => setLocationId(location.id)}><img src={location.scene} alt="" /><span>{locationName(location, language)}</span></button>)}</fieldset>
-              <fieldset className="antenna-picker"><legend>{t.chooseAntenna}</legend>{ANTENNAS.map((antenna) => <button type="button" key={antenna.id} className={antennaId === antenna.id ? "selected" : ""} onClick={() => setAntennaId(antenna.id)}>{antennaName(antenna, language)}</button>)}</fieldset>
+              <div className="starter-loadout"><Radio size={22} weight="fill" /><span><strong>{t.chooseAntenna}</strong><small>{t.starterIncluded}</small></span></div>
             </form>
           </>}
         </section>

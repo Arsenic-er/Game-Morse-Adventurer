@@ -7,6 +7,7 @@ import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";
 import { equipmentName, getTransmitter } from "../game/equipmentCatalog.js";
 import { getLocation, locationName } from "../game/locations.js";
 import { LocationArtwork } from "../game/LocationArtwork.jsx";
+import { StoreModal } from "./StoreModal.jsx";
 
 const TEXT = {
   "zh-CN": { title: "管理中心", station: "进入发射台", warehouse: "仓库", store: "商店", log: "通联日志", achievements: "成就", placeholder: "功能占位", later: "该功能将在后续版本开放。", back: "返回存档", settings: "设置", local: "当地时间", close: "关闭" },
@@ -227,13 +228,14 @@ function EmptyAntenna({ size = 64 }) {
   return <span className="warehouse-empty-asset" aria-hidden="true"><Broadcast size={size} /><X size={Math.round(size * .42)} weight="bold" /></span>;
 }
 
-function WarehouseModal({ language, save, onApply, onClose }) {
+function WarehouseModal({ language, save, onEquipItem, onClose }) {
   const t = WAREHOUSE_TEXT[language] ?? WAREHOUSE_TEXT.en;
   const transmitter = getTransmitter(save.equipmentId);
   const equippedAntenna = getAntenna(save.antennaId);
   const [activeCategory, setActiveCategory] = useState("radio");
   const [draftAntennaId, setDraftAntennaId] = useState(save.antennaId);
   const draftAntenna = getAntenna(draftAntennaId);
+  const availableAntennas = ANTENNAS.filter((antenna) => antenna.id === "none" || save.ownedAntennas.includes(antenna.id));
   const category = activeCategory === "radio" ? {
     image: transmitter.image,
     name: equipmentName(transmitter, language),
@@ -250,12 +252,20 @@ function WarehouseModal({ language, save, onApply, onClose }) {
 
   function equipSelected() {
     if (activeCategory !== "antenna") return;
-    onApply({ antennaId: draftAntenna.id });
+    onEquipItem({ category: "antenna", itemId: draftAntenna.id });
   }
+
+  useEffect(() => {
+    function onKeyDown(event) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
   return (
     <div className="warehouse-backdrop">
-      <section className="warehouse-screen" role="dialog" aria-modal="true" aria-labelledby="warehouse-title">
+      <section className="warehouse-screen" data-testid="warehouse-modal" role="dialog" aria-modal="true" aria-labelledby="warehouse-title">
         <aside className="warehouse-category-rail">
           <h2 id="warehouse-title">{t.title}</h2>
           <button className={activeCategory === "radio" ? "selected" : ""} onClick={() => setActiveCategory("radio")} aria-pressed={activeCategory === "radio"}>
@@ -274,13 +284,13 @@ function WarehouseModal({ language, save, onApply, onClose }) {
           <section className={`rack-preview category-${activeCategory}`}>
             {category.image ? <img src={category.image} alt={category.name} /> : activeCategory === "antenna" ? <EmptyAntenna size={100} /> : <Package size={104} weight="duotone" />}
             <strong>{category.name}</strong>
-            <button className="rack-equip-button" disabled={activeCategory !== "antenna" || alreadyEquipped} onClick={equipSelected}><Check size={20} weight="bold" />{alreadyEquipped ? t.equipped : activeCategory === "accessories" ? t.later : t.equip}</button>
+            <button className="rack-equip-button" data-action="equip-item" data-equipped-item-id={draftAntenna.id} disabled={activeCategory !== "antenna" || alreadyEquipped} onClick={equipSelected}><Check size={20} weight="bold" />{alreadyEquipped ? t.equipped : activeCategory === "accessories" ? t.later : t.equip}</button>
           </section>
 
           <section className="equipment-drawer antenna-drawer">
             <h3><span />{t.antennaDrawer}<span /></h3>
             <div>
-              {ANTENNAS.map((antenna) => (
+              {availableAntennas.map((antenna) => (
                 <button key={antenna.id} data-antenna-id={antenna.id} className={draftAntenna.id === antenna.id ? "selected" : ""} aria-pressed={draftAntenna.id === antenna.id} onClick={() => chooseAntenna(antenna.id)}>
                   {antenna.image ? <img src={antenna.image} alt="" /> : <EmptyAntenna size={56} />}
                   <strong>{antenna.id === "none" ? t.noAntenna : antennaName(antenna, language)}</strong>
@@ -313,7 +323,7 @@ function WarehouseModal({ language, save, onApply, onClose }) {
   );
 }
 
-export function HomeScreen({ language, save, onSaveUpdate, onEnterStation, onBack, onSettings }) {
+export function HomeScreen({ language, save, onPurchase, onEquipItem, onEnterStation, onBack, onSettings }) {
   const t = TEXT[language] ?? TEXT.en;
   const location = getLocation(save.locationId);
   const [panel, setPanel] = useState(null);
@@ -332,14 +342,15 @@ export function HomeScreen({ language, save, onSaveUpdate, onEnterStation, onBac
 
       <button className="home-hotspot hotspot-warehouse" aria-label={t.warehouse} onClick={() => setPanel("warehouse")}><span><Warehouse size={22} weight="fill" />{t.warehouse}</span></button>
       <button className="home-hotspot hotspot-station" aria-label={t.station} onClick={onEnterStation}><span><Radio size={22} weight="fill" />{t.station}</span></button>
-      <button className="home-hotspot hotspot-store" aria-label={t.store} onClick={() => setPanel("store")}><span><Laptop size={22} weight="fill" />{t.store}</span></button>
+      <button className="home-hotspot hotspot-store" data-action="open-store" aria-label={t.store} onClick={() => setPanel("store")}><span><Laptop size={22} weight="fill" />{t.store}</span></button>
       <button className="home-hotspot hotspot-log" aria-label={t.log} onClick={() => setPanel("log")}><span><Notebook size={22} weight="fill" />{t.log}</span></button>
       <button className="home-hotspot hotspot-achievements" aria-label={t.achievements} onClick={() => setPanel("achievements")}><span><Trophy size={22} weight="fill" />{t.achievements}</span></button>
       <span className="home-newspaper-callsign" aria-hidden="true">{save.callsign}</span>
       <span className="home-location-label"><Radio size={15} />{locationName(location, language)}</span>
-      {panel === "warehouse" && <WarehouseModal language={language} save={save} onApply={onSaveUpdate} onClose={() => setPanel(null)} />}
+      {panel === "warehouse" && <WarehouseModal language={language} save={save} onEquipItem={onEquipItem} onClose={() => setPanel(null)} />}
+      {panel === "store" && <StoreModal language={language} save={save} onPurchase={onPurchase} onClose={() => setPanel(null)} />}
       {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
-      {panel && !["warehouse", "log"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
+      {panel && !["warehouse", "store", "log"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
     </main>
   );
 }

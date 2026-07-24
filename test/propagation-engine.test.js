@@ -45,6 +45,15 @@ test("weak levels produce more noise and deeper QSB", () => {
   assert.ok(weak.signalGain < strong.signalGain);
 });
 
+test("antenna modifiers can reduce QSB without changing the propagation level", () => {
+  const base = channelProfileForLevel(2, { callsign: "SIM1" });
+  const vertical = channelProfileForLevel(2, { callsign: "SIM1" }, { qsbDepthMultiplier: 0.85 });
+  assert.equal(vertical.level, base.level);
+  assert.equal(vertical.noiseGain, base.noiseGain);
+  assert.equal(vertical.signalGain, base.signalGain);
+  assert.equal(vertical.qsbDepth, base.qsbDepth * 0.85);
+});
+
 test("normalized map clicks convert to latitude and longitude", () => {
   assert.deepEqual(locationFromNormalizedPoint(.5, .5), { latitude: 0, longitude: 0 });
   assert.deepEqual(locationFromNormalizedPoint(1, 0), { latitude: 90, longitude: 180 });

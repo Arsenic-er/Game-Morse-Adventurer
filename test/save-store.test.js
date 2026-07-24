@@ -25,9 +25,13 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   const save = createSave({ callsign: "bh1abc", locationId: "china-beijing-outskirts", antennaId: "none", keyType: "automatic" });
   assert.equal(save.callsign, "BH1ABC");
   assert.equal(save.locationId, "china-beijing-outskirts");
-  assert.equal(save.antennaId, "none");
+  assert.equal(save.antennaId, "dipole");
   assert.equal(save.keyType, "automatic");
   assert.equal(save.equipmentId, "squid-01");
+  assert.equal(save.inventoryVersion, 1);
+  assert.deepEqual(save.ownedEquipment, ["squid-01"]);
+  assert.deepEqual(save.ownedAntennas, ["dipole"]);
+  assert.deepEqual(save.accessories, []);
   assert.equal(save.credits, 0);
   assert.deepEqual(save.qsoLogs, []);
   assert.deepEqual(save.qsoRecords, {
@@ -75,6 +79,55 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
     contactedRegions: ["NA-W"],
     settledQsoIds: ["legacy-qso"],
   });
+});
+
+test("legacy saves keep their valid equipped antenna during inventory migration", () => {
+  const storage = storageStub();
+  storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{
+    id: "legacy-yagi",
+    callsign: "JA1YAGI",
+    locationId: "japan-tokyo-kanto",
+    antennaId: "yagi-3el",
+  }]));
+  const [save] = loadSaves(storage);
+  assert.equal(save.inventoryVersion, 1);
+  assert.equal(save.antennaId, "yagi-3el");
+  assert.deepEqual(save.ownedAntennas, ["dipole", "yagi-3el"]);
+});
+
+test("migrated saves cannot grant themselves an unowned equipped antenna", () => {
+  const storage = storageStub();
+  storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{
+    inventoryVersion: 1,
+    id: "tampered",
+    callsign: "JA1SAFE",
+    locationId: "japan-tokyo-kanto",
+    antennaId: "yagi-3el",
+    ownedEquipment: ["squid-01", "unknown", "squid-01"],
+    ownedAntennas: ["dipole", "unknown", "dipole"],
+    accessories: [],
+  }]));
+  const [save] = loadSaves(storage);
+  assert.equal(save.antennaId, "dipole");
+  assert.deepEqual(save.ownedEquipment, ["squid-01"]);
+  assert.deepEqual(save.ownedAntennas, ["dipole"]);
+});
+
+test("the empty antenna sentinel is equipable but never enters inventory", () => {
+  const storage = storageStub();
+  storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{
+    inventoryVersion: 1,
+    id: "no-antenna",
+    callsign: "JA1NONE",
+    locationId: "japan-tokyo-kanto",
+    antennaId: "none",
+    ownedEquipment: ["squid-01"],
+    ownedAntennas: ["none", "dipole"],
+    accessories: [],
+  }]));
+  const [save] = loadSaves(storage);
+  assert.equal(save.antennaId, "none");
+  assert.deepEqual(save.ownedAntennas, ["dipole"]);
 });
 
 test("falls back to legacy QSO entries when the current log field is malformed", () => {
@@ -141,6 +194,16 @@ test("invalid or negative legacy credits normalize to zero", () => {
   ]));
   const saves = loadSaves(storage);
   assert.deepEqual(saves.map((save) => save.credits), [0, 0]);
+});
+
+test("credits are normalized to safe non-negative integers", () => {
+  const storage = storageStub();
+  storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([
+    { id: "fraction", callsign: "SIM3", locationId: "japan-tokyo-kanto", credits: 12.9 },
+    { id: "huge", callsign: "SIM4", locationId: "japan-tokyo-kanto", credits: 1e30 },
+  ]));
+  const saves = loadSaves(storage);
+  assert.deepEqual(saves.map((save) => save.credits), [12, Number.MAX_SAFE_INTEGER]);
 });
 
 test("only three normalized save slots are persisted", () => {

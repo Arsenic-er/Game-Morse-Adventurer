@@ -33,6 +33,7 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - A complete fictional QSO loop: CQ, callsigns, RST, 73/SK, credits, failure/restart, and logging.
 - Persistent QSO result pages and logbook entries, including callsign, region, distance, RST, propagation, equipment, WPM, accuracy, and rhythm.
 - Atomic, idempotent credit settlement prevents a completed QSO from being rewarded more than once.
+- A four-language station store supports atomic purchases, persistent ownership, and warehouse-only equipment changes.
 - Station clocks display both the selected station's local time and UTC.
 - Deterministic offline propagation based on station location, UTC, and 21.060 MHz.
 - Propagation levels affect NPC availability, signal gain, noise, QSB, and small frequency offsets.
@@ -62,7 +63,7 @@ The project currently has 44 automated tests covering the CW core, practice engi
 
 ## Project status
 
-Version **v0.8.0** is a playable prototype with persistent QSO results and logbook history. The Windows executable and generated build directories are intentionally excluded from source control. A downloadable release can be published separately after final visual selection and release verification.
+Version **v0.9.0** is a playable prototype with persistent QSO results, logbook history, a credit-based station store, owned-equipment inventory, and protected warehouse loadouts. The vertical antenna reduces QSB depth, while the three-element Yagi improves propagation level. The Windows executable and generated build directories are intentionally excluded from source control. A downloadable release can be published separately after final visual selection and release verification.
 
 ## Rights and third-party software
 

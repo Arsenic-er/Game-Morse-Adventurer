@@ -3,6 +3,9 @@ export const TRANSMITTERS = Object.freeze([
     id: "squid-01",
     image: "./assets/squid01-board-off.png",
     fixed: true,
+    starter: true,
+    purchasable: false,
+    price: 0,
     names: { "zh-CN": "SQUID-01 单频套件", "zh-TW": "SQUID-01 單頻套件", ja: "SQUID-01 単周波キット", en: "SQUID-01 single-band kit" },
   },
 ]);
