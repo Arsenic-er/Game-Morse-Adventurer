@@ -101,6 +101,40 @@ async function sendAutomaticText(window, text, wpm = 18) {
   await delay(180);
 }
 
+async function assertHeldAutomaticKey(window, { code, key, holdMs, minimumPulses }) {
+  const before = await window.webContents.executeJavaScript(
+    'Number(document.querySelector(".practice-screen")?.dataset.pulseCount || 0)',
+    true,
+  );
+  await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keydown", {
+    code: ${JSON.stringify(code)},
+    key: ${JSON.stringify(key)},
+    bubbles: true,
+    cancelable: true,
+  }))`, true);
+  await delay(holdMs);
+  await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keyup", {
+    code: ${JSON.stringify(code)},
+    key: ${JSON.stringify(key)},
+    bubbles: true,
+    cancelable: true,
+  }))`, true);
+  await delay(260);
+  const after = await window.webContents.executeJavaScript(
+    'Number(document.querySelector(".practice-screen")?.dataset.pulseCount || 0)',
+    true,
+  );
+  if (after - before < minimumPulses) {
+    throw new Error(`Held ${code} generated only ${after - before} pulses; expected at least ${minimumPulses}`);
+  }
+  await delay(320);
+  const settled = await window.webContents.executeJavaScript(
+    'Number(document.querySelector(".practice-screen")?.dataset.pulseCount || 0)',
+    true,
+  );
+  if (settled !== after) throw new Error(`Held ${code} continued after keyup (${after} -> ${settled})`);
+}
+
 async function capture(window, outputDir, filename) {
   await window.webContents.executeJavaScript(`Promise.all(Array.from(document.images).map(async (image) => {
     if (!image.complete) await new Promise((resolve) => { image.addEventListener("load", resolve, { once: true }); image.addEventListener("error", resolve, { once: true }); });
@@ -130,6 +164,14 @@ async function runQaCapture(window) {
   await window.reload();
   await waitFor(window, ".start-screen");
   await capture(window, outputDir, shot("start"));
+
+  await click(window, ".start-actions button:nth-child(2)");
+  await waitFor(window, ".practice-screen");
+  await click(window, ".practice-sidebar nav button:nth-of-type(4)");
+  await assertHeldAutomaticKey(window, { code: "KeyZ", key: "z", holdMs: 520, minimumPulses: 3 });
+  await assertHeldAutomaticKey(window, { code: "KeyX", key: "x", holdMs: 620, minimumPulses: 2 });
+  await click(window, ".practice-topbar .top-actions button:first-child");
+  await waitFor(window, ".start-screen");
 
   await click(window, ".menu-primary");
   await waitFor(window, ".save-select-screen");

@@ -5,6 +5,12 @@ import {
   Power, Radio, Translate, X,
 } from "@phosphor-icons/react";
 import { NetworkIndicator } from "./components/NetworkIndicator.jsx";
+import {
+  DEFAULT_AUTOMATIC_KEY_WPM,
+  MAX_AUTOMATIC_KEY_WPM,
+  MIN_AUTOMATIC_KEY_WPM,
+  normalizeAutomaticKeyWpm,
+} from "./cw/automaticKeyer.js";
 import { useCwCore } from "./cw/useCwCore.js";
 import { tailPreview } from "./cw/display.js";
 import { LocationArtwork } from "./game/LocationArtwork.jsx";
@@ -38,7 +44,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.9.1";
+const BUILD_VERSION = "0.9.2";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -58,14 +64,14 @@ const COPY = {
     subtitle: "业余无线电台站模拟", newGame: "开始值守", continue: "继续值守", practice: "CW 练习台", fieldGuide: "台站手册", callsignDisclaimer: "本游戏内所有呼号均与现实生活中的真实呼号无关，如有雷同，纯属巧合。",
     prototype: "M5 完整原型", language: "语言", settings: "设置", close: "关闭", interface: "界面语言",
     keyType: "电键类型", manual: "手键", automatic: "自动键", manualHint: "按住空格键发射",
-    automaticHint: "Z / X 控制双桨", apply: "应用设置", station: "值守台", log: "通联日志", time: "时间",
+    automaticHint: "Z 短音 / X 长音；长按连续发报", automaticSpeed: "自动键速度", automaticSpeedHint: "仅影响自动键；手键速度仍由系统检测", configuredSpeed: "自动键速度", apply: "应用设置", station: "值守台", log: "通联日志", time: "时间",
     call: "呼号", frequency: "频率", mode: "模式", contact: "当前通联", sent: "发送", received: "接收",
     location: "位置", notes: "备注", newContact: "新建通联", delete: "删除", propagation: "传播预览",
     openMap: "打开传播大图", detected: "系统自动识别", detectedSpeed: "识别速度", tx: "发射", idle: "接收中",
     reply: "回应", send: "发送", saveLog: "保存日志", saved: "日志已保存", map: "传播地图",
     worldMode: "普通世界地图", heatMode: "传播等级地图", legend: "传播等级", back: "返回开始界面",
     qsoReady: "等待对方台结束呼叫…", qsoReply: "正在发送回应…", qsoSent: "回应已发出，等待回报…",
-    noControls: "套件无可调音调与速度控制", playCq: "播放 CQ", replayInput: "回放输入", target: "目标",
+    fixedToneHint: "套件音调固定；自动键速度可调，手键速度由系统检测", playCq: "播放 CQ", replayInput: "回放输入", target: "目标",
     decoded: "解码", accuracy: "正确率", rhythm: "节奏", powerOn: "开机", powerOff: "关机", cwReady: "CW 核心就绪", cwPlaying: "正在播放标准 CQ",
     cwKeying: "正在记录发报", cwReplay: "正在回放输入", cwCaptured: "输入已记录", cwReceiving: "接收 CW",
     playNpc: "播放对方", submitReply: "发送回应", restartQso: "重新开始", credits: "信用点", sim: "虚构台站", propLevel: "传播等级",
@@ -76,14 +82,14 @@ const COPY = {
     subtitle: "業餘無線電臺站模擬", newGame: "開始值守", continue: "繼續值守", practice: "CW 練習臺", fieldGuide: "臺站手冊", callsignDisclaimer: "本遊戲內所有呼號均與現實生活中的真實呼號無關，如有雷同，純屬巧合。",
     prototype: "M5 完整原型", language: "語言", settings: "設定", close: "關閉", interface: "介面語言",
     keyType: "電鍵類型", manual: "手鍵", automatic: "自動鍵", manualHint: "按住空白鍵發射",
-    automaticHint: "Z / X 控制雙槳", apply: "套用設定", station: "值守臺", log: "通聯日誌", time: "時間",
+    automaticHint: "Z 短音 / X 長音；長按連續發報", automaticSpeed: "自動鍵速度", automaticSpeedHint: "僅影響自動鍵；手鍵速度仍由系統偵測", configuredSpeed: "自動鍵速度", apply: "套用設定", station: "值守臺", log: "通聯日誌", time: "時間",
     call: "呼號", frequency: "頻率", mode: "模式", contact: "目前通聯", sent: "發送", received: "接收",
     location: "位置", notes: "備註", newContact: "新建通聯", delete: "刪除", propagation: "傳播預覽",
     openMap: "開啟傳播大圖", detected: "系統自動識別", detectedSpeed: "識別速度", tx: "發射", idle: "接收中",
     reply: "回應", send: "發送", saveLog: "儲存日誌", saved: "日誌已儲存", map: "傳播地圖",
     worldMode: "普通世界地圖", heatMode: "傳播等級地圖", legend: "傳播等級", back: "返回開始介面",
     qsoReady: "等待對方臺結束呼叫…", qsoReply: "正在發送回應…", qsoSent: "回應已發出，等待回報…",
-    noControls: "套件沒有可調音調與速度控制", playCq: "播放 CQ", replayInput: "重播輸入", target: "目標",
+    fixedToneHint: "套件音調固定；自動鍵速度可調，手鍵速度由系統偵測", playCq: "播放 CQ", replayInput: "重播輸入", target: "目標",
     decoded: "解碼", accuracy: "正確率", rhythm: "節奏", powerOn: "開機", powerOff: "關機", cwReady: "CW 核心就緒", cwPlaying: "正在播放標準 CQ",
     cwKeying: "正在記錄發報", cwReplay: "正在重播輸入", cwCaptured: "輸入已記錄", cwReceiving: "接收 CW",
     playNpc: "播放對方", submitReply: "發送回應", restartQso: "重新開始", credits: "信用點", sim: "虛構臺站", propLevel: "傳播等級",
@@ -94,14 +100,14 @@ const COPY = {
     subtitle: "アマチュア無線局シミュレーター", newGame: "運用を開始", continue: "運用を続ける", practice: "CW 練習台", fieldGuide: "局運用ガイド", callsignDisclaimer: "ゲーム内のコールサインは実在するコールサインとは無関係です。類似があってもすべて偶然です。",
     prototype: "M5 完成プロトタイプ", language: "言語", settings: "設定", close: "閉じる", interface: "表示言語",
     keyType: "電鍵タイプ", manual: "縦振り電鍵", automatic: "オートキー", manualHint: "スペースを押して送信",
-    automaticHint: "Z / X でパドル操作", apply: "設定を適用", station: "運用卓", log: "交信ログ", time: "時刻",
+    automaticHint: "Z 短点 / X 長点・長押しで連続送信", automaticSpeed: "オートキー速度", automaticSpeedHint: "オートキーにのみ適用。縦振り電鍵の速度は自動検出されます", configuredSpeed: "設定速度", apply: "設定を適用", station: "運用卓", log: "交信ログ", time: "時刻",
     call: "コール", frequency: "周波数", mode: "モード", contact: "現在の交信", sent: "送信", received: "受信",
     location: "位置", notes: "メモ", newContact: "新規交信", delete: "削除", propagation: "伝搬プレビュー",
     openMap: "伝搬マップを開く", detected: "システム自動認識", detectedSpeed: "認識速度", tx: "送信", idle: "受信中",
     reply: "応答", send: "送信", saveLog: "ログ保存", saved: "ログを保存しました", map: "伝搬マップ",
     worldMode: "通常の世界地図", heatMode: "伝搬レベル地図", legend: "伝搬レベル", back: "開始画面へ戻る",
     qsoReady: "相手局の呼出終了を待っています…", qsoReply: "応答を送信中…", qsoSent: "応答を送信しました。レポート待ち…",
-    noControls: "音程・速度の調整機能はありません", playCq: "CQ を再生", replayInput: "入力を再生", target: "目標",
+    fixedToneHint: "音程は固定です。オートキー速度は調整でき、縦振り電鍵は自動検出されます", playCq: "CQ を再生", replayInput: "入力を再生", target: "目標",
     decoded: "復号", accuracy: "正確率", rhythm: "リズム", powerOn: "電源オン", powerOff: "電源オフ", cwReady: "CW コア準備完了", cwPlaying: "標準 CQ を再生中",
     cwKeying: "送信を記録中", cwReplay: "入力を再生中", cwCaptured: "入力を記録しました", cwReceiving: "CW 受信中",
     playNpc: "相手局を再生", submitReply: "応答を送信", restartQso: "やり直す", credits: "クレジット", sim: "架空局", propLevel: "伝搬レベル",
@@ -112,14 +118,14 @@ const COPY = {
     subtitle: "Amateur Radio Station Simulator", newGame: "Begin Watch", continue: "Continue Watch", practice: "CW Practice", fieldGuide: "Station Manual", callsignDisclaimer: "All callsigns in this game are unrelated to real-world callsigns. Any resemblance is purely coincidental.",
     prototype: "M5 Complete Prototype", language: "Language", settings: "Settings", close: "Close", interface: "Interface language",
     keyType: "Key type", manual: "Straight key", automatic: "Automatic paddle", manualHint: "Hold Space to transmit",
-    automaticHint: "Use Z / X for paddles", apply: "Apply settings", station: "Station watch", log: "QSO log", time: "Time",
+    automaticHint: "Z sends dots / X sends dashes; hold to repeat", automaticSpeed: "Automatic key speed", automaticSpeedHint: "Affects the automatic key only; straight-key speed remains auto-detected", configuredSpeed: "Keyer speed", apply: "Apply settings", station: "Station watch", log: "QSO log", time: "Time",
     call: "Callsign", frequency: "Frequency", mode: "Mode", contact: "Current QSO", sent: "Sent", received: "Received",
     location: "Location", notes: "Notes", newContact: "New QSO", delete: "Delete", propagation: "Propagation",
     openMap: "Open propagation map", detected: "System auto detect", detectedSpeed: "Detected speed", tx: "Transmit", idle: "Receiving",
     reply: "Reply", send: "Send", saveLog: "Save log", saved: "Log saved", map: "Propagation map",
     worldMode: "Normal world map", heatMode: "Propagation level map", legend: "Propagation level", back: "Back to title",
     qsoReady: "Waiting for the calling station…", qsoReply: "Sending reply…", qsoSent: "Reply sent. Waiting for report…",
-    noControls: "The kit has no tone or speed controls", playCq: "Play CQ", replayInput: "Replay input", target: "Target",
+    fixedToneHint: "Kit tone is fixed; automatic-key speed is adjustable and straight-key speed is auto-detected", playCq: "Play CQ", replayInput: "Replay input", target: "Target",
     decoded: "Decoded", accuracy: "Accuracy", rhythm: "Rhythm", powerOn: "Power on", powerOff: "Power off", cwReady: "CW core ready", cwPlaying: "Playing standard CQ",
     cwKeying: "Recording keying", cwReplay: "Replaying input", cwCaptured: "Input captured", cwReceiving: "Receiving CW",
     playNpc: "Play station", submitReply: "Send reply", restartQso: "Restart", credits: "Credits", sim: "Fictional station", propLevel: "Propagation level",
@@ -182,11 +188,19 @@ function StartScreen({ language, setLanguage, onStart, onPractice, onSettings })
   );
 }
 
-function SettingsModal({ language, setLanguage, keyType, setKeyType, onClose }) {
+function SettingsModal({ language, keyType, automaticKeyWpm, onApply, onClose }) {
   const t = COPY[language];
   const [draftKey, setDraftKey] = useState(keyType);
   const [draftLanguage, setDraftLanguage] = useState(language);
-  function apply() { setLanguage(draftLanguage); setKeyType(draftKey); onClose(); }
+  const [draftWpm, setDraftWpm] = useState(() => normalizeAutomaticKeyWpm(automaticKeyWpm));
+  function apply() {
+    onApply({
+      language: draftLanguage,
+      keyType: draftKey,
+      automaticKeyWpm: normalizeAutomaticKeyWpm(draftWpm),
+    });
+    onClose();
+  }
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -209,9 +223,31 @@ function SettingsModal({ language, setLanguage, keyType, setKeyType, onClose }) 
                 </button>
               ))}
             </div>
+            {draftKey === "automatic" && (
+              <div className="automatic-speed-setting" data-testid="keyer-wpm">
+                <div>
+                  <strong>{COPY[draftLanguage].automaticSpeed}</strong>
+                  <span>
+                    <button type="button" aria-label="Decrease WPM" onClick={() => setDraftWpm((value) => normalizeAutomaticKeyWpm(value - 1))}>−</button>
+                    <output data-keyer-wpm>{draftWpm} WPM</output>
+                    <button type="button" aria-label="Increase WPM" onClick={() => setDraftWpm((value) => normalizeAutomaticKeyWpm(value + 1))}>+</button>
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={MIN_AUTOMATIC_KEY_WPM}
+                  max={MAX_AUTOMATIC_KEY_WPM}
+                  step="1"
+                  value={draftWpm}
+                  aria-label={COPY[draftLanguage].automaticSpeed}
+                  onChange={(event) => setDraftWpm(normalizeAutomaticKeyWpm(event.target.value))}
+                />
+                <small>{COPY[draftLanguage].automaticSpeedHint}</small>
+              </div>
+            )}
           </section>
         </div>
-        <footer><span>{COPY[draftLanguage].noControls}</span><button className="primary-button" onClick={apply}><Check size={20} weight="bold" />{COPY[draftLanguage].apply}</button></footer>
+        <footer><span>{COPY[draftLanguage].fixedToneHint}</span><button className="primary-button" onClick={apply}><Check size={20} weight="bold" />{COPY[draftLanguage].apply}</button></footer>
       </section>
     </div>
   );
@@ -269,7 +305,10 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const recentLogRows = logRows.slice(0, 6);
   const selectedLog = logRows.find((entry) => entry.id === selectedLogId) ?? null;
   const credits = save.credits;
-  const cw = useCwCore({ targetText: qso.expectedPlayer ?? "" });
+  const cw = useCwCore({
+    targetText: qso.expectedPlayer ?? "",
+    automaticWpm: save.automaticKeyWpm,
+  });
   const isTx = cw.isTransmitting;
   const npcChannel = useMemo(
     () => channelProfileForLevel(qso.npc.finalLevel, qso.npc, antenna),
@@ -291,21 +330,34 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       if (event.code === "F3") { saveOrRestart(); return; }
       if (!qsoCanAcceptPlayer(qso)) return;
       if (keyType === "manual" && event.code === "Space") cw.beginManual();
-      if (keyType === "automatic" && event.code === "KeyZ") cw.tapAutomatic(".");
-      if (keyType === "automatic" && event.code === "KeyX") cw.tapAutomatic("-");
+      if (keyType === "automatic" && event.code === "KeyZ") cw.beginAutomatic(".");
+      if (keyType === "automatic" && event.code === "KeyX") cw.beginAutomatic("-");
     }
     function onUp(event) {
-      if (keyType !== "manual" || event.code !== "Space") return;
-      event.preventDefault();
-      cw.endManual();
+      if (keyType === "manual" && event.code === "Space") {
+        event.preventDefault();
+        cw.endManual();
+      }
+      if (keyType === "automatic" && event.code === "KeyZ") {
+        event.preventDefault();
+        cw.endAutomatic(".");
+      }
+      if (keyType === "automatic" && event.code === "KeyX") {
+        event.preventDefault();
+        cw.endAutomatic("-");
+      }
     }
+    function onBlur() { cw.stopAll(); }
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", onBlur);
+      cw.stopAll();
     };
-  }, [antennaReady, cw.beginManual, cw.endManual, cw.tapAutomatic, inputBlocked, keyType, mapOpen, powered, qso]);
+  }, [antennaReady, cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll, inputBlocked, keyType, mapOpen, powered, qso]);
 
   async function playNpcMessage() {
     if (!powered || !antennaReady || !qsoNeedsNpcPlayback(qso) || cw.isPlaying || cw.isKeying) return;
@@ -355,7 +407,9 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       equipmentId: save.equipmentId,
       antennaId: save.antennaId,
       propagationSource: propagationMap.source,
-      wpm: Number((qsoMetrics.wpm / samples).toFixed(1)),
+      wpm: keyType === "automatic"
+        ? normalizeAutomaticKeyWpm(save.automaticKeyWpm)
+        : Number((qsoMetrics.wpm / samples).toFixed(1)),
       copyAccuracy: Number((qsoMetrics.accuracy / samples).toFixed(1)),
       keyingScore: Number((qsoMetrics.rhythm / samples).toFixed(1)),
     });
@@ -395,11 +449,16 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       return;
     }
     const bounds = event.currentTarget.getBoundingClientRect();
-    cw.tapAutomatic(event.clientX < bounds.left + bounds.width / 2 ? "." : "-");
+    cw.beginAutomatic(event.clientX < bounds.left + bounds.width / 2 ? "." : "-");
   }
 
   function handleKeyPointerEnd() {
-    if (keyType === "manual") cw.endManual();
+    if (keyType === "manual") {
+      cw.endManual();
+      return;
+    }
+    cw.endAutomatic(".");
+    cw.endAutomatic("-");
   }
 
   function togglePower() {
@@ -469,12 +528,12 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <div className="board-stage"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="station-board-scenery" /><img className="board-asset" src={isTx ? ASSETS.boardOn : ASSETS.boardOff} alt={`squid01 yellow PCB under an acrylic cover — ${isTx ? t.tx : powered ? t.idle : t.powerOff}`} />{!antennaReady && <div className="antenna-warning"><Broadcast size={17} weight="fill" /><span>{antennaStatus.missing}</span></div>}</div>
           <div className="hardware-status">
             <button className={`station-power ${powered ? "on" : ""}`} onClick={togglePower} aria-pressed={powered} aria-label={powered ? t.powerOff : t.powerOn}><Power size={16} weight="fill" /> SQUID01 / {powered ? "ON" : "OFF"}</button>
-            <span>{t.detectedSpeed}: <b>{powered ? `${cw.analysis.wpm} WPM` : "--"}</b></span>
+            <span>{keyType === "automatic" ? t.configuredSpeed : t.detectedSpeed}: <b>{powered ? `${keyType === "automatic" ? normalizeAutomaticKeyWpm(save.automaticKeyWpm) : cw.analysis.wpm} WPM` : "--"}</b></span>
             <span className={isTx ? "tx-active" : cw.status === "playing" && powered ? "rx-active" : ""}><Broadcast size={16} weight="fill" />{!powered ? t.powerOff : !antennaReady ? antennaStatus.equip : isTx ? t.tx : cw.status === "playing" ? t.cwReceiving : t.idle}</span>
           </div>
           <div className="key-stage">
             <img className={cw.isKeying ? "key-active" : ""} src={keyType === "manual" ? ASSETS.manual : ASSETS.automatic} alt={keyType === "manual" ? t.manual : t.automatic} aria-disabled={!powered}
-              onPointerDown={handleKeyPointerDown} onPointerUp={handleKeyPointerEnd} onPointerCancel={handleKeyPointerEnd} draggable="false" />
+              onPointerDown={handleKeyPointerDown} onPointerUp={handleKeyPointerEnd} onPointerCancel={handleKeyPointerEnd} onLostPointerCapture={handleKeyPointerEnd} draggable="false" />
             <div><strong>{keyType === "manual" ? t.manual : t.automatic}</strong><span>{keyType === "manual" ? t.manualHint : t.automaticHint}</span></div>
           </div>
         </section>
@@ -482,7 +541,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <div className="panel-title"><span>{t.propagation}</span><b>HF / LIVE</b></div>
           <button className="map-preview" onClick={() => setMapOpen(true)} aria-label={t.openMap}><PropagationMap map={propagationMap} mode={mapMode} ariaLabel="" /><span><MapTrifold size={19} />{t.openMap}</span></button>
           <div className="mini-legend">{[0, 1, 2, 3, 4].map((level) => <span key={level}><i className={`level-${level}`} />{level}</span>)}</div>
-          <div className="signal-note"><span>21.060 MHz</span><strong>{t.propLevel}: P{qso.npc.finalLevel}</strong><small>{qso.npc.regionId} · {qso.npc.isStrongStation ? "DX+" : "SIM"} · {t.noControls}</small></div>
+          <div className="signal-note"><span>21.060 MHz</span><strong>{t.propLevel}: P{qso.npc.finalLevel}</strong><small>{qso.npc.regionId} · {qso.npc.isStrongStation ? "DX+" : "SIM"} · {t.fixedToneHint}</small></div>
         </aside>
       </div>
       <footer className="qso-console metal-panel">
@@ -508,6 +567,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
 export function App() {
   const [language, setLanguage] = useState(detectLanguage);
   const [keyType, setKeyType] = useState("manual");
+  const [automaticKeyWpm, setAutomaticKeyWpm] = useState(DEFAULT_AUTOMATIC_KEY_WPM);
   const [screen, setScreen] = useState("start");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [saves, setSaves] = useState(() => loadSaves());
@@ -528,7 +588,10 @@ export function App() {
 
   function selectSave(saveId) {
     const selected = savesRef.current.find((save) => save.id === saveId);
-    if (selected) setKeyType(selected.keyType ?? "manual");
+    if (selected) {
+      setKeyType(selected.keyType ?? "manual");
+      setAutomaticKeyWpm(normalizeAutomaticKeyWpm(selected.automaticKeyWpm));
+    }
     setActiveSaveId(saveId);
     persistActiveSaveId(saveId);
     setScreen("home");
@@ -577,21 +640,32 @@ export function App() {
     return transaction;
   }
 
-  function changeKeyType(value) {
-    setKeyType(value);
-    if (activeSave && ["home", "station"].includes(screen)) updateActiveSave({ keyType: value });
+  function applySettings(next) {
+    const nextWpm = normalizeAutomaticKeyWpm(next.automaticKeyWpm);
+    setLanguage(next.language);
+    setKeyType(next.keyType);
+    setAutomaticKeyWpm(nextWpm);
+    if (activeSave && ["home", "station"].includes(screen)) {
+      updateActiveSave({ keyType: next.keyType, automaticKeyWpm: nextWpm });
+    }
   }
 
   let currentScreen;
   if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => setScreen("practice")} onSettings={() => setSettingsOpen(true)} />;
-  else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
+  else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onEnterStation={() => setScreen("station")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
-  else if (screen === "practice") currentScreen = <PracticeScreen language={language} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("start")} />;
+  else if (screen === "practice") currentScreen = <PracticeScreen language={language} automaticKeyWpm={automaticKeyWpm} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("start")} />;
   else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
-  else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
+  else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   return <>
     {currentScreen}
     <NetworkIndicator language={language} />
-    {settingsOpen && <SettingsModal language={language} setLanguage={setLanguage} keyType={activeSave && ["home", "station"].includes(screen) ? activeSave.keyType : keyType} setKeyType={changeKeyType} onClose={() => setSettingsOpen(false)} />}
+    {settingsOpen && <SettingsModal
+      language={language}
+      keyType={activeSave && ["home", "station"].includes(screen) ? activeSave.keyType : keyType}
+      automaticKeyWpm={activeSave && ["home", "station"].includes(screen) ? activeSave.automaticKeyWpm : automaticKeyWpm}
+      onApply={applySettings}
+      onClose={() => setSettingsOpen(false)}
+    />}
   </>;
 }

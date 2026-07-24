@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CwAudioEngine } from "./audioEngine.js";
+import { AutomaticKeyer, normalizeAutomaticKeyWpm } from "./automaticKeyer.js";
 import { analyzeKeying } from "./inputAnalyzer.js";
-import { automaticSymbolDuration, dotDurationFromWpm, encodeTextToEvents, pulsesToPlaybackEvents } from "./morse.js";
+import { dotDurationFromWpm, encodeTextToEvents, pulsesToPlaybackEvents } from "./morse.js";
 
 const EMPTY_ANALYSIS = Object.freeze({ decoded: "", morse: "", wpm: 18, dotMs: dotDurationFromWpm(18), accuracy: 0, rhythm: 0, pulseCount: 0 });
 
@@ -9,12 +10,15 @@ function now() {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
-export function useCwCore({ targetText = "CQ" } = {}) {
+export function useCwCore({ targetText = "CQ", automaticWpm = 18 } = {}) {
   const engineRef = useRef(null);
   const pulsesRef = useRef([]);
   const manualStartRef = useRef(null);
-  const automaticTimerRef = useRef(null);
-  const wpmRef = useRef(18);
+  const automaticKeyerRef = useRef(null);
+  const automaticTokenRef = useRef(null);
+  const automaticWpmRef = useRef(normalizeAutomaticKeyWpm(automaticWpm));
+  const detectedWpmRef = useRef(18);
+  const appendPulseRef = useRef(null);
   const [analysis, setAnalysis] = useState(EMPTY_ANALYSIS);
   const [isKeying, setIsKeying] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -29,10 +33,16 @@ export function useCwCore({ targetText = "CQ" } = {}) {
   const appendPulse = useCallback((pulse) => {
     const nextPulses = [...pulsesRef.current, pulse].slice(-160);
     pulsesRef.current = nextPulses;
-    const nextAnalysis = analyzeKeying(nextPulses, { fallbackWpm: wpmRef.current, targetText });
-    wpmRef.current = nextAnalysis.wpm;
+    const fallbackWpm = pulse.source === "automatic" ? automaticWpmRef.current : detectedWpmRef.current;
+    const nextAnalysis = analyzeKeying(nextPulses, { fallbackWpm, targetText });
+    if (pulse.source !== "automatic") detectedWpmRef.current = nextAnalysis.wpm;
     setAnalysis(nextAnalysis);
   }, [targetText]);
+  appendPulseRef.current = appendPulse;
+
+  useEffect(() => {
+    automaticWpmRef.current = normalizeAutomaticKeyWpm(automaticWpm);
+  }, [automaticWpm]);
 
   const stopPlayback = useCallback(() => {
     engineRef.current?.stopPlayback();
@@ -41,7 +51,7 @@ export function useCwCore({ targetText = "CQ" } = {}) {
   }, []);
 
   const beginManual = useCallback(() => {
-    if (manualStartRef.current !== null || automaticTimerRef.current) return;
+    if (manualStartRef.current !== null || automaticKeyerRef.current?.isBusy()) return;
     stopPlayback();
     manualStartRef.current = now();
     setPlaybackMode("tx");
@@ -64,41 +74,60 @@ export function useCwCore({ targetText = "CQ" } = {}) {
     appendPulse({ downAt, upAt, source: "manual" });
   }, [appendPulse]);
 
-  const tapAutomatic = useCallback(async (symbol) => {
-    if (![".", "-"].includes(symbol) || automaticTimerRef.current || manualStartRef.current !== null) return false;
+  const ensureAutomaticKeyer = useCallback(() => {
+    if (automaticKeyerRef.current) return automaticKeyerRef.current;
+    automaticKeyerRef.current = new AutomaticKeyer({
+      getWpm: () => automaticWpmRef.current,
+      now,
+      setTimer: (callback, delay) => window.setTimeout(callback, delay),
+      clearTimer: (timer) => window.clearTimeout(timer),
+      onSessionChange: setIsKeying,
+      onElementStart: ({ token }) => {
+        automaticTokenRef.current = token;
+        setPlaybackMode("tx");
+        if (window.cwgameSystem?.qaCapture) {
+          setToneActive(true);
+          return;
+        }
+        engine().startSidetone().then((started) => {
+          if (automaticTokenRef.current !== token) {
+            engineRef.current?.stopSidetone();
+            return;
+          }
+          setToneActive(Boolean(started));
+        }).catch(() => {
+          if (automaticTokenRef.current === token) setToneActive(false);
+        });
+      },
+      onElementEnd: ({ token }) => {
+        if (automaticTokenRef.current !== token) return;
+        automaticTokenRef.current = null;
+        engineRef.current?.stopSidetone();
+        setToneActive(false);
+      },
+      onPulse: (pulse) => appendPulseRef.current?.(pulse),
+    });
+    return automaticKeyerRef.current;
+  }, [engine]);
+
+  const beginAutomatic = useCallback((symbol) => {
+    if (manualStartRef.current !== null) return false;
     stopPlayback();
-    const durationMs = automaticSymbolDuration(symbol, wpmRef.current);
-    const request = Symbol(symbol);
-    automaticTimerRef.current = request;
-    setPlaybackMode("tx");
-    setIsKeying(true);
-    let toneStarted = false;
-    if (!window.cwgameSystem?.qaCapture) {
-      try {
-        toneStarted = await engine().startSidetone();
-      } catch {
-        toneStarted = false;
-      }
-    }
-    if (automaticTimerRef.current !== request) {
-      engineRef.current?.stopSidetone();
-      return false;
-    }
-    const downAt = now();
-    setToneActive(toneStarted);
-    automaticTimerRef.current = window.setTimeout(() => {
-      automaticTimerRef.current = null;
-      engineRef.current?.stopSidetone();
-      setToneActive(false);
-      setIsKeying(false);
-      appendPulse({ downAt, upAt: downAt + durationMs, source: "automatic", symbol });
-    }, durationMs);
-    return true;
-  }, [appendPulse, engine, stopPlayback]);
+    return ensureAutomaticKeyer().begin(symbol);
+  }, [ensureAutomaticKeyer, stopPlayback]);
+
+  const endAutomatic = useCallback((symbol) => ensureAutomaticKeyer().end(symbol), [ensureAutomaticKeyer]);
+
+  const tapAutomatic = useCallback((symbol) => {
+    if (manualStartRef.current !== null) return false;
+    stopPlayback();
+    return ensureAutomaticKeyer().tap(symbol);
+  }, [ensureAutomaticKeyer, stopPlayback]);
 
   const playEvents = useCallback(async (events, mode, channel) => {
     if (!events.length) return false;
     if (manualStartRef.current !== null) endManual();
+    automaticKeyerRef.current?.stop();
     setPlaybackMode(mode);
     setIsPlaying(true);
     setToneActive(false);
@@ -125,14 +154,16 @@ export function useCwCore({ targetText = "CQ" } = {}) {
 
   const clearInput = useCallback(() => {
     stopPlayback();
+    automaticKeyerRef.current?.stop();
+    engineRef.current?.stopSidetone();
     pulsesRef.current = [];
-    wpmRef.current = 18;
+    detectedWpmRef.current = 18;
     setAnalysis(EMPTY_ANALYSIS);
   }, [stopPlayback]);
 
   const stopAll = useCallback(() => {
-    if (typeof automaticTimerRef.current === "number") window.clearTimeout(automaticTimerRef.current);
-    automaticTimerRef.current = null;
+    automaticKeyerRef.current?.stop();
+    automaticTokenRef.current = null;
     manualStartRef.current = null;
     engineRef.current?.stopAll();
     setIsKeying(false);
@@ -141,7 +172,7 @@ export function useCwCore({ targetText = "CQ" } = {}) {
   }, []);
 
   useEffect(() => () => {
-    if (typeof automaticTimerRef.current === "number") window.clearTimeout(automaticTimerRef.current);
+    automaticKeyerRef.current?.stop();
     engineRef.current?.dispose();
   }, []);
 
@@ -154,8 +185,10 @@ export function useCwCore({ targetText = "CQ" } = {}) {
 
   return {
     analysis,
+    beginAutomatic,
     beginManual,
     clearInput,
+    endAutomatic,
     endManual,
     isKeying,
     isPlaying,

@@ -2,6 +2,7 @@ import { ANTENNAS } from "./antennaCatalog.js";
 import { KEY_OPTIONS, TRANSMITTERS } from "./equipmentCatalog.js";
 import { getLocation } from "./locations.js";
 import { normalizeQsoLogEntries, normalizeQsoRecords } from "../qso/qsoLog.js";
+import { DEFAULT_AUTOMATIC_KEY_WPM, normalizeAutomaticKeyWpm } from "../cw/automaticKeyer.js";
 
 export const SAVE_STORAGE_KEY = "game-morse-adventurer.saves.v1";
 export const ACTIVE_SAVE_KEY = "game-morse-adventurer.active-save.v1";
@@ -29,7 +30,12 @@ function normalizeOwned(values, catalog, starterIds) {
   return catalog.map((item) => item.id).filter((id) => id !== "none" && requested.has(id));
 }
 
-export function createSave({ callsign, locationId, keyType = "manual" }) {
+export function createSave({
+  callsign,
+  locationId,
+  keyType = "manual",
+  automaticKeyWpm = DEFAULT_AUTOMATIC_KEY_WPM,
+}) {
   const cleanCallsign = sanitizeCallsign(callsign);
   if (!isValidCallsign(cleanCallsign)) throw new Error("INVALID_CALLSIGN");
   const now = new Date().toISOString();
@@ -41,6 +47,7 @@ export function createSave({ callsign, locationId, keyType = "manual" }) {
     equipmentId: "squid-01",
     antennaId: "dipole",
     keyType: exactId(KEY_OPTIONS, keyType, "manual"),
+    automaticKeyWpm: normalizeAutomaticKeyWpm(automaticKeyWpm),
     ownedEquipment: ["squid-01"],
     ownedAntennas: ["dipole"],
     accessories: [],
@@ -88,6 +95,7 @@ export function normalizeSave(save) {
     equipmentId,
     antennaId,
     keyType: exactId(KEY_OPTIONS, save.keyType, "manual"),
+    automaticKeyWpm: normalizeAutomaticKeyWpm(save.automaticKeyWpm),
     ownedEquipment,
     ownedAntennas,
     accessories: [],

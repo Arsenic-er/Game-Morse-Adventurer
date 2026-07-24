@@ -35,7 +35,17 @@ const TEXT = {
   },
 };
 
-export function SaveSelectScreen({ language, saves, activeSaveId, onLoad, onCreate, onDelete, onBack }) {
+export function SaveSelectScreen({
+  language,
+  saves,
+  activeSaveId,
+  defaultKeyType = "manual",
+  defaultAutomaticKeyWpm,
+  onLoad,
+  onCreate,
+  onDelete,
+  onBack,
+}) {
   const t = TEXT[language] ?? TEXT.en;
   const firstEmpty = Math.min(saves.length, MAX_SAVE_SLOTS - 1);
   const [selectedSlot, setSelectedSlot] = useState(() => {
@@ -57,7 +67,12 @@ export function SaveSelectScreen({ language, saves, activeSaveId, onLoad, onCrea
 
   function createCurrentSave() {
     if (!isValidCallsign(callsign) || saves.length >= MAX_SAVE_SLOTS) return;
-    onCreate(createSave({ callsign, locationId }));
+    onCreate(createSave({
+      callsign,
+      locationId,
+      keyType: defaultKeyType,
+      automaticKeyWpm: defaultAutomaticKeyWpm,
+    }));
   }
 
   function removeCurrentSave() {
@@ -105,7 +120,7 @@ export function SaveSelectScreen({ language, saves, activeSaveId, onLoad, onCrea
               <div className="save-call-lockup"><h2>{selectedSave.callsign}</h2><p><MapPin size={17} weight="fill" />{locationName(selectedLocation, language)}</p></div>
             </div>
             <dl className="save-facts">
-              <div><dt><Radio size={22} />{t.equipment}</dt><dd>SQUID-01 · {equipmentName(getKeyOption(selectedSave.keyType), language)}</dd></div>
+              <div><dt><Radio size={22} />{t.equipment}</dt><dd>SQUID-01 · {equipmentName(getKeyOption(selectedSave.keyType), language)}{selectedSave.keyType === "automatic" ? ` · ${selectedSave.automaticKeyWpm} WPM` : ""}</dd></div>
               <div><dt><Radio size={22} />{t.antenna}</dt><dd>{antennaName(selectedAntenna, language)}</dd></div>
               <div><dt><Coins size={22} />{t.credits}</dt><dd>{selectedSave.credits.toLocaleString()}</dd></div>
             </dl>

@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import {
   createSave, isValidCallsign, loadSaves, persistSaves, sanitizeCallsign,
 } from "../src/game/saveStore.js";
+import {
+  DEFAULT_AUTOMATIC_KEY_WPM, normalizeAutomaticKeyWpm,
+} from "../src/cw/automaticKeyer.js";
 import { recordCompletedQso } from "../src/qso/qsoLog.js";
 
 function storageStub() {
@@ -27,6 +30,7 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   assert.equal(save.locationId, "china-beijing-outskirts");
   assert.equal(save.antennaId, "dipole");
   assert.equal(save.keyType, "automatic");
+  assert.equal(save.automaticKeyWpm, DEFAULT_AUTOMATIC_KEY_WPM);
   assert.equal(save.equipmentId, "squid-01");
   assert.equal(save.inventoryVersion, 1);
   assert.deepEqual(save.ownedEquipment, ["squid-01"]);
@@ -66,6 +70,7 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
   }]));
   const [save] = loadSaves(storage);
   assert.equal(save.keyType, "manual");
+  assert.equal(save.automaticKeyWpm, DEFAULT_AUTOMATIC_KEY_WPM);
   assert.equal(save.equipmentId, "squid-01");
   assert.equal(save.credits, 12);
   assert.equal(save.qsoLogs.length, 1);
@@ -204,6 +209,20 @@ test("credits are normalized to safe non-negative integers", () => {
   ]));
   const saves = loadSaves(storage);
   assert.deepEqual(saves.map((save) => save.credits), [12, Number.MAX_SAFE_INTEGER]);
+});
+
+test("automatic-key speed is normalized and persists across save round trips", () => {
+  assert.equal(normalizeAutomaticKeyWpm(null), 18);
+  assert.equal(normalizeAutomaticKeyWpm("invalid"), 18);
+  assert.equal(normalizeAutomaticKeyWpm(2), 5);
+  assert.equal(normalizeAutomaticKeyWpm(48), 40);
+  assert.equal(normalizeAutomaticKeyWpm(22.6), 23);
+
+  const storage = storageStub();
+  const save = createSave({ callsign: "SIM5", locationId: "japan-tokyo-kanto", keyType: "automatic" });
+  save.automaticKeyWpm = 27;
+  persistSaves([save], storage);
+  assert.equal(loadSaves(storage)[0].automaticKeyWpm, 27);
 });
 
 test("only three normalized save slots are persisted", () => {

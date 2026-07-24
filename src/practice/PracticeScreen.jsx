@@ -22,7 +22,7 @@ const TEXT = {
     characterRx: "字符接收", callsignRx: "呼号接收", manualTx: "手键练习", paddleTx: "双桨练习",
     listen: "播放题目", answer: "输入抄收到的内容", submit: "提交成绩", next: "下一题", replay: "回放输入",
     visualOn: "关闭视觉辅助", visualOff: "开启视觉辅助", target: "训练目标", decoded: "当前解码",
-    fixedSpeed: "系统速度", detectedSpeed: "识别速度", correct: "正确", wrong: "不正确", waiting: "等待输入",
+    fixedSpeed: "系统速度", detectedSpeed: "识别速度", automaticSpeed: "自动键速度", correct: "正确", wrong: "不正确", waiting: "等待输入",
     attempts: "题数", accuracy: "正确率", rhythm: "平均节奏", weak: "薄弱字符", noWeak: "暂无",
     manualHint: "按住空格键发报", paddleHint: "Z 点桨 / X 划桨", sim: "所有呼号均为程序生成的 SIM 虚构台站",
   },
@@ -31,7 +31,7 @@ const TEXT = {
     characterRx: "字元接收", callsignRx: "呼號接收", manualTx: "手鍵練習", paddleTx: "雙槳練習",
     listen: "播放題目", answer: "輸入抄收到的內容", submit: "提交成績", next: "下一題", replay: "重播輸入",
     visualOn: "關閉視覺輔助", visualOff: "開啟視覺輔助", target: "訓練目標", decoded: "目前解碼",
-    fixedSpeed: "系統速度", detectedSpeed: "識別速度", correct: "正確", wrong: "不正確", waiting: "等待輸入",
+    fixedSpeed: "系統速度", detectedSpeed: "識別速度", automaticSpeed: "自動鍵速度", correct: "正確", wrong: "不正確", waiting: "等待輸入",
     attempts: "題數", accuracy: "正確率", rhythm: "平均節奏", weak: "薄弱字元", noWeak: "暫無",
     manualHint: "按住空白鍵發報", paddleHint: "Z 點槳 / X 劃槳", sim: "所有呼號均為程式生成的 SIM 虛構臺站",
   },
@@ -40,7 +40,7 @@ const TEXT = {
     characterRx: "文字受信", callsignRx: "コール受信", manualTx: "縦振り練習", paddleTx: "パドル練習",
     listen: "課題を再生", answer: "受信内容を入力", submit: "採点", next: "次の課題", replay: "入力を再生",
     visualOn: "視覚補助を閉じる", visualOff: "視覚補助を開く", target: "練習目標", decoded: "現在の復号",
-    fixedSpeed: "システム速度", detectedSpeed: "認識速度", correct: "正解", wrong: "不正解", waiting: "入力待ち",
+    fixedSpeed: "システム速度", detectedSpeed: "認識速度", automaticSpeed: "オートキー速度", correct: "正解", wrong: "不正解", waiting: "入力待ち",
     attempts: "課題数", accuracy: "正確率", rhythm: "平均リズム", weak: "苦手文字", noWeak: "なし",
     manualHint: "スペースを押して送信", paddleHint: "Z 短点 / X 長点", sim: "すべてのコールはプログラム生成の架空 SIM 局です",
   },
@@ -49,7 +49,7 @@ const TEXT = {
     characterRx: "Character RX", callsignRx: "Callsign RX", manualTx: "Straight key", paddleTx: "Paddle key",
     listen: "Play prompt", answer: "Type what you copied", submit: "Score attempt", next: "Next prompt", replay: "Replay input",
     visualOn: "Hide visual aid", visualOff: "Show visual aid", target: "Target", decoded: "Decoded",
-    fixedSpeed: "System speed", detectedSpeed: "Detected speed", correct: "Correct", wrong: "Not correct", waiting: "Waiting for input",
+    fixedSpeed: "System speed", detectedSpeed: "Detected speed", automaticSpeed: "Automatic key speed", correct: "Correct", wrong: "Not correct", waiting: "Waiting for input",
     attempts: "Attempts", accuracy: "Accuracy", rhythm: "Avg rhythm", weak: "Weak characters", noWeak: "None",
     manualHint: "Hold Space to key", paddleHint: "Z dot / X dash", sim: "All callsigns are program-generated fictional SIM stations",
   },
@@ -66,7 +66,7 @@ function IconButton({ label, children, ...props }) {
   return <button className="icon-button" aria-label={label} title={label} {...props}>{children}</button>;
 }
 
-export function PracticeScreen({ language, onBack, onSettings, inputBlocked = false }) {
+export function PracticeScreen({ language, automaticKeyWpm = 18, onBack, onSettings, inputBlocked = false }) {
   const t = TEXT[language] ?? TEXT.en;
   const [mode, setMode] = useState(PRACTICE_MODES.CHARACTER_RX);
   const [roundIndex, setRoundIndex] = useState(0);
@@ -76,7 +76,7 @@ export function PracticeScreen({ language, onBack, onSettings, inputBlocked = fa
   const [statsByMode, setStatsByMode] = useState(() => Object.fromEntries(Object.values(PRACTICE_MODES).map((id) => [id, emptyPracticeStats()])));
   const stats = statsByMode[mode];
   const target = useMemo(() => practiceTargetFor(mode, roundIndex, stats.weaknesses), [mode, roundIndex, stats.weaknesses]);
-  const cw = useCwCore({ targetText: target });
+  const cw = useCwCore({ targetText: target, automaticWpm: automaticKeyWpm });
   const receiving = isReceptionMode(mode);
   const sending = isSendingMode(mode);
   const manual = mode === PRACTICE_MODES.MANUAL_TX;
@@ -95,21 +95,34 @@ export function PracticeScreen({ language, onBack, onSettings, inputBlocked = fa
       if (inputBlocked || event.repeat) return;
       if (["Space", "KeyZ", "KeyX"].includes(event.code)) event.preventDefault();
       if (manual && event.code === "Space") cw.beginManual();
-      if (!manual && event.code === "KeyZ") cw.tapAutomatic(".");
-      if (!manual && event.code === "KeyX") cw.tapAutomatic("-");
+      if (!manual && event.code === "KeyZ") cw.beginAutomatic(".");
+      if (!manual && event.code === "KeyX") cw.beginAutomatic("-");
     }
     function onUp(event) {
-      if (!manual || event.code !== "Space") return;
-      event.preventDefault();
-      cw.endManual();
+      if (manual && event.code === "Space") {
+        event.preventDefault();
+        cw.endManual();
+      }
+      if (!manual && event.code === "KeyZ") {
+        event.preventDefault();
+        cw.endAutomatic(".");
+      }
+      if (!manual && event.code === "KeyX") {
+        event.preventDefault();
+        cw.endAutomatic("-");
+      }
     }
+    function onBlur() { cw.stopAll(); }
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
+    window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
+      window.removeEventListener("blur", onBlur);
+      cw.stopAll();
     };
-  }, [cw.beginManual, cw.endManual, cw.tapAutomatic, inputBlocked, manual, sending]);
+  }, [cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll, inputBlocked, manual, sending]);
 
   function changeMode(nextMode) {
     setMode(nextMode);
@@ -135,11 +148,16 @@ export function PracticeScreen({ language, onBack, onSettings, inputBlocked = fa
       return;
     }
     const bounds = event.currentTarget.getBoundingClientRect();
-    cw.tapAutomatic(event.clientX < bounds.left + bounds.width / 2 ? "." : "-");
+    cw.beginAutomatic(event.clientX < bounds.left + bounds.width / 2 ? "." : "-");
   }
 
   function pointerEnd() {
-    if (manual) cw.endManual();
+    if (manual) {
+      cw.endManual();
+      return;
+    }
+    cw.endAutomatic(".");
+    cw.endAutomatic("-");
   }
 
   const modeLabels = {
@@ -151,7 +169,12 @@ export function PracticeScreen({ language, onBack, onSettings, inputBlocked = fa
   const weakEntries = Object.entries(stats.weaknesses).sort((left, right) => right[1] - left[1]).slice(0, 5);
 
   return (
-    <main className="screen practice-screen" style={{ "--room": `url(${ASSETS.room})` }}>
+    <main
+      className="screen practice-screen"
+      data-pulse-count={cw.analysis.pulseCount}
+      data-keyer-wpm={automaticKeyWpm}
+      style={{ "--room": `url(${ASSETS.room})` }}
+    >
       <header className="practice-topbar station-topbar">
         <div className="practice-title"><Radio size={20} weight="fill" /><strong>{t.title}</strong><span>{t.independent}</span></div>
         <div className="top-actions"><IconButton label={t.back} onClick={onBack}><ArrowLeft size={21} /></IconButton><IconButton label={t.settings} onClick={onSettings}><GearSix size={21} /></IconButton></div>
@@ -175,7 +198,7 @@ export function PracticeScreen({ language, onBack, onSettings, inputBlocked = fa
             <span>{t.target}</span>
             <strong>{receiving && !visualAid && !result ? "?".repeat(Math.min(target.length, 6)) : target}</strong>
             {visualAid && <code>{morse}</code>}
-            <small>{receiving ? `${t.fixedSpeed}: ${receiveWpm} WPM` : `${t.detectedSpeed}: ${cw.analysis.wpm} WPM`}</small>
+            <small>{receiving ? `${t.fixedSpeed}: ${receiveWpm} WPM` : manual ? `${t.detectedSpeed}: ${cw.analysis.wpm} WPM` : `${t.automaticSpeed}: ${automaticKeyWpm} WPM`}</small>
           </div>
 
           {receiving ? (
@@ -185,7 +208,7 @@ export function PracticeScreen({ language, onBack, onSettings, inputBlocked = fa
             </div>
           ) : (
             <div className="practice-key-area">
-              <img src={manual ? ASSETS.manual : ASSETS.automatic} alt={manual ? t.manualTx : t.paddleTx} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} draggable="false" />
+              <img src={manual ? ASSETS.manual : ASSETS.automatic} alt={manual ? t.manualTx : t.paddleTx} onPointerDown={pointerDown} onPointerUp={pointerEnd} onPointerCancel={pointerEnd} onLostPointerCapture={pointerEnd} draggable="false" />
               <div><strong>{manual ? t.manualHint : t.paddleHint}</strong><span>{t.decoded}: {cw.analysis.decoded || "---"}</span><span>{t.rhythm}: {cw.analysis.rhythm}%</span></div>
             </div>
           )}
@@ -216,4 +239,3 @@ export function PracticeScreen({ language, onBack, onSettings, inputBlocked = fa
     </main>
   );
 }
-
