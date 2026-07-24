@@ -853,14 +853,14 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .home-topbar > span { display: flex; align-items: center; gap: 8px; color: #7eb8b7; font-size: 10px; }
 .home-topbar > b { justify-self: center; color: var(--pixel-amber); letter-spacing: .13em; }
 .home-topbar button { height: 100%; border: 0; border-left: 2px solid #295e66; color: var(--pixel-cyan); background: #061b23; }
-.home-hotspot { position: absolute; z-index: 6; isolation: isolate; border: 0; outline: 0; background: transparent; box-shadow: none; --hotspot-tint: rgba(80, 224, 211, .13); --hotspot-filter: brightness(1.3) saturate(1.7) contrast(1.05); }
-.home-hotspot::before { content: ""; position: absolute; z-index: 0; inset: 0; pointer-events: none; clip-path: var(--hotspot-shape); background: var(--hotspot-tint); -webkit-backdrop-filter: var(--hotspot-filter); backdrop-filter: var(--hotspot-filter); mix-blend-mode: screen; opacity: 0; transition: opacity 80ms steps(2, end); }
+.home-hotspot { position: absolute; z-index: 6; border: 0; outline: 0; background: transparent; box-shadow: none; --hotspot-tint: rgba(66, 224, 211, .18); --hotspot-filter: brightness(1.3) saturate(1.7) contrast(1.05); }
+.home-hotspot::before { content: ""; position: absolute; z-index: 0; inset: 0; pointer-events: none; clip-path: var(--hotspot-shape); background: var(--hotspot-tint); -webkit-backdrop-filter: var(--hotspot-filter); backdrop-filter: var(--hotspot-filter); opacity: 0; transition: opacity 80ms steps(2, end); }
 .home-hotspot > span { position: absolute; z-index: 1; left: 50%; bottom: 8px; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 2px solid var(--pixel-line); color: var(--pixel-cyan); background: #04171f; box-shadow: 4px 4px 0 rgba(0, 0, 0, .72); opacity: 0; transform: translateX(-50%); white-space: nowrap; font-size: 11px; }
 .home-hotspot:hover, .home-hotspot:focus-visible { transform: none !important; background: transparent; box-shadow: none !important; }
 .home-hotspot:hover::before, .home-hotspot:focus-visible::before { opacity: 1; }
 .home-hotspot:hover > span, .home-hotspot:focus-visible > span { opacity: 1; }
 .hotspot-warehouse { left: 0; top: 9%; width: 19.6%; height: 60%; --hotspot-shape: polygon(0 0, 86% 0, 100% 8%, 100% 100%, 0 100%); }
-.hotspot-station { left: 33.5%; top: 58.5%; width: 31%; height: 33%; --hotspot-tint: rgba(255, 194, 62, .16); --hotspot-filter: brightness(1.34) saturate(1.8) contrast(1.06); --hotspot-shape: polygon(8% 8%, 88% 5%, 96% 20%, 100% 84%, 91% 96%, 14% 100%, 3% 88%, 0 31%); }
+.hotspot-station { left: 33.5%; top: 58.5%; width: 31%; height: 33%; --hotspot-tint: rgba(255, 194, 62, .2); --hotspot-filter: brightness(1.34) saturate(1.8) contrast(1.06); --hotspot-shape: polygon(8% 8%, 88% 5%, 96% 20%, 100% 84%, 91% 96%, 14% 100%, 3% 88%, 0 31%); }
 .hotspot-station > span { color: #ffe29a; border-color: #d49a27; background: #4f3205; }
 .hotspot-store { left: 66.5%; top: 43.5%; width: 25%; height: 36%; --hotspot-shape: polygon(22% 0, 91% 5%, 96% 52%, 86% 60%, 100% 88%, 91% 100%, 9% 91%, 0 76%, 14% 59%); }
 .hotspot-log { left: 0; top: 77%; width: 27%; height: 23%; --hotspot-shape: polygon(0 17%, 67% 0, 100% 58%, 83% 100%, 0 84%); }

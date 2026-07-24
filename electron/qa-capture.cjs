@@ -37,6 +37,50 @@ async function clearHover(window) {
   await new Promise((resolve) => setTimeout(resolve, 120));
 }
 
+async function assertHoverTint(window, selector) {
+  await clearHover(window);
+  const bounds = await window.webContents.executeJavaScript(`(() => {
+    const node = document.querySelector(${JSON.stringify(selector)});
+    if (!node) throw new Error(${JSON.stringify("Missing hover-tint target: ")} + ${JSON.stringify(selector)});
+    const rect = node.getBoundingClientRect();
+    return {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    };
+  })()`, true);
+  const before = await window.webContents.capturePage();
+  await hover(window, selector);
+  const after = await window.webContents.capturePage();
+  const size = before.getSize();
+  const scaleX = size.width / bounds.viewportWidth;
+  const scaleY = size.height / bounds.viewportHeight;
+  const left = Math.max(0, Math.floor((bounds.left + bounds.width * 0.25) * scaleX));
+  const right = Math.min(size.width, Math.ceil((bounds.left + bounds.width * 0.75) * scaleX));
+  const top = Math.max(0, Math.floor((bounds.top + bounds.height * 0.15) * scaleY));
+  const bottom = Math.min(size.height, Math.ceil((bounds.top + bounds.height * 0.5) * scaleY));
+  const beforePixels = before.toBitmap();
+  const afterPixels = after.toBitmap();
+  let difference = 0;
+  let samples = 0;
+  for (let y = top; y < bottom; y += 2) {
+    for (let x = left; x < right; x += 2) {
+      const offset = (y * size.width + x) * 4;
+      difference += Math.abs(beforePixels[offset] - afterPixels[offset]);
+      difference += Math.abs(beforePixels[offset + 1] - afterPixels[offset + 1]);
+      difference += Math.abs(beforePixels[offset + 2] - afterPixels[offset + 2]);
+      samples += 3;
+    }
+  }
+  const meanDifference = samples ? difference / samples : 0;
+  if (meanDifference < 2) {
+    throw new Error(`Hover tint did not visibly change ${selector}; mean RGB delta ${meanDifference.toFixed(2)}`);
+  }
+}
+
 const MORSE = Object.freeze({
   A: ".-", B: "-...", C: "-.-.", D: "-..", E: ".", F: "..-.", G: "--.", H: "....", I: "..", J: ".---",
   K: "-.-", L: ".-..", M: "--", N: "-.", O: "---", P: ".--.", Q: "--.-", R: ".-.", S: "...", T: "-",
@@ -192,7 +236,7 @@ async function runQaCapture(window) {
   await new Promise((resolve) => setTimeout(resolve, 1400));
   await capture(window, outputDir, shot("home-motion-b"));
   await clearHover(window);
-  await hover(window, ".hotspot-store");
+  await assertHoverTint(window, ".hotspot-store");
   await capture(window, outputDir, shot("home-hover-store"));
   await click(window, ".hotspot-store");
   await waitFor(window, '[data-testid="store-modal"]');
