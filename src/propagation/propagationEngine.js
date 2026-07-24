@@ -157,3 +157,12 @@ export function locationFromNormalizedPoint(x, y) {
     longitude: Number((-180 + clamp(x, 0, 1) * 360).toFixed(2)),
   };
 }
+
+export function normalizedPointFromLocation(location) {
+  const latitude = clamp(Number(location?.latitude) || 0, -90, 90);
+  const longitude = clamp(Number(location?.longitude) || 0, -180, 180);
+  return {
+    x: (longitude + 180) / 360,
+    y: (90 - latitude) / 180,
+  };
+}

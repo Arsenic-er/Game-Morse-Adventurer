@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { locationFromNormalizedPoint } from "./propagationEngine.js";
+import { locationFromNormalizedPoint, normalizedPointFromLocation } from "./propagationEngine.js";
 
 const BASE_MAP = "./assets/world-map.png";
 const LEVEL_COLORS = ["#1597a4", "#16895f", "#d7c632", "#ef7b20", "#dd352f"];
@@ -38,8 +38,9 @@ export function PropagationMap({ map, mode = "propagation", onSelect, ariaLabel 
 
       const player = map.playerLocation;
       if (player) {
-        const px = (player.longitude + 180) / 360 * canvas.width;
-        const py = (90 - player.latitude) / 180 * canvas.height;
+        const point = normalizedPointFromLocation(player);
+        const px = point.x * canvas.width;
+        const py = point.y * canvas.height;
         context.fillStyle = "#061015";
         context.fillRect(Math.round(px) - 7, Math.round(py) - 7, 14, 14);
         context.strokeStyle = "#f4d25c";
@@ -56,5 +57,5 @@ export function PropagationMap({ map, mode = "propagation", onSelect, ariaLabel 
     onSelect(locationFromNormalizedPoint((event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height));
   }
 
-  return <canvas ref={canvasRef} className={`propagation-canvas ${className}`} width="720" height="360" role="img" aria-label={ariaLabel} onPointerDown={handlePointer} />;
+  return <canvas ref={canvasRef} className={`propagation-canvas ${className}`} data-map-mode={mode} width="720" height="360" role="img" aria-label={ariaLabel} onPointerDown={handlePointer} />;
 }

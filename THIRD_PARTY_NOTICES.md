@@ -31,4 +31,11 @@ The following third-party projects are used by or distributed with Game-Morse-Ad
 - Project: https://vite.dev/
 - License: MIT License
 
+## Natural Earth
+
+- Project: https://www.naturalearthdata.com/
+- Dataset: 1:110m Land polygons
+- Use: Geographic source for the equirectangular pixel-art world map
+- Terms: Public domain
+
 Complete dependency license texts are available from each linked upstream project and from installed package metadata.

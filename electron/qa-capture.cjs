@@ -365,6 +365,9 @@ async function runQaCapture(window) {
   await click(window, ".map-preview");
   await waitFor(window, ".map-modal");
   await capture(window, outputDir, shot("propagation-map"));
+  await click(window, ".map-mode-buttons button:first-child");
+  await waitFor(window, '[data-map-mode="world"]');
+  await capture(window, outputDir, shot("world-map"));
 
   await fs.writeFile(
     path.join(outputDir, "runtime-console-errors.json"),
@@ -381,7 +384,7 @@ async function runQaCapture(window) {
       "home-hover-warehouse", "warehouse-radio", "warehouse-accessories",
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "home-log-empty", "save-loaded", "home-log-populated",
-      "home-log-detail-second", "station-off", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map",
+      "home-log-detail-second", "station-off", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
     ].map(shot),
   };
 }

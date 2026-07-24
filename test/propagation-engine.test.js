@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_PLAYER_LOCATION, GRID_HEIGHT, GRID_WIDTH, NPC_STATIONS, baseLevelAt,
   channelProfileForLevel, evaluatedNpcStations, finalPropagationLevel,
-  generatePropagationMap, locationFromNormalizedPoint, selectNpcForQso,
+  generatePropagationMap, locationFromNormalizedPoint, normalizedPointFromLocation, selectNpcForQso,
 } from "../src/propagation/propagationEngine.js";
 
 test("generates a deterministic 72x36 offline propagation map", () => {
@@ -57,4 +57,12 @@ test("antenna modifiers can reduce QSB without changing the propagation level", 
 test("normalized map clicks convert to latitude and longitude", () => {
   assert.deepEqual(locationFromNormalizedPoint(.5, .5), { latitude: 0, longitude: 0 });
   assert.deepEqual(locationFromNormalizedPoint(1, 0), { latitude: 90, longitude: 180 });
+});
+
+test("station coordinates use the equirectangular map projection", () => {
+  assert.deepEqual(normalizedPointFromLocation({ latitude: 0, longitude: 0 }), { x: .5, y: .5 });
+  const japan = normalizedPointFromLocation({ latitude: 35.68, longitude: 139.76 });
+  assert.ok(Math.abs(japan.x - .888222) < .000001);
+  assert.ok(Math.abs(japan.y - .301778) < .000001);
+  assert.deepEqual(normalizedPointFromLocation({ latitude: 120, longitude: 220 }), { x: 1, y: 0 });
 });

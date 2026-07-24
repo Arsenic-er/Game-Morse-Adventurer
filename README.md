@@ -61,11 +61,11 @@ pnpm run dev
 pnpm run desktop:build
 ```
 
-The project currently has 63 automated tests covering the CW core and repeating keyer, practice engine, QSO state machine, persistent QSO logs and results, idempotent credit settlement, store economy, owned inventory, propagation model, and save data rules.
+The project currently has 64 automated tests covering the CW core and repeating keyer, practice engine, QSO state machine, persistent QSO logs and results, idempotent credit settlement, store economy, owned inventory, propagation model, map projection, and save data rules.
 
 ## Project status
 
-Version **v0.9.2** replaces Home hotspot outlines with object-area filter highlights and adds a saved, adjustable automatic-key speed with deterministic Z/X hold-to-repeat. It remains a playable prototype with persistent QSO results, logbook history, a credit-based station store, owned-equipment inventory, and protected warehouse loadouts. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
+Version **v0.9.3** replaces the malformed world-map artwork with a single 2:1 equirectangular map, removing the duplicated Japan while keeping station markers aligned with real latitude and longitude. It remains a playable prototype with persistent QSO results, logbook history, a credit-based station store, owned-equipment inventory, protected warehouse loadouts, adjustable automatic-key speed, and deterministic Z/X hold-to-repeat. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
 
 ## Rights and third-party software
 

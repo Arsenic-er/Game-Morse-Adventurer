@@ -10,6 +10,7 @@ node_modules/
 dist/
 release/
 design-references/
+qa-artifacts*/
 qa-*.png
 *-qa.md
 design-qa.md
