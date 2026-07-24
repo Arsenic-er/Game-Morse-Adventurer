@@ -35,6 +35,7 @@ export class AutomaticKeyer {
     this.onPulse = onPulse;
     this.onSessionChange = onSessionChange;
     this.held = new Set();
+    this.pendingPresses = new Set();
     this.queue = [];
     this.phase = "idle";
     this.timer = null;
@@ -51,6 +52,7 @@ export class AutomaticKeyer {
     if (!validSymbol(symbol)) return false;
     const wasHeld = this.held.has(symbol);
     this.held.add(symbol);
+    if (!wasHeld) this.pendingPresses.add(symbol);
     if (!wasHeld && this.phase === "idle") this.startNext();
     return true;
   }
@@ -58,6 +60,10 @@ export class AutomaticKeyer {
   end(symbol) {
     if (!validSymbol(symbol)) return false;
     this.held.delete(symbol);
+    if (this.pendingPresses.delete(symbol)) {
+      this.queue.push(symbol);
+      if (this.phase === "idle") this.startNext();
+    }
     return true;
   }
 
@@ -77,6 +83,7 @@ export class AutomaticKeyer {
     }
     const wasBusy = this.phase !== "idle";
     this.held.clear();
+    this.pendingPresses.clear();
     this.queue = [];
     this.phase = "idle";
     this.active = null;
@@ -86,8 +93,11 @@ export class AutomaticKeyer {
   chooseNextSymbol() {
     if (this.queue.length) return this.queue.shift();
     if (!this.held.size) return null;
-    if (this.held.size === 2) return this.lastSymbol === "." ? "-" : ".";
-    return this.held.values().next().value;
+    const symbol = this.held.size === 2
+      ? (this.lastSymbol === "." ? "-" : ".")
+      : this.held.values().next().value;
+    this.pendingPresses.delete(symbol);
+    return symbol;
   }
 
   startNext() {

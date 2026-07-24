@@ -84,6 +84,26 @@ test("a held dash uses three dot units plus one-dot repeat spacing", () => {
   assert.equal(fixture.pulses.length, 2);
 });
 
+test("a press released during the inter-element gap is remembered once", () => {
+  const fixture = keyerFixture(20);
+  fixture.keyer.begin(".");
+  fixture.keyer.end(".");
+  fixture.clock.tick(60);
+  assert.equal(fixture.pulses.length, 1);
+
+  fixture.clock.tick(10);
+  fixture.keyer.begin("-");
+  fixture.keyer.end("-");
+  fixture.clock.tick(50);
+  assert.equal(fixture.starts.length, 2);
+  assert.equal(fixture.starts[1].symbol, "-");
+
+  fixture.clock.tick(180);
+  assert.deepEqual(fixture.pulses.map((pulse) => pulse.symbol), [".", "-"]);
+  fixture.clock.tick(60);
+  assert.equal(fixture.keyer.isBusy(), false);
+});
+
 test("speed changes apply to the next automatic element without parallel timers", () => {
   const fixture = keyerFixture(20);
   fixture.keyer.begin(".");
