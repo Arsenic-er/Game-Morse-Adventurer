@@ -59,7 +59,7 @@ pnpm run dev
 pnpm run desktop:build
 ```
 
-The project currently has 44 automated tests covering the CW core, practice engine, QSO state machine, persistent QSO logs and results, idempotent credit settlement, propagation model, and save data rules.
+The project currently has 56 automated tests covering the CW core, practice engine, QSO state machine, persistent QSO logs and results, idempotent credit settlement, store economy, owned inventory, propagation model, and save data rules.
 
 ## Project status
 
