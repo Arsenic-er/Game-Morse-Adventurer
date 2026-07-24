@@ -52,6 +52,52 @@ jobs:
       - name: Build portable executable
         run: pnpm run desktop:build
 
+      - name: Smoke-test packaged game
+        shell: pwsh
+        run: |
+          $qaOutput = Join-Path $env:RUNNER_TEMP "cwgame-qa"
+          New-Item -ItemType Directory -Force -Path $qaOutput | Out-Null
+          $env:CWGAME_QA_OUTPUT = $qaOutput
+          $stdout = Join-Path $qaOutput "stdout.log"
+          $stderr = Join-Path $qaOutput "stderr.log"
+          $process = Start-Process `
+            -FilePath "release/CWGame-latest.exe" `
+            -ArgumentList "--qa-capture" `
+            -WindowStyle Hidden `
+            -RedirectStandardOutput $stdout `
+            -RedirectStandardError $stderr `
+            -PassThru `
+            -Wait
+
+          $failure = Join-Path $qaOutput "qa-failure.txt"
+          if ($process.ExitCode -ne 0 -or (Test-Path -LiteralPath $failure)) {
+            if (Test-Path -LiteralPath $failure) {
+              Get-Content -LiteralPath $failure
+            }
+            if (Test-Path -LiteralPath $stderr) {
+              Get-Content -LiteralPath $stderr
+            }
+            throw "Packaged CWGame QA failed with exit code $($process.ExitCode)"
+          }
+
+          $screenshots = @(Get-ChildItem -LiteralPath $qaOutput -Filter "*.png" -File)
+          if ($screenshots.Count -lt 23) {
+            throw "Packaged QA produced only $($screenshots.Count) screenshots"
+          }
+
+          $consoleLog = Join-Path $qaOutput "runtime-console-errors.json"
+          if (!(Test-Path -LiteralPath $consoleLog)) {
+            throw "Packaged QA did not produce the runtime console report"
+          }
+          $consoleErrors = @(Get-Content -LiteralPath $consoleLog -Raw | ConvertFrom-Json)
+          if ($consoleErrors.Count -gt 0) {
+            $consoleErrors | ConvertTo-Json -Depth 5
+            throw "Packaged QA recorded renderer warnings or errors"
+          }
+
+          "Packaged QA captured $($screenshots.Count) verified screens." |
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
       - name: Verify executable and write checksum
         shell: pwsh
         run: |
@@ -92,4 +138,13 @@ jobs:
             release/CWGame-latest.sha256
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload QA evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CWGame-Windows-QA-failure
+          path: ${{ runner.temp }}/cwgame-qa
+          if-no-files-found: warn
+          retention-days: 7
 

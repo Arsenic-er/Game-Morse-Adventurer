@@ -150,6 +150,16 @@ async function runQaCapture(window) {
   await new Promise((resolve) => setTimeout(resolve, 1400));
   await capture(window, outputDir, shot("home-motion-b"));
   await clearHover(window);
+  await hover(window, ".hotspot-store");
+  await capture(window, outputDir, shot("home-hover-store"));
+  await click(window, ".hotspot-store");
+  await waitFor(window, '[data-testid="store-modal"]');
+  await capture(window, outputDir, shot("store-antenna"));
+  await click(window, '[data-store-category="radio"]');
+  await capture(window, outputDir, shot("store-radio"));
+  await click(window, '[data-action="close-store"]');
+  await waitFor(window, ".home-screen");
+  await clearHover(window);
   await hover(window, ".hotspot-warehouse");
   await capture(window, outputDir, shot("home-hover-warehouse"));
   await click(window, ".hotspot-warehouse");
@@ -162,10 +172,13 @@ async function runQaCapture(window) {
   await click(window, ".warehouse-category-rail button:nth-of-type(3)");
   await capture(window, outputDir, shot("warehouse-accessories"));
   await click(window, ".warehouse-category-rail button:nth-of-type(2)");
-  await click(window, '[data-antenna-id="yagi-3el"]');
+  await click(window, '[data-antenna-id="none"]');
   await capture(window, outputDir, shot("warehouse-antenna-selected"));
   await click(window, ".rack-equip-button");
   await capture(window, outputDir, shot("warehouse-antenna-equipped"));
+  // Restore the starter dipole so the later RF/QSO smoke flow remains operable.
+  await click(window, '[data-antenna-id="dipole"]');
+  await click(window, ".rack-equip-button");
   await click(window, ".warehouse-return");
   await waitFor(window, ".home-screen");
   await clearHover(window);
@@ -278,6 +291,7 @@ async function runQaCapture(window) {
     outputDir,
     captures: [
       "start", "save-create", "home", "home-motion-a", "home-motion-b",
+      "home-hover-store", "store-antenna", "store-radio",
       "home-hover-warehouse", "warehouse-radio", "warehouse-accessories",
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "home-log-empty", "save-loaded", "home-log-populated",
