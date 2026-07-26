@@ -1,4 +1,5 @@
 import { ANTENNAS } from "./antennaCatalog.js";
+import { ACCESSORIES } from "./accessoryCatalog.js";
 import { KEY_OPTIONS, TRANSMITTERS } from "./equipmentCatalog.js";
 import { getLocation } from "./locations.js";
 import { normalizeQsoLogEntries, normalizeQsoRecords } from "../qso/qsoLog.js";
@@ -40,12 +41,13 @@ export function createSave({
   if (!isValidCallsign(cleanCallsign)) throw new Error("INVALID_CALLSIGN");
   const now = new Date().toISOString();
   return {
-    inventoryVersion: 1,
+    inventoryVersion: 2,
     id: globalThis.crypto?.randomUUID?.() ?? `save-${Date.now()}`,
     callsign: cleanCallsign,
     locationId: getLocation(locationId).id,
     equipmentId: "squid-01",
     antennaId: "dipole",
+    accessoryId: "none",
     keyType: exactId(KEY_OPTIONS, keyType, "manual"),
     automaticKeyWpm: normalizeAutomaticKeyWpm(automaticKeyWpm),
     ownedEquipment: ["squid-01"],
@@ -63,7 +65,7 @@ export function normalizeSave(save) {
   const callsign = sanitizeCallsign(save?.callsign);
   if (!isValidCallsign(callsign)) return null;
   const hasOwn = (key) => Object.prototype.hasOwnProperty.call(save ?? {}, key);
-  const hasInventory = save?.inventoryVersion === 1
+  const hasInventory = Number(save?.inventoryVersion) >= 1
     || hasOwn("ownedEquipment")
     || hasOwn("ownedAntennas")
     || hasOwn("accessories");
@@ -79,26 +81,36 @@ export function normalizeSave(save) {
     ANTENNAS,
     ["dipole"],
   );
+  const ownedAccessories = normalizeOwned(
+    hasInventory ? save?.accessories : [],
+    ACCESSORIES,
+    [],
+  );
   const requestedEquipmentId = exactId(TRANSMITTERS, save?.equipmentId, "squid-01");
   const requestedAntennaId = exactId(ANTENNAS, save?.antennaId, "dipole");
+  const requestedAccessoryId = exactId(ACCESSORIES, save?.accessoryId, "none");
   const equipmentId = ownedEquipment.includes(requestedEquipmentId) ? requestedEquipmentId : "squid-01";
   const antennaId = requestedAntennaId === "none" || ownedAntennas.includes(requestedAntennaId)
     ? requestedAntennaId
     : "dipole";
+  const accessoryId = requestedAccessoryId === "none" || ownedAccessories.includes(requestedAccessoryId)
+    ? requestedAccessoryId
+    : "none";
   const qsoLogSource = Array.isArray(save?.qsoLogs) ? save.qsoLogs : save?.qsoLogEntries;
   const qsoLogs = normalizeQsoLogEntries(qsoLogSource);
   return {
-    inventoryVersion: 1,
+    inventoryVersion: 2,
     id: String(save.id || `save-${Date.now()}`),
     callsign,
     locationId: getLocation(save.locationId).id,
     equipmentId,
     antennaId,
+    accessoryId,
     keyType: exactId(KEY_OPTIONS, save.keyType, "manual"),
     automaticKeyWpm: normalizeAutomaticKeyWpm(save.automaticKeyWpm),
     ownedEquipment,
     ownedAntennas,
-    accessories: [],
+    accessories: ownedAccessories,
     credits: normalizeCredits(save.credits),
     qsoLogs,
     qsoRecords: normalizeQsoRecords(save?.qsoRecords, qsoLogSource),

@@ -37,6 +37,7 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - A four-language achievement archive derives six permanent milestones from durable QSO records and retained logs without granting duplicate rewards.
 - Atomic, idempotent credit settlement prevents a completed QSO from being rewarded more than once.
 - A four-language station store supports atomic purchases, persistent ownership, and warehouse-only equipment changes.
+- A single accessory slot supports the 300-credit CW-500 audio filter, centered at 650 Hz with a 500 Hz bandwidth and 35% lower receiver noise; the equipped accessory is preserved in QSO logs.
 - Station clocks display both the selected station's local time and UTC.
 - Deterministic offline propagation based on station location, UTC, and 21.060 MHz.
 - Propagation levels affect NPC availability, signal gain, noise, QSB, and small frequency offsets.
@@ -61,11 +62,11 @@ pnpm run dev
 pnpm run desktop:build
 ```
 
-The project currently has 73 automated tests covering the CW core and repeating keyer, practice engine, player-led QSO state machine, CQ response probability, persistent QSO logs and results, achievement derivation, idempotent credit settlement, store economy, owned inventory, propagation model, map projection, and save data rules.
+The project currently has 85 automated tests covering the CW core and repeating keyer, receiver audio filtering, practice engine, player-led QSO state machine, CQ response probability, persistent QSO logs and results, achievement derivation, idempotent credit settlement, store economy, accessory ownership and loadouts, propagation model, map projection, and save data rules.
 
 ## Project status
 
-Version **v0.11.0** replaces the Home newspaper placeholder with a four-language achievement archive for the first QSO, 5 and 10 QSOs, a 5,000 km DX contact, a P2-or-weaker contact, and contacts across three regions. Incoming NPC playback now retries automatically after focus or audio interruption without advancing the QSO early, and historical contacts display their own saved region and propagation level. It remains a playable prototype with persistent QSO results, a credit-based station store, owned-equipment inventory, protected warehouse loadouts, adjustable automatic-key speed, and deterministic Z/X hold-to-repeat. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
+Version **v0.12.0** adds the first functional station accessory: the CW-500 audio filter. It costs 300 credits, occupies the single accessory slot, reduces receiver noise by 35%, and applies a 650 Hz-centered, 500 Hz audio passband to both idle receiver noise and incoming CW. Players can buy it in the store, equip or remove it in the warehouse, see its active state at the station, and retain the accessory snapshot in every new QSO log. The v2 inventory migration safely preserves old saves. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
 
 ## Rights and third-party software
 

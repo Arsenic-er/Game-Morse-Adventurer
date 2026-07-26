@@ -1,4 +1,5 @@
 import { ANTENNAS } from "./antennaCatalog.js";
+import { ACCESSORIES } from "./accessoryCatalog.js";
 import { TRANSMITTERS } from "./equipmentCatalog.js";
 
 export const ECONOMY_RESULT = Object.freeze({
@@ -18,7 +19,7 @@ export const STORE_CATEGORIES = Object.freeze(["radio", "antenna", "accessories"
 const CATEGORY_CONFIG = Object.freeze({
   radio: { catalog: TRANSMITTERS, ownedField: "ownedEquipment", equippedField: "equipmentId" },
   antenna: { catalog: ANTENNAS, ownedField: "ownedAntennas", equippedField: "antennaId" },
-  accessories: { catalog: [], ownedField: "accessories", equippedField: null },
+  accessories: { catalog: ACCESSORIES, ownedField: "accessories", equippedField: "accessoryId" },
 });
 
 function categoryConfig(category) {
@@ -36,7 +37,7 @@ function safeCredits(value) {
 }
 
 export function ownsItem(save, { category, itemId }) {
-  if (category === "antenna" && itemId === "none") return true;
+  if (["antenna", "accessories"].includes(category) && itemId === "none") return true;
   const config = categoryConfig(category);
   if (!config) return false;
   return Array.isArray(save?.[config.ownedField]) && save[config.ownedField].includes(itemId);

@@ -167,14 +167,25 @@ export function channelProfileForLevel(level, npc = {}, modifiers = {}) {
   const qsbDepthMultiplier = Number.isFinite(modifiers.qsbDepthMultiplier)
     ? clamp(modifiers.qsbDepthMultiplier, 0, 2)
     : 1;
+  const noiseGainMultiplier = Number.isFinite(modifiers.noiseGainMultiplier)
+    ? clamp(modifiers.noiseGainMultiplier, 0, 2)
+    : 1;
+  const noiseFilterCenterHz = Number.isFinite(modifiers.noiseFilterCenterHz)
+    ? clamp(modifiers.noiseFilterCenterHz, 100, 4000)
+    : 1150;
+  const noiseFilterQ = Number.isFinite(modifiers.noiseFilterQ)
+    ? clamp(modifiers.noiseFilterQ, .1, 20)
+    : .35;
   return {
     level: safeLevel,
-    noiseGain: base.noiseGain,
+    noiseGain: base.noiseGain * noiseGainMultiplier,
     qsbDepth: base.qsbDepth * qsbDepthMultiplier,
     qsbRateHz: base.qsbRateHz,
     signalGain: base.signalGain,
     frequencyOffsetHz: direction * (Number.isFinite(npc.frequencyOffsetHz) ? Math.abs(npc.frequencyOffsetHz) : base.offset),
     toneHz: Number(npc.baseToneHz) || 650,
+    noiseFilterCenterHz,
+    noiseFilterQ,
   };
 }
 

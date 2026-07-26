@@ -73,7 +73,7 @@ export function QsoResultModal({
               <div><dt><Ruler size={18} />{t.distance}</dt><dd>{value(entry?.distanceKm, " km")}</dd></div>
               <div><dt><ShieldCheck size={18} />{t.rst}</dt><dd>{value(entry?.sent)} / {value(entry?.received)}</dd></div>
               <div><dt><Broadcast size={18} />{t.propagation}</dt><dd>P{value(entry?.finalPropagationLevel)}</dd></div>
-              <div><dt><Radio size={18} />{t.equipment}</dt><dd>{value(entry?.equipmentId)} / {value(entry?.antennaId)}</dd></div>
+              <div><dt><Radio size={18} />{t.equipment}</dt><dd>{value(entry?.equipmentId)} / {value(entry?.antennaId)} / {value(entry?.accessoryId)}</dd></div>
               <div><dt><Gauge size={18} />{t.speed}</dt><dd>{value(entry?.wpm, " WPM")}</dd></div>
               <div><dt>{t.accuracy}</dt><dd>{value(entry?.copyAccuracy, "%")}</dd></div>
               <div><dt>{t.rhythm}</dt><dd>{value(entry?.keyingScore, "%")}</dd></div>

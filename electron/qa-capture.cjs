@@ -276,6 +276,9 @@ async function runQaCapture(window) {
   await capture(window, outputDir, shot("store-antenna"));
   await click(window, '[data-store-category="radio"]');
   await capture(window, outputDir, shot("store-radio"));
+  await click(window, '[data-store-category="accessories"]');
+  await waitFor(window, '[data-store-item-id="cw-filter-500"][data-store-item-state="insufficient"]');
+  await capture(window, outputDir, shot("store-accessory-insufficient"));
   await click(window, '[data-action="close-store"]');
   await waitFor(window, ".home-screen");
   await clearHover(window);
@@ -328,7 +331,7 @@ async function runQaCapture(window) {
     const saves = JSON.parse(localStorage.getItem(key) || "[]");
     const save = saves[0];
     save.keyType = "automatic";
-    save.credits = 200;
+    save.credits = 500;
     save.qsoLogs = [
       { version: 1, id: "SIM9AK-qa-2", startedAt: "2026-07-15T03:06:00.000Z", completedAt: "2026-07-15T03:12:00.000Z", playerCallsign: save.callsign, callsign: "SIM9AK", frequencyMhz: 21.06, mode: "CW", sent: "559", received: "579", location: "EU-W", npcLatitude: 51.51, npcLongitude: -0.13, distanceKm: 9568.2, basePropagationLevel: 2, finalPropagationLevel: 3, propagationSource: "OFFLINE_DEFAULT", equipmentId: "squid-01", antennaId: save.antennaId, playerLocationId: save.locationId, wpm: 19, copyAccuracy: 94, keyingScore: 91, credits: 100, isFictional: true },
       { version: 1, id: "SIM6JP-qa-1", startedAt: "2026-07-14T22:00:00.000Z", completedAt: "2026-07-14T22:05:00.000Z", playerCallsign: save.callsign, callsign: "SIM6JP", frequencyMhz: 21.06, mode: "CW", sent: "579", received: "599", location: "AS-JA", npcLatitude: 35.68, npcLongitude: 139.76, distanceKm: 162.4, basePropagationLevel: 3, finalPropagationLevel: 4, propagationSource: "OFFLINE_DEFAULT", equipmentId: "squid-01", antennaId: "dipole", playerLocationId: save.locationId, wpm: 18, copyAccuracy: 98, keyingScore: 96, credits: 100, isFictional: true }
@@ -342,6 +345,38 @@ async function runQaCapture(window) {
   await capture(window, outputDir, shot("save-loaded"));
 
   await click(window, ".save-primary-action");
+  await waitFor(window, ".home-screen");
+  await click(window, ".hotspot-store");
+  await waitFor(window, '[data-testid="store-modal"]');
+  await click(window, '[data-store-category="accessories"]');
+  await waitFor(window, '[data-store-item-id="cw-filter-500"][data-store-item-state="available"]');
+  await click(window, '[data-action="purchase"][data-purchase-item-id="cw-filter-500"]');
+  await waitFor(window, '[data-store-item-id="cw-filter-500"][data-store-item-state="owned"]');
+  const accessoryPurchaseState = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    return { credits: save.credits, accessories: save.accessories, accessoryId: save.accessoryId };
+  })()`, true);
+  if (accessoryPurchaseState.credits !== 200
+    || !accessoryPurchaseState.accessories.includes("cw-filter-500")
+    || accessoryPurchaseState.accessoryId !== "none") {
+    throw new Error(`Accessory purchase was not atomic: ${JSON.stringify(accessoryPurchaseState)}`);
+  }
+  await capture(window, outputDir, shot("store-accessory-owned"));
+  await click(window, '[data-action="close-store"]');
+  await waitFor(window, ".home-screen");
+  await click(window, ".hotspot-warehouse");
+  await waitFor(window, ".warehouse-screen");
+  await click(window, ".warehouse-category-rail button:nth-of-type(3)");
+  await click(window, '[data-accessory-id="cw-filter-500"]');
+  await capture(window, outputDir, shot("warehouse-accessory-selected"));
+  await click(window, '[data-action="equip-item"][data-equipped-item-id="cw-filter-500"]');
+  const equippedAccessoryId = await window.webContents.executeJavaScript(
+    'JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].accessoryId',
+    true,
+  );
+  if (equippedAccessoryId !== "cw-filter-500") throw new Error(`Accessory did not persist after equip: ${equippedAccessoryId}`);
+  await capture(window, outputDir, shot("warehouse-accessory-equipped"));
+  await click(window, ".warehouse-return");
   await waitFor(window, ".home-screen");
   await click(window, ".hotspot-achievements");
   await waitFor(window, '[data-testid="achievements-modal"]');
@@ -380,6 +415,17 @@ async function runQaCapture(window) {
   if (initialReceiverState.phase !== "PLAYER_CQ" || initialReceiverState.receiverActive !== "true"
     || initialReceiverState.hasManualReceiveButton || initialReceiverState.hiddenContact !== "---") {
     throw new Error(`Station did not enter automatic receive state: ${JSON.stringify(initialReceiverState)}`);
+  }
+  const accessoryReceiverState = await window.webContents.executeJavaScript(`(() => {
+    const station = document.querySelector(".station-screen");
+    return {
+      accessoryId: station?.dataset.accessoryId ?? null,
+      noiseGain: Number(station?.dataset.channelNoiseGain),
+    };
+  })()`, true);
+  if (accessoryReceiverState.accessoryId !== "cw-filter-500"
+    || Math.abs(accessoryReceiverState.noiseGain - 0.04225) > 0.000001) {
+    throw new Error(`Accessory did not affect the open receiver: ${JSON.stringify(accessoryReceiverState)}`);
   }
   await capture(window, outputDir, shot("station-listening"));
   const markStep = (step) => fs.writeFile(path.join(outputDir, "qa-step.txt"), `${step}\n`, "utf8");
@@ -436,6 +482,11 @@ async function runQaCapture(window) {
   await capture(window, outputDir, shot("qso-result-unsaved"));
   await click(window, ".qso-result-primary");
   await waitFor(window, ".qso-result-modal.success header .icon-button", 10000);
+  const savedAccessorySnapshot = await window.webContents.executeJavaScript(
+    'JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].qsoLogs[0].accessoryId',
+    true,
+  );
+  if (savedAccessorySnapshot !== "cw-filter-500") throw new Error(`QSO log lost accessory snapshot: ${savedAccessorySnapshot}`);
   await capture(window, outputDir, shot("qso-result-saved"));
   await click(window, ".qso-result-modal.success header .icon-button");
 
@@ -468,10 +519,11 @@ async function runQaCapture(window) {
     outputDir,
     captures: [
       "start", "save-create", "home", "home-motion-a", "home-motion-b",
-      "home-hover-store", "store-antenna", "store-radio",
+      "home-hover-store", "store-antenna", "store-radio", "store-accessory-insufficient",
       "home-hover-warehouse", "warehouse-radio", "warehouse-accessories",
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
-      "home-hover-achievements", "achievements-empty", "home-log-empty", "save-loaded", "achievements-populated", "home-log-populated",
+      "home-hover-achievements", "achievements-empty", "home-log-empty", "save-loaded", "store-accessory-owned",
+      "warehouse-accessory-selected", "warehouse-accessory-equipped", "achievements-populated", "home-log-populated",
       "home-log-detail-second", "station-listening", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
     ].map(shot),
   };

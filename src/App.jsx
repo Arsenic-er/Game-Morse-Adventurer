@@ -14,6 +14,7 @@ import {
 import { useCwCore } from "./cw/useCwCore.js";
 import { tailPreview } from "./cw/display.js";
 import { LocationArtwork } from "./game/LocationArtwork.jsx";
+import { getAccessory } from "./game/accessoryCatalog.js";
 import { getAntenna } from "./game/antennaCatalog.js";
 import { equipOwnedItem, purchaseItem } from "./game/economy.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
@@ -44,7 +45,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.11.0";
+const BUILD_VERSION = "0.12.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -71,7 +72,7 @@ const COPY = {
     reply: "回应", send: "发送", saveLog: "保存日志", saved: "日志已保存", map: "传播地图",
     worldMode: "普通世界地图", heatMode: "传播等级地图", legend: "传播等级", back: "返回开始界面",
     qsoReady: "等待对方台结束呼叫…", qsoReply: "正在发送回应…", qsoSent: "回应已发出，等待回报…",
-    fixedToneHint: "套件音调固定；自动键速度可调，手键速度由系统检测", playCq: "播放 CQ", replayInput: "回放输入", target: "目标",
+    fixedToneHint: "套件音调固定；自动键速度可调，手键速度由系统检测", filterActive: "500 Hz 滤波", playCq: "播放 CQ", replayInput: "回放输入", target: "目标",
     decoded: "解码", accuracy: "正确率", rhythm: "节奏", powerOn: "开机", powerOff: "关机", cwReady: "CW 核心就绪", cwPlaying: "正在播放标准 CQ",
     cwKeying: "正在记录发报", cwReplay: "正在回放输入", cwCaptured: "输入已记录", cwReceiving: "接收 CW",
     playNpc: "播放对方", submitReply: "发送回应", restartQso: "重新开始", credits: "信用点", sim: "虚构台站", propLevel: "传播等级",
@@ -89,7 +90,7 @@ const COPY = {
     reply: "回應", send: "發送", saveLog: "儲存日誌", saved: "日誌已儲存", map: "傳播地圖",
     worldMode: "普通世界地圖", heatMode: "傳播等級地圖", legend: "傳播等級", back: "返回開始介面",
     qsoReady: "等待對方臺結束呼叫…", qsoReply: "正在發送回應…", qsoSent: "回應已發出，等待回報…",
-    fixedToneHint: "套件音調固定；自動鍵速度可調，手鍵速度由系統偵測", playCq: "播放 CQ", replayInput: "重播輸入", target: "目標",
+    fixedToneHint: "套件音調固定；自動鍵速度可調，手鍵速度由系統偵測", filterActive: "500 Hz 濾波", playCq: "播放 CQ", replayInput: "重播輸入", target: "目標",
     decoded: "解碼", accuracy: "正確率", rhythm: "節奏", powerOn: "開機", powerOff: "關機", cwReady: "CW 核心就緒", cwPlaying: "正在播放標準 CQ",
     cwKeying: "正在記錄發報", cwReplay: "正在重播輸入", cwCaptured: "輸入已記錄", cwReceiving: "接收 CW",
     playNpc: "播放對方", submitReply: "發送回應", restartQso: "重新開始", credits: "信用點", sim: "虛構臺站", propLevel: "傳播等級",
@@ -107,7 +108,7 @@ const COPY = {
     reply: "応答", send: "送信", saveLog: "ログ保存", saved: "ログを保存しました", map: "伝搬マップ",
     worldMode: "通常の世界地図", heatMode: "伝搬レベル地図", legend: "伝搬レベル", back: "開始画面へ戻る",
     qsoReady: "相手局の呼出終了を待っています…", qsoReply: "応答を送信中…", qsoSent: "応答を送信しました。レポート待ち…",
-    fixedToneHint: "音程は固定です。オートキー速度は調整でき、縦振り電鍵は自動検出されます", playCq: "CQ を再生", replayInput: "入力を再生", target: "目標",
+    fixedToneHint: "音程は固定です。オートキー速度は調整でき、縦振り電鍵は自動検出されます", filterActive: "500 Hz フィルター", playCq: "CQ を再生", replayInput: "入力を再生", target: "目標",
     decoded: "復号", accuracy: "正確率", rhythm: "リズム", powerOn: "電源オン", powerOff: "電源オフ", cwReady: "CW コア準備完了", cwPlaying: "標準 CQ を再生中",
     cwKeying: "送信を記録中", cwReplay: "入力を再生中", cwCaptured: "入力を記録しました", cwReceiving: "CW 受信中",
     playNpc: "相手局を再生", submitReply: "応答を送信", restartQso: "やり直す", credits: "クレジット", sim: "架空局", propLevel: "伝搬レベル",
@@ -125,7 +126,7 @@ const COPY = {
     reply: "Reply", send: "Send", saveLog: "Save log", saved: "Log saved", map: "Propagation map",
     worldMode: "Normal world map", heatMode: "Propagation level map", legend: "Propagation level", back: "Back to title",
     qsoReady: "Waiting for the calling station…", qsoReply: "Sending reply…", qsoSent: "Reply sent. Waiting for report…",
-    fixedToneHint: "Kit tone is fixed; automatic-key speed is adjustable and straight-key speed is auto-detected", playCq: "Play CQ", replayInput: "Replay input", target: "Target",
+    fixedToneHint: "Kit tone is fixed; automatic-key speed is adjustable and straight-key speed is auto-detected", filterActive: "500 Hz filter", playCq: "Play CQ", replayInput: "Replay input", target: "Target",
     decoded: "Decoded", accuracy: "Accuracy", rhythm: "Rhythm", powerOn: "Power on", powerOff: "Power off", cwReady: "CW core ready", cwPlaying: "Playing standard CQ",
     cwKeying: "Recording keying", cwReplay: "Replaying input", cwCaptured: "Input captured", cwReceiving: "Receiving CW",
     playNpc: "Play station", submitReply: "Send reply", restartQso: "Restart", credits: "Credits", sim: "Fictional station", propLevel: "Propagation level",
@@ -316,6 +317,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const antennaStatus = ANTENNA_STATUS[language] ?? ANTENNA_STATUS.en;
   const location = getLocation(save.locationId);
   const antenna = getAntenna(save.antennaId);
+  const accessory = getAccessory(save.accessoryId);
   const antennaReady = antenna.id !== "none";
   const playerEquipmentBonus = antenna.propagationBonus;
   const playerLocation = useMemo(() => toPropagationLocation(location), [location]);
@@ -345,12 +347,21 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   });
   const isTx = cw.isTransmitting;
   const npcChannel = useMemo(
-    () => channelProfileForLevel(qso.npc.finalLevel, qso.npc, antenna),
-    [antenna, qso.npc],
+    () => channelProfileForLevel(qso.npc.finalLevel, qso.npc, {
+      qsbDepthMultiplier: antenna.qsbDepthMultiplier,
+      noiseGainMultiplier: accessory.noiseGainMultiplier,
+      noiseFilterCenterHz: accessory.filterCenterHz,
+      noiseFilterQ: accessory.filterQ,
+    }),
+    [accessory, antenna.qsbDepthMultiplier, qso.npc],
   );
   const receiverChannel = useMemo(
-    () => (qso.hasContact ? npcChannel : { noiseGain: .065 }),
-    [npcChannel, qso.hasContact],
+    () => (qso.hasContact ? npcChannel : {
+      noiseGain: .065 * accessory.noiseGainMultiplier,
+      noiseFilterCenterHz: accessory.filterCenterHz,
+      noiseFilterQ: accessory.filterQ,
+    }),
+    [accessory, npcChannel, qso.hasContact],
   );
 
   useEffect(() => {
@@ -505,6 +516,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       playerLocationId: save.locationId,
       equipmentId: save.equipmentId,
       antennaId: save.antennaId,
+      accessoryId: save.accessoryId,
       propagationSource: propagationMap.source,
       wpm: keyType === "automatic"
         ? normalizeAutomaticKeyWpm(save.automaticKeyWpm)
@@ -612,6 +624,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       data-pulse-count={cw.analysis.pulseCount}
       data-receiver-active={cw.isListening}
       data-npc-playback-recovering={npcPlaybackRecovering}
+      data-accessory-id={accessory.id}
+      data-channel-noise-gain={receiverChannel.noiseGain}
       style={{ "--room": `url(${location.scene})` }}
     >
       <header className="station-topbar">
@@ -636,7 +650,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <div className="hardware-status">
             <button className={`station-power ${powered ? "on" : ""}`} onClick={togglePower} aria-pressed={powered} aria-label={powered ? t.powerOff : t.powerOn}><Power size={16} weight="fill" /> SQUID01 / {powered ? "ON" : "OFF"}</button>
             <span>{keyType === "automatic" ? t.configuredSpeed : t.detectedSpeed}: <b>{powered ? `${keyType === "automatic" ? normalizeAutomaticKeyWpm(save.automaticKeyWpm) : cw.analysis.wpm} WPM` : "--"}</b></span>
-            <span className={isTx ? "tx-active" : (cw.status === "playing" || cw.isListening) && powered ? "rx-active" : ""}><Broadcast size={16} weight="fill" />{!powered ? t.powerOff : !antennaReady ? antennaStatus.equip : isTx ? t.tx : cw.status === "playing" ? t.cwReceiving : flow.receiverLive}</span>
+            <span className={isTx ? "tx-active" : (cw.status === "playing" || cw.isListening) && powered ? "rx-active" : ""}><Broadcast size={16} weight="fill" />{!powered ? t.powerOff : !antennaReady ? antennaStatus.equip : isTx ? t.tx : cw.status === "playing" ? t.cwReceiving : flow.receiverLive}{accessory.id !== "none" ? ` · ${t.filterActive}` : ""}</span>
           </div>
           <div className="key-stage">
             <img className={cw.isKeying ? "key-active" : ""} src={keyType === "manual" ? ASSETS.manual : ASSETS.automatic} alt={keyType === "manual" ? t.manual : t.automatic} aria-disabled={!powered}

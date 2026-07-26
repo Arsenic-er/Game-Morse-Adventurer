@@ -1,5 +1,14 @@
 export const FIXED_TONE_HZ = 650;
 
+export function receiverNoiseFilterForChannel(channel = {}) {
+  const center = channel.noiseFilterCenterHz;
+  const q = channel.noiseFilterQ;
+  return {
+    centerHz: Number.isFinite(center) ? Math.min(4000, Math.max(100, center)) : 1150,
+    q: Number.isFinite(q) ? Math.min(20, Math.max(.1, q)) : .35,
+  };
+}
+
 export class CwAudioEngine {
   constructor() {
     this.context = null;
@@ -196,8 +205,11 @@ export class CwAudioEngine {
     const context = await this.resume();
     if (context.state !== "running") return false;
     const baseGain = this.receiverGainForChannel(channel);
+    const filterProfile = receiverNoiseFilterForChannel(channel);
     if (this.receiverNoise) {
       this.receiverNoise.baseGain = baseGain;
+      this.receiverNoise.filter.frequency.value = filterProfile.centerHz;
+      this.receiverNoise.filter.Q.value = filterProfile.q;
       this.setReceiverNoiseMuted(this.receiverNoise.muted);
       return true;
     }
@@ -213,8 +225,8 @@ export class CwAudioEngine {
     source.buffer = buffer;
     source.loop = true;
     filter.type = "bandpass";
-    filter.frequency.value = 1150;
-    filter.Q.value = .35;
+    filter.frequency.value = filterProfile.centerHz;
+    filter.Q.value = filterProfile.q;
     gain.gain.setValueAtTime(0, context.currentTime);
     gain.gain.linearRampToValueAtTime(baseGain, context.currentTime + .08);
     source.connect(filter).connect(gain).connect(context.destination);

@@ -25,6 +25,7 @@ function entry(overrides = {}) {
     propagationSource: "OFFLINE_DEFAULT",
     equipmentId: "squid-01",
     antennaId: "dipole",
+    accessoryId: "cw-filter-500",
     playerLocationId: "japan-tokyo-kanto",
     wpm: 18,
     copyAccuracy: 92.34,
@@ -49,6 +50,12 @@ test("normalizes the complete QSO log v1 schema", () => {
   assert.equal(normalized.keyingScore, 88.9);
   assert.equal(normalized.finalPropagationLevel, 3);
   assert.equal(normalized.playerLocationId, "japan-tokyo-kanto");
+  assert.equal(normalized.accessoryId, "cw-filter-500");
+});
+
+test("legacy QSO logs default to an empty accessory slot", () => {
+  const normalized = normalizeQsoLogEntry(entry({ accessoryId: undefined }));
+  assert.equal(normalized.accessoryId, "none");
 });
 
 test("rejects invalid chronology and required identity fields", () => {

@@ -30,6 +30,7 @@ test("completes the minimum QSO state machine", () => {
     playerLocation: { id: "japan-tokyo-kanto", latitude: 35.6762, longitude: 139.6503 },
     equipmentId: "squid-01",
     antennaId: "dipole",
+    accessoryId: "cw-filter-500",
     propagationSource: "OFFLINE_DEFAULT",
     copyAccuracy: 96.4,
     keyingScore: 91.2,
@@ -50,6 +51,7 @@ test("completes the minimum QSO state machine", () => {
   assert.equal(log.playerLocationId, "japan-tokyo-kanto");
   assert.equal(log.equipmentId, "squid-01");
   assert.equal(log.antennaId, "dipole");
+  assert.equal(log.accessoryId, "cw-filter-500");
   assert.equal(log.wpm, 18);
   assert.equal(log.copyAccuracy, 96.4);
   assert.equal(log.keyingScore, 91.2);

@@ -32,10 +32,11 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   assert.equal(save.keyType, "automatic");
   assert.equal(save.automaticKeyWpm, DEFAULT_AUTOMATIC_KEY_WPM);
   assert.equal(save.equipmentId, "squid-01");
-  assert.equal(save.inventoryVersion, 1);
+  assert.equal(save.inventoryVersion, 2);
   assert.deepEqual(save.ownedEquipment, ["squid-01"]);
   assert.deepEqual(save.ownedAntennas, ["dipole"]);
   assert.deepEqual(save.accessories, []);
+  assert.equal(save.accessoryId, "none");
   assert.equal(save.credits, 0);
   assert.deepEqual(save.qsoLogs, []);
   assert.deepEqual(save.qsoRecords, {
@@ -97,7 +98,7 @@ test("legacy saves keep their valid equipped antenna during inventory migration"
     antennaId: "yagi-3el",
   }]));
   const [save] = loadSaves(storage);
-  assert.equal(save.inventoryVersion, 1);
+  assert.equal(save.inventoryVersion, 2);
   assert.equal(save.antennaId, "yagi-3el");
   assert.deepEqual(save.ownedAntennas, ["dipole", "yagi-3el"]);
 });
@@ -135,6 +136,41 @@ test("the empty antenna sentinel is equipable but never enters inventory", () =>
   const [save] = loadSaves(storage);
   assert.equal(save.antennaId, "none");
   assert.deepEqual(save.ownedAntennas, ["dipole"]);
+});
+
+test("version one saves migrate to an empty accessory slot", () => {
+  const storage = storageStub();
+  storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{
+    inventoryVersion: 1,
+    id: "version-one-accessory",
+    callsign: "JA1VONE",
+    locationId: "japan-tokyo-kanto",
+    ownedEquipment: ["squid-01"],
+    ownedAntennas: ["dipole"],
+    accessories: [],
+  }]));
+
+  const [save] = loadSaves(storage);
+  assert.equal(save.inventoryVersion, 2);
+  assert.equal(save.accessoryId, "none");
+  assert.deepEqual(save.accessories, []);
+});
+
+test("owned and equipped accessories persist while unowned selections are rejected", () => {
+  const storage = storageStub();
+  const save = createSave({ callsign: "JA1FILT", locationId: "japan-tokyo-kanto" });
+  save.accessories = ["cw-filter-500", "unknown", "cw-filter-500", "none"];
+  save.accessoryId = "cw-filter-500";
+  persistSaves([save], storage);
+
+  const [reloaded] = loadSaves(storage);
+  assert.deepEqual(reloaded.accessories, ["cw-filter-500"]);
+  assert.equal(reloaded.accessoryId, "cw-filter-500");
+
+  reloaded.accessories = [];
+  persistSaves([reloaded], storage);
+  const [sanitized] = loadSaves(storage);
+  assert.equal(sanitized.accessoryId, "none");
 });
 
 test("falls back to legacy QSO entries when the current log field is malformed", () => {

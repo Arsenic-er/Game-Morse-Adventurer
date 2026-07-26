@@ -73,6 +73,7 @@ export function normalizeQsoLogEntry(entry) {
     propagationSource: String(entry.propagationSource ?? "OFFLINE_DEFAULT").trim().slice(0, 48) || "OFFLINE_DEFAULT",
     equipmentId: String(entry.equipmentId ?? "squid-01").trim().slice(0, 48) || "squid-01",
     antennaId: String(entry.antennaId ?? "none").trim().slice(0, 48) || "none",
+    accessoryId: String(entry.accessoryId ?? "none").trim().slice(0, 48) || "none",
     playerLocationId: String(entry.playerLocationId ?? entry.locationId ?? "unknown").trim().slice(0, 64) || "unknown",
     wpm: Number(Math.max(0, finiteNumber(entry.wpm)).toFixed(1)),
     copyAccuracy: normalizeScore(entry.copyAccuracy),

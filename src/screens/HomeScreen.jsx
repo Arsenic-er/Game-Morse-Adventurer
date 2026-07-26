@@ -4,6 +4,7 @@ import {
   Package, Radio, Storefront, Trophy, Warehouse, Wrench, X,
 } from "@phosphor-icons/react";
 import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";
+import { ACCESSORIES, accessoryName, getAccessory } from "../game/accessoryCatalog.js";
 import { equipmentName, getTransmitter } from "../game/equipmentCatalog.js";
 import { getLocation, locationName } from "../game/locations.js";
 import { LocationArtwork } from "../game/LocationArtwork.jsx";
@@ -18,10 +19,10 @@ const TEXT = {
 };
 
 const WAREHOUSE_TEXT = {
-  "zh-CN": { title: "设备仓库", rack: "设备架", radio: "电台", antenna: "天线", accessories: "配件", antennaDrawer: "天线抽屉", accessoryBar: "配件栏（预留）", later: "后续开放", current: "当前配置", fixed: "固定", replaceable: "可更换", reserved: "预留", equip: "装备", equipped: "已装备", noAntenna: "空天线槽", back: "返回管理中心", propagation: "传播修正" },
-  "zh-TW": { title: "設備倉庫", rack: "設備架", radio: "電臺", antenna: "天線", accessories: "配件", antennaDrawer: "天線抽屜", accessoryBar: "配件欄（預留）", later: "後續開放", current: "目前配置", fixed: "固定", replaceable: "可更換", reserved: "預留", equip: "裝備", equipped: "已裝備", noAntenna: "空天線槽", back: "返回管理中心", propagation: "傳播修正" },
-  ja: { title: "装備倉庫", rack: "装備ラック", radio: "無線機", antenna: "アンテナ", accessories: "アクセサリー", antennaDrawer: "アンテナ引出し", accessoryBar: "アクセサリー欄（予約）", later: "今後開放", current: "現在の構成", fixed: "固定", replaceable: "交換可能", reserved: "予約", equip: "装備", equipped: "装備中", noAntenna: "空きアンテナ枠", back: "管理センターへ戻る", propagation: "伝搬補正" },
-  en: { title: "Equipment Warehouse", rack: "Equipment Rack", radio: "Radio", antenna: "Antenna", accessories: "Accessories", antennaDrawer: "Antenna Drawer", accessoryBar: "Accessories (Reserved)", later: "Coming later", current: "Current Loadout", fixed: "Fixed", replaceable: "Replaceable", reserved: "Reserved", equip: "Equip", equipped: "Equipped", noAntenna: "Empty antenna slot", back: "Back to Management Center", propagation: "Propagation modifier" },
+  "zh-CN": { title: "设备仓库", rack: "设备架", radio: "电台", antenna: "天线", accessories: "配件", antennaDrawer: "天线抽屉", accessoryBar: "配件栏", later: "后续开放", current: "当前配置", fixed: "固定", replaceable: "可更换", reserved: "预留", equip: "装备", equipped: "已装备", noAntenna: "空天线槽", noAccessory: "空配件槽", locked: "未开放", back: "返回管理中心", propagation: "传播修正", noise: "噪声修正" },
+  "zh-TW": { title: "設備倉庫", rack: "設備架", radio: "電臺", antenna: "天線", accessories: "配件", antennaDrawer: "天線抽屜", accessoryBar: "配件欄", later: "後續開放", current: "目前配置", fixed: "固定", replaceable: "可更換", reserved: "預留", equip: "裝備", equipped: "已裝備", noAntenna: "空天線槽", noAccessory: "空配件槽", locked: "未開放", back: "返回管理中心", propagation: "傳播修正", noise: "雜訊修正" },
+  ja: { title: "装備倉庫", rack: "装備ラック", radio: "無線機", antenna: "アンテナ", accessories: "アクセサリー", antennaDrawer: "アンテナ引出し", accessoryBar: "アクセサリー欄", later: "今後開放", current: "現在の構成", fixed: "固定", replaceable: "交換可能", reserved: "予約", equip: "装備", equipped: "装備中", noAntenna: "空きアンテナ枠", noAccessory: "空きアクセサリー枠", locked: "未開放", back: "管理センターへ戻る", propagation: "伝搬補正", noise: "ノイズ補正" },
+  en: { title: "Equipment Warehouse", rack: "Equipment Rack", radio: "Radio", antenna: "Antenna", accessories: "Accessories", antennaDrawer: "Antenna Drawer", accessoryBar: "Accessory Rack", later: "Coming later", current: "Current Loadout", fixed: "Fixed", replaceable: "Replaceable", reserved: "Reserved", equip: "Equip", equipped: "Equipped", noAntenna: "Empty antenna slot", noAccessory: "Empty accessory slot", locked: "Locked", back: "Back to Management Center", propagation: "Propagation modifier", noise: "Noise modifier" },
 };
 
 const PANEL_ICONS = { store: Storefront, log: Notebook, achievements: Trophy };
@@ -30,28 +31,28 @@ const QSO_LOG_TEXT = {
   "zh-CN": {
     title: "通联日志", kicker: "台站记录", records: "记录", latest: "最新", dateTime: "台站当地 / UTC", callsign: "呼号",
     frequency: "频率", rst: "发送 / 接收 RST", region: "地区", distance: "距离", propagation: "传播等级", antenna: "天线",
-    equipment: "设备", wpm: "速度", performance: "准确率 / 节奏", credits: "信用点", sim: "SIM · 虚构台站",
+    equipment: "设备", accessory: "配件", wpm: "速度", performance: "准确率 / 节奏", credits: "信用点", sim: "SIM · 虚构台站",
     stationTime: "台站当地", utcTime: "协调世界时",
     emptyTitle: "尚无通联记录", emptyText: "完成一次通联并保存日志后，记录会出现在这里。", back: "返回管理中心", close: "关闭通联日志",
   },
   "zh-TW": {
     title: "通聯日誌", kicker: "臺站記錄", records: "記錄", latest: "最新", dateTime: "臺站當地 / UTC", callsign: "呼號",
     frequency: "頻率", rst: "發送 / 接收 RST", region: "地區", distance: "距離", propagation: "傳播等級", antenna: "天線",
-    equipment: "設備", wpm: "速度", performance: "準確率 / 節奏", credits: "信用點", sim: "SIM · 虛構臺站",
+    equipment: "設備", accessory: "配件", wpm: "速度", performance: "準確率 / 節奏", credits: "信用點", sim: "SIM · 虛構臺站",
     stationTime: "臺站當地", utcTime: "協調世界時",
     emptyTitle: "尚無通聯記錄", emptyText: "完成一次通聯並儲存日誌後，記錄會顯示在這裡。", back: "返回管理中心", close: "關閉通聯日誌",
   },
   ja: {
     title: "交信ログ", kicker: "局運用記録", records: "件", latest: "最新", dateTime: "局の現地 / UTC", callsign: "コールサイン",
     frequency: "周波数", rst: "送信 / 受信 RST", region: "地域", distance: "距離", propagation: "伝搬レベル", antenna: "アンテナ",
-    equipment: "無線機", wpm: "速度", performance: "正確率 / リズム", credits: "クレジット", sim: "SIM · 架空局",
+    equipment: "無線機", accessory: "アクセサリー", wpm: "速度", performance: "正確率 / リズム", credits: "クレジット", sim: "SIM · 架空局",
     stationTime: "局の現地時刻", utcTime: "協定世界時",
     emptyTitle: "交信記録はありません", emptyText: "交信を完了してログを保存すると、ここに記録されます。", back: "管理センターへ戻る", close: "交信ログを閉じる",
   },
   en: {
     title: "QSO Log", kicker: "Station Record", records: "records", latest: "Latest", dateTime: "Station local / UTC", callsign: "Callsign",
     frequency: "Frequency", rst: "Sent / Received RST", region: "Region", distance: "Distance", propagation: "Propagation", antenna: "Antenna",
-    equipment: "Equipment", wpm: "Speed", performance: "Accuracy / Rhythm", credits: "Credits", sim: "SIM · Fictional station",
+    equipment: "Equipment", accessory: "Accessory", wpm: "Speed", performance: "Accuracy / Rhythm", credits: "Credits", sim: "SIM · Fictional station",
     stationTime: "Station local", utcTime: "Coordinated UTC",
     emptyTitle: "No QSO records yet", emptyText: "Complete a contact and save its log to add the first record.", back: "Back to Management Center", close: "Close QSO log",
   },
@@ -112,6 +113,13 @@ function equipmentSnapshotName(entry, language) {
   if (explicit) return explicit;
   const equipmentId = firstValue(entry.equipmentId, entry.equipment);
   return equipmentId ? equipmentName(getTransmitter(equipmentId), language) : "—";
+}
+
+function accessorySnapshotName(entry, language) {
+  const explicit = firstValue(entry.accessoryName, entry.accessoryLabel);
+  if (explicit) return explicit;
+  const accessory = getAccessory(firstValue(entry.accessoryId, entry.accessory));
+  return accessory.id === "none" ? "—" : accessoryName(accessory, language);
 }
 
 function QsoLogModal({ language, save, onClose }) {
@@ -197,7 +205,7 @@ function QsoLogModal({ language, save, onClose }) {
                 <div><dt>{t.distance}</dt><dd>{formatMetric(distance, " km")}</dd></div>
                 <div><dt>{t.propagation}</dt><dd><Broadcast size={16} weight="fill" />{propagation === null || propagation === undefined ? "—" : formatMetric(propagation, "").startsWith("P") ? formatMetric(propagation) : `P${formatMetric(propagation)}`}</dd></div>
                 <div><dt>{t.antenna}</dt><dd><Wrench size={16} />{antennaSnapshotName(selected, language)}</dd></div>
-                <div><dt>{t.equipment}</dt><dd><Radio size={16} weight="fill" />{equipmentSnapshotName(selected, language)}</dd></div>
+                <div className="qso-log-equipment-fact"><dt>{t.equipment} / {t.accessory}</dt><dd><Radio size={16} weight="fill" /><span>{equipmentSnapshotName(selected, language)}<br />{accessorySnapshotName(selected, language)}</span></dd></div>
                 <div><dt>{t.wpm}</dt><dd>{formatMetric(firstValue(selected.wpm, selected.speedWpm), " WPM")}</dd></div>
                 <div><dt>{t.performance}</dt><dd>{formatMetric(accuracy, "%")} / {formatMetric(rhythm, "%")}</dd></div>
                 <div className="qso-log-credit-fact"><dt>{t.credits}</dt><dd><Coins size={17} weight="fill" />{formatCredits(firstValue(selected.credits, selected.creditsAwarded))}</dd></div>
@@ -229,31 +237,50 @@ function EmptyAntenna({ size = 64 }) {
   return <span className="warehouse-empty-asset" aria-hidden="true"><Broadcast size={size} /><X size={Math.round(size * .42)} weight="bold" /></span>;
 }
 
+function EmptyAccessory({ size = 64 }) {
+  return <span className="warehouse-empty-asset" aria-hidden="true"><Package size={size} /><X size={Math.round(size * .42)} weight="bold" /></span>;
+}
+
 function WarehouseModal({ language, save, onEquipItem, onClose }) {
   const t = WAREHOUSE_TEXT[language] ?? WAREHOUSE_TEXT.en;
   const transmitter = getTransmitter(save.equipmentId);
   const equippedAntenna = getAntenna(save.antennaId);
+  const equippedAccessory = getAccessory(save.accessoryId);
   const [activeCategory, setActiveCategory] = useState("radio");
   const [draftAntennaId, setDraftAntennaId] = useState(save.antennaId);
+  const [draftAccessoryId, setDraftAccessoryId] = useState(save.accessoryId ?? "none");
   const draftAntenna = getAntenna(draftAntennaId);
+  const draftAccessory = getAccessory(draftAccessoryId);
   const availableAntennas = ANTENNAS.filter((antenna) => antenna.id === "none" || save.ownedAntennas.includes(antenna.id));
+  const availableAccessories = ACCESSORIES.filter((accessory) => accessory.id === "none" || (save.accessories ?? []).includes(accessory.id));
   const category = activeCategory === "radio" ? {
     image: transmitter.image,
     name: equipmentName(transmitter, language),
   } : activeCategory === "antenna" ? {
     image: draftAntenna.image,
     name: antennaName(draftAntenna, language),
-  } : { image: null, name: t.accessoryBar };
-  const alreadyEquipped = activeCategory === "radio" || (activeCategory === "antenna" && draftAntenna.id === equippedAntenna.id);
+  } : {
+    image: draftAccessory.image,
+    name: accessoryName(draftAccessory, language),
+  };
+  const selectedItemId = activeCategory === "antenna" ? draftAntenna.id : activeCategory === "accessories" ? draftAccessory.id : transmitter.id;
+  const alreadyEquipped = activeCategory === "radio"
+    || (activeCategory === "antenna" && draftAntenna.id === equippedAntenna.id)
+    || (activeCategory === "accessories" && draftAccessory.id === equippedAccessory.id);
 
   function chooseAntenna(antennaId) {
     setDraftAntennaId(antennaId);
     setActiveCategory("antenna");
   }
 
+  function chooseAccessory(accessoryId) {
+    setDraftAccessoryId(accessoryId);
+    setActiveCategory("accessories");
+  }
+
   function equipSelected() {
-    if (activeCategory !== "antenna") return;
-    onEquipItem({ category: "antenna", itemId: draftAntenna.id });
+    if (activeCategory === "antenna") onEquipItem({ category: "antenna", itemId: draftAntenna.id });
+    if (activeCategory === "accessories") onEquipItem({ category: "accessories", itemId: draftAccessory.id });
   }
 
   useEffect(() => {
@@ -276,16 +303,16 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
             <span>{equippedAntenna.image ? <img src={equippedAntenna.image} alt="" /> : <EmptyAntenna size={54} />}</span><strong>{t.antenna}</strong>
           </button>
           <button className={activeCategory === "accessories" ? "selected" : ""} onClick={() => setActiveCategory("accessories")} aria-pressed={activeCategory === "accessories"}>
-            <span><Wrench size={55} weight="duotone" /></span><strong>{t.accessories}</strong>
+            <span>{equippedAccessory.image ? <img src={equippedAccessory.image} alt="" /> : <Wrench size={55} weight="duotone" />}</span><strong>{t.accessories}</strong>
           </button>
         </aside>
 
         <main className="warehouse-equipment-rack">
           <div className="rack-title"><span />{t.rack}<span /></div>
           <section className={`rack-preview category-${activeCategory}`}>
-            {category.image ? <img src={category.image} alt={category.name} /> : activeCategory === "antenna" ? <EmptyAntenna size={100} /> : <Package size={104} weight="duotone" />}
+            {category.image ? <img src={category.image} alt={category.name} /> : activeCategory === "antenna" ? <EmptyAntenna size={100} /> : activeCategory === "accessories" ? <EmptyAccessory size={100} /> : <Package size={104} weight="duotone" />}
             <strong>{category.name}</strong>
-            <button className="rack-equip-button" data-action="equip-item" data-equipped-item-id={draftAntenna.id} disabled={activeCategory !== "antenna" || alreadyEquipped} onClick={equipSelected}><Check size={20} weight="bold" />{alreadyEquipped ? t.equipped : activeCategory === "accessories" ? t.later : t.equip}</button>
+            <button className="rack-equip-button" data-action="equip-item" data-equipped-item-id={selectedItemId} disabled={activeCategory === "radio" || alreadyEquipped} onClick={equipSelected}><Check size={20} weight="bold" />{alreadyEquipped ? t.equipped : t.equip}</button>
           </section>
 
           <section className="equipment-drawer antenna-drawer">
@@ -304,7 +331,14 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
           <section className="equipment-drawer accessory-drawer">
             <h3><span />{t.accessoryBar}<span /></h3>
             <div className="accessory-placeholders">
-              {[0, 1, 2, 3].map((slot) => <span key={slot}><Package size={32} /><small>{t.later}</small></span>)}
+              {availableAccessories.map((accessory) => (
+                <button key={accessory.id} data-accessory-id={accessory.id} className={draftAccessory.id === accessory.id ? "selected" : ""} aria-pressed={draftAccessory.id === accessory.id} onClick={() => chooseAccessory(accessory.id)}>
+                  {accessory.image ? <img src={accessory.image} alt="" /> : <EmptyAccessory size={42} />}
+                  <strong>{accessory.id === "none" ? t.noAccessory : accessoryName(accessory, language)}</strong>
+                  <small>{accessory.id === "none" ? t.noise + ": —" : `${t.noise}: -${Math.round((1 - accessory.noiseGainMultiplier) * 100)}%`}</small>
+                </button>
+              ))}
+              {Array.from({ length: Math.max(0, 4 - availableAccessories.length) }, (_, slot) => <span className="locked-slot" key={slot}><Package size={30} /><small>{t.locked}</small></span>)}
             </div>
           </section>
         </main>
@@ -316,7 +350,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
           <ol>
             <li><strong>1. {t.radio} ({t.fixed})</strong><div><img src={transmitter.image} alt="" /></div><small>{equipmentName(transmitter, language)}</small></li>
             <li><strong>2. {t.antenna} ({t.replaceable})</strong><div>{equippedAntenna.image ? <img src={equippedAntenna.image} alt="" /> : <EmptyAntenna size={55} />}</div><small>{antennaName(equippedAntenna, language)}</small></li>
-            <li className="reserved-slot"><strong>3. {t.accessories} ({t.reserved})</strong><div><Package size={43} /></div><small>{t.later}</small></li>
+            <li className={equippedAccessory.id === "none" ? "reserved-slot" : ""}><strong>3. {t.accessories} ({t.replaceable})</strong><div>{equippedAccessory.image ? <img src={equippedAccessory.image} alt="" /> : <EmptyAccessory size={48} />}</div><small>{equippedAccessory.id === "none" ? t.noAccessory : accessoryName(equippedAccessory, language)}</small></li>
           </ol>
         </aside>
       </section>

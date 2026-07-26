@@ -55,6 +55,31 @@ test("antenna modifiers can reduce QSB without changing the propagation level", 
   assert.equal(vertical.qsbDepth, base.qsbDepth * 0.85);
 });
 
+test("accessory modifiers reduce receiver noise without changing signal or propagation", () => {
+  const base = channelProfileForLevel(2, { callsign: "SIM1" });
+  const filtered = channelProfileForLevel(2, { callsign: "SIM1" }, {
+    noiseGainMultiplier: 0.65,
+    noiseFilterCenterHz: 650,
+    noiseFilterQ: 1.3,
+  });
+  assert.equal(filtered.level, base.level);
+  assert.equal(filtered.noiseGain, base.noiseGain * 0.65);
+  assert.equal(filtered.signalGain, base.signalGain);
+  assert.equal(filtered.qsbDepth, base.qsbDepth);
+  assert.equal(filtered.qsbRateHz, base.qsbRateHz);
+  assert.equal(filtered.noiseFilterCenterHz, 650);
+  assert.equal(filtered.noiseFilterQ, 1.3);
+});
+
+test("receiver noise modifiers clamp to a safe range and reject invalid values", () => {
+  const base = channelProfileForLevel(2, { callsign: "SIM1" });
+  assert.equal(channelProfileForLevel(2, {}, { noiseGainMultiplier: -1 }).noiseGain, 0);
+  assert.equal(channelProfileForLevel(2, {}, { noiseGainMultiplier: 3 }).noiseGain, base.noiseGain * 2);
+  assert.equal(channelProfileForLevel(2, {}, { noiseGainMultiplier: Infinity }).noiseGain, base.noiseGain);
+  assert.equal(channelProfileForLevel(2, {}, { noiseGainMultiplier: "0.5" }).noiseGain, base.noiseGain);
+  assert.equal(channelProfileForLevel(2, {}, { noiseGainMultiplier: "invalid" }).noiseGain, base.noiseGain);
+});
+
 test("normalized map clicks convert to latitude and longitude", () => {
   assert.deepEqual(locationFromNormalizedPoint(.5, .5), { latitude: 0, longitude: 0 });
   assert.deepEqual(locationFromNormalizedPoint(1, 0), { latitude: 90, longitude: 180 });

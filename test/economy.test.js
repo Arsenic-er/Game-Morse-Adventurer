@@ -12,6 +12,7 @@ function saveFixture(overrides = {}) {
     callsign: "BH1ABC",
     equipmentId: "squid-01",
     antennaId: "dipole",
+    accessoryId: "none",
     keyType: "manual",
     credits: 700,
     ownedEquipment: ["squid-01"],
@@ -100,4 +101,29 @@ test("the none sentinel can always unequip an antenna without entering inventory
   assert.notStrictEqual(result.save, original);
   assert.equal(result.save.antennaId, "none");
   assert.equal(result.save.ownedAntennas.includes("none"), false);
+});
+
+test("accessories can be purchased without being equipped automatically", () => {
+  const original = saveFixture();
+  const result = purchaseItem(original, { category: "accessories", itemId: "cw-filter-500" });
+
+  assert.equal(result.purchased, true);
+  assert.equal(result.reason, ECONOMY_RESULT.PURCHASED);
+  assert.equal(result.save.credits, 400);
+  assert.deepEqual(result.save.accessories, ["cw-filter-500"]);
+  assert.equal(result.save.accessoryId, "none");
+});
+
+test("an owned accessory can be equipped and the none sentinel unequips it", () => {
+  const owned = saveFixture({ accessories: ["cw-filter-500"] });
+  const equipped = equipOwnedItem(owned, { category: "accessories", itemId: "cw-filter-500" });
+
+  assert.equal(equipped.equipped, true);
+  assert.equal(equipped.reason, ECONOMY_RESULT.EQUIPPED);
+  assert.equal(equipped.save.accessoryId, "cw-filter-500");
+
+  const unequipped = equipOwnedItem(equipped.save, { category: "accessories", itemId: "none" });
+  assert.equal(unequipped.equipped, true);
+  assert.equal(unequipped.save.accessoryId, "none");
+  assert.equal(unequipped.save.accessories.includes("none"), false);
 });
