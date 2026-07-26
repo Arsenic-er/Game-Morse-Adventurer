@@ -34,6 +34,7 @@ import { recordCompletedQso } from "./qso/qsoLog.js";
 import { HomeScreen } from "./screens/HomeScreen.jsx";
 import { QsoResultModal } from "./screens/QsoResultModal.jsx";
 import { SaveSelectScreen } from "./screens/SaveSelectScreen.jsx";
+import { StationManualModal } from "./screens/StationManualModal.jsx";
 
 const ASSETS = {
   room: "./assets/radio-room-bg.png",
@@ -45,7 +46,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.12.0";
+const BUILD_VERSION = "0.13.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -67,7 +68,7 @@ const COPY = {
     keyType: "电键类型", manual: "手键", automatic: "自动键", manualHint: "按住空格键发射",
     automaticHint: "Z 短音 / X 长音；长按连续发报", automaticSpeed: "自动键速度", automaticSpeedHint: "仅影响自动键；手键速度仍由系统检测", configuredSpeed: "自动键速度", apply: "应用设置", station: "值守台", log: "通联日志", time: "时间",
     call: "呼号", frequency: "频率", mode: "模式", contact: "当前通联", sent: "发送", received: "接收",
-    location: "位置", notes: "备注", newContact: "新建通联", delete: "删除", propagation: "传播预览",
+    location: "位置", notes: "备注", newContact: "新建通联", clearInput: "清空输入", propagation: "传播预览",
     openMap: "打开传播大图", detected: "系统自动识别", detectedSpeed: "识别速度", tx: "发射", idle: "接收中",
     reply: "回应", send: "发送", saveLog: "保存日志", saved: "日志已保存", map: "传播地图",
     worldMode: "普通世界地图", heatMode: "传播等级地图", legend: "传播等级", back: "返回开始界面",
@@ -85,7 +86,7 @@ const COPY = {
     keyType: "電鍵類型", manual: "手鍵", automatic: "自動鍵", manualHint: "按住空白鍵發射",
     automaticHint: "Z 短音 / X 長音；長按連續發報", automaticSpeed: "自動鍵速度", automaticSpeedHint: "僅影響自動鍵；手鍵速度仍由系統偵測", configuredSpeed: "自動鍵速度", apply: "套用設定", station: "值守臺", log: "通聯日誌", time: "時間",
     call: "呼號", frequency: "頻率", mode: "模式", contact: "目前通聯", sent: "發送", received: "接收",
-    location: "位置", notes: "備註", newContact: "新建通聯", delete: "刪除", propagation: "傳播預覽",
+    location: "位置", notes: "備註", newContact: "新建通聯", clearInput: "清除輸入", propagation: "傳播預覽",
     openMap: "開啟傳播大圖", detected: "系統自動識別", detectedSpeed: "識別速度", tx: "發射", idle: "接收中",
     reply: "回應", send: "發送", saveLog: "儲存日誌", saved: "日誌已儲存", map: "傳播地圖",
     worldMode: "普通世界地圖", heatMode: "傳播等級地圖", legend: "傳播等級", back: "返回開始介面",
@@ -103,7 +104,7 @@ const COPY = {
     keyType: "電鍵タイプ", manual: "縦振り電鍵", automatic: "オートキー", manualHint: "スペースを押して送信",
     automaticHint: "Z 短点 / X 長点・長押しで連続送信", automaticSpeed: "オートキー速度", automaticSpeedHint: "オートキーにのみ適用。縦振り電鍵の速度は自動検出されます", configuredSpeed: "設定速度", apply: "設定を適用", station: "運用卓", log: "交信ログ", time: "時刻",
     call: "コール", frequency: "周波数", mode: "モード", contact: "現在の交信", sent: "送信", received: "受信",
-    location: "位置", notes: "メモ", newContact: "新規交信", delete: "削除", propagation: "伝搬プレビュー",
+    location: "位置", notes: "メモ", newContact: "新規交信", clearInput: "入力をクリア", propagation: "伝搬プレビュー",
     openMap: "伝搬マップを開く", detected: "システム自動認識", detectedSpeed: "認識速度", tx: "送信", idle: "受信中",
     reply: "応答", send: "送信", saveLog: "ログ保存", saved: "ログを保存しました", map: "伝搬マップ",
     worldMode: "通常の世界地図", heatMode: "伝搬レベル地図", legend: "伝搬レベル", back: "開始画面へ戻る",
@@ -121,7 +122,7 @@ const COPY = {
     keyType: "Key type", manual: "Straight key", automatic: "Automatic paddle", manualHint: "Hold Space to transmit",
     automaticHint: "Z sends dots / X sends dashes; hold to repeat", automaticSpeed: "Automatic key speed", automaticSpeedHint: "Affects the automatic key only; straight-key speed remains auto-detected", configuredSpeed: "Keyer speed", apply: "Apply settings", station: "Station watch", log: "QSO log", time: "Time",
     call: "Callsign", frequency: "Frequency", mode: "Mode", contact: "Current QSO", sent: "Sent", received: "Received",
-    location: "Location", notes: "Notes", newContact: "New QSO", delete: "Delete", propagation: "Propagation",
+    location: "Location", notes: "Notes", newContact: "New QSO", clearInput: "Clear input", propagation: "Propagation",
     openMap: "Open propagation map", detected: "System auto detect", detectedSpeed: "Detected speed", tx: "Transmit", idle: "Receiving",
     reply: "Reply", send: "Send", saveLog: "Save log", saved: "Log saved", map: "Propagation map",
     worldMode: "Normal world map", heatMode: "Propagation level map", legend: "Propagation level", back: "Back to title",
@@ -191,7 +192,7 @@ function LanguageMenu({ language, onSelect, compact = false }) {
   );
 }
 
-function StartScreen({ language, setLanguage, onStart, onPractice, onSettings }) {
+function StartScreen({ language, setLanguage, onStart, onPractice, onSettings, onManual }) {
   const [languageOpen, setLanguageOpen] = useState(false);
   const t = COPY[language];
   return (
@@ -206,7 +207,7 @@ function StartScreen({ language, setLanguage, onStart, onPractice, onSettings })
         <button className="menu-primary" onClick={onStart}><Play size={23} weight="fill" />{t.newGame}</button>
         <button onClick={onPractice}><Lightning size={22} />{t.practice}</button>
         <button onClick={onSettings}><GearSix size={22} />{t.settings}</button>
-        <button onClick={() => window.alert(t.fieldGuide)}><BookOpenText size={22} />{t.fieldGuide}</button>
+        <button onClick={onManual}><BookOpenText size={22} />{t.fieldGuide}</button>
       </nav>
       <p className="callsign-disclaimer">{t.callsignDisclaimer}</p>
       <div className="build-tag">{t.prototype} · v{BUILD_VERSION}</div>
@@ -643,7 +644,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
             <div><dt>{t.mode}</dt><dd>CW</dd></div><div><dt>{t.sent}</dt><dd>{contactSent}</dd></div><div><dt>{t.received}</dt><dd>{contactReceived}</dd></div>
             <div><dt>{t.location}</dt><dd>{contactLocation}</dd></div><div><dt>{t.notes}</dt><dd>SIM / P{contactLevel}</dd></div>
           </dl></div>
-          <div className="panel-actions"><button onClick={startNewQso} disabled={qso.phase === QSO_PHASES.QSO_COMPLETE && !saved}>{t.newContact}</button><button className="muted" onClick={() => { setSelectedLogId(null); cw.clearInput(); }}>{t.delete}</button></div>
+          <div className="panel-actions"><button onClick={startNewQso} disabled={qso.phase === QSO_PHASES.QSO_COMPLETE && !saved}>{t.newContact}</button><button className="muted" data-action="clear-input" onClick={() => { setSelectedLogId(null); cw.clearInput(); }}>{t.clearInput}</button></div>
         </aside>
         <section className={`hardware-panel metal-panel ${powered ? "powered" : "power-off"}`}>
           <div className="board-stage"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="station-board-scenery" /><img className="board-asset" src={isTx ? ASSETS.boardOn : ASSETS.boardOff} alt={`squid01 yellow PCB under an acrylic cover — ${isTx ? t.tx : powered ? t.idle : t.powerOff}`} />{!antennaReady && <div className="antenna-warning"><Broadcast size={17} weight="fill" /><span>{antennaStatus.missing}</span></div>}</div>
@@ -691,6 +692,7 @@ export function App() {
   const [automaticKeyWpm, setAutomaticKeyWpm] = useState(DEFAULT_AUTOMATIC_KEY_WPM);
   const [screen, setScreen] = useState("start");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [saves, setSaves] = useState(() => loadSaves());
   const savesRef = useRef(saves);
   const [activeSaveId, setActiveSaveId] = useState(() => loadActiveSaveId());
@@ -772,7 +774,7 @@ export function App() {
   }
 
   let currentScreen;
-  if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => setScreen("practice")} onSettings={() => setSettingsOpen(true)} />;
+  if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => setScreen("practice")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onEnterStation={() => setScreen("station")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") currentScreen = <PracticeScreen language={language} automaticKeyWpm={automaticKeyWpm} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("start")} />;
@@ -781,6 +783,7 @@ export function App() {
   return <>
     {currentScreen}
     <NetworkIndicator language={language} />
+    {manualOpen && <StationManualModal language={language} onClose={() => setManualOpen(false)} />}
     {settingsOpen && <SettingsModal
       language={language}
       keyType={activeSave && ["home", "station"].includes(screen) ? activeSave.keyType : keyType}

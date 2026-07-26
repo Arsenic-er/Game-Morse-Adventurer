@@ -227,6 +227,7 @@ async function runQaCapture(window) {
   const [captureWidth, captureHeight] = window.getContentSize();
   const suffix = process.env.CWGAME_QA_SUFFIX || `${captureWidth}x${captureHeight}`;
   const shot = (stem) => `${stem}-${suffix}.png`;
+  const manualCaptures = [];
   await fs.mkdir(outputDir, { recursive: true });
   await fs.rm(path.join(outputDir, "qa-failure.txt"), { force: true });
   const consoleErrors = [];
@@ -241,6 +242,130 @@ async function runQaCapture(window) {
   await window.reload();
   await waitFor(window, ".start-screen");
   await capture(window, outputDir, shot("start"));
+  const buildTag = await window.webContents.executeJavaScript(
+    'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
+    true,
+  );
+  if (!buildTag.includes("v0.13.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+
+  async function readManualState(label) {
+    const state = await window.webContents.executeJavaScript(`(() => {
+      const modal = document.querySelector('[data-testid="station-manual-modal"]');
+      return {
+        label: ${JSON.stringify(label)},
+        text: modal?.textContent.trim() ?? "",
+        page: Number(modal?.dataset.manualPageNumber),
+        total: Number(modal?.dataset.manualPageTotal),
+        chapters: modal?.querySelectorAll("[data-manual-chapter]").length ?? 0,
+        pageTitle: modal?.querySelector(".station-manual-page h3")?.textContent.trim() ?? "",
+      };
+    })()`, true);
+    if (!state.text || !state.pageTitle || state.page !== 1 || state.total !== 4 || state.chapters !== 4) {
+      throw new Error(`Station Manual ${label} state is incomplete: ${JSON.stringify(state)}`);
+    }
+    return state;
+  }
+
+  await click(window, ".start-actions button:nth-child(4)");
+  await waitFor(window, '[data-testid="station-manual-modal"]');
+  const firstManualState = await readManualState("initial open");
+  await capture(window, outputDir, shot("station-manual-page-1"));
+  manualCaptures.push(shot("station-manual-page-1"));
+
+  const languageUpdateState = await window.webContents.executeJavaScript(`(async () => {
+    const beforeLanguage = document.documentElement.lang;
+    const beforeText = document.querySelector('[data-testid="station-manual-modal"]')?.textContent.trim() ?? "";
+    document.querySelector(".start-language .language-globe")?.click();
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const menuItems = Array.from(document.querySelectorAll(".start-language .language-menu button"));
+    const targetIndex = beforeLanguage === "en" ? 2 : 3;
+    menuItems[targetIndex]?.click();
+    return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve({
+      beforeLanguage,
+      afterLanguage: document.documentElement.lang,
+      beforeText,
+      afterText: document.querySelector('[data-testid="station-manual-modal"]')?.textContent.trim() ?? "",
+    }))));
+  })()`, true);
+  if (languageUpdateState.beforeLanguage === languageUpdateState.afterLanguage
+    || languageUpdateState.beforeText === languageUpdateState.afterText) {
+    throw new Error(`Open Station Manual did not update with language: ${JSON.stringify(languageUpdateState)}`);
+  }
+  await capture(window, outputDir, shot("station-manual-language-updated"));
+  manualCaptures.push(shot("station-manual-language-updated"));
+
+  await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keydown", {
+    key: "ArrowRight", code: "ArrowRight", bubbles: true, cancelable: true,
+  }))`, true);
+  await delay(80);
+  let keyboardPage = await window.webContents.executeJavaScript(
+    'Number(document.querySelector(\'[data-testid="station-manual-modal"]\')?.dataset.manualPageNumber)',
+    true,
+  );
+  if (keyboardPage !== 2) throw new Error(`ArrowRight navigation landed on page ${keyboardPage}`);
+  await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keydown", {
+    key: "ArrowLeft", code: "ArrowLeft", bubbles: true, cancelable: true,
+  }))`, true);
+  await delay(80);
+  keyboardPage = await window.webContents.executeJavaScript(
+    'Number(document.querySelector(\'[data-testid="station-manual-modal"]\')?.dataset.manualPageNumber)',
+    true,
+  );
+  if (keyboardPage !== 1) throw new Error(`ArrowLeft navigation landed on page ${keyboardPage}`);
+
+  let manualPage = 1;
+  let previousManualText = languageUpdateState.afterText;
+  for (; manualPage < 8; manualPage += 1) {
+    const navigation = await window.webContents.executeJavaScript(`(() => {
+      const modal = document.querySelector('[data-testid="station-manual-modal"]');
+      const next = modal?.querySelector('[data-action="manual-next"]');
+      if (!next || next.disabled) return { advanced: false };
+      next.click();
+      return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve({
+        advanced: true,
+        text: document.querySelector('[data-testid="station-manual-modal"]')?.textContent.trim() ?? "",
+      }))));
+    })()`, true);
+    if (!navigation.advanced) break;
+    if (!navigation.text || navigation.text === previousManualText) {
+      throw new Error(`Station Manual page ${manualPage + 1} did not change content`);
+    }
+    previousManualText = navigation.text;
+    const captureName = shot(`station-manual-page-${manualPage + 1}`);
+    await capture(window, outputDir, captureName);
+    manualCaptures.push(captureName);
+  }
+  if (manualPage !== firstManualState.total) {
+    throw new Error(`Station Manual exposed ${manualPage} of ${firstManualState.total} pages`);
+  }
+  await click(window, '[data-testid="station-manual-modal"] [data-action="manual-prev"]');
+  const previousPageNumber = await window.webContents.executeJavaScript(
+    'Number(document.querySelector(\'[data-testid="station-manual-modal"]\')?.dataset.manualPageNumber)',
+    true,
+  );
+  if (previousPageNumber !== firstManualState.total - 1) {
+    throw new Error(`Station Manual previous navigation landed on page ${previousPageNumber}`);
+  }
+  await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keydown", {
+    key: "Escape", code: "Escape", bubbles: true, cancelable: true,
+  }))`, true);
+  await waitForMissing(window, '[data-testid="station-manual-modal"]');
+
+  await click(window, ".start-actions button:nth-child(4)");
+  await waitFor(window, '[data-testid="station-manual-modal"]');
+  await readManualState("backdrop-close open");
+  await window.webContents.executeJavaScript(`(() => {
+    const backdrop = document.querySelector('[data-testid="station-manual-backdrop"]');
+    if (!backdrop) throw new Error("Missing Station Manual backdrop");
+    backdrop.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window }));
+  })()`, true);
+  await waitForMissing(window, '[data-testid="station-manual-modal"]');
+
+  await click(window, ".start-actions button:nth-child(4)");
+  await waitFor(window, '[data-testid="station-manual-modal"]');
+  await readManualState("close-button open");
+  await click(window, '[data-testid="station-manual-modal"] [data-action="close-station-manual"]');
+  await waitForMissing(window, '[data-testid="station-manual-modal"]');
 
   await click(window, ".start-actions button:nth-child(2)");
   await waitFor(window, ".practice-screen");
@@ -428,6 +553,33 @@ async function runQaCapture(window) {
     throw new Error(`Accessory did not affect the open receiver: ${JSON.stringify(accessoryReceiverState)}`);
   }
   await capture(window, outputDir, shot("station-listening"));
+  await sendAutomaticText(window, "E");
+  const beforeClearInput = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    return {
+      pulseCount: Number(document.querySelector(".station-screen")?.dataset.pulseCount),
+      decoded: document.querySelector(".station-screen")?.dataset.decoded ?? "",
+      logIds: (save.qsoLogs ?? []).map((entry) => entry.id),
+    };
+  })()`, true);
+  if (beforeClearInput.pulseCount < 1 || !beforeClearInput.decoded) {
+    throw new Error(`Could not prepare clear-input QA state: ${JSON.stringify(beforeClearInput)}`);
+  }
+  await click(window, '[data-action="clear-input"]');
+  await delay(100);
+  const afterClearInput = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    return {
+      pulseCount: Number(document.querySelector(".station-screen")?.dataset.pulseCount),
+      decoded: document.querySelector(".station-screen")?.dataset.decoded ?? "",
+      logIds: (save.qsoLogs ?? []).map((entry) => entry.id),
+    };
+  })()`, true);
+  if (afterClearInput.pulseCount !== 0 || afterClearInput.decoded
+    || JSON.stringify(afterClearInput.logIds) !== JSON.stringify(beforeClearInput.logIds)) {
+    throw new Error(`Clear input mutated logs or retained input: ${JSON.stringify({ beforeClearInput, afterClearInput })}`);
+  }
+  await capture(window, outputDir, shot("station-input-cleared"));
   const markStep = (step) => fs.writeFile(path.join(outputDir, "qa-step.txt"), `${step}\n`, "utf8");
   await markStep("station-listening");
 
@@ -517,15 +669,15 @@ async function runQaCapture(window) {
 
   return {
     outputDir,
-    captures: [
+    captures: [...[
       "start", "save-create", "home", "home-motion-a", "home-motion-b",
       "home-hover-store", "store-antenna", "store-radio", "store-accessory-insufficient",
       "home-hover-warehouse", "warehouse-radio", "warehouse-accessories",
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "save-loaded", "store-accessory-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "station-listening", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
-    ].map(shot),
+      "home-log-detail-second", "station-listening", "station-input-cleared", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
+    ].map(shot), ...manualCaptures],
   };
 }
 

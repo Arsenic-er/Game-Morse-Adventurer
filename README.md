@@ -66,7 +66,7 @@ The project currently has 85 automated tests covering the CW core and repeating 
 
 ## Project status
 
-Version **v0.12.0** adds the first functional station accessory: the CW-500 audio filter. It costs 300 credits, occupies the single accessory slot, reduces receiver noise by 35%, and applies a 650 Hz-centered, 500 Hz audio passband to both idle receiver noise and incoming CW. Players can buy it in the store, equip or remove it in the warehouse, see its active state at the station, and retain the accessory snapshot in every new QSO log. The v2 inventory migration safely preserves old saves. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
+Version **v0.13.0** replaces the start-screen placeholder alert with a complete four-section Station Manual in English, Simplified Chinese, Traditional Chinese, and Japanese. It explains save creation, always-on receiver listening and player-led CQ calls, straight-key and automatic-paddle controls, propagation, antennas, and the CW-500 filter without requiring an external guide. The station console's former misleading Delete label is now an explicit Clear Input action. The v0.12 CW-500 accessory, v2 inventory migration, and QSO equipment snapshots remain fully supported. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
 
 ## Rights and third-party software
 
