@@ -43,6 +43,7 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
     longestDistanceKm: 0,
     longestQsoId: null,
     contactedRegions: [],
+    weakSignalQsos: 0,
     settledQsoIds: [],
   });
 });
@@ -82,6 +83,7 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
     longestDistanceKm: 9134.7,
     longestQsoId: "legacy-qso",
     contactedRegions: ["NA-W"],
+    weakSignalQsos: 0,
     settledQsoIds: ["legacy-qso"],
   });
 });

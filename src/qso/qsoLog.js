@@ -113,6 +113,17 @@ export function normalizeQsoRecords(records, entries = []) {
     .map((id) => String(id ?? "").trim().slice(0, 96))
     .filter(Boolean));
   for (const log of logs) settledQsoIds.add(log.id);
+  const retainedWeakSignalQsos = (Array.isArray(entries) ? entries : []).filter((candidate) => {
+    if (!normalizeQsoLogEntry(candidate)) return false;
+    const value = candidate?.finalPropagationLevel ?? candidate?.finalLevel;
+    if (value === null || value === undefined || value === "") return false;
+    const level = Number(value);
+    return Number.isFinite(level) && level >= 0 && level <= 2;
+  }).length;
+  const weakSignalQsos = Math.max(
+    Math.floor(Math.max(0, finiteNumber(supplied.weakSignalQsos))),
+    retainedWeakSignalQsos,
+  );
 
   let longestDistanceKm = Math.max(0, finiteNumber(supplied.longestDistanceKm));
   let longestQsoId = String(supplied.longestQsoId ?? "") || null;
@@ -127,6 +138,7 @@ export function normalizeQsoRecords(records, entries = []) {
     longestDistanceKm: Number(longestDistanceKm.toFixed(1)),
     longestQsoId,
     contactedRegions: [...contactedRegions].sort(),
+    weakSignalQsos,
     settledQsoIds: [...settledQsoIds].sort(),
   };
 }
@@ -155,6 +167,7 @@ export function recordCompletedQso(save, candidate) {
     longestDistanceKm: newDistanceRecord ? entry.distanceKm : previousRecords.longestDistanceKm,
     longestQsoId: newDistanceRecord ? entry.id : previousRecords.longestQsoId,
     contactedRegions,
+    weakSignalQsos: previousRecords.weakSignalQsos + (entry.finalPropagationLevel <= 2 ? 1 : 0),
     settledQsoIds: [...previousRecords.settledQsoIds, entry.id].sort(),
   };
   const credits = Math.max(0, finiteNumber(save.credits)) + entry.credits;

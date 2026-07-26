@@ -410,6 +410,7 @@ button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 .receiver-live { display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 180px; padding: 0 16px; overflow: hidden; border: 1px solid #31515b; color: #789297; background: linear-gradient(#0c1e24, #071217); font-size: 10px; text-align: center; }
 .receiver-live span { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .receiver-live.active { border-color: #2f9797; color: #70e0dc; text-shadow: 0 0 7px rgba(64, 220, 220, .55); }
+.receiver-live.recovering { border-color: #b7781f; color: #ffd16a; text-shadow: 0 0 7px rgba(255, 178, 45, .5); }
 .qso-console > button:disabled { opacity: .58; cursor: wait; }
 .qso-console kbd { margin-left: 5px; color: #6c8588; font-size: 9px; font-weight: 400; }
 .transmitting .hardware-panel { box-shadow: inset 0 0 0 2px #03090d, inset 0 0 0 3px rgba(255, 63, 52, .23), 0 0 22px rgba(255, 46, 35, .11); }

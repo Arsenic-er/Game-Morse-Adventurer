@@ -80,6 +80,7 @@ test("normalizes aggregate records from retained logs", () => {
     longestDistanceKm: 8291.5,
     longestQsoId: "far",
     contactedRegions: ["AS-JA", "NA-W"],
+    weakSignalQsos: 0,
     settledQsoIds: ["far", "near"],
   });
 });
@@ -109,6 +110,7 @@ test("records a completed QSO atomically and idempotently", () => {
     longestDistanceKm: 8291.5,
     longestQsoId: "SIM7QX-1",
     contactedRegions: ["AS-JA", "NA-W"],
+    weakSignalQsos: 0,
     settledQsoIds: ["SIM7QX-1", "old"],
   });
 
@@ -136,7 +138,7 @@ test("reports ordinary contacts without false milestones", () => {
 
 test("keeps settlements idempotent after an old log is evicted", () => {
   let save = { credits: 0, qsoLogs: [], qsoRecords: null };
-  const first = entry({ id: "first", completedAt: "2026-07-15T00:05:00.000Z" });
+  const first = entry({ id: "first", completedAt: "2026-07-15T00:05:00.000Z", finalPropagationLevel: 2 });
   save = recordCompletedQso(save, first).save;
   for (let index = 1; index <= MAX_QSO_LOGS; index += 1) {
     save = recordCompletedQso(save, entry({
@@ -147,6 +149,7 @@ test("keeps settlements idempotent after an old log is evicted", () => {
   assert.equal(save.qsoLogs.length, MAX_QSO_LOGS);
   assert.equal(save.qsoLogs.some((log) => log.id === "first"), false);
   assert.equal(save.qsoRecords.settledQsoIds.includes("first"), true);
+  assert.equal(save.qsoRecords.weakSignalQsos, 1);
 
   const creditsBeforeRetry = save.credits;
   const totalBeforeRetry = save.qsoRecords.total;

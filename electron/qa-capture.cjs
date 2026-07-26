@@ -102,6 +102,18 @@ async function assertHoverTint(window, selector) {
   }
 }
 
+async function waitForMissing(window, selector, timeout = 10000) {
+  const source = `new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const node = document.querySelector(${JSON.stringify(selector)});
+      if (!node) { clearInterval(timer); resolve(true); }
+      else if (Date.now() - started > ${timeout}) { clearInterval(timer); reject(new Error(${JSON.stringify(`Timed out waiting for removal: ${selector}`)})); }
+    }, 40);
+  })`;
+  return window.webContents.executeJavaScript(source, true);
+}
+
 const MORSE = Object.freeze({
   A: ".-", B: "-...", C: "-.-.", D: "-..", E: ".", F: "..-.", G: "--.", H: "....", I: "..", J: ".---",
   K: "-.-", L: ".-..", M: "--", N: "-.", O: "---", P: ".--.", Q: "--.-", R: ".-.", S: "...", T: "-",
@@ -291,6 +303,21 @@ async function runQaCapture(window) {
   await clearHover(window);
   await hover(window, ".hotspot-achievements");
   await capture(window, outputDir, shot("home-hover-achievements"));
+  await click(window, ".hotspot-achievements");
+  await waitFor(window, '[data-testid="achievements-modal"]');
+  const emptyAchievementState = await window.webContents.executeJavaScript(`(() => ({
+    total: document.querySelectorAll(".achievement-card").length,
+    unlocked: document.querySelectorAll('.achievement-card[data-achievement-state="unlocked"]').length,
+    callsign: document.querySelector(".achievements-summary strong")?.textContent.trim() ?? null,
+    savedCallsign: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
+  }))()`, true);
+  if (emptyAchievementState.total !== 6 || emptyAchievementState.unlocked !== 0
+    || emptyAchievementState.callsign !== emptyAchievementState.savedCallsign) {
+    throw new Error(`Unexpected empty achievement state: ${JSON.stringify(emptyAchievementState)}`);
+  }
+  await capture(window, outputDir, shot("achievements-empty"));
+  await click(window, '[data-action="close-achievements-footer"]');
+  await waitForMissing(window, '[data-testid="achievements-modal"]');
   await click(window, ".hotspot-log");
   await waitFor(window, ".qso-log-modal");
   await capture(window, outputDir, shot("home-log-empty-warmup"));
@@ -316,6 +343,24 @@ async function runQaCapture(window) {
 
   await click(window, ".save-primary-action");
   await waitFor(window, ".home-screen");
+  await click(window, ".hotspot-achievements");
+  await waitFor(window, '[data-testid="achievements-modal"]');
+  const populatedAchievementState = await window.webContents.executeJavaScript(`(() => ({
+    unlocked: Array.from(document.querySelectorAll('.achievement-card[data-achievement-state="unlocked"]'))
+      .map((node) => node.dataset.achievementId).sort(),
+    locked: Array.from(document.querySelectorAll('.achievement-card[data-achievement-state="locked"]'))
+      .map((node) => node.dataset.achievementId),
+    callsign: document.querySelector(".achievements-summary strong")?.textContent.trim() ?? null,
+    savedCallsign: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
+  }))()`, true);
+  const expectedUnlockedAchievements = ["dx-5000", "first-qso"];
+  if (JSON.stringify(populatedAchievementState.unlocked) !== JSON.stringify(expectedUnlockedAchievements)
+    || populatedAchievementState.callsign !== populatedAchievementState.savedCallsign) {
+    throw new Error(`Unexpected populated achievement state: ${JSON.stringify(populatedAchievementState)}`);
+  }
+  await capture(window, outputDir, shot("achievements-populated"));
+  await click(window, '[data-action="close-achievements-footer"]');
+  await waitForMissing(window, '[data-testid="achievements-modal"]');
   await click(window, ".hotspot-log");
   await waitFor(window, ".qso-log-modal");
   await capture(window, outputDir, shot("home-log-populated-warmup"));
@@ -355,6 +400,13 @@ async function runQaCapture(window) {
   await fs.writeFile(path.join(outputDir, "qso-cq-debug.json"), `${JSON.stringify(cqDebug, null, 2)}\n`, "utf8");
   await click(window, '[data-action="submit-reply"]');
   await waitFor(window, '[data-qso-phase="PLAYER_RST_AND_73"]', 10000);
+  const firstRecoveryState = await window.webContents.executeJavaScript(`(() => ({
+    failures: window.cwgameSystem?.getQaIncomingFailureCount?.() ?? 0,
+    recovering: document.querySelector(".station-screen")?.dataset.npcPlaybackRecovering ?? null,
+  }))()`, true);
+  if (firstRecoveryState.failures !== 1 || firstRecoveryState.recovering !== "false") {
+    throw new Error(`First incoming phase did not recover cleanly: ${JSON.stringify(firstRecoveryState)}`);
+  }
   const stationIdentity = await window.webContents.executeJavaScript(`(() => ({
     npc: document.querySelector(".contact-card h2").textContent.trim(),
     player: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
@@ -370,6 +422,16 @@ async function runQaCapture(window) {
   await fs.writeFile(path.join(outputDir, "qso-second-reply-debug.json"), `${JSON.stringify(secondReplyDebug, null, 2)}\n`, "utf8");
   await click(window, '[data-action="submit-reply"]');
   await waitFor(window, ".qso-result-modal.success", 30000);
+  const recoveredIncomingState = await window.webContents.executeJavaScript(`(() => ({
+    failures: window.cwgameSystem?.getQaIncomingFailureCount?.() ?? 0,
+    recovering: document.querySelector(".station-screen")?.dataset.npcPlaybackRecovering ?? null,
+    phase: document.querySelector(".station-screen")?.dataset.qsoPhase ?? null,
+  }))()`, true);
+  if (recoveredIncomingState.failures !== 2 || recoveredIncomingState.recovering !== "false"
+    || recoveredIncomingState.phase !== "QSO_COMPLETE") {
+    throw new Error(`Expected both incoming phases to recover cleanly: ${JSON.stringify(recoveredIncomingState)}`);
+  }
+  await fs.writeFile(path.join(outputDir, "incoming-recovery-debug.json"), `${JSON.stringify({ firstRecoveryState, recoveredIncomingState }, null, 2)}\n`, "utf8");
   await capture(window, outputDir, shot("qso-result-unsaved-warmup"));
   await capture(window, outputDir, shot("qso-result-unsaved"));
   await click(window, ".qso-result-primary");
@@ -409,7 +471,7 @@ async function runQaCapture(window) {
       "home-hover-store", "store-antenna", "store-radio",
       "home-hover-warehouse", "warehouse-radio", "warehouse-accessories",
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
-      "home-hover-achievements", "home-log-empty", "save-loaded", "home-log-populated",
+      "home-hover-achievements", "achievements-empty", "home-log-empty", "save-loaded", "achievements-populated", "home-log-populated",
       "home-log-detail-second", "station-listening", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
     ].map(shot),
   };

@@ -34,6 +34,7 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - Independent CW practice for characters, fictional callsigns, straight key, and paddle.
 - A player-led fictional QSO loop: the receiver opens automatically, the player calls CQ, propagation determines whether a station responds, and a successful contact continues through callsigns, RST, 73/SK, credits, and logging.
 - Persistent QSO result pages and logbook entries, including callsign, region, distance, RST, propagation, equipment, WPM, accuracy, and rhythm.
+- A four-language achievement archive derives six permanent milestones from durable QSO records and retained logs without granting duplicate rewards.
 - Atomic, idempotent credit settlement prevents a completed QSO from being rewarded more than once.
 - A four-language station store supports atomic purchases, persistent ownership, and warehouse-only equipment changes.
 - Station clocks display both the selected station's local time and UTC.
@@ -60,11 +61,11 @@ pnpm run dev
 pnpm run desktop:build
 ```
 
-The project currently has 68 automated tests covering the CW core and repeating keyer, practice engine, player-led QSO state machine, CQ response probability, persistent QSO logs and results, idempotent credit settlement, store economy, owned inventory, propagation model, map projection, and save data rules.
+The project currently has 73 automated tests covering the CW core and repeating keyer, practice engine, player-led QSO state machine, CQ response probability, persistent QSO logs and results, achievement derivation, idempotent credit settlement, store economy, owned inventory, propagation model, map projection, and save data rules.
 
 ## Project status
 
-Version **v0.10.0** changes the station into a continuously listening receiver: background noise begins on entry, the player must call CQ first, and propagation strength determines whether a fictional station responds before the rest of the exchange plays automatically. The contact identity and propagation detail stay hidden until a response is actually received. It remains a playable prototype with persistent QSO results, logbook history, a credit-based station store, owned-equipment inventory, protected warehouse loadouts, adjustable automatic-key speed, and deterministic Z/X hold-to-repeat. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
+Version **v0.11.0** replaces the Home newspaper placeholder with a four-language achievement archive for the first QSO, 5 and 10 QSOs, a 5,000 km DX contact, a P2-or-weaker contact, and contacts across three regions. Incoming NPC playback now retries automatically after focus or audio interruption without advancing the QSO early, and historical contacts display their own saved region and propagation level. It remains a playable prototype with persistent QSO results, a credit-based station store, owned-equipment inventory, protected warehouse loadouts, adjustable automatic-key speed, and deterministic Z/X hold-to-repeat. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
 
 ## Rights and third-party software
 

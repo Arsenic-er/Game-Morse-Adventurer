@@ -101,7 +101,7 @@ export function normalizeSave(save) {
     accessories: [],
     credits: normalizeCredits(save.credits),
     qsoLogs,
-    qsoRecords: normalizeQsoRecords(save?.qsoRecords, qsoLogs),
+    qsoRecords: normalizeQsoRecords(save?.qsoRecords, qsoLogSource),
     createdAt: save.createdAt || new Date().toISOString(),
     updatedAt: save.updatedAt || new Date().toISOString(),
   };

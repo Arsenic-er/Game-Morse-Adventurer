@@ -7,6 +7,7 @@ import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";
 import { equipmentName, getTransmitter } from "../game/equipmentCatalog.js";
 import { getLocation, locationName } from "../game/locations.js";
 import { LocationArtwork } from "../game/LocationArtwork.jsx";
+import { AchievementsModal } from "./AchievementsModal.jsx";
 import { StoreModal } from "./StoreModal.jsx";
 
 const TEXT = {
@@ -350,7 +351,8 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onEnterSta
       {panel === "warehouse" && <WarehouseModal language={language} save={save} onEquipItem={onEquipItem} onClose={() => setPanel(null)} />}
       {panel === "store" && <StoreModal language={language} save={save} onPurchase={onPurchase} onClose={() => setPanel(null)} />}
       {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
-      {panel && !["warehouse", "store", "log"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
+      {panel === "achievements" && <AchievementsModal language={language} save={save} onClose={() => setPanel(null)} />}
+      {panel && !["warehouse", "store", "log", "achievements"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
     </main>
   );
 }
