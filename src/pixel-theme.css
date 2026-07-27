@@ -601,9 +601,12 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   padding-left: 18px;
 }
 
-.practice-title { display: flex; align-items: center; gap: 12px; color: var(--pixel-cyan); }
+.practice-title { display: flex; align-items: center; gap: 12px; min-width: 0; color: var(--pixel-cyan); }
 .practice-title strong { color: #d9e9e4; font-size: 17px; letter-spacing: .12em; }
 .practice-title span { padding-left: 12px; border-left: 2px solid #28565e; color: #638f91; font-size: 11px; }
+.practice-recording-status { overflow: hidden; padding: 7px 9px; border: 2px solid #355d60; color: #80aaa7; background: #061920; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.practice-recording-status.persistent { border-color: #55782c; color: #b9df79; background: #10200d; }
+.practice-recording-status.session-only { border-color: #765b29; color: #d4aa56; background: #21180a; }
 
 .practice-layout {
   position: relative;
@@ -676,13 +679,15 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .practice-actions button { padding: 0 12px; font-size: 11px; }
 .practice-actions .primary-button,
 .reception-controls .primary-button { border-color: #d19a2f; color: #ffe19a; background: #503506; }
+.practice-actions button:disabled,
+.reception-controls button:disabled { opacity: .4; filter: saturate(.35); box-shadow: none; }
 
 .practice-result { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 8px; padding: 0 14px; border: 2px solid #28545c; color: #6d9595; background: #04151c; font-size: 11px; }
 .practice-result strong { font-size: 16px; }
 .practice-result.correct { border-color: #5b963c; color: #b8ea85; background: #0b2310; }
 .practice-result.wrong { border-color: #a64b3e; color: #ff9a88; background: #2a0d0a; }
 
-.practice-stats { display: grid; grid-template-rows: 44px auto minmax(0, 1fr) 54px; }
+.practice-stats { display: grid; grid-template-rows: 44px auto auto minmax(0, 1fr) 54px; }
 .practice-stats dl { display: grid; gap: 8px; margin: 0; padding: 14px; }
 .practice-stats dl div { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 12px; border: 2px solid #28535b; background: #061921; }
 .practice-stats dt { color: #719a9a; font-size: 11px; }
@@ -690,12 +695,53 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .practice-stats section { padding: 12px 14px; border-top: 2px solid #28535b; }
 .practice-stats h2 { margin: 0 0 12px; color: #a8c8c3; font-size: 13px; }
 .practice-stats p { color: #547c7d; font-size: 11px; }
+.practice-session-weaknesses { padding-block: 8px !important; }
+.practice-lifetime-stats { min-height: 0; overflow: auto; background: #041218; scrollbar-color: #3d7779 #031014; scrollbar-width: thin; }
+.practice-lifetime-stats > dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding: 0 0 10px; }
+.practice-lifetime-stats > dl div { display: grid; justify-items: start; min-height: 42px; padding: 5px 7px; }
+.practice-lifetime-stats > dl dd { font-size: 16px; }
+.practice-lifetime-stats > h2:not(:first-child) { padding-top: 8px; border-top: 2px solid #1f444a; }
 .weak-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .weak-list span { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border: 2px solid #39676b; color: var(--pixel-amber); background: #071c23; }
 .weak-list i { color: #6d9998; font-style: normal; font-size: 10px; }
 .practice-light { display: flex; align-items: center; justify-content: center; gap: 10px; border-top: 2px solid #28535b; color: #729797; font-size: 11px; }
 .practice-light i { width: 12px; height: 12px; border: 2px solid #6c2b25; background: #32110f; }
 .practice-light i.on { background: var(--pixel-red); box-shadow: 0 0 12px #ff3f32; }
+
+.practice-summary-backdrop {
+  position: fixed;
+  z-index: 700;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(1, 6, 9, .9);
+}
+.practice-summary-modal {
+  display: grid;
+  grid-template-rows: 88px auto minmax(84px, 1fr) 58px;
+  width: min(720px, calc(100vw - 44px));
+  max-height: calc(100vh - 44px);
+  overflow: hidden;
+  border-color: #9b782f;
+  color: #bed7d1;
+  background: #07181e;
+  box-shadow: 9px 9px 0 #010506, inset 0 0 0 3px #203f43;
+}
+.practice-summary-modal > header { display: grid; grid-template-columns: minmax(0, 1fr) 42px; align-items: center; gap: 14px; padding: 0 16px; border-bottom: 3px solid #755921; background: #10262a; }
+.practice-summary-modal > header span { color: #b98931; font-size: 8px; letter-spacing: .16em; }
+.practice-summary-modal > header h2 { margin: 4px 0 0; color: #ffe09a; font-size: 21px; letter-spacing: .1em; }
+.practice-summary-modal > header p { margin: 4px 0 0; color: #769694; font-size: 9px; }
+.practice-summary-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin: 0; padding: 15px; }
+.practice-summary-metrics > div { display: grid; place-items: center; gap: 7px; min-height: 76px; border: 2px solid #386366; background: #06161b; }
+.practice-summary-metrics dt { color: #789b98; font-size: 9px; }
+.practice-summary-metrics dd { margin: 0; color: var(--pixel-amber); font-size: 23px; }
+.practice-summary-weaknesses { min-height: 0; padding: 0 16px 14px; overflow: auto; }
+.practice-summary-weaknesses h3 { margin: 0 0 10px; color: #a9c8c3; font-size: 12px; }
+.practice-summary-weaknesses p { color: #668785; font-size: 10px; }
+.practice-summary-modal > footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 0 14px; border-top: 3px solid #755921; background: #10262a; }
+.practice-summary-modal > footer button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 190px; height: 38px; border: 2px solid #497679; color: #afd1cc; background: #092029; box-shadow: 3px 3px 0 #010506; font-size: 9px; }
+.practice-summary-modal > footer .primary-button { border-color: #bd8b2c; color: #ffe09a; background: #30240e; }
 
 @media (max-height: 760px) {
   .station-screen { grid-template-rows: 56px minmax(0, 1fr) 100px; }
@@ -723,6 +769,13 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   .practice-prompt > strong { font-size: 40px; }
   .practice-sidebar nav button { min-height: 49px; }
   .practice-stats dl div { min-height: 42px; }
+  .practice-recording-status { max-width: 250px; }
+  .practice-session-weaknesses { display: none; }
+  .practice-stats { grid-template-rows: 44px auto minmax(0, 1fr) 54px; }
+  .practice-summary-modal { grid-template-rows: 76px auto minmax(68px, 1fr) 50px; }
+  .practice-summary-metrics { padding: 10px; }
+  .practice-summary-metrics > div { min-height: 62px; }
+  .practice-summary-modal > footer button { height: 34px; }
 }
 
 /* M6 save, Home, location layers, and network state */
@@ -943,6 +996,52 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .achievements-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 14px 0 18px; border-top: 3px solid #755721; background: #10262a; }
 .achievements-footer > span { overflow: hidden; color: #718f8d; font-size: 8px; letter-spacing: .12em; text-overflow: ellipsis; white-space: nowrap; }
 .achievements-footer button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 220px; height: 38px; border: 2px solid #bd8b2c; color: #ffe09a; background: #30240e; box-shadow: 3px 3px 0 #020506; font-size: 9px; }
+
+.achievement-notification-region {
+  position: fixed;
+  z-index: 620;
+  top: 18px;
+  right: 18px;
+  width: min(410px, calc(100vw - 36px));
+  pointer-events: none;
+}
+.achievement-notification {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 38px;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 3px solid #bf8b2d;
+  color: #c6ddd7;
+  background: #15170e;
+  box-shadow: 7px 7px 0 #010506, inset 0 0 0 3px #4c3c19;
+  pointer-events: auto;
+  animation: achievement-toast-enter 180ms steps(3, end) both;
+}
+.achievement-notification-icon { display: grid; place-items: center; border: 2px solid #9e752a; color: #ffd56a; background: #2b220e; }
+.achievement-notification-copy { min-width: 0; }
+.achievement-notification-copy > span { display: block; color: #e4ac3b; font-size: 8px; letter-spacing: .16em; text-transform: uppercase; }
+.achievement-notification-copy strong { display: block; margin-top: 5px; overflow: hidden; color: #ffe09a; font-size: 14px; letter-spacing: .08em; text-overflow: ellipsis; white-space: nowrap; }
+.achievement-notification-copy p { margin: 6px 0 0; color: #91aaa4; font-size: 9px; line-height: 1.5; }
+.achievement-notification-copy small { display: block; margin-top: 6px; color: #746f53; font-size: 8px; }
+.achievement-notification-copy small:empty { display: none; }
+.achievement-notification > button { align-self: start; width: 36px; height: 36px; padding: 0; border: 2px solid #795c25; color: #e8c372; background: #241d0d; }
+.achievement-notification > button:hover,
+.achievement-notification > button:focus-visible { border-color: #e0a938; color: #fff0b3; background: #4a350e; }
+
+@keyframes achievement-toast-enter {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (max-width: 1400px) {
+  .achievement-notification-region {
+    top: auto;
+    right: auto;
+    bottom: 18px;
+    left: 18px;
+  }
+}
 
 .qso-log-backdrop { z-index: 280; }
 .qso-log-modal {

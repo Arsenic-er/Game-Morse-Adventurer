@@ -31,14 +31,15 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - Three local save slots with a seven-character uppercase callsign, fixed starting location, swappable equipment, and credits.
 - Standard Morse timing, fixed 650 Hz sidetone, decoding, rhythm scoring, and straight-key WPM detection.
 - Straight-key input with `Space`; adjustable 5–40 WPM automatic paddle input with `Z` for dot and `X` for dash, including continuous hold-to-repeat.
-- Independent CW practice for characters, fictional callsigns, straight key, and paddle.
+- Independent CW practice for characters, fictional callsigns, straight key, and paddle. A deterministic shuffled bag avoids repeats within a round and steers the next prompt away from the four most recent targets; each prompt settles at most once.
+- Practice shows session summaries for attempts, accuracy, rhythm, and weak characters. With an active save, lifetime results accumulate independently for all four modes; without a selected save, training remains available but records stay session-only.
 - A player-led fictional QSO loop: the receiver opens automatically, the player calls CQ, propagation determines whether a station responds, and a successful contact continues through callsigns, RST, 73/SK, credits, and logging.
 - A four-language first-watch briefing and full/hints/off duty coach teach each QSO stage without revealing the remote callsign during blind copy.
 - `AGN K` repeats the same remote station over the same channel without changing propagation, attempts, or rewards; malformed messages retain their decoded text for correction instead of ending the QSO after two errors.
 - QSO messages are validated in radio order: remote call, `DE`, player call, `RST`, report, `73`, then `K`; misplaced or missing procedural signs receive a specific correction instead of a false pass.
 - Persistent QSO result pages and logbook entries include callsign, region, distance, RST, propagation, equipment, WPM, transmit accuracy, rhythm, repeat-request count, and a line-by-line operating review of accepted, rejected, and repeat attempts.
 - Completing a QSO with guidance off and without opening visual assistance qualifies as an independent watch and awards an extra 50 credits on top of the 100-credit base reward.
-- A four-language achievement archive derives six permanent milestones from durable QSO records and retained logs without granting duplicate rewards.
+- A four-language achievement archive derives six permanent milestones from durable QSO records and retained logs without granting duplicate rewards. Newly unlocked QSO achievements appear immediately in a non-blocking notification queue.
 - Atomic, idempotent credit settlement prevents a completed QSO from being rewarded more than once.
 - A four-language station store supports atomic purchases, persistent ownership, and warehouse-only equipment changes.
 - The first replacement radio, the fictional MICA-8, costs 800 credits and is inspired by open uSDX/uSDR QRP concepts: a 5 W eight-band hardware profile, 20% lower receiver noise, 15% shallower perceived QSB through AGC, and paired idle/TX pixel artwork whose red diode lights only while transmitting. Current gameplay remains fixed at 21.060 MHz CW.
@@ -71,7 +72,7 @@ The automated suite covers the CW core and repeating keyer, receiver audio filte
 
 ## Project status
 
-Version **v0.16.0** turns each completed contact into a reviewable operating exercise. The result screen and Home logbook show every CQ/reply attempt with its stage, message, accepted/error/repeat result, reason, WPM, accuracy, and rhythm. Final reports now require the strict semantic order `REMOTE DE PLAYER RST nnn 73 K`, while malformed `AGN` requests receive a specific correction and a valid `AGN K` is scored against its own short target. Guidance is frozen for the current QSO: an operator who completes the watch with guidance off and never opens visual help receives the 100-credit base reward plus a 50-credit independent-watch bonus; assisted contacts retain the base reward. QSO log schema v3 preserves eligibility and attempt history with safe migration from v1/v2. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
+Version **v0.17.0** completes the first persistent CW-practice progression loop without adding equipment. All four practice modes now use deterministic shuffled bags, avoid the four most recent targets when starting or refilling a round, and settle each prompt idempotently. An active save accumulates per-mode attempts, accuracy, rhythm, weak characters, and recent targets; practice without a selected save remains session-only. Ending a run opens a localized session summary, while QSO milestones now announce newly unlocked achievements immediately through a non-blocking application-level queue. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
 
 ## Rights and third-party software
 

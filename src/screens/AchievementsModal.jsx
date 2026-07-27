@@ -101,6 +101,13 @@ const ACHIEVEMENT_ICONS = {
   "regions-3": GlobeHemisphereEast,
 };
 
+const NOTIFICATION_TEXT = {
+  "zh-CN": { unlocked: "成就解锁", remaining: "队列中还剩 {count} 项", dismiss: "关闭成就通知" },
+  "zh-TW": { unlocked: "成就解鎖", remaining: "佇列中還有 {count} 項", dismiss: "關閉成就通知" },
+  ja: { unlocked: "実績を解除", remaining: "残り {count} 件", dismiss: "実績通知を閉じる" },
+  en: { unlocked: "Achievement Unlocked", remaining: "{count} remaining", dismiss: "Dismiss achievement notification" },
+};
+
 function progressPercent(achievement) {
   const progress = Number(achievement.progress);
   if (!Number.isFinite(progress)) {
@@ -110,6 +117,71 @@ function progressPercent(achievement) {
   }
   const normalized = progress <= 1 ? progress * 100 : progress;
   return Math.max(0, Math.min(100, Math.round(normalized)));
+}
+
+/**
+ * Persistent, application-level achievement announcement.
+ *
+ * queueSize is the total number of queued notifications including the active
+ * one. The component never moves focus or dismisses itself; its owner advances
+ * the queue through onDismiss.
+ */
+export function AchievementNotification({
+  language,
+  activeAchievement,
+  queueSize = 0,
+  onDismiss,
+}) {
+  const t = TEXT[language] ?? TEXT.en;
+  const notification = NOTIFICATION_TEXT[language] ?? NOTIFICATION_TEXT.en;
+  const achievementId = typeof activeAchievement === "string"
+    ? activeAchievement
+    : activeAchievement?.id;
+  const copy = achievementId
+    ? (t.achievements[achievementId] ?? { title: achievementId, description: "" })
+    : null;
+  const Icon = ACHIEVEMENT_ICONS[achievementId] ?? Trophy;
+  const numericQueueSize = Number(queueSize);
+  const normalizedQueueSize = achievementId
+    ? Math.max(1, Number.isFinite(numericQueueSize) ? Math.floor(numericQueueSize) : 1)
+    : 0;
+  const remainingCount = Math.max(0, normalizedQueueSize - 1);
+
+  return (
+    <div
+      className="achievement-notification-region"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      {copy && (
+        <aside
+          className="achievement-notification"
+          data-testid="achievement-notification"
+          data-achievement-id={achievementId}
+          data-achievement-queue-size={normalizedQueueSize}
+        >
+          <div className="achievement-notification-icon" aria-hidden="true">
+            <Icon size={32} weight="fill" />
+          </div>
+          <div className="achievement-notification-copy">
+            <span>{notification.unlocked}</span>
+            <strong>{copy.title}</strong>
+            <p>{copy.description}</p>
+            {remainingCount > 0 && <small>{notification.remaining.replace("{count}", String(remainingCount))}</small>}
+          </div>
+          <button
+            type="button"
+            data-action="dismiss-achievement-notification"
+            onClick={onDismiss}
+            aria-label={notification.dismiss}
+          >
+            <X size={20} weight="bold" aria-hidden="true" />
+          </button>
+        </aside>
+      )}
+    </div>
+  );
 }
 
 export function AchievementsModal({ language, save, onClose }) {

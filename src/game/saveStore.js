@@ -4,6 +4,7 @@ import { KEY_OPTIONS, TRANSMITTERS } from "./equipmentCatalog.js";
 import { getLocation } from "./locations.js";
 import { normalizeQsoLogEntries, normalizeQsoRecords } from "../qso/qsoLog.js";
 import { DEFAULT_AUTOMATIC_KEY_WPM, normalizeAutomaticKeyWpm } from "../cw/automaticKeyer.js";
+import { PRACTICE_RECORDS_VERSION, emptyPracticeRecords, normalizePracticeRecords } from "../practice/practiceRecords.js";
 
 export const SAVE_STORAGE_KEY = "game-morse-adventurer.saves.v1";
 export const ACTIVE_SAVE_KEY = "game-morse-adventurer.active-save.v1";
@@ -62,6 +63,8 @@ export function createSave({
     credits: 0,
     qsoLogs: [],
     qsoRecords: normalizeQsoRecords(null, []),
+    practiceRecordsVersion: PRACTICE_RECORDS_VERSION,
+    practiceRecords: emptyPracticeRecords(),
     qsoGuidance: normalizeQsoGuidance(qsoGuidance),
     qsoBriefSeen: false,
     firstWatchCompleted: false,
@@ -125,6 +128,8 @@ export function normalizeSave(save) {
     credits: normalizeCredits(save.credits),
     qsoLogs,
     qsoRecords: normalizeQsoRecords(save?.qsoRecords, qsoLogSource),
+    practiceRecordsVersion: PRACTICE_RECORDS_VERSION,
+    practiceRecords: normalizePracticeRecords(save?.practiceRecords),
     qsoGuidance: normalizeQsoGuidance(save?.qsoGuidance),
     qsoBriefSeen: save?.qsoBriefSeen === true,
     firstWatchCompleted: save?.firstWatchCompleted === true,

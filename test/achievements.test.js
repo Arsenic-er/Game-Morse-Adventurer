@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluateAchievements } from "../src/game/achievements.js";
+import {
+  evaluateAchievements,
+  findNewlyUnlockedAchievements,
+} from "../src/game/achievements.js";
 
 function log(overrides = {}) {
   return {
@@ -113,4 +116,59 @@ test("sanitizes corrupt aggregate numbers without lowering valid log progress", 
   assert.equal(byId["dx-5000"].progress, 0.5);
   assert.equal(byId["regions-3"].current, 2);
   assert.equal(byId["regions-3"].progress, 2 / 3);
+});
+
+test("finds only false-to-true unlocks in fixed catalog order", () => {
+  const previousSave = {
+    qsoRecords: {
+      total: 4,
+      longestDistanceKm: 4900,
+      contactedRegions: ["AS-JA", "NA-W"],
+      weakSignalQsos: 0,
+    },
+  };
+  const nextSave = {
+    qsoRecords: {
+      total: 5,
+      longestDistanceKm: 6100,
+      contactedRegions: ["AS-JA", "NA-W", "EU-W"],
+      weakSignalQsos: 1,
+    },
+  };
+
+  const unlocked = findNewlyUnlockedAchievements(previousSave, nextSave);
+  assert.deepEqual(unlocked.map(({ id }) => id), [
+    "qso-5",
+    "dx-5000",
+    "weak-signal",
+    "regions-3",
+  ]);
+  assert.ok(unlocked.every((achievement) => achievement.unlocked));
+});
+
+test("does not repeat achievements that were already unlocked", () => {
+  const unlocked = findNewlyUnlockedAchievements(
+    { qsoRecords: { total: 5 } },
+    { qsoRecords: { total: 10 } },
+  );
+
+  assert.deepEqual(unlocked.map(({ id }) => id), ["qso-10"]);
+});
+
+test("new-unlock comparison safely handles malformed save snapshots", () => {
+  assert.deepEqual(findNewlyUnlockedAchievements(null, undefined), []);
+  assert.deepEqual(
+    findNewlyUnlockedAchievements(
+      { qsoLogs: "bad", qsoRecords: { total: Number.NaN } },
+      { qsoLogs: 42, qsoRecords: { total: "1" } },
+    ).map(({ id }) => id),
+    ["first-qso"],
+  );
+  assert.deepEqual(
+    findNewlyUnlockedAchievements(
+      { qsoRecords: { total: 10 } },
+      { qsoRecords: { total: "corrupt" } },
+    ),
+    [],
+  );
 });

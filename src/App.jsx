@@ -23,11 +23,13 @@ import { getAccessory } from "./game/accessoryCatalog.js";
 import { getAntenna } from "./game/antennaCatalog.js";
 import { equipmentName, getTransmitter } from "./game/equipmentCatalog.js";
 import { equipOwnedItem, purchaseItem } from "./game/economy.js";
+import { findNewlyUnlockedAchievements } from "./game/achievements.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
 import {
   loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves,
 } from "./game/saveStore.js";
 import { PracticeScreen } from "./practice/PracticeScreen.jsx";
+import { practiceStatsByMode, recordPracticeAttempt } from "./practice/practiceRecords.js";
 import { PropagationMap } from "./propagation/PropagationMap.jsx";
 import {
   channelProfileForLevel, generatePropagationMap, selectNpcForQso, selectNpcResponseForCq,
@@ -41,6 +43,7 @@ import { HomeScreen } from "./screens/HomeScreen.jsx";
 import { QsoResultModal } from "./screens/QsoResultModal.jsx";
 import { SaveSelectScreen } from "./screens/SaveSelectScreen.jsx";
 import { StationManualModal } from "./screens/StationManualModal.jsx";
+import { AchievementNotification } from "./screens/AchievementsModal.jsx";
 
 const ASSETS = {
   room: "./assets/radio-room-bg.png",
@@ -52,7 +55,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.16.0";
+const BUILD_VERSION = "0.17.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -629,7 +632,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
         qsoLogs: settlement.save.qsoLogs,
         qsoRecords: settlement.save.qsoRecords,
         firstWatchCompleted: true,
-      } : { firstWatchCompleted: true });
+      } : { firstWatchCompleted: true }, { notifyAchievements: settlement.added });
     setSettlementMeta({
       newRegion: settlement.newRegion,
       newDistanceRecord: settlement.newDistanceRecord,
@@ -801,6 +804,7 @@ export function App() {
   const [screen, setScreen] = useState("start");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const [achievementQueue, setAchievementQueue] = useState([]);
   const [saves, setSaves] = useState(() => loadSaves());
   const savesRef = useRef(saves);
   const [activeSaveId, setActiveSaveId] = useState(() => loadActiveSaveId());
@@ -842,10 +846,32 @@ export function App() {
     }
   }
 
-  function updateActiveSave(patch) {
+  function updateActiveSave(patch, { notifyAchievements = false } = {}) {
+    if (!activeSaveId) return;
+    const previousSave = savesRef.current.find((save) => save.id === activeSaveId) ?? null;
+    const stored = commitSaves((current) => current.map((save) => save.id === activeSaveId
+      ? { ...save, ...patch, updatedAt: new Date().toISOString() }
+      : save));
+    if (!notifyAchievements || !previousSave) return;
+    const nextSave = stored.find((save) => save.id === activeSaveId) ?? null;
+    if (!nextSave) return;
+    const unlocked = findNewlyUnlockedAchievements(previousSave, nextSave)
+      .map((achievement) => ({ ...achievement, saveId: activeSaveId }));
+    if (!unlocked.length) return;
+    setAchievementQueue((current) => {
+      const known = new Set(current.map((achievement) => `${achievement.saveId}:${achievement.id}`));
+      return [...current, ...unlocked.filter((achievement) => !known.has(`${achievement.saveId}:${achievement.id}`))];
+    });
+  }
+
+  function recordActivePracticeAttempt(mode, result) {
     if (!activeSaveId) return;
     commitSaves((current) => current.map((save) => save.id === activeSaveId
-      ? { ...save, ...patch, updatedAt: new Date().toISOString() }
+      ? {
+          ...save,
+          practiceRecords: recordPracticeAttempt(save.practiceRecords, mode, result),
+          updatedAt: new Date().toISOString(),
+        }
       : save));
   }
 
@@ -886,12 +912,36 @@ export function App() {
   if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => setScreen("practice")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onEnterStation={() => setScreen("station")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
-  else if (screen === "practice") currentScreen = <PracticeScreen language={language} automaticKeyWpm={automaticKeyWpm} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("start")} />;
+  else if (screen === "practice") {
+    const persistentStats = practiceStatsByMode(activeSave?.practiceRecords);
+    if (activeSave?.practiceRecords) {
+      Object.keys(persistentStats).forEach((mode) => {
+        persistentStats[mode].recentTargets = activeSave.practiceRecords[mode]?.recentTargets ?? [];
+      });
+    }
+    currentScreen = <PracticeScreen
+      language={language}
+      automaticKeyWpm={activeSave?.automaticKeyWpm ?? automaticKeyWpm}
+      inputBlocked={settingsOpen}
+      persistentStats={persistentStats}
+      recordingCallsign={activeSave?.callsign ?? null}
+      onRecordAttempt={recordActivePracticeAttempt}
+      onSessionComplete={() => {}}
+      onSettings={() => setSettingsOpen(true)}
+      onBack={() => setScreen("start")}
+    />;
+  }
   else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
   else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   return <>
     {currentScreen}
     <NetworkIndicator language={language} />
+    <AchievementNotification
+      language={language}
+      activeAchievement={achievementQueue[0] ?? null}
+      queueSize={achievementQueue.length}
+      onDismiss={() => setAchievementQueue((current) => current.slice(1))}
+    />
     {manualOpen && <StationManualModal language={language} onClose={() => setManualOpen(false)} />}
     {settingsOpen && <SettingsModal
       language={language}

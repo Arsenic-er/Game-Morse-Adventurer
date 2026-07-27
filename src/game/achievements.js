@@ -86,3 +86,19 @@ export function evaluateAchievements(save) {
     };
   });
 }
+
+/**
+ * Returns achievements that changed from locked to unlocked between two save
+ * snapshots. Results follow the catalog order used by evaluateAchievements so
+ * callers can enqueue several simultaneous unlocks deterministically.
+ */
+export function findNewlyUnlockedAchievements(previousSave, nextSave) {
+  const previousById = new Map(
+    evaluateAchievements(previousSave).map((achievement) => [achievement.id, achievement]),
+  );
+
+  return evaluateAchievements(nextSave).filter((achievement) => (
+    achievement.unlocked === true
+    && previousById.get(achievement.id)?.unlocked !== true
+  ));
+}

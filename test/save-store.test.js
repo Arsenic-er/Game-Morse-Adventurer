@@ -7,6 +7,8 @@ import {
   DEFAULT_AUTOMATIC_KEY_WPM, normalizeAutomaticKeyWpm,
 } from "../src/cw/automaticKeyer.js";
 import { recordCompletedQso } from "../src/qso/qsoLog.js";
+import { PRACTICE_MODES } from "../src/practice/practiceEngine.js";
+import { recordPracticeAttempt } from "../src/practice/practiceRecords.js";
 
 function storageStub() {
   const data = new Map();
@@ -351,4 +353,40 @@ test("only three normalized save slots are persisted", () => {
   const saves = Array.from({ length: 4 }, (_, index) => createSave({ callsign: `SIM${index}`, locationId: "japan-tokyo-kanto" }));
   persistSaves(saves, storage);
   assert.equal(loadSaves(storage).length, 3);
+});
+
+test("new and migrated saves receive bounded per-mode practice records", () => {
+  const storage = storageStub();
+  const fresh = createSave({ callsign: "JA1TRY", locationId: "japan-tokyo-kanto" });
+  assert.equal(fresh.practiceRecordsVersion, 1);
+  assert.equal(fresh.practiceRecords[PRACTICE_MODES.CHARACTER_RX].attempts, 0);
+
+  storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{
+    id: "legacy-practice",
+    callsign: "BH1OLD",
+    locationId: "china-beijing-outskirts",
+  }]));
+  const [migrated] = loadSaves(storage);
+  assert.equal(migrated.practiceRecordsVersion, 1);
+  assert.equal(migrated.practiceRecords[PRACTICE_MODES.PADDLE_TX].attempts, 0);
+});
+
+test("practice records persist with their save without leaking session attempt ids", () => {
+  const storage = storageStub();
+  const save = createSave({ callsign: "K1TEST", locationId: "usa-portland-cascades" });
+  save.practiceRecords = recordPracticeAttempt(save.practiceRecords, PRACTICE_MODES.CHARACTER_RX, {
+    attemptId: "temporary-question-id",
+    target: "Q",
+    correct: false,
+    accuracy: 0,
+    rhythm: null,
+    missed: ["Q"],
+  }, "2026-07-27T10:00:00.000Z");
+  persistSaves([save], storage);
+  const [reloaded] = loadSaves(storage);
+  const record = reloaded.practiceRecords[PRACTICE_MODES.CHARACTER_RX];
+  assert.equal(record.attempts, 1);
+  assert.deepEqual(record.weaknesses, { Q: 1 });
+  assert.deepEqual(record.recentTargets, ["Q"]);
+  assert.equal("settledAttemptIds" in record, false);
 });
