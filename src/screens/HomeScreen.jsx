@@ -31,28 +31,28 @@ const QSO_LOG_TEXT = {
   "zh-CN": {
     title: "通联日志", kicker: "台站记录", records: "记录", latest: "最新", dateTime: "台站当地 / UTC", callsign: "呼号",
     frequency: "频率", rst: "发送 / 接收 RST", region: "地区", distance: "距离", propagation: "传播等级", antenna: "天线",
-    equipment: "设备", accessory: "配件", wpm: "速度", performance: "准确率 / 节奏", credits: "信用点", sim: "SIM · 虚构台站",
+    equipment: "设备", accessory: "配件", wpm: "速度", performance: "发报准确率 / 节奏", repeats: "请求重发", credits: "信用点", sim: "SIM · 虚构台站",
     stationTime: "台站当地", utcTime: "协调世界时",
     emptyTitle: "尚无通联记录", emptyText: "完成一次通联并保存日志后，记录会出现在这里。", back: "返回管理中心", close: "关闭通联日志",
   },
   "zh-TW": {
     title: "通聯日誌", kicker: "臺站記錄", records: "記錄", latest: "最新", dateTime: "臺站當地 / UTC", callsign: "呼號",
     frequency: "頻率", rst: "發送 / 接收 RST", region: "地區", distance: "距離", propagation: "傳播等級", antenna: "天線",
-    equipment: "設備", accessory: "配件", wpm: "速度", performance: "準確率 / 節奏", credits: "信用點", sim: "SIM · 虛構臺站",
+    equipment: "設備", accessory: "配件", wpm: "速度", performance: "發報準確率 / 節奏", repeats: "請求重發", credits: "信用點", sim: "SIM · 虛構臺站",
     stationTime: "臺站當地", utcTime: "協調世界時",
     emptyTitle: "尚無通聯記錄", emptyText: "完成一次通聯並儲存日誌後，記錄會顯示在這裡。", back: "返回管理中心", close: "關閉通聯日誌",
   },
   ja: {
     title: "交信ログ", kicker: "局運用記録", records: "件", latest: "最新", dateTime: "局の現地 / UTC", callsign: "コールサイン",
     frequency: "周波数", rst: "送信 / 受信 RST", region: "地域", distance: "距離", propagation: "伝搬レベル", antenna: "アンテナ",
-    equipment: "無線機", accessory: "アクセサリー", wpm: "速度", performance: "正確率 / リズム", credits: "クレジット", sim: "SIM · 架空局",
+    equipment: "無線機", accessory: "アクセサリー", wpm: "速度", performance: "送信正確度 / リズム", repeats: "再送要求", credits: "クレジット", sim: "SIM · 架空局",
     stationTime: "局の現地時刻", utcTime: "協定世界時",
     emptyTitle: "交信記録はありません", emptyText: "交信を完了してログを保存すると、ここに記録されます。", back: "管理センターへ戻る", close: "交信ログを閉じる",
   },
   en: {
     title: "QSO Log", kicker: "Station Record", records: "records", latest: "Latest", dateTime: "Station local / UTC", callsign: "Callsign",
     frequency: "Frequency", rst: "Sent / Received RST", region: "Region", distance: "Distance", propagation: "Propagation", antenna: "Antenna",
-    equipment: "Equipment", accessory: "Accessory", wpm: "Speed", performance: "Accuracy / Rhythm", credits: "Credits", sim: "SIM · Fictional station",
+    equipment: "Equipment", accessory: "Accessory", wpm: "Speed", performance: "Transmit accuracy / Rhythm", repeats: "Repeat requests", credits: "Credits", sim: "SIM · Fictional station",
     stationTime: "Station local", utcTime: "Coordinated UTC",
     emptyTitle: "No QSO records yet", emptyText: "Complete a contact and save its log to add the first record.", back: "Back to Management Center", close: "Close QSO log",
   },
@@ -152,7 +152,7 @@ function QsoLogModal({ language, save, onClose }) {
 
   const distance = selected ? firstValue(selected.distanceKm, selected.distance) : null;
   const propagation = selected ? firstValue(selected.finalPropagationLevel, selected.propagationLevel, selected.finalLevel, selected.level) : null;
-  const accuracy = selected ? firstValue(selected.accuracy, selected.copyAccuracy) : null;
+  const accuracy = selected ? firstValue(selected.transmitAccuracy, selected.copyAccuracy, selected.accuracy) : null;
   const rhythm = selected ? firstValue(selected.rhythm, selected.keyingScore, selected.rhythmScore) : null;
   const isSim = selected ? firstValue(selected.isFictional, selected.sim, true) !== false : true;
 
@@ -208,6 +208,7 @@ function QsoLogModal({ language, save, onClose }) {
                 <div className="qso-log-equipment-fact"><dt>{t.equipment} / {t.accessory}</dt><dd><Radio size={16} weight="fill" /><span>{equipmentSnapshotName(selected, language)}<br />{accessorySnapshotName(selected, language)}</span></dd></div>
                 <div><dt>{t.wpm}</dt><dd>{formatMetric(firstValue(selected.wpm, selected.speedWpm), " WPM")}</dd></div>
                 <div><dt>{t.performance}</dt><dd>{formatMetric(accuracy, "%")} / {formatMetric(rhythm, "%")}</dd></div>
+                <div><dt>{t.repeats}</dt><dd>{formatMetric(firstValue(selected.repeatRequests, 0))}</dd></div>
                 <div className="qso-log-credit-fact"><dt>{t.credits}</dt><dd><Coins size={17} weight="fill" />{formatCredits(firstValue(selected.credits, selected.creditsAwarded))}</dd></div>
               </dl>
             </article>

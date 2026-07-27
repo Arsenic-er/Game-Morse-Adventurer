@@ -38,6 +38,8 @@ export function createQso({ npc, playerCallsign = "SIM-K7QX", startedAt = new Da
     npcMessage: null,
     expectedPlayer: expectedCq(playerCallsign),
     hasContact: false,
+    contactRevealed: false,
+    repeatRequests: 0,
     unansweredCalls: 0,
     sentRst: null,
     receivedRst: null,
@@ -73,12 +75,15 @@ export function validatePlayerMessage(qso, message) {
     return { valid: true, reason: null };
   }
   if (qso.phase === QSO_PHASES.PLAYER_RST_AND_73) {
+    if (tokens.length === 2 && tokens[0] === "AGN" && tokens[1] === "K") {
+      return { valid: true, reason: null, action: "repeat" };
+    }
     if (!hasCallsign(tokens, qso.npc.callsign) || !hasCallsign(tokens, qso.playerCallsign)) return { valid: false, reason: "missingCallsign" };
     const rstIndex = tokens.indexOf("RST");
     const rst = rstIndex >= 0 ? tokens[rstIndex + 1] : null;
     if (!rst || !/^[1-5][1-9][1-9]$/.test(rst)) return { valid: false, reason: "invalidRst" };
     if (!tokens.includes("73")) return { valid: false, reason: "missing73" };
-    return { valid: true, reason: null, rst };
+    return { valid: true, reason: null, action: "complete", rst };
   }
   return { valid: false, reason: "notWaitingForPlayer" };
 }
@@ -86,8 +91,11 @@ export function validatePlayerMessage(qso, message) {
 export function submitPlayerMessage(qso, message, { npcRst = "579" } = {}) {
   const validation = validatePlayerMessage(qso, message);
   if (!validation.valid) {
-    const attempts = qso.attempts + 1;
-    return { ...qso, attempts, lastError: validation.reason, phase: attempts >= 2 ? QSO_PHASES.QSO_FAILED : qso.phase };
+    const attempts = Math.min(
+      Number.MAX_SAFE_INTEGER,
+      (Number.isSafeInteger(qso.attempts) && qso.attempts >= 0 ? qso.attempts : 0) + 1,
+    );
+    return { ...qso, attempts, lastError: validation.reason };
   }
   if (qso.phase === QSO_PHASES.PLAYER_CQ) {
     return {
@@ -99,6 +107,18 @@ export function submitPlayerMessage(qso, message, { npcRst = "579" } = {}) {
       expectedPlayer: null,
     };
   }
+  if (validation.action === "repeat") {
+    return {
+      ...qso,
+      phase: QSO_PHASES.NPC_REPLY,
+      lastError: null,
+      repeatRequests: Math.min(
+        Number.MAX_SAFE_INTEGER,
+        (Number.isSafeInteger(qso.repeatRequests) && qso.repeatRequests >= 0 ? qso.repeatRequests : 0) + 1,
+      ),
+      contactRevealed: false,
+    };
+  }
   return {
     ...qso,
     phase: QSO_PHASES.NPC_73_AND_SK,
@@ -108,6 +128,7 @@ export function submitPlayerMessage(qso, message, { npcRst = "579" } = {}) {
     receivedRst: npcRst,
     npcMessage: `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} 73 SK`,
     expectedPlayer: null,
+    contactRevealed: true,
   };
 }
 
@@ -122,6 +143,7 @@ export function resolveCqResponse(qso, npc) {
       npcMessage: null,
       expectedPlayer: expectedCq(qso.playerCallsign),
       hasContact: false,
+      contactRevealed: false,
     };
   }
   return {
@@ -132,6 +154,7 @@ export function resolveCqResponse(qso, npc) {
     npcMessage: `${qso.playerCallsign} DE ${npc.callsign} ${npc.callsign} K`,
     expectedPlayer: `${npc.callsign} DE ${qso.playerCallsign} RST 559 73 K`,
     hasContact: true,
+    contactRevealed: false,
   };
 }
 
@@ -156,6 +179,7 @@ export function createQsoLogEntry(qso, {
   accessoryId = "none",
   propagationSource = "OFFLINE_DEFAULT",
   wpm,
+  transmitAccuracy = null,
   copyAccuracy = null,
   keyingScore = null,
 } = {}) {
@@ -194,8 +218,9 @@ export function createQsoLogEntry(qso, {
     accessoryId,
     playerLocationId: playerLocationId ?? playerLocation?.id ?? "unknown",
     wpm: wpm ?? qso.npc.wpm,
-    copyAccuracy,
+    transmitAccuracy: transmitAccuracy ?? copyAccuracy,
     keyingScore,
+    repeatRequests: qso.repeatRequests,
     isFictional: qso.npc.isFictional !== false,
     credits: qso.creditsAwarded,
   };

@@ -3,7 +3,7 @@ import {
   ArrowLeft, Coins, DownloadSimple, FloppyDisk, MapPin, Plus, Radio, Trash,
 } from "@phosphor-icons/react";
 import { antennaName, getAntenna } from "../game/antennaCatalog.js";
-import { equipmentName, getKeyOption } from "../game/equipmentCatalog.js";
+import { equipmentName, getKeyOption, getTransmitter } from "../game/equipmentCatalog.js";
 import { LocationArtwork } from "../game/LocationArtwork.jsx";
 import { LOCATIONS, REGION_ORDER, getLocation, locationName, regionName } from "../game/locations.js";
 import { MAX_SAVE_SLOTS, createSave, formatSaveTime, isValidCallsign, sanitizeCallsign } from "../game/saveStore.js";
@@ -41,6 +41,7 @@ export function SaveSelectScreen({
   activeSaveId,
   defaultKeyType = "manual",
   defaultAutomaticKeyWpm,
+  defaultQsoGuidance = "full",
   onLoad,
   onCreate,
   onDelete,
@@ -72,6 +73,7 @@ export function SaveSelectScreen({
       locationId,
       keyType: defaultKeyType,
       automaticKeyWpm: defaultAutomaticKeyWpm,
+      qsoGuidance: defaultQsoGuidance,
     }));
   }
 
@@ -120,7 +122,7 @@ export function SaveSelectScreen({
               <div className="save-call-lockup"><h2>{selectedSave.callsign}</h2><p><MapPin size={17} weight="fill" />{locationName(selectedLocation, language)}</p></div>
             </div>
             <dl className="save-facts">
-              <div><dt><Radio size={22} />{t.equipment}</dt><dd>SQUID-01 · {equipmentName(getKeyOption(selectedSave.keyType), language)}{selectedSave.keyType === "automatic" ? ` · ${selectedSave.automaticKeyWpm} WPM` : ""}</dd></div>
+              <div><dt><Radio size={22} />{t.equipment}</dt><dd>{equipmentName(getTransmitter(selectedSave.equipmentId), language)} · {equipmentName(getKeyOption(selectedSave.keyType), language)}{selectedSave.keyType === "automatic" ? ` · ${selectedSave.automaticKeyWpm} WPM` : ""}</dd></div>
               <div><dt><Radio size={22} />{t.antenna}</dt><dd>{antennaName(selectedAntenna, language)}</dd></div>
               <div><dt><Coins size={22} />{t.credits}</dt><dd>{selectedSave.credits.toLocaleString()}</dd></div>
             </dl>

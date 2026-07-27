@@ -28,17 +28,18 @@ function entry(overrides = {}) {
     accessoryId: "cw-filter-500",
     playerLocationId: "japan-tokyo-kanto",
     wpm: 18,
-    copyAccuracy: 92.34,
+    transmitAccuracy: 92.34,
     keyingScore: 88.88,
+    repeatRequests: 2,
     credits: 100,
     isFictional: true,
     ...overrides,
   };
 }
 
-test("normalizes the complete QSO log v1 schema", () => {
+test("normalizes the complete QSO log v2 schema", () => {
   const normalized = normalizeQsoLogEntry(entry());
-  assert.equal(normalized.version, 1);
+  assert.equal(normalized.version, 2);
   assert.equal(normalized.startedAt, "2026-07-15T00:00:00.000Z");
   assert.equal(normalized.completedAt, "2026-07-15T00:05:00.000Z");
   assert.equal(normalized.playerCallsign, "BH1ABC");
@@ -46,16 +47,44 @@ test("normalizes the complete QSO log v1 schema", () => {
   assert.equal(normalized.npcLatitude, 37.77);
   assert.equal(normalized.npcLongitude, -122.42);
   assert.equal(normalized.distanceKm, 8291.5);
-  assert.equal(normalized.copyAccuracy, 92.3);
+  assert.equal(normalized.transmitAccuracy, 92.3);
+  assert.equal("copyAccuracy" in normalized, false);
   assert.equal(normalized.keyingScore, 88.9);
   assert.equal(normalized.finalPropagationLevel, 3);
   assert.equal(normalized.playerLocationId, "japan-tokyo-kanto");
   assert.equal(normalized.accessoryId, "cw-filter-500");
+  assert.equal(normalized.repeatRequests, 2);
 });
 
 test("legacy QSO logs default to an empty accessory slot", () => {
-  const normalized = normalizeQsoLogEntry(entry({ accessoryId: undefined }));
+  const normalized = normalizeQsoLogEntry(entry({
+    version: 1,
+    accessoryId: undefined,
+    transmitAccuracy: undefined,
+    copyAccuracy: 87.65,
+    repeatRequests: undefined,
+  }));
   assert.equal(normalized.accessoryId, "none");
+  assert.equal(normalized.version, 2);
+  assert.equal(normalized.repeatRequests, 0);
+  assert.equal(normalized.transmitAccuracy, 87.7);
+  assert.equal("copyAccuracy" in normalized, false);
+});
+
+test("legacy generic accuracy migrates when neither v2 nor copy accuracy exists", () => {
+  const normalized = normalizeQsoLogEntry(entry({
+    transmitAccuracy: undefined,
+    copyAccuracy: undefined,
+    accuracy: "76.24",
+  }));
+  assert.equal(normalized.transmitAccuracy, 76.2);
+});
+
+test("repeat request counts normalize to safe non-negative integers", () => {
+  assert.equal(normalizeQsoLogEntry(entry({ repeatRequests: -3 })).repeatRequests, 0);
+  assert.equal(normalizeQsoLogEntry(entry({ repeatRequests: "4.9" })).repeatRequests, 4);
+  assert.equal(normalizeQsoLogEntry(entry({ repeatRequests: "invalid" })).repeatRequests, 0);
+  assert.equal(normalizeQsoLogEntry(entry({ repeatRequests: 1e30 })).repeatRequests, Number.MAX_SAFE_INTEGER);
 });
 
 test("rejects invalid chronology and required identity fields", () => {
@@ -112,6 +141,7 @@ test("records a completed QSO atomically and idempotently", () => {
   assert.deepEqual(first.save.ownedAntennas, ["dipole", "vertical"]);
   assert.deepEqual(first.save.accessories, []);
   assert.equal(first.save.qsoLogs.length, 2);
+  assert.equal(first.save.qsoLogs[0].repeatRequests, 2);
   assert.deepEqual(first.save.qsoRecords, {
     total: 8,
     longestDistanceKm: 8291.5,

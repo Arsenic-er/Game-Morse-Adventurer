@@ -2,9 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowCounterClockwise, ArrowLeft, BookOpenText, Broadcast, Check, FloppyDisk, GearSix,
   GlobeHemisphereWest, GridFour, Lightning, MapTrifold, Play,
-  Power, Radio, Translate, X,
+  Power, Question, Radio, Translate, X,
 } from "@phosphor-icons/react";
 import { NetworkIndicator } from "./components/NetworkIndicator.jsx";
+import {
+  GuidanceChoices, QsoBriefingModal, QsoDutyCoach, normalizeQsoGuidance,
+  qsoCoachText, qsoErrorMessage,
+} from "./components/QsoDutyCoach.jsx";
 import {
   DEFAULT_AUTOMATIC_KEY_WPM,
   MAX_AUTOMATIC_KEY_WPM,
@@ -47,7 +51,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.14.0";
+const BUILD_VERSION = "0.15.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -75,7 +79,7 @@ const COPY = {
     worldMode: "普通世界地图", heatMode: "传播等级地图", legend: "传播等级", back: "返回开始界面",
     qsoReady: "等待对方台结束呼叫…", qsoReply: "正在发送回应…", qsoSent: "回应已发出，等待回报…",
     fixedToneHint: "套件音调固定；自动键速度可调，手键速度由系统检测", filterActive: "500 Hz 滤波", playCq: "播放 CQ", replayInput: "回放输入", target: "目标",
-    decoded: "解码", accuracy: "正确率", rhythm: "节奏", powerOn: "开机", powerOff: "关机", cwReady: "CW 核心就绪", cwPlaying: "正在播放标准 CQ",
+    decoded: "解码", accuracy: "发报准确率", rhythm: "节奏", powerOn: "开机", powerOff: "关机", cwReady: "CW 核心就绪", cwPlaying: "正在播放标准 CQ",
     cwKeying: "正在记录发报", cwReplay: "正在回放输入", cwCaptured: "输入已记录", cwReceiving: "接收 CW",
     playNpc: "播放对方", submitReply: "发送回应", restartQso: "重新开始", credits: "信用点", sim: "虚构台站", propLevel: "传播等级",
     phaseWaiting: "等待播放 NPC 呼叫", phaseReply: "请发送双方呼号", phaseNpcRst: "等待播放对方 RST", phasePlayerRst: "请发送 RST 与 73",
@@ -93,7 +97,7 @@ const COPY = {
     worldMode: "普通世界地圖", heatMode: "傳播等級地圖", legend: "傳播等級", back: "返回開始介面",
     qsoReady: "等待對方臺結束呼叫…", qsoReply: "正在發送回應…", qsoSent: "回應已發出，等待回報…",
     fixedToneHint: "套件音調固定；自動鍵速度可調，手鍵速度由系統偵測", filterActive: "500 Hz 濾波", playCq: "播放 CQ", replayInput: "重播輸入", target: "目標",
-    decoded: "解碼", accuracy: "正確率", rhythm: "節奏", powerOn: "開機", powerOff: "關機", cwReady: "CW 核心就緒", cwPlaying: "正在播放標準 CQ",
+    decoded: "解碼", accuracy: "發報準確率", rhythm: "節奏", powerOn: "開機", powerOff: "關機", cwReady: "CW 核心就緒", cwPlaying: "正在播放標準 CQ",
     cwKeying: "正在記錄發報", cwReplay: "正在重播輸入", cwCaptured: "輸入已記錄", cwReceiving: "接收 CW",
     playNpc: "播放對方", submitReply: "發送回應", restartQso: "重新開始", credits: "信用點", sim: "虛構臺站", propLevel: "傳播等級",
     phaseWaiting: "等待播放 NPC 呼叫", phaseReply: "請發送雙方呼號", phaseNpcRst: "等待播放對方 RST", phasePlayerRst: "請發送 RST 與 73",
@@ -111,7 +115,7 @@ const COPY = {
     worldMode: "通常の世界地図", heatMode: "伝搬レベル地図", legend: "伝搬レベル", back: "開始画面へ戻る",
     qsoReady: "相手局の呼出終了を待っています…", qsoReply: "応答を送信中…", qsoSent: "応答を送信しました。レポート待ち…",
     fixedToneHint: "音程は固定です。オートキー速度は調整でき、縦振り電鍵は自動検出されます", filterActive: "500 Hz フィルター", playCq: "CQ を再生", replayInput: "入力を再生", target: "目標",
-    decoded: "復号", accuracy: "正確率", rhythm: "リズム", powerOn: "電源オン", powerOff: "電源オフ", cwReady: "CW コア準備完了", cwPlaying: "標準 CQ を再生中",
+    decoded: "復号", accuracy: "送信正確度", rhythm: "リズム", powerOn: "電源オン", powerOff: "電源オフ", cwReady: "CW コア準備完了", cwPlaying: "標準 CQ を再生中",
     cwKeying: "送信を記録中", cwReplay: "入力を再生中", cwCaptured: "入力を記録しました", cwReceiving: "CW 受信中",
     playNpc: "相手局を再生", submitReply: "応答を送信", restartQso: "やり直す", credits: "クレジット", sim: "架空局", propLevel: "伝搬レベル",
     phaseWaiting: "NPC の CQ を再生してください", phaseReply: "両局のコールを送信", phaseNpcRst: "相手局の RST を再生", phasePlayerRst: "RST と 73 を送信",
@@ -129,7 +133,7 @@ const COPY = {
     worldMode: "Normal world map", heatMode: "Propagation level map", legend: "Propagation level", back: "Back to title",
     qsoReady: "Waiting for the calling station…", qsoReply: "Sending reply…", qsoSent: "Reply sent. Waiting for report…",
     fixedToneHint: "Kit tone is fixed; automatic-key speed is adjustable and straight-key speed is auto-detected", filterActive: "500 Hz filter", playCq: "Play CQ", replayInput: "Replay input", target: "Target",
-    decoded: "Decoded", accuracy: "Accuracy", rhythm: "Rhythm", powerOn: "Power on", powerOff: "Power off", cwReady: "CW core ready", cwPlaying: "Playing standard CQ",
+    decoded: "Decoded", accuracy: "Transmit accuracy", rhythm: "Rhythm", powerOn: "Power on", powerOff: "Power off", cwReady: "CW core ready", cwPlaying: "Playing standard CQ",
     cwKeying: "Recording keying", cwReplay: "Replaying input", cwCaptured: "Input captured", cwReceiving: "Receiving CW",
     playNpc: "Play station", submitReply: "Send reply", restartQso: "Restart", credits: "Credits", sim: "Fictional station", propLevel: "Propagation level",
     phaseWaiting: "Play the NPC calling message", phaseReply: "Send both callsigns", phaseNpcRst: "Play the NPC RST", phasePlayerRst: "Send RST and 73",
@@ -143,28 +147,28 @@ const STATION_FLOW_COPY = {
     phaseCq: "请发送 CQ 呼叫", phaseWaitingResponse: "CQ 已发出，正在守听…",
     phaseNpcReply: "收到回应，正在自动接收对方呼号…", phasePlayerRst: "请发送双方呼号、RST 与 73",
     phaseFinal: "正在自动接收对方 73 / SK", noResponse: "本轮无人回应，可再次呼叫 CQ",
-    invalidCq: "CQ 格式不正确", noContact: "尚无回应", listeningLine: "LISTENING // 21.060 MHz",
+    invalidCq: "CQ 格式不正确", noContact: "尚无回应", blindContact: "盲听中 · 请从音频抄收呼号", blindIncomingLine: "REMOTE // CW 接收中", listeningLine: "LISTENING // 21.060 MHz",
   },
   "zh-TW": {
     sendCq: "發送 CQ", sendMessage: "發送電文", receiverLive: "接收機已開啟 · 背景雜訊", receiverRecovering: "接收中斷，正在自動恢復…",
     phaseCq: "請發送 CQ 呼叫", phaseWaitingResponse: "CQ 已發出，正在守聽…",
     phaseNpcReply: "收到回應，正在自動接收對方呼號…", phasePlayerRst: "請發送雙方呼號、RST 與 73",
     phaseFinal: "正在自動接收對方 73 / SK", noResponse: "本輪無人回應，可再次呼叫 CQ",
-    invalidCq: "CQ 格式不正確", noContact: "尚無回應", listeningLine: "LISTENING // 21.060 MHz",
+    invalidCq: "CQ 格式不正確", noContact: "尚無回應", blindContact: "盲聽中 · 請從音訊抄收呼號", blindIncomingLine: "REMOTE // CW 接收中", listeningLine: "LISTENING // 21.060 MHz",
   },
   ja: {
     sendCq: "CQ を送信", sendMessage: "電文を送信", receiverLive: "受信機動作中・バックグラウンドノイズ", receiverRecovering: "受信が中断しました。自動復帰中…",
     phaseCq: "CQ 呼出を送信してください", phaseWaitingResponse: "CQ を送信しました。応答を待っています…",
     phaseNpcReply: "応答局のコールサインを自動受信中…", phasePlayerRst: "両局のコール、RST、73 を送信",
     phaseFinal: "相手局の 73 / SK を自動受信中", noResponse: "今回は応答がありません。もう一度 CQ を出せます",
-    invalidCq: "CQ の形式が正しくありません", noContact: "応答局なし", listeningLine: "LISTENING // 21.060 MHz",
+    invalidCq: "CQ の形式が正しくありません", noContact: "応答局なし", blindContact: "ブラインド受信中・音からコールをコピー", blindIncomingLine: "REMOTE // CW 受信中", listeningLine: "LISTENING // 21.060 MHz",
   },
   en: {
     sendCq: "Send CQ", sendMessage: "Send message", receiverLive: "Receiver open · background noise", receiverRecovering: "Reception interrupted · recovering automatically…",
     phaseCq: "Send a CQ call", phaseWaitingResponse: "CQ sent. Listening for replies…",
     phaseNpcReply: "Automatically receiving a responding station…", phasePlayerRst: "Send both callsigns, RST, and 73",
     phaseFinal: "Automatically receiving 73 / SK", noResponse: "No reply this time. You may call CQ again.",
-    invalidCq: "CQ format is not valid", noContact: "No response yet", listeningLine: "LISTENING // 21.060 MHz",
+    invalidCq: "CQ format is not valid", noContact: "No response yet", blindContact: "Blind copy · identify the call from audio", blindIncomingLine: "REMOTE // CW RX", listeningLine: "LISTENING // 21.060 MHz",
   },
 };
 
@@ -222,16 +226,18 @@ function StartScreen({ language, setLanguage, onStart, onPractice, onSettings, o
   );
 }
 
-function SettingsModal({ language, keyType, automaticKeyWpm, onApply, onClose }) {
+function SettingsModal({ language, keyType, automaticKeyWpm, qsoGuidance, onApply, onClose }) {
   const t = COPY[language];
   const [draftKey, setDraftKey] = useState(keyType);
   const [draftLanguage, setDraftLanguage] = useState(language);
   const [draftWpm, setDraftWpm] = useState(() => normalizeAutomaticKeyWpm(automaticKeyWpm));
+  const [draftGuidance, setDraftGuidance] = useState(() => normalizeQsoGuidance(qsoGuidance));
   function apply() {
     onApply({
       language: draftLanguage,
       keyType: draftKey,
       automaticKeyWpm: normalizeAutomaticKeyWpm(draftWpm),
+      qsoGuidance: normalizeQsoGuidance(draftGuidance),
     });
     onClose();
   }
@@ -279,6 +285,10 @@ function SettingsModal({ language, keyType, automaticKeyWpm, onApply, onClose })
                 <small>{COPY[draftLanguage].automaticSpeedHint}</small>
               </div>
             )}
+          </section>
+          <section className="settings-guidance">
+            <h3><Question size={20} />{qsoCoachText(draftLanguage).guidance}</h3>
+            <GuidanceChoices language={draftLanguage} value={draftGuidance} onChange={setDraftGuidance} />
           </section>
         </div>
         <footer><span>{COPY[draftLanguage].fixedToneHint}</span><button className="primary-button" onClick={apply}><Check size={20} weight="bold" />{COPY[draftLanguage].apply}</button></footer>
@@ -331,6 +341,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const playerLocation = useMemo(() => toPropagationLocation(location), [location]);
   const [mapOpen, setMapOpen] = useState(false);
   const [mapMode, setMapMode] = useState("propagation");
+  const [briefingOpen, setBriefingOpen] = useState(() => save.qsoBriefSeen !== true && normalizeQsoGuidance(save.qsoGuidance) !== "off");
   const [saved, setSaved] = useState(false);
   const [resultDismissed, setResultDismissed] = useState(false);
   const [settlementMeta, setSettlementMeta] = useState(null);
@@ -354,6 +365,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     automaticWpm: save.automaticKeyWpm,
   });
   const isTx = cw.isTransmitting;
+  const retryRequired = Boolean(qso.lastError && qso.lastError !== "noResponse");
   const npcChannel = useMemo(
     () => channelProfileForLevel(qso.npc.finalLevel, qso.npc, {
       qsbDepthMultiplier: combinedQsbDepthMultiplier,
@@ -387,7 +399,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   }, [cw.startListening, cw.stopListening, powered, receiverChannel]);
 
   useEffect(() => {
-    if (qso.phase !== QSO_PHASES.WAITING_RESPONSE || !powered || !antennaReady) return undefined;
+    if (briefingOpen || qso.phase !== QSO_PHASES.WAITING_RESPONSE || !powered || !antennaReady) return undefined;
     const delay = window.cwgameSystem?.qaCapture ? 60 : 1800;
     const timer = window.setTimeout(() => {
       const seed = `${propagationKey}:${qsoSerial}:${qso.unansweredCalls}:${save.callsign}`;
@@ -400,12 +412,12 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     }, delay);
     return () => window.clearTimeout(timer);
   }, [
-    antennaReady, playerEquipmentBonus, powered, propagationKey, propagationMap,
+    antennaReady, briefingOpen, playerEquipmentBonus, powered, propagationKey, propagationMap,
     qso.phase, qso.unansweredCalls, qsoSerial, save.callsign,
   ]);
 
   useEffect(() => {
-    if (!qsoNeedsNpcPlayback(qso) || !powered || !antennaReady) return undefined;
+    if (briefingOpen || !qsoNeedsNpcPlayback(qso) || !powered || !antennaReady) return undefined;
     const activePhase = qso.phase;
     let cancelled = false;
     let retryTimer = null;
@@ -443,18 +455,18 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       if (focusHandler) window.removeEventListener("focus", focusHandler);
     };
   }, [
-    antennaReady, cw.clearInput, cw.playIncoming, npcChannel, powered,
+    antennaReady, briefingOpen, cw.clearInput, cw.playIncoming, npcChannel, powered,
     npcPlaybackRetry, qso.npc.wpm, qso.npcMessage, qso.phase,
   ]);
 
   useEffect(() => {
     function onDown(event) {
-      if (mapOpen || inputBlocked || !powered || !antennaReady) return;
+      if (mapOpen || briefingOpen || inputBlocked || !powered || !antennaReady) return;
       if (["Space", "KeyZ", "KeyX", "F2", "F3"].includes(event.code)) event.preventDefault();
       if (event.repeat) return;
       if (event.code === "F2") { submitReply(); return; }
       if (event.code === "F3") { saveOrRestart(); return; }
-      if (!qsoCanAcceptPlayer(qso)) return;
+      if (!qsoCanAcceptPlayer(qso) || retryRequired) return;
       if (keyType === "manual" && event.code === "Space") cw.beginManual();
       if (keyType === "automatic" && event.code === "KeyZ") cw.beginAutomatic(".");
       if (keyType === "automatic" && event.code === "KeyX") cw.beginAutomatic("-");
@@ -483,21 +495,47 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       window.removeEventListener("blur", onBlur);
       cw.stopAll();
     };
-  }, [antennaReady, cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll, inputBlocked, keyType, mapOpen, powered, qso]);
+  }, [antennaReady, briefingOpen, cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll, inputBlocked, keyType, mapOpen, powered, qso, retryRequired]);
 
-  async function submitReply() {
-    if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
+  function submitReply() {
+    if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
     const decoded = cw.analysis.decoded;
     const sample = { wpm: cw.analysis.wpm, accuracy: cw.analysis.accuracy, rhythm: cw.analysis.rhythm };
-    if (!window.cwgameSystem?.qaCapture) await cw.replayInput();
-    setQso(submitPlayerMessage(qso, decoded));
+    const nextQso = submitPlayerMessage(qso, decoded);
+    setQso(nextQso);
     setQsoMetrics((current) => ({
       samples: current.samples + 1,
       wpm: current.wpm + sample.wpm,
       accuracy: current.accuracy + sample.accuracy,
       rhythm: current.rhythm + sample.rhythm,
     }));
+    if (!nextQso.lastError) cw.clearInput();
+  }
+
+  function clearCurrentInput() {
+    setSelectedLogId(null);
     cw.clearInput();
+    if (retryRequired) setQso((current) => ({ ...current, lastError: null }));
+  }
+
+  function openBriefing() {
+    cw.stopAll();
+    setBriefingOpen(true);
+  }
+
+  function startBriefedWatch(level) {
+    onSaveUpdate({ qsoGuidance: normalizeQsoGuidance(level), qsoBriefSeen: true });
+    setBriefingOpen(false);
+  }
+
+  function skipBriefing() {
+    onSaveUpdate({ qsoGuidance: "off", qsoBriefSeen: true });
+    setBriefingOpen(false);
+  }
+
+  function closeBriefing() {
+    onSaveUpdate({ qsoBriefSeen: true });
+    setBriefingOpen(false);
   }
 
   function startNewQso() {
@@ -529,7 +567,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       wpm: keyType === "automatic"
         ? normalizeAutomaticKeyWpm(save.automaticKeyWpm)
         : Number((qsoMetrics.wpm / samples).toFixed(1)),
-      copyAccuracy: Number((qsoMetrics.accuracy / samples).toFixed(1)),
+      transmitAccuracy: Number((qsoMetrics.accuracy / samples).toFixed(1)),
       keyingScore: Number((qsoMetrics.rhythm / samples).toFixed(1)),
     });
   }
@@ -545,13 +583,12 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     if (qso.phase !== QSO_PHASES.QSO_COMPLETE || saved) return;
     const entry = createCurrentLogEntry();
     const settlement = recordCompletedQso(save, entry);
-    if (settlement.added) {
-      onSaveUpdate({
+    onSaveUpdate(settlement.added ? {
         credits: settlement.save.credits,
         qsoLogs: settlement.save.qsoLogs,
         qsoRecords: settlement.save.qsoRecords,
-      });
-    }
+        firstWatchCompleted: true,
+      } : { firstWatchCompleted: true });
     setSettlementMeta({
       newRegion: settlement.newRegion,
       newDistanceRecord: settlement.newDistanceRecord,
@@ -561,7 +598,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   }
 
   function handleKeyPointerDown(event) {
-    if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso)) return;
+    if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     if (keyType === "manual") {
       cw.beginManual();
@@ -604,7 +641,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const displayLineFull = qso.phase === QSO_PHASES.QSO_COMPLETE ? `QSO COMPLETE +${qso.creditsAwarded}`
     : qso.phase === QSO_PHASES.QSO_FAILED ? "QSO FAILED"
       : qso.phase === QSO_PHASES.WAITING_RESPONSE ? flow.listeningLine
-      : qsoCanAcceptPlayer(qso) ? (cw.analysis.decoded || "...") : qso.npcMessage;
+      : qsoCanAcceptPlayer(qso) ? (cw.analysis.decoded || "...")
+        : qso.contactRevealed ? qso.npcMessage : flow.blindIncomingLine;
   const displayLine = tailPreview(displayLineFull, 64);
   const decodedPreview = tailPreview(decodedText, 40, "---");
   const f3Label = qso.phase === QSO_PHASES.QSO_FAILED ? t.restartQso : saved ? t.saved : t.saveLog;
@@ -615,19 +653,24 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     newDistanceRecord: pendingSettlement.newDistanceRecord,
     creditsAwarded: pendingSettlement.added ? resultEntry.credits : 0,
   } : null);
-  const contactVisible = Boolean(selectedLog || qso.hasContact);
-  const contactCallsign = selectedLog?.callsign ?? (contactVisible ? qso.npc.callsign : "---");
+  const liveContactRevealed = qso.contactRevealed === true;
+  const blindContact = !selectedLog && qso.hasContact && !liveContactRevealed;
+  const contactVisible = Boolean(selectedLog || liveContactRevealed);
+  const contactCallsign = selectedLog?.callsign ?? (liveContactRevealed ? qso.npc.callsign : blindContact ? "REMOTE" : "---");
   const contactSent = selectedLog?.sent ?? qso.sentRst ?? "---";
   const contactReceived = selectedLog?.received ?? qso.receivedRst ?? "---";
-  const contactLocation = selectedLog?.location ?? (contactVisible ? qso.npc.regionId : "---");
-  const contactLevel = selectedLog?.finalPropagationLevel ?? (contactVisible ? qso.npc.finalLevel : "--");
+  const contactLocation = selectedLog?.location ?? (liveContactRevealed ? qso.npc.regionId : "---");
+  const contactLevel = selectedLog?.finalPropagationLevel ?? (liveContactRevealed ? qso.npc.finalLevel : "--");
   const contactTime = selectedLog
     ? new Date(selectedLog.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })
-    : contactVisible ? utc : "--:--";
+    : liveContactRevealed ? utc : "--:--";
   return (
     <main
       className={`screen station-screen ${isTx ? "transmitting" : ""} ${powered ? "station-powered" : "station-off"} ${antennaReady ? "" : "antenna-missing"}`}
       data-qso-phase={qso.phase}
+      data-contact-revealed={qso.contactRevealed}
+      data-repeat-requests={qso.repeatRequests}
+      data-qa-npc-callsign={window.cwgameSystem?.qaCapture ? qso.npc.callsign : undefined}
       data-decoded={cw.analysis.decoded}
       data-pulse-count={cw.analysis.pulseCount}
       data-receiver-active={cw.isListening}
@@ -646,19 +689,19 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       <header className="station-topbar">
         <div className="clock-group"><span>UTC <b>{utc}</b></span><i /><span>LOCAL <b>{local}</b></span></div>
         <div className="station-name"><Radio size={18} weight="fill" /> {save.callsign} · {t.station} · {t.credits} {credits}</div>
-        <div className="top-actions"><IconButton label={t.back} onClick={onBack}><ArrowLeft size={21} /></IconButton><IconButton label={t.settings} onClick={onSettings}><GearSix size={21} /></IconButton></div>
+        <div className="top-actions"><IconButton label={qsoCoachText(language).briefingTitle} onClick={openBriefing}><Question size={21} weight="bold" /></IconButton><IconButton label={t.back} data-action="back-home" onClick={onBack}><ArrowLeft size={21} /></IconButton><IconButton label={t.settings} onClick={onSettings}><GearSix size={21} /></IconButton></div>
       </header>
       <div className="station-grid">
         <aside className="log-panel metal-panel">
           <div className="panel-title"><span>{t.log}</span><b>LOG // {String(logRows.length).padStart(3, "0")}</b></div>
           <div className="log-head"><span>{t.time}</span><span>{t.call}</span><span>{t.frequency}</span><span>{t.mode}</span></div>
           <div className="log-list">{recentLogRows.map((row) => <button key={row.id} className={row.id === selectedLogId ? "active" : ""} onClick={() => setSelectedLogId(row.id)}><span>{new Date(row.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })}</span><span>{row.callsign}</span><span>{Number(row.frequencyMhz).toFixed(3)}</span><span>{row.mode}</span></button>)}</div>
-          <div className="contact-card"><span className="panel-kicker">{t.contact} · SIM</span><h2>{contactCallsign}</h2>{!contactVisible && <small>{flow.noContact}</small>}<dl>
+          <div className="contact-card"><span className="panel-kicker">{t.contact} · SIM</span><h2>{contactCallsign}</h2>{!contactVisible && <small>{blindContact ? flow.blindContact : flow.noContact}</small>}<dl>
             <div><dt>{t.time}</dt><dd>{contactTime} UTC</dd></div><div><dt>{t.frequency}</dt><dd>{selectedLog ? Number(selectedLog.frequencyMhz).toFixed(3) : "21.060"} MHz</dd></div>
             <div><dt>{t.mode}</dt><dd>CW</dd></div><div><dt>{t.sent}</dt><dd>{contactSent}</dd></div><div><dt>{t.received}</dt><dd>{contactReceived}</dd></div>
             <div><dt>{t.location}</dt><dd>{contactLocation}</dd></div><div><dt>{t.notes}</dt><dd>SIM / P{contactLevel}</dd></div>
           </dl></div>
-          <div className="panel-actions"><button onClick={startNewQso} disabled={qso.phase === QSO_PHASES.QSO_COMPLETE && !saved}>{t.newContact}</button><button className="muted" data-action="clear-input" onClick={() => { setSelectedLogId(null); cw.clearInput(); }}>{t.clearInput}</button></div>
+          <div className="panel-actions"><button onClick={startNewQso} disabled={qso.phase === QSO_PHASES.QSO_COMPLETE && !saved}>{t.newContact}</button><button className="muted" data-action="clear-input" onClick={clearCurrentInput}>{t.clearInput}</button></div>
         </aside>
         <section className={`hardware-panel metal-panel ${powered ? "powered" : "power-off"}`}>
           <div className="board-stage"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="station-board-scenery" /><img className="board-asset" data-testid="station-radio-art" data-radio-art-state={isTx ? "tx" : "idle"} src={isTx ? (transmitter.stationImageOn ?? transmitter.image ?? ASSETS.boardOn) : (transmitter.stationImageOff ?? transmitter.image ?? ASSETS.boardOff)} alt={`${equipmentName(transmitter, language)} — ${isTx ? t.tx : powered ? t.idle : t.powerOff}`} />{!antennaReady && <div className="antenna-warning"><Broadcast size={17} weight="fill" /><span>{antennaStatus.missing}</span></div>}</div>
@@ -677,21 +720,26 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <div className="panel-title"><span>{t.propagation}</span><b>HF / LIVE</b></div>
           <button className="map-preview" onClick={() => setMapOpen(true)} aria-label={t.openMap}><PropagationMap map={propagationMap} mode={mapMode} ariaLabel="" /><span><MapTrifold size={19} />{t.openMap}</span></button>
           <div className="mini-legend">{[0, 1, 2, 3, 4].map((level) => <span key={level}><i className={`level-${level}`} />{level}</span>)}</div>
-          <div className="signal-note"><span>21.060 MHz</span><strong>{t.propLevel}: P{contactLevel}</strong><small>{selectedLog ? `${contactLocation} · SIM` : contactVisible ? `${qso.npc.regionId} · ${qso.npc.isStrongStation ? "DX+" : "SIM"}` : flow.receiverLive} · {t.fixedToneHint}</small></div>
+          <div className="signal-note"><span>21.060 MHz</span><strong>{t.propLevel}: P{contactLevel}</strong><small>{selectedLog ? `${contactLocation} · SIM` : liveContactRevealed ? `${qso.npc.regionId} · ${qso.npc.isStrongStation ? "DX+" : "SIM"}` : flow.receiverLive} · {t.fixedToneHint}</small></div>
         </aside>
       </div>
       <footer className="qso-console metal-panel">
-        <div className="morse-display" aria-live="polite">
-          <span>{displayLine}</span>
-          <small>{phaseText}{qso.lastError === "noResponse" ? ` // ${flow.noResponse}` : qso.lastError ? ` // ${qso.phase === QSO_PHASES.PLAYER_CQ ? flow.invalidCq : t.invalidReply} (${qso.attempts}/2)` : ""} // {t.decoded}: {decodedPreview} // {t.accuracy}: {cw.analysis.accuracy}% // {t.rhythm}: {cw.analysis.rhythm}%</small>
+        <div className="qso-console-stack">
+          <QsoDutyCoach language={language} guidance={save.qsoGuidance} qso={qso} playerCallsign={save.callsign} powered={powered} antennaReady={antennaReady} saved={saved} onClearRetry={clearCurrentInput} />
+          <div className="morse-display" aria-live="polite">
+            <span>{displayLine}</span>
+            <small>{phaseText}{qso.lastError === "noResponse" ? ` // ${flow.noResponse}` : qso.lastError ? ` // ${qsoErrorMessage(language, qso.lastError) || t.invalidReply} (${qso.attempts})` : ""} // {t.decoded}: {decodedPreview} // {t.accuracy}: {cw.analysis.accuracy}% // {t.rhythm}: {cw.analysis.rhythm}%</small>
+          </div>
         </div>
         <div className={`receiver-live ${powered && cw.isListening ? "active" : ""} ${npcPlaybackRecovering ? "recovering" : ""}`} data-action="receiver-status"><Broadcast size={21} weight="fill" /><span>{!powered ? t.powerOff : npcPlaybackRecovering ? flow.receiverRecovering : flow.receiverLive}</span></div>
-        <button data-action="submit-reply" onClick={submitReply} disabled={!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Broadcast size={20} />{qso.phase === QSO_PHASES.PLAYER_CQ ? flow.sendCq : flow.sendMessage}<kbd>F2</kbd></button>
+        <button data-action="replay-input" onClick={cw.replayInput} disabled={!cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Play size={20} weight="fill" />{t.replayInput}</button>
+        <button data-action="submit-reply" onClick={submitReply} disabled={!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Broadcast size={20} />{qso.phase === QSO_PHASES.PLAYER_CQ ? flow.sendCq : flow.sendMessage}<kbd>F2</kbd></button>
         <button data-action="save-or-restart" onClick={saveOrRestart} disabled={![QSO_PHASES.QSO_COMPLETE, QSO_PHASES.QSO_FAILED].includes(qso.phase) || saved}><FloppyDisk size={20} />{f3Label}<kbd>F3</kbd></button>
       </footer>
       {mapOpen && <MapModal language={language} mapMode={mapMode} setMapMode={setMapMode} propagationMap={propagationMap} onClose={() => setMapOpen(false)} />}
-      {!mapOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_FAILED && <QsoResultModal language={language} failed onRestart={saveOrRestart} />}
-      {!mapOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_COMPLETE && <QsoResultModal
+      {!mapOpen && briefingOpen && <QsoBriefingModal language={language} guidance={save.qsoGuidance} onStart={startBriefedWatch} onSkip={skipBriefing} onClose={closeBriefing} />}
+      {!mapOpen && !briefingOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_FAILED && <QsoResultModal language={language} failed onRestart={saveOrRestart} />}
+      {!mapOpen && !briefingOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_COMPLETE && <QsoResultModal
         language={language} entry={resultEntry} creditsAwarded={resultMeta?.creditsAwarded ?? 0} saved={saved}
         newRegion={resultMeta?.newRegion} newDistanceRecord={resultMeta?.newDistanceRecord}
         onSave={saveOrRestart} onNext={startNewQso} onClose={() => saved && setResultDismissed(true)}
@@ -704,6 +752,7 @@ export function App() {
   const [language, setLanguage] = useState(detectLanguage);
   const [keyType, setKeyType] = useState("manual");
   const [automaticKeyWpm, setAutomaticKeyWpm] = useState(DEFAULT_AUTOMATIC_KEY_WPM);
+  const [qsoGuidance, setQsoGuidance] = useState("full");
   const [screen, setScreen] = useState("start");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
@@ -782,18 +831,19 @@ export function App() {
     setLanguage(next.language);
     setKeyType(next.keyType);
     setAutomaticKeyWpm(nextWpm);
+    setQsoGuidance(normalizeQsoGuidance(next.qsoGuidance));
     if (activeSave && ["home", "station"].includes(screen)) {
-      updateActiveSave({ keyType: next.keyType, automaticKeyWpm: nextWpm });
+      updateActiveSave({ keyType: next.keyType, automaticKeyWpm: nextWpm, qsoGuidance: normalizeQsoGuidance(next.qsoGuidance) });
     }
   }
 
   let currentScreen;
   if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => setScreen("practice")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
-  else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
+  else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onEnterStation={() => setScreen("station")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") currentScreen = <PracticeScreen language={language} automaticKeyWpm={automaticKeyWpm} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("start")} />;
   else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
-  else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
+  else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   return <>
     {currentScreen}
     <NetworkIndicator language={language} />
@@ -802,6 +852,7 @@ export function App() {
       language={language}
       keyType={activeSave && ["home", "station"].includes(screen) ? activeSave.keyType : keyType}
       automaticKeyWpm={activeSave && ["home", "station"].includes(screen) ? activeSave.automaticKeyWpm : automaticKeyWpm}
+      qsoGuidance={activeSave && ["home", "station"].includes(screen) ? activeSave.qsoGuidance : qsoGuidance}
       onApply={applySettings}
       onClose={() => setSettingsOpen(false)}
     />}

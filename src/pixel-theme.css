@@ -368,7 +368,7 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .signal-note small { color: #668a8b; font-size: 11px; }
 
 .qso-console {
-  grid-template-columns: minmax(420px, 1fr) auto auto auto;
+  grid-template-columns: minmax(350px, 1fr) auto auto auto auto;
   gap: 10px;
   padding: 10px;
 }
@@ -416,6 +416,22 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 }
 
 .qso-console kbd { color: #93ada9; font-size: 10px; }
+
+.qso-guidance-choices button,
+.qso-duty-toggle,
+.qso-duty-popover,
+.qso-briefing-modal,
+.qso-briefing-skip {
+  border-width: 2px;
+  box-shadow: 3px 3px 0 #010609;
+}
+.qso-guidance-choices button.selected { box-shadow: 3px 3px 0 #100b01, inset 0 0 0 2px #5e470d; }
+.qso-duty-toggle { color: var(--pixel-cyan); }
+.qso-duty-popover { border-width: 3px; }
+.qso-duty-popover code { color: var(--pixel-green); font-size: 12px; }
+.qso-briefing-modal { border-width: 3px; }
+.qso-briefing-modal > header,
+.qso-briefing-modal > footer { border-width: 3px; }
 
 .modal-backdrop { background: rgba(1, 8, 12, .92); backdrop-filter: none; }
 
@@ -697,6 +713,10 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   .key-stage span { font-size: 10px; }
   .qso-console > button { min-width: 112px; font-size: 12px; }
   .receiver-live { min-width: 150px; }
+  .qso-console { gap: 7px; }
+  .qso-console > button { min-width: 104px; padding-inline: 7px; }
+  .qso-guidance-choices button { min-height: 58px; }
+  .qso-briefing-body { padding: 15px; }
   .practice-screen { grid-template-rows: 56px minmax(0, 1fr); }
   .practice-layout { grid-template-columns: 220px minmax(540px, 1fr) 230px; }
   .practice-workspace { grid-template-rows: 66px 148px minmax(112px, 1fr) 58px 58px; }

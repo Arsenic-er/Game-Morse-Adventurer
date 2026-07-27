@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createSave, isValidCallsign, loadSaves, persistSaves, sanitizeCallsign,
+  createSave, isValidCallsign, loadSaves, normalizeQsoGuidance, persistSaves, sanitizeCallsign,
 } from "../src/game/saveStore.js";
 import {
   DEFAULT_AUTOMATIC_KEY_WPM, normalizeAutomaticKeyWpm,
@@ -47,6 +47,9 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
     weakSignalQsos: 0,
     settledQsoIds: [],
   });
+  assert.equal(save.qsoGuidance, "full");
+  assert.equal(save.qsoBriefSeen, false);
+  assert.equal(save.firstWatchCompleted, false);
 });
 
 test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
@@ -78,6 +81,11 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
   assert.equal(save.qsoLogs.length, 1);
   assert.equal(save.qsoLogs[0].id, "legacy-qso");
   assert.equal(save.qsoLogs[0].callsign, "SIM7QX");
+  assert.equal(save.qsoLogs[0].version, 2);
+  assert.equal(save.qsoLogs[0].repeatRequests, 0);
+  assert.equal(save.qsoGuidance, "full");
+  assert.equal(save.qsoBriefSeen, false);
+  assert.equal(save.firstWatchCompleted, false);
   assert.equal("qsoLogEntries" in save, false);
   assert.deepEqual(save.qsoRecords, {
     total: 1,
@@ -87,6 +95,41 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
     weakSignalQsos: 0,
     settledQsoIds: ["legacy-qso"],
   });
+});
+
+test("QSO guidance and first-watch flags normalize and persist safely", () => {
+  assert.equal(normalizeQsoGuidance("full"), "full");
+  assert.equal(normalizeQsoGuidance("hints"), "hints");
+  assert.equal(normalizeQsoGuidance("off"), "off");
+  assert.equal(normalizeQsoGuidance("expert"), "full");
+
+  const hintedNewSave = createSave({
+    callsign: "JA1QSO",
+    locationId: "japan-tokyo-kanto",
+    qsoGuidance: "hints",
+  });
+  assert.equal(hintedNewSave.qsoGuidance, "hints");
+
+  const storage = storageStub();
+  const save = createSave({ callsign: "JA1COACH", locationId: "japan-tokyo-kanto" });
+  save.qsoGuidance = "hints";
+  save.qsoBriefSeen = true;
+  save.firstWatchCompleted = true;
+  persistSaves([save], storage);
+
+  const [reloaded] = loadSaves(storage);
+  assert.equal(reloaded.qsoGuidance, "hints");
+  assert.equal(reloaded.qsoBriefSeen, true);
+  assert.equal(reloaded.firstWatchCompleted, true);
+
+  reloaded.qsoGuidance = "invalid";
+  reloaded.qsoBriefSeen = "true";
+  reloaded.firstWatchCompleted = 1;
+  persistSaves([reloaded], storage);
+  const [sanitized] = loadSaves(storage);
+  assert.equal(sanitized.qsoGuidance, "full");
+  assert.equal(sanitized.qsoBriefSeen, false);
+  assert.equal(sanitized.firstWatchCompleted, false);
 });
 
 test("legacy saves keep their valid equipped antenna during inventory migration", () => {

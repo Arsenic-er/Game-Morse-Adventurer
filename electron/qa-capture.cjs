@@ -218,6 +218,10 @@ async function capture(window, outputDir, filename) {
     if (image.decode) await image.decode().catch(() => {});
   }))`, true);
   await new Promise((resolve) => setTimeout(resolve, 1000));
+  // Software-rendered packaged builds can return the previous compositor frame
+  // on the first capture after a large modal or route transition.
+  await window.webContents.capturePage();
+  await new Promise((resolve) => setTimeout(resolve, 150));
   const image = await window.webContents.capturePage();
   await fs.writeFile(path.join(outputDir, filename), image.toPNG());
 }
@@ -246,7 +250,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.14.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.15.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   async function readManualState(label) {
     const state = await window.webContents.executeJavaScript(`(() => {
@@ -560,6 +564,10 @@ async function runQaCapture(window) {
   await click(window, ".qso-log-return");
   await click(window, ".hotspot-station");
   await waitFor(window, ".station-screen");
+  await waitFor(window, '[data-testid="qso-briefing-modal"]');
+  await capture(window, outputDir, shot("qso-duty-briefing"));
+  await click(window, '[data-action="start-guided-watch"]');
+  await waitForMissing(window, '[data-testid="qso-briefing-modal"]');
   await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-receiver-active="true"]', 10000);
   const initialReceiverState = await window.webContents.executeJavaScript(`(() => ({
     phase: document.querySelector(".station-screen")?.dataset.qsoPhase ?? null,
@@ -662,10 +670,46 @@ async function runQaCapture(window) {
     throw new Error(`First incoming phase did not recover cleanly: ${JSON.stringify(firstRecoveryState)}`);
   }
   const stationIdentity = await window.webContents.executeJavaScript(`(() => ({
-    npc: document.querySelector(".contact-card h2").textContent.trim(),
+    npc: document.querySelector(".station-screen")?.dataset.qaNpcCallsign ?? null,
     player: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
+    shownContact: document.querySelector(".contact-card h2")?.textContent.trim() ?? null,
+    bodyLeaksCallsign: document.body.innerText.includes(document.querySelector(".station-screen")?.dataset.qaNpcCallsign ?? "__NO_CALL__"),
   }))()`, true);
+  if (!stationIdentity.npc || stationIdentity.shownContact !== "REMOTE" || stationIdentity.bodyLeaksCallsign) {
+    throw new Error(`Blind-copy screen leaked the remote identity: ${JSON.stringify(stationIdentity)}`);
+  }
+  await capture(window, outputDir, shot("qso-blind-copy"));
   await markStep(`auto-response-${stationIdentity.npc}-${stationIdentity.player}`);
+
+  await sendAutomaticText(window, "E");
+  await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
+  await click(window, '[data-action="submit-reply"]');
+  await waitFor(window, '[data-action="clear-and-retry"]', 10000);
+  const retainedInvalidReply = await window.webContents.executeJavaScript(`(() => ({
+    phase: document.querySelector(".station-screen")?.dataset.qsoPhase ?? null,
+    decoded: document.querySelector(".station-screen")?.dataset.decoded ?? "",
+    contact: document.querySelector(".contact-card h2")?.textContent.trim() ?? null,
+  }))()`, true);
+  if (retainedInvalidReply.phase !== "PLAYER_RST_AND_73" || retainedInvalidReply.decoded !== "E" || retainedInvalidReply.contact !== "REMOTE") {
+    throw new Error(`Invalid reply was not retained safely: ${JSON.stringify(retainedInvalidReply)}`);
+  }
+  await capture(window, outputDir, shot("qso-specific-error"));
+  await click(window, '[data-action="clear-and-retry"]');
+
+  await sendAutomaticText(window, "AGN K");
+  await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
+  await click(window, '[data-action="submit-reply"]');
+  await waitFor(window, '[data-qso-phase="PLAYER_RST_AND_73"][data-repeat-requests="1"]', 10000);
+  const repeatedIncoming = await window.webContents.executeJavaScript(`(() => ({
+    npc: document.querySelector(".station-screen")?.dataset.qaNpcCallsign ?? null,
+    repeatRequests: Number(document.querySelector(".station-screen")?.dataset.repeatRequests),
+    contact: document.querySelector(".contact-card h2")?.textContent.trim() ?? null,
+  }))()`, true);
+  if (repeatedIncoming.npc !== stationIdentity.npc || repeatedIncoming.repeatRequests !== 1 || repeatedIncoming.contact !== "REMOTE") {
+    throw new Error(`AGN K did not replay the same hidden station: ${JSON.stringify(repeatedIncoming)}`);
+  }
+  await capture(window, outputDir, shot("qso-agn-repeat"));
+
   await sendAutomaticText(window, `${stationIdentity.npc} DE ${stationIdentity.player} RST 559 73 K`);
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
   const secondReplyDebug = await window.webContents.executeJavaScript(`(() => ({
@@ -702,16 +746,18 @@ async function runQaCapture(window) {
   await click(window, ".qso-result-primary");
   await waitFor(window, ".qso-result-modal.success header .icon-button", 10000);
   const savedEquipmentSnapshot = await window.webContents.executeJavaScript(
-    '(() => { const entry = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].qsoLogs[0]; return { accessoryId: entry.accessoryId, equipmentId: entry.equipmentId }; })()',
+    '(() => { const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0]; const entry = save.qsoLogs[0]; return { accessoryId: entry.accessoryId, equipmentId: entry.equipmentId, repeatRequests: entry.repeatRequests, transmitAccuracy: entry.transmitAccuracy, firstWatchCompleted: save.firstWatchCompleted }; })()',
     true,
   );
-  if (savedEquipmentSnapshot.accessoryId !== "cw-filter-500" || savedEquipmentSnapshot.equipmentId !== "usdr-8") {
+  if (savedEquipmentSnapshot.accessoryId !== "cw-filter-500" || savedEquipmentSnapshot.equipmentId !== "usdr-8"
+    || savedEquipmentSnapshot.repeatRequests !== 1 || !Number.isFinite(savedEquipmentSnapshot.transmitAccuracy)
+    || savedEquipmentSnapshot.firstWatchCompleted !== true) {
     throw new Error(`QSO log lost equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
   }
   await capture(window, outputDir, shot("qso-result-saved"));
   await click(window, ".qso-result-modal.success header .icon-button");
 
-  await click(window, ".station-topbar .top-actions button:first-child");
+  await click(window, '.station-topbar .top-actions [data-action="back-home"]');
   await waitFor(window, ".home-screen");
   await click(window, ".hotspot-log");
   await waitFor(window, ".qso-log-modal");
@@ -745,7 +791,7 @@ async function runQaCapture(window) {
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "station-listening", "station-radio-tx", "station-input-cleared", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
+      "home-log-detail-second", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
     ].map(shot), ...manualCaptures],
   };
 }

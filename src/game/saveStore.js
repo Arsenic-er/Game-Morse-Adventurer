@@ -8,6 +8,7 @@ import { DEFAULT_AUTOMATIC_KEY_WPM, normalizeAutomaticKeyWpm } from "../cw/autom
 export const SAVE_STORAGE_KEY = "game-morse-adventurer.saves.v1";
 export const ACTIVE_SAVE_KEY = "game-morse-adventurer.active-save.v1";
 export const MAX_SAVE_SLOTS = 3;
+export const QSO_GUIDANCE_LEVELS = Object.freeze(["full", "hints", "off"]);
 
 export function sanitizeCallsign(value) {
   return String(value ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 7);
@@ -19,6 +20,10 @@ export function isValidCallsign(value) {
 export function normalizeCredits(value) {
   const credits = Number(value);
   return Number.isFinite(credits) ? Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(credits))) : 0;
+}
+
+export function normalizeQsoGuidance(value) {
+  return QSO_GUIDANCE_LEVELS.includes(value) ? value : "full";
 }
 
 function exactId(catalog, value, fallback) {
@@ -36,6 +41,7 @@ export function createSave({
   locationId,
   keyType = "manual",
   automaticKeyWpm = DEFAULT_AUTOMATIC_KEY_WPM,
+  qsoGuidance = "full",
 }) {
   const cleanCallsign = sanitizeCallsign(callsign);
   if (!isValidCallsign(cleanCallsign)) throw new Error("INVALID_CALLSIGN");
@@ -56,6 +62,9 @@ export function createSave({
     credits: 0,
     qsoLogs: [],
     qsoRecords: normalizeQsoRecords(null, []),
+    qsoGuidance: normalizeQsoGuidance(qsoGuidance),
+    qsoBriefSeen: false,
+    firstWatchCompleted: false,
     createdAt: now,
     updatedAt: now,
   };
@@ -116,6 +125,9 @@ export function normalizeSave(save) {
     credits: normalizeCredits(save.credits),
     qsoLogs,
     qsoRecords: normalizeQsoRecords(save?.qsoRecords, qsoLogSource),
+    qsoGuidance: normalizeQsoGuidance(save?.qsoGuidance),
+    qsoBriefSeen: save?.qsoBriefSeen === true,
+    firstWatchCompleted: save?.firstWatchCompleted === true,
     createdAt: save.createdAt || new Date().toISOString(),
     updatedAt: save.updatedAt || new Date().toISOString(),
   };

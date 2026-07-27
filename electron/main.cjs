@@ -7,6 +7,7 @@ const { readWindowsWifiStatus } = require("./network-status.cjs");
 const qaCaptureMode = process.argv.includes("--qa-capture");
 const qaWidth = Math.max(1280, Number(process.env.CWGAME_QA_WIDTH) || 1672);
 const qaHeight = Math.max(720, Number(process.env.CWGAME_QA_HEIGHT) || 941);
+if (qaCaptureMode) app.disableHardwareAcceleration();
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 if (qaCaptureMode && process.env.CWGAME_QA_OUTPUT) {
   const qaUserData = path.join(process.env.CWGAME_QA_OUTPUT, "electron-user-data");

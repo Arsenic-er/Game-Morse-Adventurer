@@ -7,7 +7,7 @@ const TEXT = {
   "zh-CN": {
     success: "通联完成", failed: "通联未完成", saved: "已写入永久日志", unsaved: "等待写入日志",
     callsign: "对方呼号", region: "地区", distance: "距离", rst: "双方 RST", propagation: "传播等级",
-    equipment: "设备快照", speed: "检测速度", accuracy: "抄收正确率", rhythm: "发报节奏",
+    equipment: "设备快照", speed: "检测速度", accuracy: "发报准确率", rhythm: "发报节奏", repeats: "请求重发",
     credits: "本次信用点", sim: "虚构台站", newRegion: "首次通联地区", newDistance: "最远距离纪录",
     save: "写入日志并结算", next: "开始下一次通联", restart: "重新开始本次通联", continue: "返回发射台",
     failedHint: "本次回应未通过最小 QSO 流程判定，不会扣除信用点，也不会写入日志。",
@@ -15,7 +15,7 @@ const TEXT = {
   "zh-TW": {
     success: "通聯完成", failed: "通聯未完成", saved: "已寫入永久日誌", unsaved: "等待寫入日誌",
     callsign: "對方呼號", region: "地區", distance: "距離", rst: "雙方 RST", propagation: "傳播等級",
-    equipment: "設備快照", speed: "偵測速度", accuracy: "抄收正確率", rhythm: "發報節奏",
+    equipment: "設備快照", speed: "偵測速度", accuracy: "發報準確率", rhythm: "發報節奏", repeats: "請求重發",
     credits: "本次信用點", sim: "虛構臺站", newRegion: "首次通聯地區", newDistance: "最遠距離紀錄",
     save: "寫入日誌並結算", next: "開始下一次通聯", restart: "重新開始本次通聯", continue: "返回發射臺",
     failedHint: "本次回應未通過最小 QSO 流程判定，不會扣除信用點，也不會寫入日誌。",
@@ -23,7 +23,7 @@ const TEXT = {
   ja: {
     success: "交信完了", failed: "交信未完了", saved: "永久ログに保存済み", unsaved: "ログ保存待ち",
     callsign: "相手局", region: "地域", distance: "距離", rst: "双方の RST", propagation: "伝搬レベル",
-    equipment: "装備スナップショット", speed: "検出速度", accuracy: "受信正確率", rhythm: "送信リズム",
+    equipment: "装備スナップショット", speed: "検出速度", accuracy: "送信正確度", rhythm: "送信リズム", repeats: "再送要求",
     credits: "今回のクレジット", sim: "架空局", newRegion: "初交信地域", newDistance: "最長距離記録",
     save: "ログ保存と精算", next: "次の交信を開始", restart: "この交信をやり直す", continue: "運用卓へ戻る",
     failedHint: "最小 QSO 手順を完了できませんでした。クレジット消費やログ記録はありません。",
@@ -31,7 +31,7 @@ const TEXT = {
   en: {
     success: "QSO Complete", failed: "QSO Incomplete", saved: "Saved to permanent log", unsaved: "Waiting to be logged",
     callsign: "Remote callsign", region: "Region", distance: "Distance", rst: "RST exchanged", propagation: "Propagation level",
-    equipment: "Equipment snapshot", speed: "Detected speed", accuracy: "Copy accuracy", rhythm: "Keying rhythm",
+    equipment: "Equipment snapshot", speed: "Detected speed", accuracy: "Transmit accuracy", rhythm: "Keying rhythm", repeats: "Repeat requests",
     credits: "Credits earned", sim: "Fictional station", newRegion: "First contact in region", newDistance: "New distance record",
     save: "Save log and settle", next: "Start next QSO", restart: "Restart this QSO", continue: "Return to station",
     failedHint: "The reply did not complete the minimum QSO flow. No credits are deducted and no log entry is written.",
@@ -75,8 +75,9 @@ export function QsoResultModal({
               <div><dt><Broadcast size={18} />{t.propagation}</dt><dd>P{value(entry?.finalPropagationLevel)}</dd></div>
               <div><dt><Radio size={18} />{t.equipment}</dt><dd>{value(entry?.equipmentId)} / {value(entry?.antennaId)} / {value(entry?.accessoryId)}</dd></div>
               <div><dt><Gauge size={18} />{t.speed}</dt><dd>{value(entry?.wpm, " WPM")}</dd></div>
-              <div><dt>{t.accuracy}</dt><dd>{value(entry?.copyAccuracy, "%")}</dd></div>
+              <div><dt>{t.accuracy}</dt><dd>{value(entry?.transmitAccuracy, "%")}</dd></div>
               <div><dt>{t.rhythm}</dt><dd>{value(entry?.keyingScore, "%")}</dd></div>
+              <div><dt>{t.repeats}</dt><dd>{value(entry?.repeatRequests ?? 0)}</dd></div>
             </dl>
             <div className="qso-result-rewards">
               <span>{saved ? t.saved : t.unsaved}</span>

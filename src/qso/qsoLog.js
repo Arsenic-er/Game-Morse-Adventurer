@@ -39,6 +39,10 @@ function normalizeId(value, callsign, completedAt) {
   return supplied || `${callsign}-${new Date(completedAt).getTime()}`;
 }
 
+function normalizeRepeatRequests(value) {
+  return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(finiteNumber(value))));
+}
+
 export function normalizeQsoLogEntry(entry) {
   if (!entry || typeof entry !== "object") return null;
   const startedAt = normalizeIso(entry.startedAt);
@@ -54,7 +58,7 @@ export function normalizeQsoLogEntry(entry) {
   const finalPropagationLevel = Math.round(clamp(finiteNumber(entry.finalPropagationLevel ?? entry.finalLevel), 0, 4));
 
   return {
-    version: 1,
+    version: 2,
     id: normalizeId(entry.id, callsign, completedAt),
     startedAt,
     completedAt,
@@ -76,8 +80,9 @@ export function normalizeQsoLogEntry(entry) {
     accessoryId: String(entry.accessoryId ?? "none").trim().slice(0, 48) || "none",
     playerLocationId: String(entry.playerLocationId ?? entry.locationId ?? "unknown").trim().slice(0, 64) || "unknown",
     wpm: Number(Math.max(0, finiteNumber(entry.wpm)).toFixed(1)),
-    copyAccuracy: normalizeScore(entry.copyAccuracy),
+    transmitAccuracy: normalizeScore(entry.transmitAccuracy ?? entry.copyAccuracy ?? entry.accuracy),
     keyingScore: normalizeScore(entry.keyingScore),
+    repeatRequests: normalizeRepeatRequests(entry.repeatRequests),
     credits: Math.max(0, Math.floor(finiteNumber(entry.credits ?? entry.creditsAwarded))),
     isFictional: entry.isFictional !== false,
   };

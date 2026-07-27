@@ -33,7 +33,9 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - Straight-key input with `Space`; adjustable 5–40 WPM automatic paddle input with `Z` for dot and `X` for dash, including continuous hold-to-repeat.
 - Independent CW practice for characters, fictional callsigns, straight key, and paddle.
 - A player-led fictional QSO loop: the receiver opens automatically, the player calls CQ, propagation determines whether a station responds, and a successful contact continues through callsigns, RST, 73/SK, credits, and logging.
-- Persistent QSO result pages and logbook entries, including callsign, region, distance, RST, propagation, equipment, WPM, accuracy, and rhythm.
+- A four-language first-watch briefing and full/hints/off duty coach teach each QSO stage without revealing the remote callsign during blind copy.
+- `AGN K` repeats the same remote station over the same channel without changing propagation, attempts, or rewards; malformed messages retain their decoded text for correction instead of ending the QSO after two errors.
+- Persistent QSO result pages and logbook entries include callsign, region, distance, RST, propagation, equipment, WPM, transmit accuracy, rhythm, and repeat-request count.
 - A four-language achievement archive derives six permanent milestones from durable QSO records and retained logs without granting duplicate rewards.
 - Atomic, idempotent credit settlement prevents a completed QSO from being rewarded more than once.
 - A four-language station store supports atomic purchases, persistent ownership, and warehouse-only equipment changes.
@@ -51,8 +53,8 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 | Straight key | Hold `Space` |
 | Automatic paddle — dot | `Z` |
 | Automatic paddle — dash | `X` |
-| Send/replay the captured CQ or reply | `F2` |
-| Save log or restart a failed QSO | `F3` |
+| Submit the captured CQ or reply | `F2` |
+| Save a completed QSO log | `F3` |
 
 ## Development
 
@@ -63,11 +65,11 @@ pnpm run dev
 pnpm run desktop:build
 ```
 
-The project currently has 91 automated tests covering the CW core and repeating keyer, receiver audio filtering, practice engine, player-led QSO state machine, CQ response probability, persistent QSO logs and results, achievement derivation, idempotent credit settlement, store economy, radio/accessory ownership and loadouts, propagation model, map projection, and save data rules.
+The project currently has 96 automated tests covering the CW core and repeating keyer, receiver audio filtering, practice engine, blind-copy QSO state machine, strict `AGN K` repeats, CQ response probability, persistent QSO logs and results, achievement derivation, idempotent credit settlement, store economy, radio/accessory ownership and loadouts, propagation model, map projection, and save data rules.
 
 ## Project status
 
-Version **v0.14.0** adds the first purchasable replacement radio. The fictional MICA-8 can be bought in the store, delivered unequipped, selected in the warehouse, and rendered consistently in the Home loadout and station. Its 5 W output does not create a fictional propagation bonus; its DSP/AGC profile instead reduces audible receiver noise by 20% and perceived QSB depth by 15%, stacking safely with the CW-500 filter. Old saves keep only the SQUID-01 unless the new radio was legitimately purchased, and each QSO retains the equipped radio snapshot. The paired pixel assets use the requested English `PWR`, `BAND`, `MODE`, and `TUNE / VOL` labels, with only the red diode changing in TX. The suite now contains 91 automated tests. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
+Version **v0.15.0** pauses new equipment and completes the first-watch learning loop. A localized briefing and persistent full/hints/off duty coach explain CQ, listening, report exchange, and logging. Remote identity and message text stay hidden until the player copies and sends the correct callsign; `AGN K` replays the same station without rerolling its signal or penalizing the attempt. Specific format errors preserve the keyed message for correction and no longer force failure after two mistakes. Send no longer auto-replays the player's own transmission, while a separate Replay Input control remains available before submission. QSO log schema v2 records repeat requests and correctly names the measured value as transmit accuracy, with safe migration from older saves. Save cards now show the actually equipped radio. The suite contains 96 automated tests, and every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
 
 ## Rights and third-party software
 
