@@ -673,9 +673,12 @@ async function runQaCapture(window) {
     npc: document.querySelector(".station-screen")?.dataset.qaNpcCallsign ?? null,
     player: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
     shownContact: document.querySelector(".contact-card h2")?.textContent.trim() ?? null,
-    bodyLeaksCallsign: document.body.innerText.includes(document.querySelector(".station-screen")?.dataset.qaNpcCallsign ?? "__NO_CALL__"),
+    activeAreaLeaksCallsign: [".contact-card", ".qso-duty-coach", ".morse-display", ".signal-note"]
+      .map((selector) => document.querySelector(selector)?.textContent ?? "")
+      .join(" ")
+      .includes(document.querySelector(".station-screen")?.dataset.qaNpcCallsign ?? "__NO_CALL__"),
   }))()`, true);
-  if (!stationIdentity.npc || stationIdentity.shownContact !== "REMOTE" || stationIdentity.bodyLeaksCallsign) {
+  if (!stationIdentity.npc || stationIdentity.shownContact !== "REMOTE" || stationIdentity.activeAreaLeaksCallsign) {
     throw new Error(`Blind-copy screen leaked the remote identity: ${JSON.stringify(stationIdentity)}`);
   }
   await capture(window, outputDir, shot("qso-blind-copy"));
