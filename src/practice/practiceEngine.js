@@ -7,10 +7,48 @@ export const PRACTICE_MODES = Object.freeze({
   PADDLE_TX: "paddle-tx",
 });
 
+export const PRACTICE_DIFFICULTIES = Object.freeze({
+  GUIDED: "guided",
+  STANDARD: "standard",
+  CHALLENGE: "challenge",
+});
+
+export const PRACTICE_DIFFICULTY_PROFILES = Object.freeze({
+  [PRACTICE_DIFFICULTIES.GUIDED]: Object.freeze({
+    id: PRACTICE_DIFFICULTIES.GUIDED,
+    characterRxWpm: 10,
+    callsignRxWpm: 12,
+    requiredAttempts: 5,
+    requiredAccuracy: 80,
+  }),
+  [PRACTICE_DIFFICULTIES.STANDARD]: Object.freeze({
+    id: PRACTICE_DIFFICULTIES.STANDARD,
+    characterRxWpm: 14,
+    callsignRxWpm: 16,
+    requiredAttempts: 8,
+    requiredAccuracy: 85,
+  }),
+  [PRACTICE_DIFFICULTIES.CHALLENGE]: Object.freeze({
+    id: PRACTICE_DIFFICULTIES.CHALLENGE,
+    characterRxWpm: 18,
+    callsignRxWpm: 20,
+    requiredAttempts: 10,
+    requiredAccuracy: 90,
+  }),
+});
+
 export const CHARACTER_POOL = Object.freeze(["A", "N", "T", "E", "I", "M", "S", "O", "R", "K", "D", "U", "G", "W", "Q", "7", "3", "5"]);
 export const FICTIONAL_CALLSIGNS = Object.freeze(["SIM7QX", "SIM3RA", "SIM9AK", "SIM5TU", "SIM2DX", "SIM8CW", "SIM4NZ", "SIM6JP"]);
 
-const PRACTICE_SESSION_SCHEMA_VERSION = 1;
+export const PRACTICE_LESSONS = Object.freeze([
+  Object.freeze(["A", "N", "T", "E"]),
+  Object.freeze(["I", "M", "S", "O"]),
+  Object.freeze(["R", "K", "D", "U"]),
+  Object.freeze(["G", "W", "Q"]),
+  Object.freeze(["7", "3", "5"]),
+]);
+
+const PRACTICE_SESSION_SCHEMA_VERSION = 2;
 const DEFAULT_QUEUE_SEED = "cw-practice-v1";
 const MAX_SETTLED_ATTEMPT_IDS = 256;
 const MAX_COUNTER = 1_000_000;
@@ -99,16 +137,49 @@ function normalizeMode(mode) {
   return Object.values(PRACTICE_MODES).includes(mode) ? mode : PRACTICE_MODES.CHARACTER_RX;
 }
 
+export function normalizePracticeDifficulty(value) {
+  return Object.values(PRACTICE_DIFFICULTIES).includes(value) ? value : PRACTICE_DIFFICULTIES.GUIDED;
+}
+
+export function practiceDifficultyProfile(value) {
+  return PRACTICE_DIFFICULTY_PROFILES[normalizePracticeDifficulty(value)];
+}
+
+export function practiceLessonCount(mode) {
+  return normalizeMode(mode) === PRACTICE_MODES.CALLSIGN_RX ? 4 : PRACTICE_LESSONS.length;
+}
+
+export function normalizePracticeLesson(value, mode) {
+  return Math.min(practiceLessonCount(mode), Math.max(1, nonNegativeInteger(value, 1)));
+}
+
+export function practiceReceiveWpm(difficulty, mode) {
+  const profile = practiceDifficultyProfile(difficulty);
+  return normalizeMode(mode) === PRACTICE_MODES.CALLSIGN_RX ? profile.callsignRxWpm : profile.characterRxWpm;
+}
+
 function weakestCharacter(weaknesses) {
   return Object.entries(normalizeWeaknesses(weaknesses))
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]?.[0];
 }
 
-export function practicePoolFor(mode) {
-  if (mode === PRACTICE_MODES.CALLSIGN_RX) return [...FICTIONAL_CALLSIGNS];
-  if (mode === PRACTICE_MODES.MANUAL_TX) return [...CHARACTER_POOL, "SIM7QX"];
-  if (mode === PRACTICE_MODES.PADDLE_TX) return [...CHARACTER_POOL, "SIM3RA"];
-  return [...CHARACTER_POOL];
+export function practicePoolFor(mode, options = {}) {
+  const normalizedMode = normalizeMode(mode);
+  const requestedLesson = typeof options === "number" ? options : options?.lesson;
+  if (requestedLesson === null || requestedLesson === undefined) {
+    if (normalizedMode === PRACTICE_MODES.CALLSIGN_RX) return [...FICTIONAL_CALLSIGNS];
+    if (normalizedMode === PRACTICE_MODES.MANUAL_TX) return [...CHARACTER_POOL, "SIM7QX"];
+    if (normalizedMode === PRACTICE_MODES.PADDLE_TX) return [...CHARACTER_POOL, "SIM3RA"];
+    return [...CHARACTER_POOL];
+  }
+
+  const lesson = normalizePracticeLesson(requestedLesson, normalizedMode);
+  if (normalizedMode === PRACTICE_MODES.CALLSIGN_RX) return FICTIONAL_CALLSIGNS.slice(0, lesson * 2);
+  const allowedCharacters = new Set(PRACTICE_LESSONS.slice(0, lesson).flat());
+  const pool = CHARACTER_POOL.filter((character) => allowedCharacters.has(character));
+  if (lesson === PRACTICE_LESSONS.length && normalizedMode === PRACTICE_MODES.MANUAL_TX) pool.push("SIM7QX");
+  if (lesson === PRACTICE_LESSONS.length && normalizedMode === PRACTICE_MODES.PADDLE_TX) pool.push("SIM3RA");
+  return pool;
 }
 
 function hashSeed(value) {
@@ -165,10 +236,11 @@ function scheduledWeakness(items, weaknesses, globalIndex) {
   return swapToFront(items, weak, queueIndex);
 }
 
-export function createPracticeBag({ mode, bagIndex = 0, seed = DEFAULT_QUEUE_SEED, weaknesses = {}, previousTarget = "", previousTargets = [], recentTargets = [], globalIndex = 0 } = {}) {
+export function createPracticeBag({ mode, difficulty = PRACTICE_DIFFICULTIES.GUIDED, lesson = null, bagIndex = 0, seed = DEFAULT_QUEUE_SEED, weaknesses = {}, previousTarget = "", previousTargets = [], recentTargets = [], globalIndex = 0 } = {}) {
   const normalizedMode = normalizeMode(mode);
-  const items = practicePoolFor(normalizedMode);
-  const random = seededRandom(`${seed}:${normalizedMode}:${nonNegativeInteger(bagIndex)}`);
+  const normalizedDifficulty = normalizePracticeDifficulty(difficulty);
+  const items = practicePoolFor(normalizedMode, { lesson });
+  const random = seededRandom(`${seed}:${normalizedMode}:${normalizedDifficulty}:${lesson ?? "full"}:${nonNegativeInteger(bagIndex)}`);
   for (let index = items.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(random() * (index + 1));
     [items[index], items[swapIndex]] = [items[swapIndex], items[index]];
@@ -182,15 +254,17 @@ export function createPracticeBag({ mode, bagIndex = 0, seed = DEFAULT_QUEUE_SEE
   return items;
 }
 
-function bagAt(mode, bagIndex, seed, weaknesses) {
+function bagAt(mode, bagIndex, seed, weaknesses, difficulty = PRACTICE_DIFFICULTIES.GUIDED, lesson = null) {
   let recentTargets = [];
   let bag = [];
-  const poolSize = practicePoolFor(mode).length;
+  const poolSize = practicePoolFor(mode, { lesson }).length;
   for (let currentBag = 0; currentBag <= bagIndex; currentBag += 1) {
     bag = createPracticeBag({
       mode,
       bagIndex: currentBag,
       seed,
+      difficulty,
+      lesson,
       weaknesses,
       recentTargets,
       globalIndex: currentBag * poolSize,
@@ -200,13 +274,13 @@ function bagAt(mode, bagIndex, seed, weaknesses) {
   return bag;
 }
 
-export function practiceTargetFor(mode, index = 0, weaknesses = {}, seed = DEFAULT_QUEUE_SEED) {
+export function practiceTargetFor(mode, index = 0, weaknesses = {}, seed = DEFAULT_QUEUE_SEED, lesson = null) {
   const normalizedMode = normalizeMode(mode);
   const safeIndex = nonNegativeInteger(index);
-  const poolSize = practicePoolFor(normalizedMode).length;
+  const poolSize = practicePoolFor(normalizedMode, { lesson }).length;
   const bagIndex = Math.floor(safeIndex / poolSize);
   const localIndex = safeIndex % poolSize;
-  return bagAt(normalizedMode, bagIndex, seed, weaknesses)[localIndex];
+  return bagAt(normalizedMode, bagIndex, seed, weaknesses, PRACTICE_DIFFICULTIES.GUIDED, lesson)[localIndex];
 }
 
 export function evaluateReception(answer, target) {
@@ -285,10 +359,13 @@ function questionIdFor(session) {
 export function normalizePracticeSession(value = {}, fallback = {}) {
   const source = value ?? {};
   const mode = normalizeMode(source.mode ?? fallback.mode);
+  const difficulty = normalizePracticeDifficulty(source.difficulty ?? fallback.difficulty);
+  const lessonSource = source.lesson ?? fallback.lesson;
+  const lesson = lessonSource === null || lessonSource === undefined ? null : normalizePracticeLesson(lessonSource, mode);
   const seed = String(source.seed ?? fallback.seed ?? DEFAULT_QUEUE_SEED).slice(0, 64) || DEFAULT_QUEUE_SEED;
   const stats = normalizePracticeStats(source.stats);
   const questionIndex = nonNegativeInteger(source.questionIndex, stats.attempts);
-  const pool = practicePoolFor(mode);
+  const pool = practicePoolFor(mode, { lesson });
   const inferredBagIndex = Math.floor(questionIndex / pool.length);
   const bagIndex = nonNegativeInteger(source.bagIndex, inferredBagIndex);
   const suppliedQueue = Array.isArray(source.queue)
@@ -296,13 +373,15 @@ export function normalizePracticeSession(value = {}, fallback = {}) {
     : [];
   const previousTarget = normalizeCwText(source.lastTarget).replace(/\s/g, "");
   const recentTargets = normalizeRecentTargets(source.recentTargets ?? fallback.recentTargets ?? [previousTarget], pool);
-  const generatedQueue = createPracticeBag({ mode, bagIndex, seed, weaknesses: stats.weaknesses, recentTargets, globalIndex: questionIndex });
+  const generatedQueue = createPracticeBag({ mode, difficulty, lesson, bagIndex, seed, weaknesses: stats.weaknesses, recentTargets, globalIndex: questionIndex });
   const queue = suppliedQueue.length ? suppliedQueue : generatedQueue.slice(questionIndex % pool.length);
   const startedAt = normalizeIsoDate(source.startedAt, normalizeIsoDate(fallback.startedAt, new Date(0).toISOString()));
   const sessionId = String(source.sessionId ?? fallback.sessionId ?? `${mode}:${startedAt}:${seed}`).trim().slice(0, 160);
   return {
     schemaVersion: PRACTICE_SESSION_SCHEMA_VERSION,
     mode,
+    difficulty,
+    lesson,
     seed,
     sessionId,
     startedAt,
@@ -317,9 +396,9 @@ export function normalizePracticeSession(value = {}, fallback = {}) {
   };
 }
 
-export function createPracticeSession({ mode = PRACTICE_MODES.CHARACTER_RX, seed = DEFAULT_QUEUE_SEED, startedAt = new Date().toISOString(), weaknesses = {}, questionLimit = null, recentTargets = [], previousTargets = [] } = {}) {
+export function createPracticeSession({ mode = PRACTICE_MODES.CHARACTER_RX, difficulty = PRACTICE_DIFFICULTIES.GUIDED, lesson = null, seed = DEFAULT_QUEUE_SEED, startedAt = new Date().toISOString(), weaknesses = {}, questionLimit = null, recentTargets = [], previousTargets = [] } = {}) {
   const stats = { ...emptyPracticeStats(), weaknesses: normalizeWeaknesses(weaknesses) };
-  return normalizePracticeSession({ mode, seed, startedAt, questionLimit, recentTargets: [...previousTargets, ...recentTargets], stats, questionIndex: 0, bagIndex: 0 });
+  return normalizePracticeSession({ mode, difficulty, lesson, seed, startedAt, questionLimit, recentTargets: [...previousTargets, ...recentTargets], stats, questionIndex: 0, bagIndex: 0 });
 }
 
 export function currentPracticeQuestion(session) {
@@ -347,6 +426,8 @@ export function settlePracticeQuestion(session, questionId, result, settledAt = 
     bagIndex += 1;
     queue = createPracticeBag({
       mode: current.mode,
+      difficulty: current.difficulty,
+      lesson: current.lesson,
       bagIndex,
       seed: current.seed,
       weaknesses: stats.weaknesses,
@@ -378,12 +459,28 @@ export function completePracticeSession(session, completedAt = new Date().toISOS
 export function summarizePracticeSession(session) {
   const current = normalizePracticeSession(session);
   const stats = current.stats;
+  const profile = practiceDifficultyProfile(current.difficulty);
+  const lessonPassed = stats.attempts >= profile.requiredAttempts
+    && stats.accuracy >= profile.requiredAccuracy;
+  const lessonCount = practiceLessonCount(current.mode);
+  const nextLesson = current.lesson === null
+    ? null
+    : Math.min(lessonCount, current.lesson + (lessonPassed ? 1 : 0));
   const weakCharacters = Object.entries(stats.weaknesses)
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
     .map(([character, misses]) => ({ character, misses }));
   return {
     schemaVersion: PRACTICE_SESSION_SCHEMA_VERSION,
     mode: current.mode,
+    difficulty: current.difficulty,
+    lesson: current.lesson,
+    lessonCount,
+    requiredAttempts: profile.requiredAttempts,
+    requiredAccuracy: profile.requiredAccuracy,
+    lessonPassed,
+    nextLesson,
+    nextLessonUnlocked: lessonPassed && current.lesson !== null && current.lesson < lessonCount,
+    curriculumCompleted: lessonPassed && current.lesson === lessonCount,
     questionCount: stats.attempts,
     correctCount: stats.correct,
     averageAccuracy: stats.averageAccuracy,

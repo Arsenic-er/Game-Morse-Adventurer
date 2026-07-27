@@ -621,7 +621,7 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .practice-stats,
 .practice-workspace { min-height: 0; overflow: hidden; }
 
-.practice-sidebar { display: grid; grid-template-rows: 44px auto 1fr; }
+.practice-sidebar { display: grid; grid-template-rows: 44px auto auto minmax(0, 1fr); }
 .practice-sidebar nav { display: grid; align-content: start; gap: 8px; padding: 12px; }
 .practice-sidebar nav button {
   display: grid;
@@ -636,6 +636,19 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   text-align: left;
 }
 .practice-sidebar nav button.selected { border-color: var(--pixel-amber); color: #ffe1a0; background: #4d3307; }
+.practice-curriculum { display: grid; gap: 7px; padding: 9px 12px 11px; border-top: 2px solid #28535b; background: #04151c; }
+.practice-curriculum header { display: flex; align-items: center; justify-content: space-between; color: #719a9a; font-size: 9px; }
+.practice-curriculum header b { color: var(--pixel-amber); font-size: 10px; }
+.practice-difficulty-options,
+.practice-lesson-options { display: grid; gap: 5px; }
+.practice-difficulty-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.practice-lesson-options { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.practice-curriculum button { min-width: 0; height: 28px; padding: 0 3px; border: 2px solid #28545c; color: #739b9a; background: #061b22; box-shadow: 2px 2px 0 #010609; font-size: 8px; }
+.practice-curriculum button.selected { border-color: var(--pixel-amber); color: #ffe19a; background: #503506; }
+.practice-curriculum button.completed:not(.selected) { border-color: #547b36; color: #acd77c; background: #10230f; }
+.practice-curriculum button:disabled { opacity: .4; box-shadow: none; }
+.practice-curriculum button.selected:disabled { opacity: .85; }
+.practice-curriculum small { overflow: hidden; color: #5f8585; font-size: 8px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 .practice-policy { align-self: end; display: grid; grid-template-columns: 24px 1fr; gap: 8px; margin: 12px; padding: 12px; border: 2px solid #264c53; color: #5f8889; font-size: 10px; line-height: 1.65; background: #04131a; }
 
 .practice-workspace {
@@ -719,7 +732,7 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 }
 .practice-summary-modal {
   display: grid;
-  grid-template-rows: 88px auto minmax(84px, 1fr) 58px;
+  grid-template-rows: 88px auto auto minmax(84px, 1fr) 58px;
   width: min(720px, calc(100vw - 44px));
   max-height: calc(100vh - 44px);
   overflow: hidden;
@@ -728,6 +741,9 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   background: #07181e;
   box-shadow: 9px 9px 0 #010506, inset 0 0 0 3px #203f43;
 }
+.practice-summary-progress { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 12px 15px 0; padding: 11px 13px; border: 2px solid #855032; color: #e9a47d; background: #2a110a; font-size: 10px; }
+.practice-summary-progress strong { font-size: 13px; }
+.practice-summary-progress.passed { border-color: #5b963c; color: #b8ea85; background: #0b2310; }
 .practice-summary-modal > header { display: grid; grid-template-columns: minmax(0, 1fr) 42px; align-items: center; gap: 14px; padding: 0 16px; border-bottom: 3px solid #755921; background: #10262a; }
 .practice-summary-modal > header span { color: #b98931; font-size: 8px; letter-spacing: .16em; }
 .practice-summary-modal > header h2 { margin: 4px 0 0; color: #ffe09a; font-size: 21px; letter-spacing: .1em; }
@@ -772,7 +788,7 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   .practice-recording-status { max-width: 250px; }
   .practice-session-weaknesses { display: none; }
   .practice-stats { grid-template-rows: 44px auto minmax(0, 1fr) 54px; }
-  .practice-summary-modal { grid-template-rows: 76px auto minmax(68px, 1fr) 50px; }
+  .practice-summary-modal { grid-template-rows: 76px auto auto minmax(68px, 1fr) 50px; }
   .practice-summary-metrics { padding: 10px; }
   .practice-summary-metrics > div { min-height: 62px; }
   .practice-summary-modal > footer button { height: 34px; }
@@ -949,7 +965,9 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .hotspot-station { left: 33.5%; top: 58.5%; width: 31%; height: 33%; --hotspot-tint: rgba(255, 194, 62, .2); --hotspot-filter: brightness(1.34) saturate(1.8) contrast(1.06); --hotspot-shape: polygon(8% 8%, 88% 5%, 96% 20%, 100% 84%, 91% 96%, 14% 100%, 3% 88%, 0 31%); }
 .hotspot-station > span { color: #ffe29a; border-color: #d49a27; background: #4f3205; }
 .hotspot-store { left: 66.5%; top: 43.5%; width: 25%; height: 36%; --hotspot-shape: polygon(22% 0, 91% 5%, 96% 52%, 86% 60%, 100% 88%, 91% 100%, 9% 91%, 0 76%, 14% 59%); }
-.hotspot-log { left: 0; top: 77%; width: 27%; height: 23%; --hotspot-shape: polygon(0 17%, 67% 0, 100% 58%, 83% 100%, 0 84%); }
+.hotspot-practice { left: 0; top: 67%; width: 17%; height: 17%; --hotspot-tint: rgba(255, 194, 62, .18); --hotspot-filter: brightness(1.38) saturate(1.55) contrast(1.08); --hotspot-shape: polygon(0 5%, 71% 0, 100% 16%, 98% 86%, 18% 100%, 0 83%); }
+.hotspot-practice > span { left: 57%; color: #ffe29a; border-color: #b88128; background: #3d2a0b; }
+.hotspot-log { left: 2.8%; top: 84%; width: 22%; height: 16%; --hotspot-shape: polygon(0 10%, 69% 0, 100% 67%, 88% 100%, 12% 94%); }
 .hotspot-achievements { left: 69.5%; top: 81.5%; width: 18.5%; height: 16.8%; --hotspot-shape: polygon(10% 13%, 78% 0, 100% 36%, 91% 78%, 77% 100%, 7% 81%, 0 42%); }
 .home-newspaper-callsign { position: absolute; z-index: 5; left: 72.5%; top: 84.1%; width: 12%; overflow: hidden; color: #162431; font-size: clamp(11px, 1.5vw, 23px); letter-spacing: .12em; text-align: center; text-overflow: ellipsis; white-space: nowrap; transform: rotate(7deg); transform-origin: center; text-shadow: 1px 1px 0 rgba(255, 243, 206, .65); }
 .home-location-label { position: absolute; z-index: 5; left: 31%; top: 50%; display: flex; align-items: center; gap: 7px; padding: 6px 9px; border: 2px solid rgba(82, 156, 159, .68); color: #c7e5dc; background: rgba(4, 17, 22, .82); font-size: 9px; }

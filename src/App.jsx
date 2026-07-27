@@ -55,7 +55,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.17.0";
+const BUILD_VERSION = "0.18.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -802,6 +802,7 @@ export function App() {
   const [automaticKeyWpm, setAutomaticKeyWpm] = useState(DEFAULT_AUTOMATIC_KEY_WPM);
   const [qsoGuidance, setQsoGuidance] = useState("full");
   const [screen, setScreen] = useState("start");
+  const [practiceReturnScreen, setPracticeReturnScreen] = useState("start");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [achievementQueue, setAchievementQueue] = useState([]);
@@ -908,10 +909,19 @@ export function App() {
     }
   }
 
+  function enterPractice(origin) {
+    setPracticeReturnScreen(origin === "home" ? "home" : "start");
+    setScreen("practice");
+  }
+
+  function leavePractice() {
+    setScreen(practiceReturnScreen === "home" && activeSave ? "home" : "start");
+  }
+
   let currentScreen;
-  if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => setScreen("practice")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
+  if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => enterPractice("start")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onEnterStation={() => setScreen("station")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") {
     const persistentStats = practiceStatsByMode(activeSave?.practiceRecords);
     if (activeSave?.practiceRecords) {
@@ -928,7 +938,7 @@ export function App() {
       onRecordAttempt={recordActivePracticeAttempt}
       onSessionComplete={() => {}}
       onSettings={() => setSettingsOpen(true)}
-      onBack={() => setScreen("start")}
+      onBack={leavePractice}
     />;
   }
   else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;

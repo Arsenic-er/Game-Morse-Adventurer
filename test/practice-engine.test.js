@@ -1,11 +1,57 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  CHARACTER_POOL, PRACTICE_MODES, completePracticeSession, createPracticeBag, createPracticeSession,
+  CHARACTER_POOL, PRACTICE_DIFFICULTIES, PRACTICE_MODES, completePracticeSession, createPracticeBag, createPracticeSession,
   currentPracticeQuestion, emptyPracticeStats, evaluateReception, evaluateSending, normalizePracticeSession,
-  normalizePracticeStats, practicePoolFor, practiceTargetFor, settlePracticeQuestion, summarizePracticeSession,
+  normalizePracticeStats, practiceDifficultyProfile, practiceLessonCount, practicePoolFor, practiceReceiveWpm,
+  practiceTargetFor, settlePracticeQuestion, summarizePracticeSession,
   updatePracticeStats,
 } from "../src/practice/practiceEngine.js";
+
+test("difficulty profiles define stable speed and promotion gates", () => {
+  assert.deepEqual(
+    Object.values(PRACTICE_DIFFICULTIES).map((difficulty) => practiceDifficultyProfile(difficulty).requiredAttempts),
+    [5, 8, 10],
+  );
+  assert.equal(practiceReceiveWpm(PRACTICE_DIFFICULTIES.GUIDED, PRACTICE_MODES.CHARACTER_RX), 10);
+  assert.equal(practiceReceiveWpm(PRACTICE_DIFFICULTIES.CHALLENGE, PRACTICE_MODES.CALLSIGN_RX), 20);
+});
+
+test("lesson pools expand cumulatively without leaking locked targets", () => {
+  assert.deepEqual(practicePoolFor(PRACTICE_MODES.CHARACTER_RX, { lesson: 1 }), ["A", "N", "T", "E"]);
+  assert.deepEqual(practicePoolFor(PRACTICE_MODES.CHARACTER_RX, { lesson: 2 }), ["A", "N", "T", "E", "I", "M", "S", "O"]);
+  assert.equal(practicePoolFor(PRACTICE_MODES.CALLSIGN_RX, { lesson: 1 }).length, 2);
+  assert.equal(practicePoolFor(PRACTICE_MODES.CALLSIGN_RX, { lesson: 99 }).length, 8);
+  assert.equal(practiceLessonCount(PRACTICE_MODES.CALLSIGN_RX), 4);
+  assert.equal(practicePoolFor(PRACTICE_MODES.PADDLE_TX, { lesson: 4 }).includes("SIM3RA"), false);
+  assert.equal(practicePoolFor(PRACTICE_MODES.PADDLE_TX, { lesson: 5 }).includes("SIM3RA"), true);
+});
+
+test("guided sessions stay inside the selected lesson and complete at its gate", () => {
+  const profile = practiceDifficultyProfile(PRACTICE_DIFFICULTIES.GUIDED);
+  let session = createPracticeSession({
+    mode: PRACTICE_MODES.CHARACTER_RX,
+    difficulty: PRACTICE_DIFFICULTIES.GUIDED,
+    lesson: 1,
+    questionLimit: profile.requiredAttempts,
+    seed: "lesson-one",
+    startedAt: "2026-01-01T00:00:00.000Z",
+  });
+  for (let index = 0; index < profile.requiredAttempts; index += 1) {
+    const question = currentPracticeQuestion(session);
+    assert.equal(["A", "N", "T", "E"].includes(question.target), true);
+    session = settlePracticeQuestion(session, question.id, {
+      correct: index !== 0,
+      accuracy: index === 0 ? 0 : 100,
+      rhythm: null,
+      missed: index === 0 ? [question.target] : [],
+    }, `2026-01-01T00:00:0${index + 1}.000Z`);
+  }
+  const summary = summarizePracticeSession(session);
+  assert.equal(summary.lessonPassed, true);
+  assert.equal(summary.nextLessonUnlocked, true);
+  assert.equal(summary.nextLesson, 2);
+});
 
 test("legacy practice target API stays deterministic and fictional", () => {
   assert.equal(practiceTargetFor(PRACTICE_MODES.CHARACTER_RX, 0), "A");
@@ -157,8 +203,17 @@ test("question limits complete sessions and summaries are serializable", () => {
   assert.equal(currentPracticeQuestion(session), null);
   const summary = summarizePracticeSession(session);
   assert.deepEqual(summary, {
-    schemaVersion: 1,
+    schemaVersion: 2,
     mode: PRACTICE_MODES.PADDLE_TX,
+    difficulty: PRACTICE_DIFFICULTIES.GUIDED,
+    lesson: null,
+    lessonCount: 5,
+    requiredAttempts: 5,
+    requiredAccuracy: 80,
+    lessonPassed: false,
+    nextLesson: null,
+    nextLessonUnlocked: false,
+    curriculumCompleted: false,
     questionCount: 2,
     correctCount: 1,
     averageAccuracy: 80,
@@ -179,7 +234,7 @@ test("legacy stats and partial sessions normalize with migration-safe defaults",
   assert.deepEqual(stats.weaknesses, { Q: 2 });
 
   const session = normalizePracticeSession({ mode: PRACTICE_MODES.CHARACTER_RX, questionIndex: 2, stats });
-  assert.equal(session.schemaVersion, 1);
+  assert.equal(session.schemaVersion, 2);
   assert.equal(session.questionIndex, 2);
   assert.ok(session.queue.length > 0);
   assert.doesNotThrow(() => JSON.stringify(session));

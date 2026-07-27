@@ -358,8 +358,10 @@ test("only three normalized save slots are persisted", () => {
 test("new and migrated saves receive bounded per-mode practice records", () => {
   const storage = storageStub();
   const fresh = createSave({ callsign: "JA1TRY", locationId: "japan-tokyo-kanto" });
-  assert.equal(fresh.practiceRecordsVersion, 1);
+  assert.equal(fresh.practiceRecordsVersion, 2);
   assert.equal(fresh.practiceRecords[PRACTICE_MODES.CHARACTER_RX].attempts, 0);
+  assert.equal(fresh.practiceRecords[PRACTICE_MODES.CHARACTER_RX].difficulty, "guided");
+  assert.equal(fresh.practiceRecords[PRACTICE_MODES.CHARACTER_RX].lesson, 1);
 
   storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{
     id: "legacy-practice",
@@ -367,8 +369,10 @@ test("new and migrated saves receive bounded per-mode practice records", () => {
     locationId: "china-beijing-outskirts",
   }]));
   const [migrated] = loadSaves(storage);
-  assert.equal(migrated.practiceRecordsVersion, 1);
+  assert.equal(migrated.practiceRecordsVersion, 2);
   assert.equal(migrated.practiceRecords[PRACTICE_MODES.PADDLE_TX].attempts, 0);
+  assert.equal(migrated.practiceRecords[PRACTICE_MODES.PADDLE_TX].difficulty, "guided");
+  assert.equal(migrated.practiceRecords[PRACTICE_MODES.PADDLE_TX].lesson, 1);
 });
 
 test("practice records persist with their save without leaking session attempt ids", () => {

@@ -262,7 +262,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.17.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.18.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   async function readManualState(label) {
     const state = await window.webContents.executeJavaScript(`(() => {
@@ -385,14 +385,20 @@ async function runQaCapture(window) {
 
   await click(window, ".start-actions button:nth-child(2)");
   await waitFor(window, ".practice-screen");
-  await waitFor(window, '.practice-screen[data-practice-recording="session"]');
+  await waitFor(window, '.practice-screen[data-practice-recording="session"][data-practice-difficulty="guided"][data-practice-lesson="1"][data-practice-lessons-completed="0"]');
   const sessionOnlyPracticeState = await window.webContents.executeJavaScript(`(() => ({
     recording: document.querySelector(".practice-screen")?.dataset.practiceRecording ?? null,
+    difficulty: document.querySelector(".practice-screen")?.dataset.practiceDifficulty ?? null,
+    lesson: Number(document.querySelector(".practice-screen")?.dataset.practiceLesson),
+    completedLessons: Number(document.querySelector(".practice-screen")?.dataset.practiceLessonsCompleted),
     statusClass: document.querySelector(".practice-recording-status")?.className ?? "",
     statusText: document.querySelector(".practice-recording-status")?.textContent.trim() ?? "",
     saveCount: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1") || "[]").length,
   }))()`, true);
   if (sessionOnlyPracticeState.recording !== "session"
+    || sessionOnlyPracticeState.difficulty !== "guided"
+    || sessionOnlyPracticeState.lesson !== 1
+    || sessionOnlyPracticeState.completedLessons !== 0
     || !sessionOnlyPracticeState.statusClass.includes("session-only")
     || !sessionOnlyPracticeState.statusText
     || sessionOnlyPracticeState.saveCount !== 0) {
@@ -597,20 +603,25 @@ async function runQaCapture(window) {
   await capture(window, outputDir, shot("home-log-detail-second"));
   await click(window, ".qso-log-return");
 
-  // Active-save practice persists a single settlement per question and keeps
-  // its anti-repeat/weakness record across a full application reload.
-  await click(window, ".home-topbar button:first-of-type");
-  await waitFor(window, ".save-select-screen");
-  await click(window, ".save-back-icon");
-  await waitFor(window, ".start-screen");
-  await click(window, ".start-actions button:nth-child(2)");
-  await waitFor(window, '.practice-screen[data-practice-recording="save"]');
+  // The Home book stack is the save-aware curriculum entrance. Its hover tint,
+  // route, return route, promotion gate and persistence are all smoke-tested.
+  await clearHover(window);
+  await assertHoverTint(window, '[data-testid="home-practice-hotspot"]');
+  await capture(window, outputDir, shot("home-hover-practice"));
+  await click(window, '[data-testid="home-practice-hotspot"]');
+  await waitFor(window, '.practice-screen[data-practice-recording="save"][data-practice-difficulty="guided"][data-practice-lesson="1"][data-practice-lessons-completed="0"]');
   const persistentPracticeIdentity = await window.webContents.executeJavaScript(`(() => ({
     recording: document.querySelector(".practice-screen")?.dataset.practiceRecording ?? null,
+    difficulty: document.querySelector(".practice-screen")?.dataset.practiceDifficulty ?? null,
+    lesson: Number(document.querySelector(".practice-screen")?.dataset.practiceLesson),
+    completedLessons: Number(document.querySelector(".practice-screen")?.dataset.practiceLessonsCompleted),
     statusText: document.querySelector(".practice-recording-status")?.textContent.trim() ?? "",
     callsign: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
   }))()`, true);
   if (persistentPracticeIdentity.recording !== "save"
+    || persistentPracticeIdentity.difficulty !== "guided"
+    || persistentPracticeIdentity.lesson !== 1
+    || persistentPracticeIdentity.completedLessons !== 0
     || !persistentPracticeIdentity.statusText.includes(persistentPracticeIdentity.callsign)) {
     throw new Error(`Active-save practice did not identify its record destination: ${JSON.stringify(persistentPracticeIdentity)}`);
   }
@@ -669,14 +680,12 @@ async function runQaCapture(window) {
     }
   }
 
-  for (let index = 1; index < practiceTargets.length; index += 1) {
-    const previousFour = practiceTargets.slice(Math.max(0, index - 4), index);
-    if (previousFour.includes(practiceTargets[index])) {
-      throw new Error(`Practice repeated a target inside the recent-four window: ${JSON.stringify(practiceTargets)}`);
-    }
+  const guidedLessonOneTargets = new Set(["A", "N", "T", "E"]);
+  if (practiceTargets.some((target) => !guidedLessonOneTargets.has(target))
+    || new Set(practiceTargets.slice(0, 4)).size !== 4) {
+    throw new Error(`Guided lesson one leaked a locked target or duplicated its first bag: ${JSON.stringify(practiceTargets)}`);
   }
-  await click(window, '[data-action="practice-end"]');
-  await waitFor(window, '[data-testid="practice-summary-modal"][data-summary-attempts="5"]');
+  await waitFor(window, '[data-testid="practice-summary-modal"][data-summary-attempts="5"][data-summary-lesson="1"][data-summary-lesson-passed="true"][data-summary-next-lesson="2"]');
   const completedPracticeState = await window.webContents.executeJavaScript(`(() => {
     const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
     const record = save.practiceRecords?.["character-rx"];
@@ -684,6 +693,10 @@ async function runQaCapture(window) {
     return {
       attempts: Number(record?.attempts),
       correct: Number(record?.correct),
+      difficulty: record?.difficulty ?? null,
+      lesson: Number(record?.lesson),
+      completedLessons: Number(record?.completedLessons),
+      lessonAttempts: Number(record?.lessonAttempts),
       weaknesses: record?.weaknesses ?? {},
       recentTargets: record?.recentTargets ?? [],
       summaryAttempts: Number(modal?.dataset.summaryAttempts),
@@ -692,6 +705,9 @@ async function runQaCapture(window) {
   })()`, true);
   const expectedRecentTargets = practiceTargets.slice(-4);
   if (completedPracticeState.attempts !== 5 || completedPracticeState.correct !== 4
+    || completedPracticeState.difficulty !== "guided"
+    || completedPracticeState.lesson !== 2 || completedPracticeState.completedLessons !== 1
+    || completedPracticeState.lessonAttempts !== 0
     || completedPracticeState.summaryAttempts !== 5 || completedPracticeState.summaryCorrect !== 4
     || Number(completedPracticeState.weaknesses[wrongPracticeTarget]) < 1
     || JSON.stringify(completedPracticeState.recentTargets) !== JSON.stringify(expectedRecentTargets)
@@ -700,6 +716,13 @@ async function runQaCapture(window) {
   }
   await capture(window, outputDir, shot("practice-session-summary"));
 
+  await click(window, '[data-action="practice-summary-continue"]');
+  await waitFor(window, '.practice-screen[data-practice-result="waiting"][data-practice-difficulty="guided"][data-practice-lesson="2"][data-practice-lessons-completed="1"]');
+  await capture(window, outputDir, shot("practice-lesson-two"));
+  await click(window, '[data-action="practice-back"]');
+  await waitFor(window, ".home-screen");
+  await capture(window, outputDir, shot("home-after-practice"));
+
   await window.reload();
   await waitFor(window, ".start-screen");
   await delay(250);
@@ -707,14 +730,19 @@ async function runQaCapture(window) {
     const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
     return {
       attempts: Number(save.practiceRecords?.["character-rx"]?.attempts),
+      difficulty: save.practiceRecords?.["character-rx"]?.difficulty ?? null,
+      lesson: Number(save.practiceRecords?.["character-rx"]?.lesson),
+      completedLessons: Number(save.practiceRecords?.["character-rx"]?.completedLessons),
       notificationCount: document.querySelectorAll('[data-testid="achievement-notification"]').length,
     };
   })()`, true);
-  if (practiceReloadState.attempts !== 5 || practiceReloadState.notificationCount !== 0) {
+  if (practiceReloadState.attempts !== 5 || practiceReloadState.difficulty !== "guided"
+    || practiceReloadState.lesson !== 2 || practiceReloadState.completedLessons !== 1
+    || practiceReloadState.notificationCount !== 0) {
     throw new Error(`Practice lifetime record or reload notification policy failed: ${JSON.stringify(practiceReloadState)}`);
   }
   await click(window, ".start-actions button:nth-child(2)");
-  await waitFor(window, '.practice-screen[data-practice-recording="save"][data-practice-lifetime-attempts="5"]');
+  await waitFor(window, '.practice-screen[data-practice-recording="save"][data-practice-lifetime-attempts="5"][data-practice-difficulty="guided"][data-practice-lesson="2"][data-practice-lessons-completed="1"]');
   await capture(window, outputDir, shot("practice-lifetime-reloaded"));
   await click(window, '[data-action="practice-back"]');
   await waitFor(window, ".start-screen");
@@ -1048,11 +1076,16 @@ async function runQaCapture(window) {
     return {
       totalQsos: Number(save.qsoRecords?.total),
       practiceAttempts: Number(save.practiceRecords?.["character-rx"]?.attempts),
+      practiceDifficulty: save.practiceRecords?.["character-rx"]?.difficulty ?? null,
+      practiceLesson: Number(save.practiceRecords?.["character-rx"]?.lesson),
+      practiceLessonsCompleted: Number(save.practiceRecords?.["character-rx"]?.completedLessons),
       notificationCount: document.querySelectorAll('[data-testid="achievement-notification"]').length,
       liveRegionCount: document.querySelectorAll('.achievement-notification-region[role="status"][aria-live="polite"]').length,
     };
   })()`, true);
   if (finalReloadState.totalQsos !== 5 || finalReloadState.practiceAttempts !== 5
+    || finalReloadState.practiceDifficulty !== "guided"
+    || finalReloadState.practiceLesson !== 2 || finalReloadState.practiceLessonsCompleted !== 1
     || finalReloadState.notificationCount !== 0 || finalReloadState.liveRegionCount !== 1) {
     throw new Error(`Reload repeated an unlock or lost durable records: ${JSON.stringify(finalReloadState)}`);
   }
@@ -1074,7 +1107,7 @@ async function runQaCapture(window) {
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "practice-session-only", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "practice-session-summary", "practice-lifetime-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
+      "home-log-detail-second", "home-hover-practice", "practice-session-summary", "practice-lesson-two", "home-after-practice", "practice-lifetime-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
     ].map(shot), ...manualCaptures],
   };
 }

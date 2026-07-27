@@ -5,10 +5,11 @@ import {
 } from "@phosphor-icons/react";
 import { encodeTextToEvents } from "../cw/morse.js";
 import { useCwCore } from "../cw/useCwCore.js";
+import { emptyPracticeRecords, practiceLessonPlan, practiceStatsByMode, recordPracticeAttempt } from "./practiceRecords.js";
 import {
-  PRACTICE_MODES, completePracticeSession, createPracticeSession, currentPracticeQuestion,
+  PRACTICE_DIFFICULTIES, PRACTICE_MODES, completePracticeSession, createPracticeSession, currentPracticeQuestion,
   evaluateReception, evaluateSending, isReceptionMode, isSendingMode, normalizePracticeStats,
-  settlePracticeQuestion, summarizePracticeSession,
+  practiceDifficultyProfile, practiceLessonCount, practiceReceiveWpm, settlePracticeQuestion, summarizePracticeSession,
 } from "./practiceEngine.js";
 
 const ASSETS = {
@@ -28,6 +29,8 @@ const TEXT = {
     manualHint: "按住空格键发报", paddleHint: "Z 点桨 / X 划桨", sim: "所有呼号均为程序生成的 SIM 虚构台站",
     session: "本次训练", lifetime: "累计记录", recordingTo: "成绩记录至", sessionOnly: "仅本次训练 · 选择存档后可保存成绩",
     endSession: "结束训练", summaryTitle: "训练总结", summarySubtitle: "本次练习已经结算", continueTraining: "继续训练", leavePractice: "返回开始界面",
+    difficulty: "难度", guided: "引导", standard: "标准", challenge: "挑战", lesson: "课程", lessonProgress: "课程进度",
+    pass: "课程通过", retry: "尚未达标，请重试", unlocked: "已解锁下一课", completed: "课程全部完成", switchLocked: "答题后将在下一轮切换",
   },
   "zh-TW": {
     title: "CW 練習臺", back: "返回開始介面", settings: "設定", independent: "獨立訓練環境 · 不受傳播影響",
@@ -39,6 +42,8 @@ const TEXT = {
     manualHint: "按住空白鍵發報", paddleHint: "Z 點槳 / X 劃槳", sim: "所有呼號均為程式生成的 SIM 虛構臺站",
     session: "本次訓練", lifetime: "累計記錄", recordingTo: "成績儲存至", sessionOnly: "僅限本次訓練 · 選擇存檔後可儲存成績",
     endSession: "結束訓練", summaryTitle: "訓練總結", summarySubtitle: "本次練習已完成結算", continueTraining: "繼續訓練", leavePractice: "返回開始介面",
+    difficulty: "難度", guided: "引導", standard: "標準", challenge: "挑戰", lesson: "課程", lessonProgress: "課程進度",
+    pass: "課程通過", retry: "尚未達標，請重試", unlocked: "已解鎖下一課", completed: "課程全部完成", switchLocked: "作答後將於下一輪切換",
   },
   ja: {
     title: "CW 練習台", back: "開始画面へ戻る", settings: "設定", independent: "独立した練習環境・伝搬の影響なし",
@@ -50,6 +55,8 @@ const TEXT = {
     manualHint: "スペースを押して送信", paddleHint: "Z 短点 / X 長点", sim: "すべてのコールはプログラム生成の架空 SIM 局です",
     session: "今回の練習", lifetime: "通算記録", recordingTo: "記録先", sessionOnly: "このセッションのみ・セーブを選ぶと記録できます",
     endSession: "練習を終了", summaryTitle: "練習結果", summarySubtitle: "今回の練習を集計しました", continueTraining: "練習を続ける", leavePractice: "開始画面へ戻る",
+    difficulty: "難易度", guided: "ガイド", standard: "標準", challenge: "挑戦", lesson: "レッスン", lessonProgress: "進捗",
+    pass: "レッスン合格", retry: "基準未達・再挑戦", unlocked: "次のレッスンを解放", completed: "全課程を完了", switchLocked: "解答後は次回から変更できます",
   },
   en: {
     title: "CW Practice", back: "Back to title", settings: "Settings", independent: "Independent training · propagation disabled",
@@ -61,6 +68,8 @@ const TEXT = {
     manualHint: "Hold Space to key", paddleHint: "Z dot / X dash", sim: "All callsigns are program-generated fictional SIM stations",
     session: "This session", lifetime: "Lifetime record", recordingTo: "Recording to", sessionOnly: "Session only · select a save to keep results",
     endSession: "End session", summaryTitle: "Session summary", summarySubtitle: "This practice session has been scored", continueTraining: "Keep training", leavePractice: "Back to title",
+    difficulty: "Difficulty", guided: "Guided", standard: "Standard", challenge: "Challenge", lesson: "Lesson", lessonProgress: "Lesson progress",
+    pass: "Lesson passed", retry: "Target missed — retry", unlocked: "Next lesson unlocked", completed: "Curriculum complete", switchLocked: "Switch next round after answering",
   },
 };
 
@@ -79,7 +88,15 @@ function recordForMode(persistentStats, mode) {
   const source = persistentStats?.modes?.[mode] ?? persistentStats?.[mode] ?? null;
   const stats = normalizePracticeStats(source?.stats ?? source);
   const recentTargets = Array.isArray(source?.recentTargets) ? source.recentTargets : [];
-  return { stats, recentTargets };
+  return {
+    stats,
+    recentTargets,
+    difficulty: source?.difficulty ?? PRACTICE_DIFFICULTIES.GUIDED,
+    lesson: Number(source?.lesson) || 1,
+    lessonAttempts: Number(source?.lessonAttempts) || 0,
+    lessonCorrect: Number(source?.lessonCorrect) || 0,
+    completedLessons: Number(source?.completedLessons) || 0,
+  };
 }
 
 function weaknessDelta(current = {}, baseline = {}) {
@@ -88,11 +105,30 @@ function weaknessDelta(current = {}, baseline = {}) {
     .filter(([, count]) => count > 0));
 }
 
-function sessionSummary(session, baselineWeaknesses) {
+function sessionSummary(session, baselineWeaknesses, baselineProgress = {}) {
   const summary = summarizePracticeSession(session);
   const weaknesses = weaknessDelta(summary.weaknesses, baselineWeaknesses);
+  const baselineCompletedLessons = Number(baselineProgress.completedLessons) || 0;
+  const baselineAttempts = Number(baselineProgress.lessonAttempts) || 0;
+  const baselineCorrect = Number(baselineProgress.lessonCorrect) || 0;
+  const progressionEligible = baselineProgress.eligible === true;
+  const lessonAttempts = baselineAttempts + summary.questionCount;
+  const lessonCorrect = baselineCorrect + summary.correctCount;
+  const lessonAccuracy = lessonAttempts ? Math.round((lessonCorrect / lessonAttempts) * 100) : 0;
+  const lessonPassed = lessonAttempts >= summary.requiredAttempts
+    && lessonAccuracy >= summary.requiredAccuracy;
+  const nextLesson = summary.lesson === null
+    ? null
+    : Math.min(summary.lessonCount, summary.lesson + (lessonPassed ? 1 : 0));
   return {
     ...summary,
+    lessonAttempts,
+    lessonCorrect,
+    lessonAccuracy,
+    lessonPassed,
+    nextLesson,
+    nextLessonUnlocked: lessonPassed && progressionEligible && summary.lesson < summary.lessonCount && summary.lesson > baselineCompletedLessons,
+    curriculumCompleted: lessonPassed && progressionEligible && summary.lesson === summary.lessonCount && summary.lesson > baselineCompletedLessons,
     weaknesses,
     weakCharacters: Object.entries(weaknesses)
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
@@ -104,15 +140,27 @@ function createSessionRun(mode, persistentStats, overrides = {}) {
   const record = recordForMode(persistentStats, mode);
   const weaknesses = overrides.weaknesses ?? record.stats.weaknesses;
   const recentTargets = overrides.recentTargets ?? record.recentTargets;
+  const difficulty = overrides.difficulty ?? record.difficulty;
+  const lesson = overrides.lesson ?? record.lesson;
+  const plan = practiceLessonPlan(record, mode, difficulty, lesson);
   const startedAt = new Date().toISOString();
   return {
     baselineWeaknesses: { ...weaknesses },
+    baselineProgress: {
+      eligible: plan.eligible,
+      completedLessons: plan.completedLessons,
+      lessonAttempts: plan.baselineAttempts,
+      lessonCorrect: plan.baselineCorrect,
+    },
     session: createPracticeSession({
       mode,
+      difficulty,
+      lesson,
       startedAt,
       seed: `${mode}:${startedAt}:${Math.random().toString(36).slice(2, 10)}`,
       weaknesses,
       recentTargets,
+      questionLimit: plan.questionLimit,
     }),
   };
 }
@@ -129,7 +177,11 @@ export function PracticeScreen({
   inputBlocked = false,
 }) {
   const t = TEXT[language] ?? TEXT.en;
-  const [run, setRun] = useState(() => createSessionRun(PRACTICE_MODES.CHARACTER_RX, persistentStats));
+  const [sessionOnlyRecords, setSessionOnlyRecords] = useState(() => emptyPracticeRecords());
+  const effectivePersistentStats = recordingCallsign
+    ? persistentStats
+    : practiceStatsByMode(sessionOnlyRecords);
+  const [run, setRun] = useState(() => createSessionRun(PRACTICE_MODES.CHARACTER_RX, effectivePersistentStats));
   const [answer, setAnswer] = useState("");
   const [visualAid, setVisualAid] = useState(false);
   const [result, setResult] = useState(null);
@@ -137,12 +189,20 @@ export function PracticeScreen({
   const notifiedQuestionIdsRef = useRef(new Set());
   const session = run.session;
   const mode = session.mode;
+  const difficulty = session.difficulty;
+  const lesson = session.lesson ?? 1;
+  const lessonCount = practiceLessonCount(mode);
+  const difficultyProfile = practiceDifficultyProfile(difficulty);
   const question = useMemo(() => currentPracticeQuestion(session), [session]);
   const displayedQuestion = result?.question ?? question;
   const target = displayedQuestion?.target ?? "";
   const sessionStats = session.stats;
-  const lifetimeRecord = useMemo(() => recordForMode(persistentStats, mode), [mode, persistentStats]);
+  const lifetimeRecord = useMemo(
+    () => recordForMode(effectivePersistentStats, mode),
+    [effectivePersistentStats, mode],
+  );
   const lifetimeStats = lifetimeRecord.stats;
+  const maxUnlockedLesson = Math.min(lessonCount, lifetimeRecord.completedLessons + 1);
   const sessionWeaknesses = weaknessDelta(sessionStats.weaknesses, run.baselineWeaknesses);
   const sessionWeakEntries = Object.entries(sessionWeaknesses).sort((left, right) => right[1] - left[1]).slice(0, 5);
   const lifetimeWeakEntries = Object.entries(lifetimeStats.weaknesses).sort((left, right) => right[1] - left[1]).slice(0, 5);
@@ -150,9 +210,10 @@ export function PracticeScreen({
   const receiving = isReceptionMode(mode);
   const sending = isSendingMode(mode);
   const manual = mode === PRACTICE_MODES.MANUAL_TX;
-  const receiveWpm = mode === PRACTICE_MODES.CHARACTER_RX ? 14 : 16;
+  const receiveWpm = practiceReceiveWpm(difficulty, mode);
   const morse = useMemo(() => encodeTextToEvents(target, { wpm: receiveWpm }).morse, [receiveWpm, target]);
   const resultState = result ? (result.correct ? "correct" : "wrong") : "waiting";
+  const switchLocked = sessionStats.attempts > 0 || Boolean(result) || Boolean(answer.trim()) || cw.analysis.pulseCount > 0;
 
   useEffect(() => {
     cw.clearInput();
@@ -200,7 +261,7 @@ export function PracticeScreen({
       mode: completed.mode,
       reason,
       session: completed,
-      summary: sessionSummary(completed, run.baselineWeaknesses),
+      summary: sessionSummary(completed, run.baselineWeaknesses, run.baselineProgress),
       recentTargets: completed.recentTargets,
     };
   }
@@ -215,7 +276,27 @@ export function PracticeScreen({
     if (nextMode === mode) return;
     cw.stopAll();
     notifyCompletion(session, "mode-change");
-    setRun(createSessionRun(nextMode, persistentStats));
+    setRun(createSessionRun(nextMode, effectivePersistentStats));
+    notifiedQuestionIdsRef.current = new Set();
+    setResult(null);
+    setAnswer("");
+    setSummaryState(null);
+  }
+
+  function changeDifficulty(nextDifficulty) {
+    if (nextDifficulty === difficulty || switchLocked) return;
+    cw.stopAll();
+    setRun(createSessionRun(mode, effectivePersistentStats, { difficulty: nextDifficulty, lesson }));
+    notifiedQuestionIdsRef.current = new Set();
+    setResult(null);
+    setAnswer("");
+    setSummaryState(null);
+  }
+
+  function changeLesson(nextLesson) {
+    if (nextLesson === lesson || nextLesson > maxUnlockedLesson || switchLocked) return;
+    cw.stopAll();
+    setRun(createSessionRun(mode, effectivePersistentStats, { difficulty, lesson: nextLesson }));
     notifiedQuestionIdsRef.current = new Set();
     setResult(null);
     setAnswer("");
@@ -240,7 +321,28 @@ export function PracticeScreen({
       questionId: question.id,
       target: question.target,
       recentTargets: nextSession.recentTargets,
+      difficulty,
+      lesson,
     });
+    if (!recordingCallsign) {
+      setSessionOnlyRecords((current) => recordPracticeAttempt(current, mode, {
+        ...nextResult,
+        target: question.target,
+        difficulty,
+        lesson,
+      }));
+    }
+    if (nextSession.completedAt) {
+      const payload = {
+        mode,
+        reason: "lesson-complete",
+        session: nextSession,
+        summary: sessionSummary(nextSession, run.baselineWeaknesses, run.baselineProgress),
+        recentTargets: nextSession.recentTargets,
+      };
+      setSummaryState(payload);
+      onSessionComplete?.(payload.summary);
+    }
   }
 
   function nextPrompt() {
@@ -255,7 +357,7 @@ export function PracticeScreen({
       mode,
       reason: "ended",
       session: completed,
-      summary: sessionSummary(completed, run.baselineWeaknesses),
+      summary: sessionSummary(completed, run.baselineWeaknesses, run.baselineProgress),
       recentTargets: completed.recentTargets,
     };
     setRun((current) => ({ ...current, session: completed }));
@@ -265,9 +367,14 @@ export function PracticeScreen({
 
   function continueTraining() {
     const latestWeaknesses = { ...session.stats.weaknesses };
-    setRun(createSessionRun(mode, persistentStats, {
+    const nextLesson = summaryState?.summary.nextLessonUnlocked
+      ? summaryState.summary.nextLesson
+      : lesson;
+    setRun(createSessionRun(mode, effectivePersistentStats, {
       weaknesses: latestWeaknesses,
       recentTargets: session.recentTargets,
+      difficulty,
+      lesson: nextLesson,
     }));
     notifiedQuestionIdsRef.current = new Set();
     setResult(null);
@@ -306,11 +413,21 @@ export function PracticeScreen({
     [PRACTICE_MODES.MANUAL_TX]: t.manualTx,
     [PRACTICE_MODES.PADDLE_TX]: t.paddleTx,
   };
+  const difficultyLabels = {
+    [PRACTICE_DIFFICULTIES.GUIDED]: t.guided,
+    [PRACTICE_DIFFICULTIES.STANDARD]: t.standard,
+    [PRACTICE_DIFFICULTIES.CHALLENGE]: t.challenge,
+  };
 
   return (
     <main
       className="screen practice-screen"
       data-practice-mode={mode}
+      data-practice-difficulty={difficulty}
+      data-practice-lesson={lesson}
+      data-practice-lessons-completed={lifetimeRecord.completedLessons}
+      data-practice-lesson-attempts={lifetimeRecord.lessonAttempts}
+      data-practice-lesson-required={difficultyProfile.requiredAttempts}
       data-practice-question-id={displayedQuestion?.id ?? ""}
       data-practice-target={window.cwgameSystem?.qaCapture ? target : undefined}
       data-practice-attempts={sessionStats.attempts}
@@ -336,17 +453,46 @@ export function PracticeScreen({
       <div className="practice-layout">
         <aside className="practice-sidebar metal-panel">
           <div className="panel-title"><span>MODE</span><b>M2 / TRAIN</b></div>
-          <nav aria-label="Practice modes">
+          <nav className="practice-mode-list" aria-label="Practice modes">
             {Object.values(PRACTICE_MODES).map((id) => {
               const ModeIcon = MODE_ICONS[id];
               return <button key={id} data-practice-mode-option={id} className={mode === id ? "selected" : ""} onClick={() => changeMode(id)}><ModeIcon size={22} weight="fill" /><span>{modeLabels[id]}</span></button>;
             })}
           </nav>
+          <section className="practice-curriculum" aria-label={t.lessonProgress}>
+            <header><span>{t.difficulty}</span><b>{difficultyLabels[difficulty]}</b></header>
+            <div className="practice-difficulty-options">
+              {Object.values(PRACTICE_DIFFICULTIES).map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  data-practice-difficulty-option={id}
+                  className={difficulty === id ? "selected" : ""}
+                  disabled={switchLocked}
+                  onClick={() => changeDifficulty(id)}
+                >{difficultyLabels[id]}</button>
+              ))}
+            </div>
+            <header><span>{t.lesson}</span><b>{lesson}/{lessonCount}</b></header>
+            <div className="practice-lesson-options">
+              {Array.from({ length: lessonCount }, (_, index) => index + 1).map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  data-practice-lesson-option={id}
+                  className={lesson === id ? "selected" : lifetimeRecord.completedLessons >= id ? "completed" : ""}
+                  disabled={switchLocked || id > maxUnlockedLesson}
+                  onClick={() => changeLesson(id)}
+                >{id}</button>
+              ))}
+            </div>
+            <small>{switchLocked ? t.switchLocked : `${difficultyProfile.requiredAttempts} / ${difficultyProfile.requiredAccuracy}%`}</small>
+          </section>
           <div className="practice-policy"><Radio size={18} /><span>{t.sim}</span></div>
         </aside>
 
         <section className="practice-workspace metal-panel">
-          <header><span className="panel-kicker">{receiving ? "RX / COPY" : "TX / KEYING"}</span><h1>{modeLabels[mode]}</h1></header>
+          <header><span className="panel-kicker">{receiving ? "RX / COPY" : "TX / KEYING"} · {difficultyLabels[difficulty]} · {t.lesson} {lesson}</span><h1>{modeLabels[mode]}</h1></header>
           <div className="practice-prompt">
             <span>{t.target}</span>
             <strong>{receiving && !visualAid && !result ? "?".repeat(Math.min(target.length, 6)) : target}</strong>
@@ -408,6 +554,9 @@ export function PracticeScreen({
             data-summary-mode={summaryState.mode}
             data-summary-attempts={summaryState.summary.questionCount}
             data-summary-correct={summaryState.summary.correctCount}
+            data-summary-lesson={summaryState.summary.lesson}
+            data-summary-lesson-passed={summaryState.summary.lessonPassed ? "true" : "false"}
+            data-summary-next-lesson={summaryState.summary.nextLesson ?? ""}
             role="dialog"
             aria-modal="true"
             aria-labelledby="practice-summary-title"
@@ -416,6 +565,16 @@ export function PracticeScreen({
               <div><span>SESSION COMPLETE</span><h2 id="practice-summary-title">{t.summaryTitle}</h2><p>{t.summarySubtitle}</p></div>
               <IconButton label={t.continueTraining} data-action="practice-summary-close" onClick={continueTraining}><X size={20} weight="bold" /></IconButton>
             </header>
+            <div className={`practice-summary-progress ${summaryState.summary.lessonPassed ? "passed" : "retry"}`}>
+              <strong>{summaryState.summary.lessonPassed ? t.pass : t.retry}</strong>
+              <span>
+                {summaryState.summary.curriculumCompleted
+                  ? t.completed
+                  : summaryState.summary.nextLessonUnlocked
+                    ? `${t.unlocked}: ${summaryState.summary.nextLesson}`
+                    : `${summaryState.summary.lessonCorrect}/${summaryState.summary.lessonAttempts} · ${summaryState.summary.lessonAccuracy}% / ${summaryState.summary.requiredAccuracy}%`}
+              </span>
+            </div>
             <dl className="practice-summary-metrics">
               <div><dt>{t.attempts}</dt><dd>{summaryState.summary.questionCount}</dd></div>
               <div><dt>{t.correctCount}</dt><dd>{summaryState.summary.correctCount}</dd></div>

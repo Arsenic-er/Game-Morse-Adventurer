@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  ArrowLeft, Broadcast, Check, Coins, GearSix, Laptop, MapPin, Notebook,
+  ArrowLeft, Books, Broadcast, Check, Coins, GearSix, Laptop, MapPin, Notebook,
   Package, Radio, Storefront, Trophy, Warehouse, Wrench, X,
 } from "@phosphor-icons/react";
 import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";
@@ -12,10 +12,10 @@ import { AchievementsModal } from "./AchievementsModal.jsx";
 import { StoreModal } from "./StoreModal.jsx";
 
 const TEXT = {
-  "zh-CN": { title: "管理中心", station: "进入发射台", warehouse: "仓库", store: "商店", log: "通联日志", achievements: "成就", placeholder: "功能占位", later: "该功能将在后续版本开放。", back: "返回存档", settings: "设置", local: "当地时间", close: "关闭" },
-  "zh-TW": { title: "管理中心", station: "進入發射臺", warehouse: "倉庫", store: "商店", log: "通聯日誌", achievements: "成就", placeholder: "功能預留", later: "此功能將在後續版本開放。", back: "返回存檔", settings: "設定", local: "當地時間", close: "關閉" },
-  ja: { title: "管理センター", station: "運用卓へ", warehouse: "倉庫", store: "ショップ", log: "交信ログ", achievements: "実績", placeholder: "準備中", later: "この機能は今後のバージョンで開放されます。", back: "セーブへ戻る", settings: "設定", local: "現地時刻", close: "閉じる" },
-  en: { title: "Management Center", station: "Enter Station", warehouse: "Warehouse", store: "Store", log: "QSO Log", achievements: "Achievements", placeholder: "Coming Soon", later: "This feature will open in a later version.", back: "Back to Saves", settings: "Settings", local: "Local time", close: "Close" },
+  "zh-CN": { title: "管理中心", station: "进入发射台", practice: "CW 练习与教学", warehouse: "仓库", store: "商店", log: "通联日志", achievements: "成就", placeholder: "功能占位", later: "该功能将在后续版本开放。", back: "返回存档", settings: "设置", local: "当地时间", close: "关闭" },
+  "zh-TW": { title: "管理中心", station: "進入發射臺", practice: "CW 練習與教學", warehouse: "倉庫", store: "商店", log: "通聯日誌", achievements: "成就", placeholder: "功能預留", later: "此功能將在後續版本開放。", back: "返回存檔", settings: "設定", local: "當地時間", close: "關閉" },
+  ja: { title: "管理センター", station: "運用卓へ", practice: "CW 練習・レッスン", warehouse: "倉庫", store: "ショップ", log: "交信ログ", achievements: "実績", placeholder: "準備中", later: "この機能は今後のバージョンで開放されます。", back: "セーブへ戻る", settings: "設定", local: "現地時刻", close: "閉じる" },
+  en: { title: "Management Center", station: "Enter Station", practice: "CW Practice & Lessons", warehouse: "Warehouse", store: "Store", log: "QSO Log", achievements: "Achievements", placeholder: "Coming Soon", later: "This feature will open in a later version.", back: "Back to Saves", settings: "Settings", local: "Local time", close: "Close" },
 };
 
 const WAREHOUSE_TEXT = {
@@ -452,7 +452,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
   );
 }
 
-export function HomeScreen({ language, save, onPurchase, onEquipItem, onEnterStation, onBack, onSettings }) {
+export function HomeScreen({ language, save, onPurchase, onEquipItem, onEnterStation, onEnterPractice, onBack, onSettings }) {
   const t = TEXT[language] ?? TEXT.en;
   const location = getLocation(save.locationId);
   const [panel, setPanel] = useState(null);
@@ -472,6 +472,7 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onEnterSta
       <button className="home-hotspot hotspot-warehouse" aria-label={t.warehouse} onClick={() => setPanel("warehouse")}><span><Warehouse size={22} weight="fill" />{t.warehouse}</span></button>
       <button className="home-hotspot hotspot-station" aria-label={t.station} onClick={onEnterStation}><span><Radio size={22} weight="fill" />{t.station}</span></button>
       <button className="home-hotspot hotspot-store" data-action="open-store" aria-label={t.store} onClick={() => setPanel("store")}><span><Laptop size={22} weight="fill" />{t.store}</span></button>
+      <button className="home-hotspot hotspot-practice" data-action="enter-practice" data-testid="home-practice-hotspot" aria-label={t.practice} onClick={onEnterPractice}><span><Books size={22} weight="fill" />{t.practice}</span></button>
       <button className="home-hotspot hotspot-log" aria-label={t.log} onClick={() => setPanel("log")}><span><Notebook size={22} weight="fill" />{t.log}</span></button>
       <button className="home-hotspot hotspot-achievements" aria-label={t.achievements} onClick={() => setPanel("achievements")}><span><Trophy size={22} weight="fill" />{t.achievements}</span></button>
       <span className="home-newspaper-callsign" aria-hidden="true">{save.callsign}</span>
