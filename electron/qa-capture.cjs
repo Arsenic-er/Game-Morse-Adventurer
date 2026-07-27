@@ -250,7 +250,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.15.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.16.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   async function readManualState(label) {
     const state = await window.webContents.executeJavaScript(`(() => {
@@ -731,6 +731,10 @@ async function runQaCapture(window) {
     await click(window, '[data-action="submit-reply"]');
   }
   await waitFor(window, ".qso-result-modal.success", 30000);
+  await waitFor(window, ".qso-operation-review");
+  await waitFor(window, ".qso-attempt-history > li.accepted");
+  await waitFor(window, ".qso-attempt-history > li.error");
+  await waitFor(window, ".qso-attempt-history > li.repeat");
   const recoveredIncomingState = await window.webContents.executeJavaScript(`(() => ({
     failures: window.cwgameSystem?.getQaIncomingFailureCount?.() ?? 0,
     recovering: document.querySelector(".station-screen")?.dataset.npcPlaybackRecovering ?? null,
@@ -743,16 +747,53 @@ async function runQaCapture(window) {
   await fs.writeFile(path.join(outputDir, "incoming-recovery-debug.json"), `${JSON.stringify({ firstRecoveryState, recoveredIncomingState }, null, 2)}\n`, "utf8");
   await capture(window, outputDir, shot("qso-result-unsaved-warmup"));
   await capture(window, outputDir, shot("qso-result-unsaved"));
+  const resultReviewState = await window.webContents.executeJavaScript(`(() => ({
+    accepted: document.querySelectorAll(".qso-attempt-history > li.accepted").length,
+    errors: document.querySelectorAll(".qso-attempt-history > li.error").length,
+    repeats: document.querySelectorAll(".qso-attempt-history > li.repeat").length,
+    reward: document.querySelector(".qso-result-rewards strong")?.textContent.replace(/\\s+/g, " ").trim() ?? "",
+  }))()`, true);
+  if (resultReviewState.accepted < 2 || resultReviewState.errors < 1 || resultReviewState.repeats < 1
+    || !resultReviewState.reward.includes("+100") || resultReviewState.reward.includes("+150")) {
+    throw new Error(`Full-guidance operation review or reward is incomplete: ${JSON.stringify(resultReviewState)}`);
+  }
+  await capture(window, outputDir, shot("qso-operation-review"));
   await click(window, ".qso-result-primary");
   await waitFor(window, ".qso-result-modal.success header .icon-button", 10000);
   const savedEquipmentSnapshot = await window.webContents.executeJavaScript(
-    '(() => { const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0]; const entry = save.qsoLogs[0]; return { accessoryId: entry.accessoryId, equipmentId: entry.equipmentId, repeatRequests: entry.repeatRequests, transmitAccuracy: entry.transmitAccuracy, firstWatchCompleted: save.firstWatchCompleted }; })()',
+    `(() => {
+      const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+      const entry = save.qsoLogs[0];
+      return {
+        version: entry.version,
+        accessoryId: entry.accessoryId,
+        equipmentId: entry.equipmentId,
+        repeatRequests: entry.repeatRequests,
+        transmitAccuracy: entry.transmitAccuracy,
+        guidanceLevel: entry.guidanceLevel,
+        visualAssistUsed: entry.visualAssistUsed,
+        independentWatch: entry.independentWatch,
+        creditsAwarded: entry.credits,
+        saveCredits: save.credits,
+        attemptResults: (entry.attemptHistory ?? []).map((attempt) => attempt.result),
+        attemptMetricsComplete: (entry.attemptHistory ?? []).every((attempt) =>
+          Number.isFinite(attempt.wpm) && Number.isFinite(attempt.accuracy) && Number.isFinite(attempt.rhythm)),
+        firstWatchCompleted: save.firstWatchCompleted,
+      };
+    })()`,
     true,
   );
-  if (savedEquipmentSnapshot.accessoryId !== "cw-filter-500" || savedEquipmentSnapshot.equipmentId !== "usdr-8"
+  const savedAttemptResults = new Set(savedEquipmentSnapshot.attemptResults);
+  if (savedEquipmentSnapshot.version !== 3
+    || savedEquipmentSnapshot.accessoryId !== "cw-filter-500" || savedEquipmentSnapshot.equipmentId !== "usdr-8"
     || savedEquipmentSnapshot.repeatRequests !== 1 || !Number.isFinite(savedEquipmentSnapshot.transmitAccuracy)
+    || savedEquipmentSnapshot.guidanceLevel !== "full" || savedEquipmentSnapshot.visualAssistUsed !== true
+    || savedEquipmentSnapshot.independentWatch !== false || savedEquipmentSnapshot.creditsAwarded !== 100
+    || savedEquipmentSnapshot.saveCredits !== 1000
+    || !savedAttemptResults.has("accepted") || !savedAttemptResults.has("rejected") || !savedAttemptResults.has("repeat")
+    || !savedEquipmentSnapshot.attemptMetricsComplete
     || savedEquipmentSnapshot.firstWatchCompleted !== true) {
-    throw new Error(`QSO log lost equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
+    throw new Error(`QSO log v3 lost its review, eligibility, reward, or equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
   }
   await capture(window, outputDir, shot("qso-result-saved"));
   await click(window, ".qso-result-modal.success header .icon-button");
@@ -762,8 +803,21 @@ async function runQaCapture(window) {
   await click(window, ".hotspot-log");
   await waitFor(window, ".qso-log-modal");
   await waitFor(window, ".qso-log-records button:nth-of-type(3)", 10000);
+  await waitFor(window, ".qso-log-review");
+  await waitFor(window, ".qso-log-review li.accepted");
+  await waitFor(window, ".qso-log-review li.error");
+  await waitFor(window, ".qso-log-review li.repeat");
   await capture(window, outputDir, shot("home-log-after-qso-warmup"));
   await capture(window, outputDir, shot("home-log-after-qso"));
+  const homeReviewState = await window.webContents.executeJavaScript(`(() => ({
+    accepted: document.querySelectorAll(".qso-log-review li.accepted").length,
+    errors: document.querySelectorAll(".qso-log-review li.error").length,
+    repeats: document.querySelectorAll(".qso-log-review li.repeat").length,
+  }))()`, true);
+  if (homeReviewState.accepted < 2 || homeReviewState.errors < 1 || homeReviewState.repeats < 1) {
+    throw new Error(`Home log operation review is incomplete: ${JSON.stringify(homeReviewState)}`);
+  }
+  await capture(window, outputDir, shot("home-log-operation-review"));
   await click(window, ".qso-log-return");
   await click(window, ".hotspot-station");
   await waitFor(window, ".station-screen");
@@ -791,7 +845,7 @@ async function runQaCapture(window) {
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
+      "home-log-detail-second", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map",
     ].map(shot), ...manualCaptures],
   };
 }

@@ -42,11 +42,93 @@ function value(value, suffix = "") {
   return value === null || value === undefined || value === "" ? "---" : `${value}${suffix}`;
 }
 
+const REVIEW_TEXT = {
+  "zh-CN": {
+    title: "操作复盘", empty: "旧版日志没有逐次操作记录", stage: "阶段", message: "电文", reason: "原因",
+    accepted: "接受", error: "错误", repeat: "重发", unknown: "未记录", wpm: "WPM", accuracy: "准确率", rhythm: "节奏",
+    guidance: "引导级别", full: "完整引导", hints: "仅提示", off: "关闭", visualAssist: "视觉辅助", used: "已使用", unused: "未使用",
+    independent: "独立值守", qualified: "达成", notQualified: "未达成", unavailable: "旧日志未记录", rewardBreakdown: "奖励拆分",
+    baseReward: "基础奖励", independentBonus: "独立值守奖励", totalReward: "合计",
+    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交换 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼号", wrongCqOrder: "CQ 电文顺序错误", missingK: "结尾缺少 K", invalidAgn: "重发请求必须为 AGN K", missingCallsign: "缺少双方呼号", invalidRst: "RST 格式无效", missing73: "缺少 73", wrongReplyOrder: "回复电文顺序错误", notWaitingForPlayer: "当前阶段不接受发报",
+  },
+  "zh-TW": {
+    title: "操作複盤", empty: "舊版日誌沒有逐次操作記錄", stage: "階段", message: "電文", reason: "原因",
+    accepted: "接受", error: "錯誤", repeat: "重發", unknown: "未記錄", wpm: "WPM", accuracy: "準確率", rhythm: "節奏",
+    guidance: "引導級別", full: "完整引導", hints: "僅提示", off: "關閉", visualAssist: "視覺輔助", used: "已使用", unused: "未使用",
+    independent: "獨立值守", qualified: "達成", notQualified: "未達成", unavailable: "舊日誌未記錄", rewardBreakdown: "獎勵拆分",
+    baseReward: "基礎獎勵", independentBonus: "獨立值守獎勵", totalReward: "合計",
+    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交換 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼號", wrongCqOrder: "CQ 電文順序錯誤", missingK: "結尾缺少 K", invalidAgn: "重發請求必須為 AGN K", missingCallsign: "缺少雙方呼號", invalidRst: "RST 格式無效", missing73: "缺少 73", wrongReplyOrder: "回覆電文順序錯誤", notWaitingForPlayer: "目前階段不接受發報",
+  },
+  ja: {
+    title: "運用レビュー", empty: "旧形式のログには操作履歴がありません", stage: "段階", message: "電文", reason: "理由",
+    accepted: "受付", error: "エラー", repeat: "再送", unknown: "記録なし", wpm: "WPM", accuracy: "正確度", rhythm: "リズム",
+    guidance: "ガイド", full: "フルガイド", hints: "ヒントのみ", off: "オフ", visualAssist: "視覚補助", used: "使用", unused: "未使用",
+    independent: "単独運用", qualified: "達成", notQualified: "未達成", unavailable: "旧ログは未記録", rewardBreakdown: "報酬内訳",
+    baseReward: "基本報酬", independentBonus: "単独運用ボーナス", totalReward: "合計",
+    PLAYER_CQ: "CQ 呼出", PLAYER_RST_AND_73: "RST / 73 交換", missingCq: "CQ がありません", missingDe: "DE がありません", missingPlayerCallsign: "自局コールサインがありません", wrongCqOrder: "CQ 電文の順序が違います", missingK: "末尾の K がありません", invalidAgn: "再送要求は AGN K にしてください", missingCallsign: "両局のコールサインが必要です", invalidRst: "RST 形式が無効です", missing73: "73 がありません", wrongReplyOrder: "応答電文の順序が違います", notWaitingForPlayer: "現在は送信を受け付けていません",
+  },
+  en: {
+    title: "Operating Review", empty: "No attempt history is available in this legacy log", stage: "Stage", message: "Message", reason: "Reason",
+    accepted: "Accepted", error: "Error", repeat: "Repeat", unknown: "Not recorded", wpm: "WPM", accuracy: "Accuracy", rhythm: "Rhythm",
+    guidance: "Guidance", full: "Full", hints: "Hints only", off: "Off", visualAssist: "Visual assist", used: "Used", unused: "Not used",
+    independent: "Independent watch", qualified: "Qualified", notQualified: "Not qualified", unavailable: "Not recorded in legacy log", rewardBreakdown: "Reward breakdown",
+    baseReward: "Base reward", independentBonus: "Independent-watch bonus", totalReward: "Total",
+    PLAYER_CQ: "Call CQ", PLAYER_RST_AND_73: "Exchange RST / 73", missingCq: "CQ is missing", missingDe: "DE is missing", missingPlayerCallsign: "Your callsign is missing", wrongCqOrder: "CQ message is out of order", missingK: "Final K is missing", invalidAgn: "A repeat request must be AGN K", missingCallsign: "Both callsigns are required", invalidRst: "RST format is invalid", missing73: "73 is missing", wrongReplyOrder: "Reply message is out of order", notWaitingForPlayer: "This stage is not accepting a transmission",
+  },
+};
+
+function historyResult(result, t) {
+  const normalized = String(result ?? "").toLowerCase();
+  if (["accepted", "accept", "correct", "success", "ok"].includes(normalized)) return { label: t.accepted, className: "accepted" };
+  if (["repeat", "repeated", "agn", "retry"].includes(normalized)) return { label: t.repeat, className: "repeat" };
+  if (["error", "incorrect", "rejected", "failed", "invalid"].includes(normalized)) return { label: t.error, className: "error" };
+  return { label: result || t.unknown, className: "unknown" };
+}
+
+function reviewMetric(value, suffix = "") {
+  return value === null || value === undefined || value === "" ? "---" : `${value}${suffix}`;
+}
+
+function QsoAttemptHistory({ entry, language }) {
+  const t = REVIEW_TEXT[language] ?? REVIEW_TEXT.en;
+  const history = Array.isArray(entry?.attemptHistory) ? entry.attemptHistory.filter((attempt) => attempt && typeof attempt === "object") : [];
+  const hasReviewData = history.length > 0;
+  return (
+    <section className="qso-operation-review" aria-label={t.title} data-attempt-count={history.length} data-guidance-level={hasReviewData ? entry?.guidanceLevel : "legacy"}>
+      <header>
+        <h3>{t.title}</h3>
+        <div className="qso-review-status">
+          <span>{t.guidance}: <b>{hasReviewData && entry?.guidanceLevel ? (t[entry.guidanceLevel] ?? entry.guidanceLevel) : "---"}</b></span>
+          <span data-visual-assist={hasReviewData ? String(entry?.visualAssistUsed === true) : "legacy"}>{t.visualAssist}: <b>{hasReviewData && typeof entry?.visualAssistUsed === "boolean" ? (entry.visualAssistUsed ? t.used : t.unused) : "---"}</b></span>
+          <span data-independent-watch={hasReviewData ? String(entry?.independentWatch === true) : "legacy"}>{t.independent}: <b>{hasReviewData && typeof entry?.independentWatch === "boolean" ? (entry.independentWatch ? t.qualified : t.notQualified) : t.unavailable}</b></span>
+        </div>
+      </header>
+      {history.length ? (
+        <ol className="qso-attempt-history">
+          {history.map((attempt, index) => {
+            const result = historyResult(attempt.result, t);
+            return (
+              <li className={result.className} data-review-result={result.className} key={`${attempt.stage ?? "stage"}-${index}`}>
+                <div><b>#{String(index + 1).padStart(2, "0")} · {t[attempt.stage] ?? attempt.stage ?? t.stage}</b><em>{result.label}</em></div>
+                <code>{attempt.message || "---"}</code>
+                <small>{t.wpm} {reviewMetric(attempt.wpm)} · {t.accuracy} {reviewMetric(attempt.accuracy, "%")} · {t.rhythm} {reviewMetric(attempt.rhythm, "%")}</small>
+                <p><span>{t.reason}</span>{attempt.reason ? (t[attempt.reason] ?? attempt.reason) : "---"}</p>
+              </li>
+            );
+          })}
+        </ol>
+      ) : <p className="qso-review-empty">{t.empty}</p>}
+    </section>
+  );
+}
+
 export function QsoResultModal({
   language, failed = false, entry = null, creditsAwarded = 0, saved = false,
   newRegion = false, newDistanceRecord = false, onSave, onRestart, onNext, onClose,
 }) {
   const t = TEXT[language] ?? TEXT.en;
+  const hasReviewData = Array.isArray(entry?.attemptHistory) && entry.attemptHistory.length > 0;
+  const independentBonus = hasReviewData && entry?.independentWatch === true ? 50 : 0;
   return (
     <div className="qso-result-backdrop">
       <section className={`qso-result-modal ${failed ? "failed" : "success"}`} role="dialog" aria-modal="true" aria-labelledby="qso-result-title">
@@ -79,10 +161,16 @@ export function QsoResultModal({
               <div><dt>{t.rhythm}</dt><dd>{value(entry?.keyingScore, "%")}</dd></div>
               <div><dt>{t.repeats}</dt><dd>{value(entry?.repeatRequests ?? 0)}</dd></div>
             </dl>
+            <QsoAttemptHistory entry={entry} language={language} />
             <div className="qso-result-rewards">
               <span>{saved ? t.saved : t.unsaved}</span>
               <strong>+{creditsAwarded} <small>{t.credits}</small></strong>
-              <div>{newRegion && <b>{t.newRegion}</b>}{newDistanceRecord && <b>{t.newDistance}</b>}</div>
+              <div className="qso-reward-breakdown">
+                <i>{(REVIEW_TEXT[language] ?? REVIEW_TEXT.en).baseReward} +{Math.max(0, Number(creditsAwarded || 0) - independentBonus)}</i>
+                {independentBonus > 0 && <i data-reward="independent-watch">{(REVIEW_TEXT[language] ?? REVIEW_TEXT.en).independentBonus} +50</i>}
+                {!hasReviewData && <i>{(REVIEW_TEXT[language] ?? REVIEW_TEXT.en).independent}: ---</i>}
+                {newRegion && <b>{t.newRegion}</b>}{newDistanceRecord && <b>{t.newDistance}</b>}
+              </div>
             </div>
           </div>
         )}

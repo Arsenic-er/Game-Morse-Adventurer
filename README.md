@@ -35,7 +35,9 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - A player-led fictional QSO loop: the receiver opens automatically, the player calls CQ, propagation determines whether a station responds, and a successful contact continues through callsigns, RST, 73/SK, credits, and logging.
 - A four-language first-watch briefing and full/hints/off duty coach teach each QSO stage without revealing the remote callsign during blind copy.
 - `AGN K` repeats the same remote station over the same channel without changing propagation, attempts, or rewards; malformed messages retain their decoded text for correction instead of ending the QSO after two errors.
-- Persistent QSO result pages and logbook entries include callsign, region, distance, RST, propagation, equipment, WPM, transmit accuracy, rhythm, and repeat-request count.
+- QSO messages are validated in radio order: remote call, `DE`, player call, `RST`, report, `73`, then `K`; misplaced or missing procedural signs receive a specific correction instead of a false pass.
+- Persistent QSO result pages and logbook entries include callsign, region, distance, RST, propagation, equipment, WPM, transmit accuracy, rhythm, repeat-request count, and a line-by-line operating review of accepted, rejected, and repeat attempts.
+- Completing a QSO with guidance off and without opening visual assistance qualifies as an independent watch and awards an extra 50 credits on top of the 100-credit base reward.
 - A four-language achievement archive derives six permanent milestones from durable QSO records and retained logs without granting duplicate rewards.
 - Atomic, idempotent credit settlement prevents a completed QSO from being rewarded more than once.
 - A four-language station store supports atomic purchases, persistent ownership, and warehouse-only equipment changes.
@@ -65,11 +67,11 @@ pnpm run dev
 pnpm run desktop:build
 ```
 
-The project currently has 96 automated tests covering the CW core and repeating keyer, receiver audio filtering, practice engine, blind-copy QSO state machine, strict `AGN K` repeats, CQ response probability, persistent QSO logs and results, achievement derivation, idempotent credit settlement, store economy, radio/accessory ownership and loadouts, propagation model, map projection, and save data rules.
+The automated suite covers the CW core and repeating keyer, receiver audio filtering, practice engine, blind-copy QSO state machine, strict QSO ordering and `AGN K` repeats, operating-review history, independent-watch reward eligibility, CQ response probability, persistent QSO logs and results, achievement derivation, idempotent credit settlement, store economy, radio/accessory ownership and loadouts, propagation model, map projection, and save data rules.
 
 ## Project status
 
-Version **v0.15.0** pauses new equipment and completes the first-watch learning loop. A localized briefing and persistent full/hints/off duty coach explain CQ, listening, report exchange, and logging. Remote identity and message text stay hidden until the player copies and sends the correct callsign; `AGN K` replays the same station without rerolling its signal or penalizing the attempt. Specific format errors preserve the keyed message for correction and no longer force failure after two mistakes. Send no longer auto-replays the player's own transmission, while a separate Replay Input control remains available before submission. QSO log schema v2 records repeat requests and correctly names the measured value as transmit accuracy, with safe migration from older saves. Save cards now show the actually equipped radio. The suite contains 96 automated tests, and every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
+Version **v0.16.0** turns each completed contact into a reviewable operating exercise. The result screen and Home logbook show every CQ/reply attempt with its stage, message, accepted/error/repeat result, reason, WPM, accuracy, and rhythm. Final reports now require the strict semantic order `REMOTE DE PLAYER RST nnn 73 K`, while malformed `AGN` requests receive a specific correction and a valid `AGN K` is scored against its own short target. Guidance is frozen for the current QSO: an operator who completes the watch with guidance off and never opens visual help receives the 100-credit base reward plus a 50-credit independent-watch bonus; assisted contacts retain the base reward. QSO log schema v3 preserves eligibility and attempt history with safe migration from v1/v2. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
 
 ## Rights and third-party software
 

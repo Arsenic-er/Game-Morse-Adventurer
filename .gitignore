@@ -9,6 +9,7 @@ node_modules/
 *.pfx
 dist/
 release/
+release-v*/
 design-references/
 qa-artifacts*/
 qa-v*/

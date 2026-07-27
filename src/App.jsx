@@ -17,6 +17,7 @@ import {
 } from "./cw/automaticKeyer.js";
 import { useCwCore } from "./cw/useCwCore.js";
 import { tailPreview } from "./cw/display.js";
+import { scoreDecodedText } from "./cw/inputAnalyzer.js";
 import { LocationArtwork } from "./game/LocationArtwork.jsx";
 import { getAccessory } from "./game/accessoryCatalog.js";
 import { getAntenna } from "./game/antennaCatalog.js";
@@ -32,7 +33,7 @@ import {
   channelProfileForLevel, generatePropagationMap, selectNpcForQso, selectNpcResponseForCq,
 } from "./propagation/propagationEngine.js";
 import {
-  QSO_PHASES, createQso, createQsoLogEntry, onNpcPlaybackFinished,
+  QSO_PHASES, createQso, createQsoLogEntry, markQsoAssisted, onNpcPlaybackFinished,
   qsoCanAcceptPlayer, qsoNeedsNpcPlayback, resolveCqResponse, restartQso, submitPlayerMessage,
 } from "./qso/qsoEngine.js";
 import { recordCompletedQso } from "./qso/qsoLog.js";
@@ -51,7 +52,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.15.0";
+const BUILD_VERSION = "0.16.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -342,6 +343,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const [mapOpen, setMapOpen] = useState(false);
   const [mapMode, setMapMode] = useState("propagation");
   const [briefingOpen, setBriefingOpen] = useState(() => save.qsoBriefSeen !== true && normalizeQsoGuidance(save.qsoGuidance) !== "off");
+  const briefingOpenedManuallyRef = useRef(false);
   const [saved, setSaved] = useState(false);
   const [resultDismissed, setResultDismissed] = useState(false);
   const [settlementMeta, setSettlementMeta] = useState(null);
@@ -355,7 +357,11 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const propagationKey = `${clock.getUTCFullYear()}-${clock.getUTCMonth()}-${clock.getUTCDate()}-${clock.getUTCHours()}-${Math.floor(clock.getUTCMinutes() / 10)}`;
   const propagationMap = useMemo(() => generatePropagationMap({ playerLocation, utc: clock }), [playerLocation, propagationKey]);
   const initialNpc = useMemo(() => selectNpcForQso(propagationMap, { playerEquipmentBonus, seed: `${propagationKey}:0` }), [playerEquipmentBonus, propagationMap, propagationKey]);
-  const [qso, setQso] = useState(() => createQso({ npc: initialNpc, playerCallsign: save.callsign }));
+  const [qso, setQso] = useState(() => createQso({
+    npc: initialNpc,
+    playerCallsign: save.callsign,
+    guidanceLevel: normalizeQsoGuidance(save.qsoGuidance),
+  }));
   const logRows = save.qsoLogs ?? [];
   const recentLogRows = logRows.slice(0, 6);
   const selectedLog = logRows.find((entry) => entry.id === selectedLogId) ?? null;
@@ -500,8 +506,13 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   function submitReply() {
     if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
     const decoded = cw.analysis.decoded;
-    const sample = { wpm: cw.analysis.wpm, accuracy: cw.analysis.accuracy, rhythm: cw.analysis.rhythm };
-    const nextQso = submitPlayerMessage(qso, decoded);
+    const normalizedDecoded = decoded.trim().replace(/\s+/g, " ").toUpperCase();
+    const sample = {
+      wpm: cw.analysis.wpm,
+      accuracy: normalizedDecoded === "AGN K" ? scoreDecodedText(decoded, "AGN K") : cw.analysis.accuracy,
+      rhythm: cw.analysis.rhythm,
+    };
+    const nextQso = submitPlayerMessage(qso, decoded, sample);
     setQso(nextQso);
     setQsoMetrics((current) => ({
       samples: current.samples + 1,
@@ -520,20 +531,46 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
 
   function openBriefing() {
     cw.stopAll();
+    briefingOpenedManuallyRef.current = true;
+    setQso((current) => markQsoAssisted(current));
     setBriefingOpen(true);
   }
 
   function startBriefedWatch(level) {
-    onSaveUpdate({ qsoGuidance: normalizeQsoGuidance(level), qsoBriefSeen: true });
+    const nextLevel = normalizeQsoGuidance(level);
+    if (!briefingOpenedManuallyRef.current) {
+      setQso((current) => {
+        const pristine = current.phase === QSO_PHASES.PLAYER_CQ
+          && current.attemptHistory?.length === 0
+          && current.unansweredCalls === 0
+          && !current.hasContact;
+        return pristine ? {
+          ...current,
+          guidanceLevel: nextLevel,
+          visualAssistUsed: nextLevel !== "off",
+        } : current;
+      });
+    }
+    briefingOpenedManuallyRef.current = false;
+    onSaveUpdate({ qsoGuidance: nextLevel, qsoBriefSeen: true });
     setBriefingOpen(false);
   }
 
   function skipBriefing() {
+    if (!briefingOpenedManuallyRef.current) {
+      setQso((current) => ({
+        ...current,
+        guidanceLevel: "off",
+        visualAssistUsed: false,
+      }));
+    }
+    briefingOpenedManuallyRef.current = false;
     onSaveUpdate({ qsoGuidance: "off", qsoBriefSeen: true });
     setBriefingOpen(false);
   }
 
   function closeBriefing() {
+    briefingOpenedManuallyRef.current = false;
     onSaveUpdate({ qsoBriefSeen: true });
     setBriefingOpen(false);
   }
@@ -543,7 +580,11 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     const nextSerial = qsoSerial + 1;
     const nextNpc = selectNpcForQso(propagationMap, { playerEquipmentBonus, seed: `${propagationKey}:${nextSerial}` });
     setQsoSerial(nextSerial);
-    setQso(createQso({ npc: nextNpc, playerCallsign: save.callsign }));
+    setQso(createQso({
+      npc: nextNpc,
+      playerCallsign: save.callsign,
+      guidanceLevel: normalizeQsoGuidance(save.qsoGuidance),
+    }));
     setSaved(false);
     setResultDismissed(false);
     setSettlementMeta(null);
@@ -670,6 +711,10 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       data-qso-phase={qso.phase}
       data-contact-revealed={qso.contactRevealed}
       data-repeat-requests={qso.repeatRequests}
+      data-guidance-level={qso.guidanceLevel}
+      data-visual-assist-used={qso.visualAssistUsed}
+      data-independent-watch={qso.independentWatch}
+      data-attempt-count={qso.attemptHistory?.length ?? 0}
       data-qa-npc-callsign={window.cwgameSystem?.qaCapture ? qso.npc.callsign : undefined}
       data-decoded={cw.analysis.decoded}
       data-pulse-count={cw.analysis.pulseCount}
@@ -725,7 +770,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       </div>
       <footer className="qso-console metal-panel">
         <div className="qso-console-stack">
-          <QsoDutyCoach language={language} guidance={save.qsoGuidance} qso={qso} playerCallsign={save.callsign} powered={powered} antennaReady={antennaReady} saved={saved} onClearRetry={clearCurrentInput} />
+          <QsoDutyCoach language={language} guidance={qso.guidanceLevel} qso={qso} playerCallsign={save.callsign} powered={powered} antennaReady={antennaReady} saved={saved} onClearRetry={clearCurrentInput} />
           <div className="morse-display" aria-live="polite">
             <span>{displayLine}</span>
             <small>{phaseText}{qso.lastError === "noResponse" ? ` // ${flow.noResponse}` : qso.lastError ? ` // ${qsoErrorMessage(language, qso.lastError) || t.invalidReply} (${qso.attempts})` : ""} // {t.decoded}: {decodedPreview} // {t.accuracy}: {cw.analysis.accuracy}% // {t.rhythm}: {cw.analysis.rhythm}%</small>

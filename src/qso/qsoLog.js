@@ -1,4 +1,5 @@
 export const MAX_QSO_LOGS = 200;
+export const MAX_QSO_ATTEMPT_HISTORY = 50;
 
 function finiteNumber(value, fallback = 0) {
   const numeric = Number(value);
@@ -43,6 +44,51 @@ function normalizeRepeatRequests(value) {
   return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(finiteNumber(value))));
 }
 
+function normalizeGuidanceLevel(value) {
+  return ["full", "hints", "off"].includes(value) ? value : "full";
+}
+
+function normalizeAttemptMetric(value, maximum = 100) {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Number(clamp(numeric, 0, maximum).toFixed(1)) : null;
+}
+
+function normalizeAttempt(candidate) {
+  if (!candidate || typeof candidate !== "object") return null;
+  const result = ["accepted", "rejected", "repeat"].includes(candidate.result)
+    ? candidate.result
+    : null;
+  if (!result) return null;
+  const stage = String(candidate.stage ?? "UNKNOWN").trim().slice(0, 48) || "UNKNOWN";
+  const message = String(candidate.message ?? "")
+    .toUpperCase()
+    .replace(/[\u0000-\u001F\u007F]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
+  const reason = candidate.reason === null || candidate.reason === undefined || candidate.reason === ""
+    ? null
+    : String(candidate.reason).trim().slice(0, 48) || null;
+  return {
+    stage,
+    message,
+    result,
+    reason,
+    wpm: normalizeAttemptMetric(candidate.wpm, 120),
+    accuracy: normalizeAttemptMetric(candidate.accuracy),
+    rhythm: normalizeAttemptMetric(candidate.rhythm),
+  };
+}
+
+function normalizeAttemptHistory(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(normalizeAttempt)
+    .filter(Boolean)
+    .slice(-MAX_QSO_ATTEMPT_HISTORY);
+}
+
 export function normalizeQsoLogEntry(entry) {
   if (!entry || typeof entry !== "object") return null;
   const startedAt = normalizeIso(entry.startedAt);
@@ -57,8 +103,10 @@ export function normalizeQsoLogEntry(entry) {
   const basePropagationLevel = Math.round(clamp(finiteNumber(entry.basePropagationLevel ?? entry.baseLevel), 0, 4));
   const finalPropagationLevel = Math.round(clamp(finiteNumber(entry.finalPropagationLevel ?? entry.finalLevel), 0, 4));
 
+  const guidanceLevel = normalizeGuidanceLevel(entry.guidanceLevel);
+  const visualAssistUsed = entry.visualAssistUsed === true;
   return {
-    version: 2,
+    version: 3,
     id: normalizeId(entry.id, callsign, completedAt),
     startedAt,
     completedAt,
@@ -83,6 +131,10 @@ export function normalizeQsoLogEntry(entry) {
     transmitAccuracy: normalizeScore(entry.transmitAccuracy ?? entry.copyAccuracy ?? entry.accuracy),
     keyingScore: normalizeScore(entry.keyingScore),
     repeatRequests: normalizeRepeatRequests(entry.repeatRequests),
+    guidanceLevel,
+    visualAssistUsed,
+    independentWatch: entry.independentWatch === true && guidanceLevel === "off" && !visualAssistUsed,
+    attemptHistory: normalizeAttemptHistory(entry.attemptHistory),
     credits: Math.max(0, Math.floor(finiteNumber(entry.credits ?? entry.creditsAwarded))),
     isFictional: entry.isFictional !== false,
   };

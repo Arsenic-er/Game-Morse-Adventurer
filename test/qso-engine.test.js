@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  QSO_PHASES, createQso, createQsoLogEntry, onNpcPlaybackFinished,
+  QSO_PHASES, createQso, createQsoLogEntry, markQsoAssisted, onNpcPlaybackFinished,
   qsoCanAcceptPlayer, qsoNeedsNpcPlayback, resolveCqResponse,
   restartQso, submitPlayerMessage, validatePlayerMessage,
 } from "../src/qso/qsoEngine.js";
+import { MAX_QSO_ATTEMPT_HISTORY } from "../src/qso/qsoLog.js";
 
 const npc = {
   callsign: "SIM7QX", regionId: "NA-SIM", latitude: 37.77, longitude: -122.42,
@@ -17,8 +18,20 @@ test("completes the minimum QSO state machine", () => {
   assert.equal(qso.expectedPlayer, "CQ CQ DE SIM-K7QX SIM-K7QX K");
   assert.equal(qso.repeatRequests, 0);
   assert.equal(qso.contactRevealed, false);
-  qso = submitPlayerMessage(qso, "CQ CQ DE SIM-K7QX K");
+  assert.equal(qso.guidanceLevel, "full");
+  assert.equal(qso.visualAssistUsed, true);
+  assert.deepEqual(qso.attemptHistory, []);
+  qso = submitPlayerMessage(qso, "CQ CQ DE SIM-K7QX K", { wpm: 19, accuracy: 94.44, rhythm: 88.86 });
   assert.equal(qso.phase, QSO_PHASES.WAITING_RESPONSE);
+  assert.deepEqual(qso.attemptHistory[0], {
+    stage: QSO_PHASES.PLAYER_CQ,
+    message: "CQ CQ DE SIM-K7QX K",
+    result: "accepted",
+    reason: null,
+    wpm: 19,
+    accuracy: 94.4,
+    rhythm: 88.9,
+  });
   qso = resolveCqResponse(qso, npc);
   assert.equal(qso.phase, QSO_PHASES.NPC_REPLY);
   assert.equal(qso.contactRevealed, false);
@@ -31,6 +44,7 @@ test("completes the minimum QSO state machine", () => {
   qso = onNpcPlaybackFinished(qso, "2026-07-15T00:05:00.000Z");
   assert.equal(qso.phase, QSO_PHASES.QSO_COMPLETE);
   assert.equal(qso.creditsAwarded, 100);
+  assert.equal(qso.independentWatch, false);
   const log = createQsoLogEntry(qso, {
     playerLocation: { id: "japan-tokyo-kanto", latitude: 35.6762, longitude: 139.6503 },
     equipmentId: "squid-01",
@@ -62,9 +76,50 @@ test("completes the minimum QSO state machine", () => {
   assert.equal("copyAccuracy" in log, false);
   assert.equal(log.keyingScore, 91.2);
   assert.equal(log.repeatRequests, 0);
-  assert.equal(log.version, 2);
+  assert.equal(log.guidanceLevel, "full");
+  assert.equal(log.visualAssistUsed, true);
+  assert.equal(log.independentWatch, false);
+  assert.equal(log.attemptHistory.length, 2);
+  assert.equal(log.version, 3);
   assert.equal(log.credits, 100);
   assert.equal(log.isFictional, true);
+});
+
+test("an unassisted guidance-off watch earns the independent bonus", () => {
+  let qso = createQso({ npc, guidanceLevel: "off" });
+  assert.equal(qso.guidanceLevel, "off");
+  qso = submitPlayerMessage(qso, "CQ CQ DE SIM-K7QX K");
+  qso = onNpcPlaybackFinished(resolveCqResponse(qso, npc));
+  qso = submitPlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 73 K");
+  qso = onNpcPlaybackFinished(qso, "2026-07-15T00:05:00.000Z");
+  assert.equal(qso.independentWatch, true);
+  assert.equal(qso.creditsAwarded, 150);
+
+  const afterCompletion = markQsoAssisted(qso);
+  assert.strictEqual(afterCompletion, qso);
+  assert.equal(afterCompletion.visualAssistUsed, false);
+  assert.equal(afterCompletion.independentWatch, true);
+  assert.equal(afterCompletion.creditsAwarded, 150);
+});
+
+test("visual assistance prevents the independent bonus while guidance remains frozen", () => {
+  assert.equal(createQso({ npc, guidanceLevel: "hints" }).visualAssistUsed, true);
+  assert.equal(createQso({ npc, guidanceLevel: "hints", visualAssistUsed: false }).visualAssistUsed, false);
+  assert.equal(createQso({ npc, guidanceLevel: "unknown" }).guidanceLevel, "full");
+  let qso = createQso({ npc, guidanceLevel: "off", visualAssistUsed: false });
+  qso = markQsoAssisted(qso);
+  assert.equal(qso.guidanceLevel, "off");
+  assert.equal(qso.visualAssistUsed, true);
+  qso = submitPlayerMessage(qso, "CQ CQ DE SIM-K7QX K");
+  qso = onNpcPlaybackFinished(resolveCqResponse(qso, npc));
+  qso = submitPlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 73 K");
+  qso = onNpcPlaybackFinished(qso);
+  assert.equal(qso.independentWatch, false);
+  assert.equal(qso.creditsAwarded, 100);
+  assert.equal(restartQso(qso).guidanceLevel, "off");
+
+  const failed = { ...createQso({ npc, guidanceLevel: "off" }), phase: QSO_PHASES.QSO_FAILED };
+  assert.strictEqual(markQsoAssisted(failed), failed);
 });
 
 test("only completed QSOs with chronological timestamps can be logged", () => {
@@ -107,6 +162,34 @@ test("requires a valid RST and 73", () => {
   qso = submitPlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 73 K");
   assert.equal(qso.phase, QSO_PHASES.NPC_73_AND_SK);
   assert.equal(qso.attempts, 0);
+});
+
+test("requires the strict REMOTE DE PLAYER RST nnn 73 K closing order", () => {
+  let qso = submitPlayerMessage(createQso({ npc }), "CQ CQ DE SIM-K7QX K");
+  qso = onNpcPlaybackFinished(resolveCqResponse(qso, npc));
+  assert.equal(validatePlayerMessage(qso, "SIM7QX SIM-K7QX RST 559 73 K").reason, "missingDe");
+  assert.equal(validatePlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 73").reason, "missingK");
+  assert.equal(validatePlayerMessage(qso, "AGN").reason, "invalidAgn");
+  assert.equal(validatePlayerMessage(qso, "SIM-K7QX DE SIM7QX RST 559 73 K").reason, "wrongReplyOrder");
+  assert.equal(validatePlayerMessage(qso, "SIM7QX RST 559 DE SIM-K7QX 73 K").reason, "wrongReplyOrder");
+  assert.equal(validatePlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 73 K").valid, true);
+});
+
+test("attempt history records every submission and retains only the newest bounded entries", () => {
+  let qso = createQso({ npc });
+  for (let index = 0; index < MAX_QSO_ATTEMPT_HISTORY + 5; index += 1) {
+    qso = submitPlayerMessage(qso, `BAD ${index}`, {
+      wpm: index,
+      accuracy: index + 0.24,
+      rhythm: 200,
+    });
+  }
+  assert.equal(qso.attemptHistory.length, MAX_QSO_ATTEMPT_HISTORY);
+  assert.equal(qso.attemptHistory[0].message, "BAD 5");
+  assert.equal(qso.attemptHistory.at(-1).message, `BAD ${MAX_QSO_ATTEMPT_HISTORY + 4}`);
+  assert.equal(qso.attemptHistory.at(-1).result, "rejected");
+  assert.equal(qso.attemptHistory.at(-1).reason, "missingCq");
+  assert.equal(qso.attemptHistory.at(-1).rhythm, 100);
 });
 
 test("a strict AGN K request replays the same incoming message without consuming an attempt", () => {

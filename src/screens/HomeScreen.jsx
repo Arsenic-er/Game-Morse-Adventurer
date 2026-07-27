@@ -58,6 +58,76 @@ const QSO_LOG_TEXT = {
   },
 };
 
+const QSO_REVIEW_TEXT = {
+  "zh-CN": {
+    title: "操作复盘", empty: "旧版日志没有逐次操作记录", guidance: "引导", visual: "视觉辅助", independent: "独立值守",
+    full: "完整引导", hints: "仅提示", off: "关闭", used: "已使用", unused: "未使用", yes: "达成", no: "未达成",
+    accepted: "接受", error: "错误", repeat: "重发", unknown: "未记录", reason: "原因", accuracy: "准确率", rhythm: "节奏",
+    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交换 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼号", wrongCqOrder: "CQ 电文顺序错误", missingK: "结尾缺少 K", invalidAgn: "重发请求必须为 AGN K", missingCallsign: "缺少双方呼号", invalidRst: "RST 格式无效", missing73: "缺少 73", wrongReplyOrder: "回复电文顺序错误", notWaitingForPlayer: "当前阶段不接受发报",
+  },
+  "zh-TW": {
+    title: "操作複盤", empty: "舊版日誌沒有逐次操作記錄", guidance: "引導", visual: "視覺輔助", independent: "獨立值守",
+    full: "完整引導", hints: "僅提示", off: "關閉", used: "已使用", unused: "未使用", yes: "達成", no: "未達成",
+    accepted: "接受", error: "錯誤", repeat: "重發", unknown: "未記錄", reason: "原因", accuracy: "準確率", rhythm: "節奏",
+    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交換 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼號", wrongCqOrder: "CQ 電文順序錯誤", missingK: "結尾缺少 K", invalidAgn: "重發請求必須為 AGN K", missingCallsign: "缺少雙方呼號", invalidRst: "RST 格式無效", missing73: "缺少 73", wrongReplyOrder: "回覆電文順序錯誤", notWaitingForPlayer: "目前階段不接受發報",
+  },
+  ja: {
+    title: "運用レビュー", empty: "旧形式のログには操作履歴がありません", guidance: "ガイド", visual: "視覚補助", independent: "単独運用",
+    full: "フルガイド", hints: "ヒントのみ", off: "オフ", used: "使用", unused: "未使用", yes: "達成", no: "未達成",
+    accepted: "受付", error: "エラー", repeat: "再送", unknown: "記録なし", reason: "理由", accuracy: "正確度", rhythm: "リズム",
+    PLAYER_CQ: "CQ 呼出", PLAYER_RST_AND_73: "RST / 73 交換", missingCq: "CQ がありません", missingDe: "DE がありません", missingPlayerCallsign: "自局コールサインがありません", wrongCqOrder: "CQ 電文の順序が違います", missingK: "末尾の K がありません", invalidAgn: "再送要求は AGN K にしてください", missingCallsign: "両局のコールサインが必要です", invalidRst: "RST 形式が無効です", missing73: "73 がありません", wrongReplyOrder: "応答電文の順序が違います", notWaitingForPlayer: "現在は送信を受け付けていません",
+  },
+  en: {
+    title: "Operating Review", empty: "No attempt history is available in this legacy log", guidance: "Guidance", visual: "Visual assist", independent: "Independent watch",
+    full: "Full", hints: "Hints only", off: "Off", used: "Used", unused: "Not used", yes: "Qualified", no: "Not qualified",
+    accepted: "Accepted", error: "Error", repeat: "Repeat", unknown: "Not recorded", reason: "Reason", accuracy: "Accuracy", rhythm: "Rhythm",
+    PLAYER_CQ: "Call CQ", PLAYER_RST_AND_73: "Exchange RST / 73", missingCq: "CQ is missing", missingDe: "DE is missing", missingPlayerCallsign: "Your callsign is missing", wrongCqOrder: "CQ message is out of order", missingK: "Final K is missing", invalidAgn: "A repeat request must be AGN K", missingCallsign: "Both callsigns are required", invalidRst: "RST format is invalid", missing73: "73 is missing", wrongReplyOrder: "Reply message is out of order", notWaitingForPlayer: "This stage is not accepting a transmission",
+  },
+};
+
+function logReviewResult(result, t) {
+  const normalized = String(result ?? "").toLowerCase();
+  if (["accepted", "accept", "correct", "success", "ok"].includes(normalized)) return { label: t.accepted, className: "accepted" };
+  if (["repeat", "repeated", "agn", "retry"].includes(normalized)) return { label: t.repeat, className: "repeat" };
+  if (["error", "incorrect", "rejected", "failed", "invalid"].includes(normalized)) return { label: t.error, className: "error" };
+  return { label: result || t.unknown, className: "unknown" };
+}
+
+function QsoLogReview({ entry, language }) {
+  const t = QSO_REVIEW_TEXT[language] ?? QSO_REVIEW_TEXT.en;
+  const history = Array.isArray(entry?.attemptHistory) ? entry.attemptHistory.filter((attempt) => attempt && typeof attempt === "object") : [];
+  const hasReviewData = history.length > 0;
+  const booleanLabel = (item, positive, negative) => typeof item === "boolean" ? (item ? positive : negative) : "---";
+  return (
+    <section className="qso-log-review" aria-label={t.title} data-attempt-count={history.length} data-guidance-level={hasReviewData ? entry?.guidanceLevel : "legacy"}>
+      <header>
+        <h4>{t.title}</h4>
+        <div>
+          <span>{t.guidance}: <b>{hasReviewData && entry?.guidanceLevel ? (t[entry.guidanceLevel] ?? entry.guidanceLevel) : "---"}</b></span>
+          <span data-visual-assist={hasReviewData ? String(entry?.visualAssistUsed === true) : "legacy"}>{t.visual}: <b>{hasReviewData ? booleanLabel(entry?.visualAssistUsed, t.used, t.unused) : "---"}</b></span>
+          <span data-independent-watch={hasReviewData ? String(entry?.independentWatch === true) : "legacy"}>{t.independent}: <b>{hasReviewData ? booleanLabel(entry?.independentWatch, t.yes, t.no) : "---"}</b></span>
+        </div>
+      </header>
+      {history.length ? (
+        <ol>
+          {history.map((attempt, index) => {
+            const result = logReviewResult(attempt.result, t);
+            return (
+              <li className={result.className} data-review-result={result.className} key={`${attempt.stage ?? "stage"}-${index}`}>
+                <b>#{String(index + 1).padStart(2, "0")} · {t[attempt.stage] ?? attempt.stage ?? "---"}</b>
+                <em>{result.label}</em>
+                <code>{attempt.message || "---"}</code>
+                <small>{attempt.wpm ?? "---"} WPM · {t.accuracy} {attempt.accuracy ?? "---"}% · {t.rhythm} {attempt.rhythm ?? "---"}%</small>
+                <p>{t.reason}: {attempt.reason ? (t[attempt.reason] ?? attempt.reason) : "---"}</p>
+              </li>
+            );
+          })}
+        </ol>
+      ) : <p className="qso-log-review-empty">{t.empty}</p>}
+    </section>
+  );
+}
+
 function firstValue(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== "");
 }
@@ -211,6 +281,7 @@ function QsoLogModal({ language, save, onClose }) {
                 <div><dt>{t.repeats}</dt><dd>{formatMetric(firstValue(selected.repeatRequests, 0))}</dd></div>
                 <div className="qso-log-credit-fact"><dt>{t.credits}</dt><dd><Coins size={17} weight="fill" />{formatCredits(firstValue(selected.credits, selected.creditsAwarded))}</dd></div>
               </dl>
+              <QsoLogReview entry={selected} language={language} />
             </article>
           </div>
         )}

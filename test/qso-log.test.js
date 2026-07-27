@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  MAX_QSO_LOGS, appendQsoLog, normalizeQsoLogEntry, normalizeQsoLogs,
+  MAX_QSO_ATTEMPT_HISTORY, MAX_QSO_LOGS, appendQsoLog, normalizeQsoLogEntry, normalizeQsoLogs,
   normalizeQsoRecords, recordCompletedQso,
 } from "../src/qso/qsoLog.js";
 
@@ -31,15 +31,22 @@ function entry(overrides = {}) {
     transmitAccuracy: 92.34,
     keyingScore: 88.88,
     repeatRequests: 2,
-    credits: 100,
+    guidanceLevel: "off",
+    visualAssistUsed: false,
+    independentWatch: true,
+    attemptHistory: [{
+      stage: "PLAYER_RST_AND_73", message: "sim7qx de bh1abc rst 559 73 k",
+      result: "accepted", reason: null, wpm: 18.04, accuracy: 92.34, rhythm: 88.88,
+    }],
+    credits: 150,
     isFictional: true,
     ...overrides,
   };
 }
 
-test("normalizes the complete QSO log v2 schema", () => {
+test("normalizes the complete QSO log v3 schema", () => {
   const normalized = normalizeQsoLogEntry(entry());
-  assert.equal(normalized.version, 2);
+  assert.equal(normalized.version, 3);
   assert.equal(normalized.startedAt, "2026-07-15T00:00:00.000Z");
   assert.equal(normalized.completedAt, "2026-07-15T00:05:00.000Z");
   assert.equal(normalized.playerCallsign, "BH1ABC");
@@ -54,21 +61,68 @@ test("normalizes the complete QSO log v2 schema", () => {
   assert.equal(normalized.playerLocationId, "japan-tokyo-kanto");
   assert.equal(normalized.accessoryId, "cw-filter-500");
   assert.equal(normalized.repeatRequests, 2);
+  assert.equal(normalized.guidanceLevel, "off");
+  assert.equal(normalized.visualAssistUsed, false);
+  assert.equal(normalized.independentWatch, true);
+  assert.deepEqual(normalized.attemptHistory, [{
+    stage: "PLAYER_RST_AND_73",
+    message: "SIM7QX DE BH1ABC RST 559 73 K",
+    result: "accepted",
+    reason: null,
+    wpm: 18,
+    accuracy: 92.3,
+    rhythm: 88.9,
+  }]);
 });
 
-test("legacy QSO logs default to an empty accessory slot", () => {
+test("legacy QSO logs safely migrate to v3 defaults", () => {
   const normalized = normalizeQsoLogEntry(entry({
     version: 1,
     accessoryId: undefined,
     transmitAccuracy: undefined,
     copyAccuracy: 87.65,
     repeatRequests: undefined,
+    guidanceLevel: undefined,
+    visualAssistUsed: undefined,
+    independentWatch: undefined,
+    attemptHistory: undefined,
   }));
   assert.equal(normalized.accessoryId, "none");
-  assert.equal(normalized.version, 2);
+  assert.equal(normalized.version, 3);
   assert.equal(normalized.repeatRequests, 0);
   assert.equal(normalized.transmitAccuracy, 87.7);
   assert.equal("copyAccuracy" in normalized, false);
+  assert.equal(normalized.guidanceLevel, "full");
+  assert.equal(normalized.visualAssistUsed, false);
+  assert.equal(normalized.independentWatch, false);
+  assert.deepEqual(normalized.attemptHistory, []);
+});
+
+test("v3 assistance fields enforce independent-watch integrity", () => {
+  assert.equal(normalizeQsoLogEntry(entry({ guidanceLevel: "hints" })).independentWatch, false);
+  assert.equal(normalizeQsoLogEntry(entry({ visualAssistUsed: true })).independentWatch, false);
+  const invalidGuidance = normalizeQsoLogEntry(entry({ guidanceLevel: "unknown" }));
+  assert.equal(invalidGuidance.guidanceLevel, "full");
+  assert.equal(invalidGuidance.independentWatch, false);
+});
+
+test("attempt history is sanitized and capped to the newest valid records", () => {
+  const attempts = Array.from({ length: MAX_QSO_ATTEMPT_HISTORY + 3 }, (_, index) => ({
+    stage: ` STAGE-${index} `,
+    message: ` attempt   ${index} `,
+    result: index === 1 ? "unknown" : "rejected",
+    reason: "missingCq",
+    wpm: index,
+    accuracy: 101,
+    rhythm: -1,
+  }));
+  const normalized = normalizeQsoLogEntry(entry({ attemptHistory: attempts }));
+  assert.equal(normalized.attemptHistory.length, MAX_QSO_ATTEMPT_HISTORY);
+  assert.equal(normalized.attemptHistory[0].stage, "STAGE-3");
+  assert.equal(normalized.attemptHistory[0].message, "ATTEMPT 3");
+  assert.equal(normalized.attemptHistory[0].accuracy, 100);
+  assert.equal(normalized.attemptHistory[0].rhythm, 0);
+  assert.equal(normalized.attemptHistory.at(-1).stage, `STAGE-${MAX_QSO_ATTEMPT_HISTORY + 2}`);
 });
 
 test("legacy generic accuracy migrates when neither v2 nor copy accuracy exists", () => {
@@ -136,7 +190,7 @@ test("records a completed QSO atomically and idempotently", () => {
   assert.equal(first.added, true);
   assert.equal(first.newRegion, true);
   assert.equal(first.newDistanceRecord, true);
-  assert.equal(first.save.credits, 125);
+  assert.equal(first.save.credits, 175);
   assert.deepEqual(first.save.ownedEquipment, ["squid-01"]);
   assert.deepEqual(first.save.ownedAntennas, ["dipole", "vertical"]);
   assert.deepEqual(first.save.accessories, []);
@@ -156,7 +210,7 @@ test("records a completed QSO atomically and idempotently", () => {
   assert.equal(duplicate.newRegion, false);
   assert.equal(duplicate.newDistanceRecord, false);
   assert.strictEqual(duplicate.save, first.save);
-  assert.equal(duplicate.save.credits, 125);
+  assert.equal(duplicate.save.credits, 175);
   assert.equal(duplicate.save.qsoRecords.total, 8);
 });
 

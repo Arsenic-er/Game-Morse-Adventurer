@@ -1,6 +1,6 @@
 import { normalizeCwText } from "../cw/morse.js";
 import { greatCircleDistanceDegrees } from "../propagation/propagationEngine.js";
-import { normalizeQsoLogEntry } from "./qsoLog.js";
+import { MAX_QSO_ATTEMPT_HISTORY, normalizeQsoLogEntry } from "./qsoLog.js";
 
 export const QSO_PHASES = Object.freeze({
   PLAYER_CQ: "PLAYER_CQ",
@@ -29,8 +29,43 @@ function expectedCq(playerCallsign) {
   return `CQ CQ DE ${playerCallsign} ${playerCallsign} K`;
 }
 
-export function createQso({ npc, playerCallsign = "SIM-K7QX", startedAt = new Date().toISOString() }) {
+function normalizeGuidanceLevel(value) {
+  return ["full", "hints", "off"].includes(value) ? value : "full";
+}
+
+function normalizeMetric(value, maximum = 100) {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric)
+    ? Number(Math.min(maximum, Math.max(0, numeric)).toFixed(1))
+    : null;
+}
+
+function appendAttempt(qso, message, validation, metrics = {}) {
+  const result = validation.valid
+    ? (validation.action === "repeat" ? "repeat" : "accepted")
+    : "rejected";
+  const previous = Array.isArray(qso.attemptHistory) ? qso.attemptHistory : [];
+  return [...previous, {
+    stage: String(qso.phase ?? "UNKNOWN").slice(0, 48),
+    message: normalizeCwText(message).slice(0, 160),
+    result,
+    reason: validation.reason ?? null,
+    wpm: normalizeMetric(metrics.wpm, 120),
+    accuracy: normalizeMetric(metrics.accuracy),
+    rhythm: normalizeMetric(metrics.rhythm),
+  }].slice(-MAX_QSO_ATTEMPT_HISTORY);
+}
+
+export function createQso({
+  npc,
+  playerCallsign = "SIM-K7QX",
+  startedAt = new Date().toISOString(),
+  guidanceLevel = "full",
+  visualAssistUsed,
+}) {
   if (!npc?.callsign) throw new Error("NPC callsign is required.");
+  const frozenGuidanceLevel = normalizeGuidanceLevel(guidanceLevel);
   return {
     phase: QSO_PHASES.PLAYER_CQ,
     npc,
@@ -44,10 +79,23 @@ export function createQso({ npc, playerCallsign = "SIM-K7QX", startedAt = new Da
     sentRst: null,
     receivedRst: null,
     attempts: 0,
+    attemptHistory: [],
     lastError: null,
+    guidanceLevel: frozenGuidanceLevel,
+    visualAssistUsed: typeof visualAssistUsed === "boolean" ? visualAssistUsed : frozenGuidanceLevel !== "off",
+    independentWatch: false,
     creditsAwarded: 0,
     startedAt,
     completedAt: null,
+  };
+}
+
+export function markQsoAssisted(qso) {
+  if (!qso || typeof qso !== "object" || qso.visualAssistUsed === true) return qso;
+  if ([QSO_PHASES.QSO_COMPLETE, QSO_PHASES.QSO_FAILED].includes(qso.phase)) return qso;
+  return {
+    ...qso,
+    visualAssistUsed: true,
   };
 }
 
@@ -56,7 +104,15 @@ export function onNpcPlaybackFinished(qso, completedAt = new Date().toISOString(
     return { ...qso, phase: QSO_PHASES.PLAYER_RST_AND_73, lastError: null };
   }
   if (qso.phase === QSO_PHASES.NPC_73_AND_SK) {
-    return { ...qso, phase: QSO_PHASES.QSO_COMPLETE, creditsAwarded: 100, completedAt, lastError: null };
+    const independentWatch = qso.guidanceLevel === "off" && qso.visualAssistUsed !== true;
+    return {
+      ...qso,
+      phase: QSO_PHASES.QSO_COMPLETE,
+      creditsAwarded: independentWatch ? 150 : 100,
+      independentWatch,
+      completedAt,
+      lastError: null,
+    };
   }
   return qso;
 }
@@ -78,30 +134,49 @@ export function validatePlayerMessage(qso, message) {
     if (tokens.length === 2 && tokens[0] === "AGN" && tokens[1] === "K") {
       return { valid: true, reason: null, action: "repeat" };
     }
+    if (tokens.includes("AGN")) return { valid: false, reason: "invalidAgn" };
+    if (!tokens.includes("DE")) return { valid: false, reason: "missingDe" };
+    if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
     if (!hasCallsign(tokens, qso.npc.callsign) || !hasCallsign(tokens, qso.playerCallsign)) return { valid: false, reason: "missingCallsign" };
     const rstIndex = tokens.indexOf("RST");
     const rst = rstIndex >= 0 ? tokens[rstIndex + 1] : null;
     if (!rst || !/^[1-5][1-9][1-9]$/.test(rst)) return { valid: false, reason: "invalidRst" };
     if (!tokens.includes("73")) return { valid: false, reason: "missing73" };
+    const inStrictOrder = tokens.length === 7
+      && normalizeCallsign(tokens[0]) === normalizeCallsign(qso.npc.callsign)
+      && tokens[1] === "DE"
+      && normalizeCallsign(tokens[2]) === normalizeCallsign(qso.playerCallsign)
+      && tokens[3] === "RST"
+      && tokens[4] === rst
+      && tokens[5] === "73"
+      && tokens[6] === "K";
+    if (!inStrictOrder) return { valid: false, reason: "wrongReplyOrder" };
     return { valid: true, reason: null, action: "complete", rst };
   }
   return { valid: false, reason: "notWaitingForPlayer" };
 }
 
-export function submitPlayerMessage(qso, message, { npcRst = "579" } = {}) {
+export function submitPlayerMessage(qso, message, {
+  npcRst = "579",
+  wpm = null,
+  accuracy = null,
+  rhythm = null,
+} = {}) {
   const validation = validatePlayerMessage(qso, message);
+  const attemptHistory = appendAttempt(qso, message, validation, { wpm, accuracy, rhythm });
   if (!validation.valid) {
     const attempts = Math.min(
       Number.MAX_SAFE_INTEGER,
       (Number.isSafeInteger(qso.attempts) && qso.attempts >= 0 ? qso.attempts : 0) + 1,
     );
-    return { ...qso, attempts, lastError: validation.reason };
+    return { ...qso, attempts, attemptHistory, lastError: validation.reason };
   }
   if (qso.phase === QSO_PHASES.PLAYER_CQ) {
     return {
       ...qso,
       phase: QSO_PHASES.WAITING_RESPONSE,
       attempts: 0,
+      attemptHistory,
       lastError: null,
       npcMessage: null,
       expectedPlayer: null,
@@ -111,6 +186,7 @@ export function submitPlayerMessage(qso, message, { npcRst = "579" } = {}) {
     return {
       ...qso,
       phase: QSO_PHASES.NPC_REPLY,
+      attemptHistory,
       lastError: null,
       repeatRequests: Math.min(
         Number.MAX_SAFE_INTEGER,
@@ -123,6 +199,7 @@ export function submitPlayerMessage(qso, message, { npcRst = "579" } = {}) {
     ...qso,
     phase: QSO_PHASES.NPC_73_AND_SK,
     attempts: 0,
+    attemptHistory,
     lastError: null,
     sentRst: validation.rst,
     receivedRst: npcRst,
@@ -159,7 +236,12 @@ export function resolveCqResponse(qso, npc) {
 }
 
 export function restartQso(qso, startedAt = new Date().toISOString()) {
-  return createQso({ npc: qso.npc, playerCallsign: qso.playerCallsign, startedAt });
+  return createQso({
+    npc: qso.npc,
+    playerCallsign: qso.playerCallsign,
+    startedAt,
+    guidanceLevel: qso.guidanceLevel,
+  });
 }
 
 export function qsoCanAcceptPlayer(qso) {
@@ -221,6 +303,10 @@ export function createQsoLogEntry(qso, {
     transmitAccuracy: transmitAccuracy ?? copyAccuracy,
     keyingScore,
     repeatRequests: qso.repeatRequests,
+    guidanceLevel: qso.guidanceLevel,
+    visualAssistUsed: qso.visualAssistUsed,
+    independentWatch: qso.independentWatch,
+    attemptHistory: qso.attemptHistory,
     isFictional: qso.npc.isFictional !== false,
     credits: qso.creditsAwarded,
   };

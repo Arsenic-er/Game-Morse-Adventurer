@@ -81,7 +81,11 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
   assert.equal(save.qsoLogs.length, 1);
   assert.equal(save.qsoLogs[0].id, "legacy-qso");
   assert.equal(save.qsoLogs[0].callsign, "SIM7QX");
-  assert.equal(save.qsoLogs[0].version, 2);
+  assert.equal(save.qsoLogs[0].version, 3);
+  assert.equal(save.qsoLogs[0].guidanceLevel, "full");
+  assert.equal(save.qsoLogs[0].visualAssistUsed, false);
+  assert.equal(save.qsoLogs[0].independentWatch, false);
+  assert.deepEqual(save.qsoLogs[0].attemptHistory, []);
   assert.equal(save.qsoLogs[0].repeatRequests, 0);
   assert.equal(save.qsoGuidance, "full");
   assert.equal(save.qsoBriefSeen, false);
