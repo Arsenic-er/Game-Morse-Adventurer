@@ -262,7 +262,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.18.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.19.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   async function readManualState(label) {
     const state = await window.webContents.executeJavaScript(`(() => {
@@ -602,19 +602,50 @@ async function runQaCapture(window) {
   await click(window, ".qso-log-records button:nth-of-type(2)");
   await capture(window, outputDir, shot("home-log-detail-second"));
   await click(window, ".qso-log-return");
+  await waitForMissing(window, ".qso-log-modal");
+  await delay(400);
 
   // The Home book stack is the save-aware curriculum entrance. Its hover tint,
   // route, return route, promotion gate and persistence are all smoke-tested.
   await clearHover(window);
+  await waitFor(window, '[data-testid="home-practice-progress"][data-practice-completed="0"][data-practice-total="19"][data-practice-percent="0"]');
+  const initialHomePracticeProgress = await window.webContents.executeJavaScript(`(() => {
+    const hotspot = document.querySelector('[data-testid="home-practice-hotspot"]');
+    const progress = document.querySelector('[data-testid="home-practice-progress"]');
+    return {
+      hotspotCompleted: Number(hotspot?.dataset.practiceCompleted),
+      hotspotTotal: Number(hotspot?.dataset.practiceTotal),
+      hotspotPercent: Number(hotspot?.dataset.practicePercent),
+      completed: Number(progress?.dataset.practiceCompleted),
+      total: Number(progress?.dataset.practiceTotal),
+      percent: Number(progress?.dataset.practicePercent),
+    };
+  })()`, true);
+  if (initialHomePracticeProgress.hotspotCompleted !== 0
+    || initialHomePracticeProgress.hotspotTotal !== 19
+    || initialHomePracticeProgress.hotspotPercent !== 0
+    || initialHomePracticeProgress.completed !== 0
+    || initialHomePracticeProgress.total !== 19
+    || initialHomePracticeProgress.percent !== 0) {
+    throw new Error(`Initial Home practice progress is not 0/19: ${JSON.stringify(initialHomePracticeProgress)}`);
+  }
   await assertHoverTint(window, '[data-testid="home-practice-hotspot"]');
   await capture(window, outputDir, shot("home-hover-practice"));
   await click(window, '[data-testid="home-practice-hotspot"]');
   await waitFor(window, '.practice-screen[data-practice-recording="save"][data-practice-difficulty="guided"][data-practice-lesson="1"][data-practice-lessons-completed="0"]');
+  await waitFor(window, '[data-testid="practice-lesson-content"]');
+  await waitFor(window, '[data-testid="practice-mastery-feedback"][data-mastery-status="not-started"][data-mastery-completed-lessons="0"][data-mastery-block-attempts="0"][data-mastery-block-correct="0"][data-mastery-attempts-remaining="5"][data-mastery-correct-needed="4"][data-mastery-can-pass="true"]');
   const persistentPracticeIdentity = await window.webContents.executeJavaScript(`(() => ({
     recording: document.querySelector(".practice-screen")?.dataset.practiceRecording ?? null,
     difficulty: document.querySelector(".practice-screen")?.dataset.practiceDifficulty ?? null,
     lesson: Number(document.querySelector(".practice-screen")?.dataset.practiceLesson),
     completedLessons: Number(document.querySelector(".practice-screen")?.dataset.practiceLessonsCompleted),
+    lessonNew: document.querySelector(".practice-screen")?.dataset.practiceLessonNew ?? "",
+    lessonPool: document.querySelector(".practice-screen")?.dataset.practiceLessonPool ?? "",
+    masteryAttempts: Number(document.querySelector(".practice-screen")?.dataset.practiceMasteryAttempts),
+    masteryCorrect: Number(document.querySelector(".practice-screen")?.dataset.practiceMasteryCorrect),
+    masteryRemaining: Number(document.querySelector(".practice-screen")?.dataset.practiceMasteryRemaining),
+    masteryCanPass: document.querySelector(".practice-screen")?.dataset.practiceMasteryCanPass ?? null,
     statusText: document.querySelector(".practice-recording-status")?.textContent.trim() ?? "",
     callsign: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
   }))()`, true);
@@ -622,9 +653,16 @@ async function runQaCapture(window) {
     || persistentPracticeIdentity.difficulty !== "guided"
     || persistentPracticeIdentity.lesson !== 1
     || persistentPracticeIdentity.completedLessons !== 0
+    || persistentPracticeIdentity.lessonNew !== "A,N,T,E"
+    || persistentPracticeIdentity.lessonPool !== "A,N,T,E"
+    || persistentPracticeIdentity.masteryAttempts !== 0
+    || persistentPracticeIdentity.masteryCorrect !== 0
+    || persistentPracticeIdentity.masteryRemaining !== 5
+    || persistentPracticeIdentity.masteryCanPass !== "true"
     || !persistentPracticeIdentity.statusText.includes(persistentPracticeIdentity.callsign)) {
     throw new Error(`Active-save practice did not identify its record destination: ${JSON.stringify(persistentPracticeIdentity)}`);
   }
+  await capture(window, outputDir, shot("practice-lesson-guidance"));
 
   const practiceTargets = [];
   let wrongPracticeTarget = null;
@@ -717,10 +755,12 @@ async function runQaCapture(window) {
   await capture(window, outputDir, shot("practice-session-summary"));
 
   await click(window, '[data-action="practice-summary-continue"]');
-  await waitFor(window, '.practice-screen[data-practice-result="waiting"][data-practice-difficulty="guided"][data-practice-lesson="2"][data-practice-lessons-completed="1"]');
+  await waitFor(window, '.practice-screen[data-practice-result="waiting"][data-practice-difficulty="guided"][data-practice-lesson="2"][data-practice-lessons-completed="1"][data-practice-lesson-new="I,M,S,O"]');
+  await waitFor(window, '[data-testid="practice-mastery-feedback"][data-mastery-status="not-started"][data-mastery-completed-lessons="1"][data-mastery-attempts-remaining="5"][data-mastery-correct-needed="4"][data-mastery-can-pass="true"]');
   await capture(window, outputDir, shot("practice-lesson-two"));
   await click(window, '[data-action="practice-back"]');
   await waitFor(window, ".home-screen");
+  await waitFor(window, '[data-testid="home-practice-progress"][data-practice-completed="1"][data-practice-total="19"][data-practice-percent="5"]');
   await capture(window, outputDir, shot("home-after-practice"));
 
   await window.reload();
@@ -750,6 +790,7 @@ async function runQaCapture(window) {
   await waitFor(window, ".save-select-screen");
   await click(window, ".save-primary-action");
   await waitFor(window, ".home-screen");
+  await waitFor(window, '[data-testid="home-practice-progress"][data-practice-completed="1"][data-practice-total="19"][data-practice-percent="5"]');
   await window.webContents.executeJavaScript(`(() => {
     window.__qaAchievementEvents = [];
     window.__qaAchievementLast = null;
@@ -1107,7 +1148,7 @@ async function runQaCapture(window) {
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "practice-session-only", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "home-hover-practice", "practice-session-summary", "practice-lesson-two", "home-after-practice", "practice-lifetime-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
+      "home-log-detail-second", "home-hover-practice", "practice-lesson-guidance", "practice-session-summary", "practice-lesson-two", "home-after-practice", "practice-lifetime-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
     ].map(shot), ...manualCaptures],
   };
 }

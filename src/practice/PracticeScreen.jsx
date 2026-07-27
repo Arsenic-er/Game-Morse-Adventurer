@@ -5,11 +5,13 @@ import {
 } from "@phosphor-icons/react";
 import { encodeTextToEvents } from "../cw/morse.js";
 import { useCwCore } from "../cw/useCwCore.js";
-import { emptyPracticeRecords, practiceLessonPlan, practiceStatsByMode, recordPracticeAttempt } from "./practiceRecords.js";
+import {
+  emptyPracticeRecords, practiceLessonPlan, practiceMasteryFeedback, practiceStatsByMode, recordPracticeAttempt,
+} from "./practiceRecords.js";
 import {
   PRACTICE_DIFFICULTIES, PRACTICE_MODES, completePracticeSession, createPracticeSession, currentPracticeQuestion,
   evaluateReception, evaluateSending, isReceptionMode, isSendingMode, normalizePracticeStats,
-  practiceDifficultyProfile, practiceLessonCount, practiceReceiveWpm, settlePracticeQuestion, summarizePracticeSession,
+  practiceDifficultyProfile, practiceLessonContent, practiceLessonCount, practiceReceiveWpm, settlePracticeQuestion, summarizePracticeSession,
 } from "./practiceEngine.js";
 
 const ASSETS = {
@@ -31,6 +33,10 @@ const TEXT = {
     endSession: "结束训练", summaryTitle: "训练总结", summarySubtitle: "本次练习已经结算", continueTraining: "继续训练", leavePractice: "返回开始界面",
     difficulty: "难度", guided: "引导", standard: "标准", challenge: "挑战", lesson: "课程", lessonProgress: "课程进度",
     pass: "课程通过", retry: "尚未达标，请重试", unlocked: "已解锁下一课", completed: "课程全部完成", switchLocked: "答题后将在下一轮切换",
+    lessonContents: "本课内容", introduced: "本课新增", practiceRange: "练习题池", masteryProgress: "本课达标进度",
+    completedLessons: "已完成课程", currentBlock: "当前计分块", passRule: "达标规则", remainingQuestions: "剩余题数", correctNeeded: "尚需答对",
+    thresholdSecured: "所需正确题数已满足，请完成剩余题目", cannotPass: "本计分块已无法达标，完成后将重新开始", blockProgressing: "继续完成本计分块", blockNotStarted: "尚未开始本课计分",
+    replayNoProgress: "复习已完成课程，不计入当前课程达标进度",
   },
   "zh-TW": {
     title: "CW 練習臺", back: "返回開始介面", settings: "設定", independent: "獨立訓練環境 · 不受傳播影響",
@@ -44,6 +50,10 @@ const TEXT = {
     endSession: "結束訓練", summaryTitle: "訓練總結", summarySubtitle: "本次練習已完成結算", continueTraining: "繼續訓練", leavePractice: "返回開始介面",
     difficulty: "難度", guided: "引導", standard: "標準", challenge: "挑戰", lesson: "課程", lessonProgress: "課程進度",
     pass: "課程通過", retry: "尚未達標，請重試", unlocked: "已解鎖下一課", completed: "課程全部完成", switchLocked: "作答後將於下一輪切換",
+    lessonContents: "本課內容", introduced: "本課新增", practiceRange: "練習題庫", masteryProgress: "本課達標進度",
+    completedLessons: "已完成課程", currentBlock: "目前計分區塊", passRule: "達標規則", remainingQuestions: "剩餘題數", correctNeeded: "尚需答對",
+    thresholdSecured: "所需正確題數已滿足，請完成剩餘題目", cannotPass: "本計分區塊已無法達標，完成後將重新開始", blockProgressing: "繼續完成本計分區塊", blockNotStarted: "尚未開始本課計分",
+    replayNoProgress: "複習已完成課程，不計入目前課程達標進度",
   },
   ja: {
     title: "CW 練習台", back: "開始画面へ戻る", settings: "設定", independent: "独立した練習環境・伝搬の影響なし",
@@ -57,6 +67,10 @@ const TEXT = {
     endSession: "練習を終了", summaryTitle: "練習結果", summarySubtitle: "今回の練習を集計しました", continueTraining: "練習を続ける", leavePractice: "開始画面へ戻る",
     difficulty: "難易度", guided: "ガイド", standard: "標準", challenge: "挑戦", lesson: "レッスン", lessonProgress: "進捗",
     pass: "レッスン合格", retry: "基準未達・再挑戦", unlocked: "次のレッスンを解放", completed: "全課程を完了", switchLocked: "解答後は次回から変更できます",
+    lessonContents: "レッスン内容", introduced: "今回追加", practiceRange: "出題範囲", masteryProgress: "このレッスンの合格進捗",
+    completedLessons: "完了レッスン", currentBlock: "現在の採点ブロック", passRule: "合格条件", remainingQuestions: "残り問題", correctNeeded: "あと必要な正解",
+    thresholdSecured: "必要正解数に到達。残りを完了してください", cannotPass: "このブロックでは合格不可。完了後に再挑戦します", blockProgressing: "採点ブロックを続けてください", blockNotStarted: "このレッスンは未採点です",
+    replayNoProgress: "完了済みレッスンの復習は現在の合格進捗に加算されません",
   },
   en: {
     title: "CW Practice", back: "Back to title", settings: "Settings", independent: "Independent training · propagation disabled",
@@ -70,6 +84,10 @@ const TEXT = {
     endSession: "End session", summaryTitle: "Session summary", summarySubtitle: "This practice session has been scored", continueTraining: "Keep training", leavePractice: "Back to title",
     difficulty: "Difficulty", guided: "Guided", standard: "Standard", challenge: "Challenge", lesson: "Lesson", lessonProgress: "Lesson progress",
     pass: "Lesson passed", retry: "Target missed — retry", unlocked: "Next lesson unlocked", completed: "Curriculum complete", switchLocked: "Switch next round after answering",
+    lessonContents: "Lesson contents", introduced: "New this lesson", practiceRange: "Practice pool", masteryProgress: "This lesson's pass progress",
+    completedLessons: "Lessons completed", currentBlock: "Current scored block", passRule: "Pass rule", remainingQuestions: "Questions left", correctNeeded: "Correct answers needed",
+    thresholdSecured: "Required correct answers reached; finish the remaining questions", cannotPass: "This block can no longer pass; finish it to restart", blockProgressing: "Continue this scored block", blockNotStarted: "This lesson has not started scoring",
+    replayNoProgress: "Reviewing a completed lesson does not advance the current pass block",
   },
 };
 
@@ -202,6 +220,11 @@ export function PracticeScreen({
     [effectivePersistentStats, mode],
   );
   const lifetimeStats = lifetimeRecord.stats;
+  const lessonContent = useMemo(() => practiceLessonContent(mode, lesson), [lesson, mode]);
+  const mastery = useMemo(
+    () => practiceMasteryFeedback(lifetimeRecord, mode, { difficulty, lesson }),
+    [difficulty, lesson, lifetimeRecord, mode],
+  );
   const maxUnlockedLesson = Math.min(lessonCount, lifetimeRecord.completedLessons + 1);
   const sessionWeaknesses = weaknessDelta(sessionStats.weaknesses, run.baselineWeaknesses);
   const sessionWeakEntries = Object.entries(sessionWeaknesses).sort((left, right) => right[1] - left[1]).slice(0, 5);
@@ -214,6 +237,17 @@ export function PracticeScreen({
   const morse = useMemo(() => encodeTextToEvents(target, { wpm: receiveWpm }).morse, [receiveWpm, target]);
   const resultState = result ? (result.correct ? "correct" : "wrong") : "waiting";
   const switchLocked = sessionStats.attempts > 0 || Boolean(result) || Boolean(answer.trim()) || cw.analysis.pulseCount > 0;
+  const masteryStatus = mastery.curriculumCompleted
+    ? t.completed
+    : mastery.status === "replay"
+      ? t.replayNoProgress
+      : mastery.status === "cannot-pass"
+      ? t.cannotPass
+      : mastery.status === "threshold-secured"
+        ? t.thresholdSecured
+        : mastery.status === "not-started"
+          ? t.blockNotStarted
+          : `${t.correctNeeded}: ${mastery.correctNeeded} · ${t.remainingQuestions}: ${mastery.attemptsRemaining}`;
 
   useEffect(() => {
     cw.clearInput();
@@ -428,6 +462,12 @@ export function PracticeScreen({
       data-practice-lessons-completed={lifetimeRecord.completedLessons}
       data-practice-lesson-attempts={lifetimeRecord.lessonAttempts}
       data-practice-lesson-required={difficultyProfile.requiredAttempts}
+      data-practice-lesson-new={lessonContent.introducedTargets.join(",")}
+      data-practice-lesson-pool={lessonContent.targetPool.join(",")}
+      data-practice-mastery-attempts={mastery.blockAttempts}
+      data-practice-mastery-correct={mastery.blockCorrect}
+      data-practice-mastery-remaining={mastery.attemptsRemaining}
+      data-practice-mastery-can-pass={mastery.canStillPass ? "true" : "false"}
       data-practice-question-id={displayedQuestion?.id ?? ""}
       data-practice-target={window.cwgameSystem?.qaCapture ? target : undefined}
       data-practice-attempts={sessionStats.attempts}
@@ -487,6 +527,11 @@ export function PracticeScreen({
               ))}
             </div>
             <small>{switchLocked ? t.switchLocked : `${difficultyProfile.requiredAttempts} / ${difficultyProfile.requiredAccuracy}%`}</small>
+            <div className="practice-lesson-content" data-testid="practice-lesson-content">
+              <span>{t.lessonContents}</span>
+              <p><b>{t.introduced}</b><strong>{lessonContent.introducedTargets.join(" · ")}</strong></p>
+              <p><b>{t.practiceRange}</b><code title={lessonContent.targetPool.join(" · ")}>{lessonContent.targetPool.join(" · ")}</code></p>
+            </div>
           </section>
           <div className="practice-policy"><Radio size={18} /><span>{t.sim}</span></div>
         </aside>
@@ -534,6 +579,28 @@ export function PracticeScreen({
           </dl>
           <section className="practice-session-weaknesses"><h2>{t.session} · {t.weak}</h2>{sessionWeakEntries.length ? <div className="weak-list">{sessionWeakEntries.map(([character, count]) => <span key={character}><b>{character}</b><i>{count}</i></span>)}</div> : <p>{t.noWeak}</p>}</section>
           <section className="practice-lifetime-stats" data-testid="practice-lifetime-stats">
+            <div
+              className={`practice-mastery-card ${mastery.status}`}
+              data-testid="practice-mastery-feedback"
+              data-mastery-status={mastery.status}
+              data-mastery-completed-lessons={mastery.completedLessons}
+              data-mastery-block-attempts={mastery.blockAttempts}
+              data-mastery-block-correct={mastery.blockCorrect}
+              data-mastery-attempts-remaining={mastery.attemptsRemaining}
+              data-mastery-correct-needed={mastery.correctNeeded}
+              data-mastery-can-pass={mastery.canStillPass ? "true" : "false"}
+            >
+              <h2>{t.masteryProgress}</h2>
+              <p><span>{t.completedLessons}</span><b>{mastery.completedLessons}/{mastery.lessonCount}</b></p>
+              {mastery.progressionEligible && (
+                <>
+                  <p><span>{t.currentBlock}</span><b>{mastery.blockAttempts}/{mastery.requiredAttempts} · {mastery.blockCorrect} {t.correctCount}</b></p>
+                  <p><span>{t.accuracy}</span><b>{mastery.blockAccuracy}%</b></p>
+                  <p><span>{t.passRule}</span><b>≥ {mastery.requiredCorrect}/{mastery.requiredAttempts} · {mastery.requiredAccuracy}%</b></p>
+                </>
+              )}
+              <small>{masteryStatus}</small>
+            </div>
             <h2>{t.lifetime}</h2>
             <dl>
               <div><dt>{t.attempts}</dt><dd>{lifetimeStats.attempts}</dd></div>

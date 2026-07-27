@@ -33,7 +33,9 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - Straight-key input with `Space`; adjustable 5–40 WPM automatic paddle input with `Z` for dot and `X` for dash, including continuous hold-to-repeat.
 - Independent CW practice for characters, fictional callsigns, straight key, and paddle. Guided, Standard, and Challenge difficulties set listening speed and lesson pass targets; staged curricula unlock one lesson at a time in every mode.
 - A deterministic shuffled bag avoids repeats within a round and, when the active lesson pool permits, steers the next prompt away from the four most recent targets; each prompt settles at most once. Practice shows session summaries for attempts, accuracy, rhythm, weak characters, and lesson progress.
+- Each lesson now identifies the targets introduced in that lesson and its full review pool. A live mastery card explains the scored block, pass rule, remaining questions, correct answers still needed, and whether the current block can still pass.
 - With an active save, lifetime results and curriculum progress accumulate independently for all four modes. Practice-record schema v2 safely migrates older saves with conservative defaults; without a selected save, training remains available but records stay session-only.
+- The Home `MORSE CODE` book shows the aggregate completed-lesson count and percentage across all 19 lessons, and refreshes immediately when the player returns from practice.
 - A player-led fictional QSO loop: the receiver opens automatically, the player calls CQ, propagation determines whether a station responds, and a successful contact continues through callsigns, RST, 73/SK, credits, and logging.
 - A four-language first-watch briefing and full/hints/off duty coach teach each QSO stage without revealing the remote callsign during blind copy.
 - `AGN K` repeats the same remote station over the same channel without changing propagation, attempts, or rewards; malformed messages retain their decoded text for correction instead of ending the QSO after two errors.
@@ -73,7 +75,7 @@ The automated suite covers the CW core and repeating keyer, receiver audio filte
 
 ## Project status
 
-Version **v0.18.0** deepens the existing CW curriculum without adding radios, antennas, or accessories. Guided, Standard, and Challenge difficulties provide progressively faster receive speeds and stricter pass targets; each practice mode now unlocks staged lessons from a compact starter set toward its complete pool. The active save retains each mode's difficulty, current lesson, partial lesson result, and completed lessons through practice-record schema v2, while legacy records migrate safely. A new interactive `MORSE CODE` book on Home opens the lesson-aware practice desk and returns the player to Home afterward. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
+Version **v0.19.0** improves the existing CW learning loop without adding radios, antennas, or accessories. Every lesson now explains its newly introduced targets and complete review pool, while a live mastery card turns the pass threshold into concrete remaining-question and correct-answer feedback. The Home `MORSE CODE` book displays save-aware aggregate progress across all 19 lessons, updates after a completed lesson, and survives reload through the existing practice-record schema v2. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
 
 ## Rights and third-party software
 

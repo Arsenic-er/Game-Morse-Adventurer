@@ -114,6 +114,27 @@ export function practiceStatsByMode(value) {
   }));
 }
 
+export function summarizePracticeProgress(value) {
+  const records = normalizePracticeRecords(value);
+  const modes = Object.fromEntries(Object.values(PRACTICE_MODES).map((mode) => {
+    const totalLessons = practiceLessonCount(mode);
+    const completedLessons = Math.min(totalLessons, records[mode].completedLessons);
+    return [mode, {
+      completedLessons,
+      totalLessons,
+      percent: totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0,
+    }];
+  }));
+  const completedLessons = Object.values(modes).reduce((total, mode) => total + mode.completedLessons, 0);
+  const totalLessons = Object.values(modes).reduce((total, mode) => total + mode.totalLessons, 0);
+  return {
+    completedLessons,
+    totalLessons,
+    percent: totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0,
+    modes,
+  };
+}
+
 export function practiceLessonPlan(record, mode, difficulty, lesson) {
   const current = normalizePracticeRecord(record, mode);
   const selectedDifficulty = normalizePracticeDifficulty(difficulty ?? current.difficulty);
@@ -134,6 +155,52 @@ export function practiceLessonPlan(record, mode, difficulty, lesson) {
     questionLimit: Math.max(1, profile.requiredAttempts - baselineAttempts),
     requiredAttempts: profile.requiredAttempts,
     requiredAccuracy: profile.requiredAccuracy,
+  };
+}
+
+export function practiceMasteryFeedback(record, mode = PRACTICE_MODES.CHARACTER_RX, selection = {}) {
+  const current = normalizePracticeRecord(record, mode);
+  const lessonCount = practiceLessonCount(mode);
+  const difficulty = normalizePracticeDifficulty(selection?.difficulty ?? current.difficulty);
+  const lesson = normalizePracticeLesson(selection?.lesson ?? current.lesson, mode);
+  const profile = practiceDifficultyProfile(difficulty);
+  const curriculumCompleted = current.completedLessons >= lessonCount;
+  const progressionEligible = !curriculumCompleted && lesson === current.lesson;
+  const continuingBlock = progressionEligible && difficulty === current.difficulty;
+  const blockAttempts = continuingBlock ? current.lessonAttempts : 0;
+  const blockCorrect = continuingBlock ? current.lessonCorrect : 0;
+  const blockAccuracy = blockAttempts ? Math.round((blockCorrect / blockAttempts) * 100) : 0;
+  const requiredCorrect = Math.ceil((profile.requiredAttempts * profile.requiredAccuracy) / 100);
+  const attemptsRemaining = progressionEligible ? Math.max(0, profile.requiredAttempts - blockAttempts) : 0;
+  const correctNeeded = progressionEligible ? Math.max(0, requiredCorrect - blockCorrect) : 0;
+  const canStillPass = progressionEligible && blockCorrect + attemptsRemaining >= requiredCorrect;
+  const thresholdSecured = progressionEligible && correctNeeded === 0;
+  let status = "not-started";
+  if (curriculumCompleted) status = "completed";
+  else if (!progressionEligible) status = "replay";
+  else if (!canStillPass) status = "cannot-pass";
+  else if (thresholdSecured) status = "threshold-secured";
+  else if (blockAttempts > 0) status = "in-progress";
+
+  return {
+    mode: Object.values(PRACTICE_MODES).includes(mode) ? mode : PRACTICE_MODES.CHARACTER_RX,
+    difficulty,
+    lesson,
+    lessonCount,
+    completedLessons: current.completedLessons,
+    curriculumCompleted,
+    progressionEligible,
+    blockAttempts,
+    blockCorrect,
+    blockAccuracy,
+    requiredAttempts: profile.requiredAttempts,
+    requiredAccuracy: profile.requiredAccuracy,
+    requiredCorrect,
+    attemptsRemaining,
+    correctNeeded,
+    canStillPass,
+    thresholdSecured,
+    status,
   };
 }
 

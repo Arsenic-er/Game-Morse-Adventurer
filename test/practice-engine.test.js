@@ -4,7 +4,7 @@ import {
   CHARACTER_POOL, PRACTICE_DIFFICULTIES, PRACTICE_MODES, completePracticeSession, createPracticeBag, createPracticeSession,
   currentPracticeQuestion, emptyPracticeStats, evaluateReception, evaluateSending, normalizePracticeSession,
   normalizePracticeStats, practiceDifficultyProfile, practiceLessonCount, practicePoolFor, practiceReceiveWpm,
-  practiceTargetFor, settlePracticeQuestion, summarizePracticeSession,
+  practiceLessonContent, practiceTargetFor, settlePracticeQuestion, summarizePracticeSession,
   updatePracticeStats,
 } from "../src/practice/practiceEngine.js";
 
@@ -25,6 +25,26 @@ test("lesson pools expand cumulatively without leaking locked targets", () => {
   assert.equal(practiceLessonCount(PRACTICE_MODES.CALLSIGN_RX), 4);
   assert.equal(practicePoolFor(PRACTICE_MODES.PADDLE_TX, { lesson: 4 }).includes("SIM3RA"), false);
   assert.equal(practicePoolFor(PRACTICE_MODES.PADDLE_TX, { lesson: 5 }).includes("SIM3RA"), true);
+});
+
+test("lesson content explains newly introduced, review, and full target pools", () => {
+  assert.deepEqual(practiceLessonContent(PRACTICE_MODES.CHARACTER_RX, 2), {
+    mode: PRACTICE_MODES.CHARACTER_RX,
+    lesson: 2,
+    lessonCount: 5,
+    introducedTargets: ["I", "M", "S", "O"],
+    reviewTargets: ["A", "N", "T", "E"],
+    targetPool: ["A", "N", "T", "E", "I", "M", "S", "O"],
+  });
+
+  const finalPaddle = practiceLessonContent(PRACTICE_MODES.PADDLE_TX, 5);
+  assert.deepEqual(finalPaddle.introducedTargets, ["7", "3", "5", "SIM3RA"]);
+  assert.equal(finalPaddle.reviewTargets.includes("Q"), true);
+  assert.deepEqual(finalPaddle.targetPool, practicePoolFor(PRACTICE_MODES.PADDLE_TX, { lesson: 5 }));
+
+  const finalCallsign = practiceLessonContent(PRACTICE_MODES.CALLSIGN_RX, 4);
+  assert.deepEqual(finalCallsign.introducedTargets, ["SIM4NZ", "SIM6JP"]);
+  assert.equal(finalCallsign.reviewTargets.length, 6);
 });
 
 test("guided sessions stay inside the selected lesson and complete at its gate", () => {

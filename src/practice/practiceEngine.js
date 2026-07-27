@@ -182,6 +182,24 @@ export function practicePoolFor(mode, options = {}) {
   return pool;
 }
 
+export function practiceLessonContent(mode, lesson = 1) {
+  const normalizedMode = normalizeMode(mode);
+  const normalizedLesson = normalizePracticeLesson(lesson, normalizedMode);
+  const targetPool = practicePoolFor(normalizedMode, { lesson: normalizedLesson });
+  const reviewTargets = normalizedLesson > 1
+    ? practicePoolFor(normalizedMode, { lesson: normalizedLesson - 1 })
+    : [];
+  const reviewSet = new Set(reviewTargets);
+  return {
+    mode: normalizedMode,
+    lesson: normalizedLesson,
+    lessonCount: practiceLessonCount(normalizedMode),
+    introducedTargets: targetPool.filter((target) => !reviewSet.has(target)),
+    reviewTargets,
+    targetPool,
+  };
+}
+
 function hashSeed(value) {
   let hash = 2166136261;
   for (const character of String(value)) {

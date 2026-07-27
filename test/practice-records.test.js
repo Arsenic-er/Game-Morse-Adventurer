@@ -7,8 +7,10 @@ import {
   emptyPracticeRecords,
   normalizePracticeRecords,
   practiceLessonPlan,
+  practiceMasteryFeedback,
   practiceStatsByMode,
   recordPracticeAttempt,
+  summarizePracticeProgress,
 } from "../src/practice/practiceRecords.js";
 import { PRACTICE_DIFFICULTIES, PRACTICE_MODES } from "../src/practice/practiceEngine.js";
 
@@ -88,6 +90,68 @@ test("cross-session lesson plans ask only for the remaining scored block", () =>
   const replay = practiceLessonPlan({ ...record, completedLessons: 1, lesson: 2 }, PRACTICE_MODES.CHARACTER_RX, PRACTICE_DIFFICULTIES.GUIDED, 1);
   assert.equal(replay.eligible, false);
   assert.equal(replay.questionLimit, 5);
+});
+
+test("mastery feedback reports explicit curriculum and current block facts", () => {
+  const feedback = practiceMasteryFeedback({
+    ...emptyPracticeRecords()[PRACTICE_MODES.CHARACTER_RX],
+    completedLessons: 2,
+    lesson: 3,
+    lessonAttempts: 3,
+    lessonCorrect: 2,
+  }, PRACTICE_MODES.CHARACTER_RX);
+
+  assert.deepEqual(feedback, {
+    mode: PRACTICE_MODES.CHARACTER_RX,
+    difficulty: PRACTICE_DIFFICULTIES.GUIDED,
+    lesson: 3,
+    lessonCount: 5,
+    completedLessons: 2,
+    curriculumCompleted: false,
+    progressionEligible: true,
+    blockAttempts: 3,
+    blockCorrect: 2,
+    blockAccuracy: 67,
+    requiredAttempts: 5,
+    requiredAccuracy: 80,
+    requiredCorrect: 4,
+    attemptsRemaining: 2,
+    correctNeeded: 2,
+    canStillPass: true,
+    thresholdSecured: false,
+    status: "in-progress",
+  });
+});
+
+test("mastery feedback identifies secured, impossible, and completed states without a fuzzy score", () => {
+  const base = emptyPracticeRecords()[PRACTICE_MODES.CHARACTER_RX];
+  const secured = practiceMasteryFeedback({ ...base, lessonAttempts: 4, lessonCorrect: 4 }, PRACTICE_MODES.CHARACTER_RX);
+  assert.equal(secured.status, "threshold-secured");
+  assert.equal(secured.correctNeeded, 0);
+  assert.equal(secured.attemptsRemaining, 1);
+
+  const impossible = practiceMasteryFeedback({ ...base, lessonAttempts: 3, lessonCorrect: 1 }, PRACTICE_MODES.CHARACTER_RX);
+  assert.equal(impossible.status, "cannot-pass");
+  assert.equal(impossible.canStillPass, false);
+  assert.equal(impossible.correctNeeded, 3);
+
+  const changedDifficulty = practiceMasteryFeedback(base, PRACTICE_MODES.CHARACTER_RX, {
+    difficulty: PRACTICE_DIFFICULTIES.CHALLENGE,
+    lesson: 1,
+  });
+  assert.equal(changedDifficulty.difficulty, PRACTICE_DIFFICULTIES.CHALLENGE);
+  assert.equal(changedDifficulty.requiredAttempts, 10);
+  assert.equal(changedDifficulty.blockAttempts, 0);
+
+  const replay = practiceMasteryFeedback({ ...base, completedLessons: 2 }, PRACTICE_MODES.CHARACTER_RX, { lesson: 1 });
+  assert.equal(replay.status, "replay");
+  assert.equal(replay.progressionEligible, false);
+  assert.equal(replay.attemptsRemaining, 0);
+
+  const complete = practiceMasteryFeedback({ ...base, completedLessons: 5 }, PRACTICE_MODES.CHARACTER_RX);
+  assert.equal(complete.status, "completed");
+  assert.equal(complete.curriculumCompleted, true);
+  assert.equal(complete.attemptsRemaining, 0);
 });
 
 test("an in-memory record can continue from a passed lesson without a save slot", () => {
@@ -174,6 +238,51 @@ test("normalization clamps corrupt values and drops invalid targets and weakness
   assert.deepEqual(record.recentTargets, ["Q", "N", "T", "E"]);
   assert.equal(record.lastPracticedAt, null);
   assert.equal(record.rhythmTotal, 75);
+});
+
+test("practice progress summary is pure and safely bounds legacy or corrupt lesson records", () => {
+  const source = {
+    [PRACTICE_MODES.CHARACTER_RX]: { completedLessons: 99, lesson: -4 },
+    [PRACTICE_MODES.CALLSIGN_RX]: { completedLessons: 2, lesson: 3 },
+    [PRACTICE_MODES.MANUAL_TX]: { completedLessons: -9, lesson: 88 },
+    [PRACTICE_MODES.PADDLE_TX]: null,
+  };
+  const before = JSON.stringify(source);
+  const summary = summarizePracticeProgress(source);
+
+  assert.equal(summary.completedLessons, 7);
+  assert.equal(summary.totalLessons, 19);
+  assert.equal(summary.percent, 37);
+  assert.deepEqual(summary.modes[PRACTICE_MODES.CHARACTER_RX], {
+    completedLessons: 5,
+    totalLessons: 5,
+    percent: 100,
+  });
+  assert.deepEqual(summary.modes[PRACTICE_MODES.CALLSIGN_RX], {
+    completedLessons: 2,
+    totalLessons: 4,
+    percent: 50,
+  });
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(summary.modes).map(([mode, progress]) => [mode, progress.totalLessons])),
+    {
+      [PRACTICE_MODES.CHARACTER_RX]: 5,
+      [PRACTICE_MODES.CALLSIGN_RX]: 4,
+      [PRACTICE_MODES.MANUAL_TX]: 5,
+      [PRACTICE_MODES.PADDLE_TX]: 5,
+    },
+  );
+  assert.equal(summary.modes[PRACTICE_MODES.MANUAL_TX].completedLessons, 0);
+  assert.equal(summary.modes[PRACTICE_MODES.PADDLE_TX].completedLessons, 0);
+  assert.equal(JSON.stringify(source), before);
+});
+
+test("practice progress summary gives an empty legacy save a stable zero baseline", () => {
+  const summary = summarizePracticeProgress(undefined);
+  assert.equal(summary.completedLessons, 0);
+  assert.equal(summary.totalLessons, 19);
+  assert.equal(summary.percent, 0);
+  assert.deepEqual(Object.keys(summary.modes).sort(), Object.values(PRACTICE_MODES).sort());
 });
 
 test("derived lifetime stats survive JSON round trips without session attempt ids", () => {
