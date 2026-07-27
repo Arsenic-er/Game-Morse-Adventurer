@@ -103,6 +103,42 @@ test("legacy saves keep their valid equipped antenna during inventory migration"
   assert.deepEqual(save.ownedAntennas, ["dipole", "yagi-3el"]);
 });
 
+test("legacy saves cannot gain a newly catalogued radio from equipmentId alone", () => {
+  const storage = storageStub();
+  storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{
+    id: "legacy-new-radio",
+    callsign: "JA1SAFE",
+    locationId: "japan-tokyo-kanto",
+    equipmentId: "usdr-8",
+  }]));
+  const [save] = loadSaves(storage);
+  assert.equal(save.equipmentId, "squid-01");
+  assert.deepEqual(save.ownedEquipment, ["squid-01"]);
+});
+
+test("inventory saves preserve an owned and equipped MICA-8", () => {
+  const storage = storageStub();
+  const save = createSave({ callsign: "JA1USDR", locationId: "japan-tokyo-kanto" });
+  save.ownedEquipment = ["squid-01", "usdr-8"];
+  save.equipmentId = "usdr-8";
+  persistSaves([save], storage);
+
+  const [reloaded] = loadSaves(storage);
+  assert.deepEqual(reloaded.ownedEquipment, ["squid-01", "usdr-8"]);
+  assert.equal(reloaded.equipmentId, "usdr-8");
+});
+
+test("inventory saves cannot equip an unowned MICA-8", () => {
+  const storage = storageStub();
+  const save = createSave({ callsign: "JA1NOPE", locationId: "japan-tokyo-kanto" });
+  save.equipmentId = "usdr-8";
+  persistSaves([save], storage);
+
+  const [reloaded] = loadSaves(storage);
+  assert.deepEqual(reloaded.ownedEquipment, ["squid-01"]);
+  assert.equal(reloaded.equipmentId, "squid-01");
+});
+
 test("migrated saves cannot grant themselves an unowned equipped antenna", () => {
   const storage = storageStub();
   storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{

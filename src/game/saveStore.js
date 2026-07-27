@@ -69,10 +69,12 @@ export function normalizeSave(save) {
     || hasOwn("ownedEquipment")
     || hasOwn("ownedAntennas")
     || hasOwn("accessories");
-  const legacyEquipmentId = exactId(TRANSMITTERS, save?.equipmentId, "squid-01");
   const legacyAntennaId = exactId(ANTENNAS, save?.antennaId, "dipole");
   const ownedEquipment = normalizeOwned(
-    hasInventory ? save?.ownedEquipment : [legacyEquipmentId],
+    // Pre-inventory saves were released when SQUID-01 was the only radio.
+    // Do not let newly added catalog ids turn a legacy/tampered equipmentId
+    // into free ownership during migration.
+    hasInventory ? save?.ownedEquipment : ["squid-01"],
     TRANSMITTERS,
     ["squid-01"],
   );

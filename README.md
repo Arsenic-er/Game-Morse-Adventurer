@@ -37,6 +37,7 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - A four-language achievement archive derives six permanent milestones from durable QSO records and retained logs without granting duplicate rewards.
 - Atomic, idempotent credit settlement prevents a completed QSO from being rewarded more than once.
 - A four-language station store supports atomic purchases, persistent ownership, and warehouse-only equipment changes.
+- The first replacement radio, the fictional MICA-8, costs 800 credits and is inspired by open uSDX/uSDR QRP concepts: a 5 W eight-band hardware profile, 20% lower receiver noise, 15% shallower perceived QSB through AGC, and paired idle/TX pixel artwork whose red diode lights only while transmitting. Current gameplay remains fixed at 21.060 MHz CW.
 - A single accessory slot supports the 300-credit CW-500 audio filter, centered at 650 Hz with a 500 Hz bandwidth and 35% lower receiver noise; the equipped accessory is preserved in QSO logs.
 - Station clocks display both the selected station's local time and UTC.
 - Deterministic offline propagation based on station location, UTC, and 21.060 MHz.
@@ -62,11 +63,11 @@ pnpm run dev
 pnpm run desktop:build
 ```
 
-The project currently has 85 automated tests covering the CW core and repeating keyer, receiver audio filtering, practice engine, player-led QSO state machine, CQ response probability, persistent QSO logs and results, achievement derivation, idempotent credit settlement, store economy, accessory ownership and loadouts, propagation model, map projection, and save data rules.
+The project currently has 91 automated tests covering the CW core and repeating keyer, receiver audio filtering, practice engine, player-led QSO state machine, CQ response probability, persistent QSO logs and results, achievement derivation, idempotent credit settlement, store economy, radio/accessory ownership and loadouts, propagation model, map projection, and save data rules.
 
 ## Project status
 
-Version **v0.13.0** replaces the start-screen placeholder alert with a complete four-section Station Manual in English, Simplified Chinese, Traditional Chinese, and Japanese. It explains save creation, always-on receiver listening and player-led CQ calls, straight-key and automatic-paddle controls, propagation, antennas, and the CW-500 filter without requiring an external guide. The station console's former misleading Delete label is now an explicit Clear Input action. The v0.12 CW-500 accessory, v2 inventory migration, and QSO equipment snapshots remain fully supported. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
+Version **v0.14.0** adds the first purchasable replacement radio. The fictional MICA-8 can be bought in the store, delivered unequipped, selected in the warehouse, and rendered consistently in the Home loadout and station. Its 5 W output does not create a fictional propagation bonus; its DSP/AGC profile instead reduces audible receiver noise by 20% and perceived QSB depth by 15%, stacking safely with the CW-500 filter. Old saves keep only the SQUID-01 unless the new radio was legitimately purchased, and each QSO retains the equipped radio snapshot. The paired pixel assets use the requested English `PWR`, `BAND`, `MODE`, and `TUNE / VOL` labels, with only the red diode changing in TX. The suite now contains 91 automated tests. Every accepted `main` revision is tested and packaged as a checksummed Windows x64 portable artifact without committing generated build directories to source control.
 
 ## Rights and third-party software
 

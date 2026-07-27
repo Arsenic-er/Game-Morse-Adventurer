@@ -16,6 +16,7 @@ import { tailPreview } from "./cw/display.js";
 import { LocationArtwork } from "./game/LocationArtwork.jsx";
 import { getAccessory } from "./game/accessoryCatalog.js";
 import { getAntenna } from "./game/antennaCatalog.js";
+import { equipmentName, getTransmitter } from "./game/equipmentCatalog.js";
 import { equipOwnedItem, purchaseItem } from "./game/economy.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
 import {
@@ -46,7 +47,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.13.0";
+const BUILD_VERSION = "0.14.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -317,10 +318,16 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const flow = STATION_FLOW_COPY[language] ?? STATION_FLOW_COPY.en;
   const antennaStatus = ANTENNA_STATUS[language] ?? ANTENNA_STATUS.en;
   const location = getLocation(save.locationId);
+  const transmitter = getTransmitter(save.equipmentId);
   const antenna = getAntenna(save.antennaId);
   const accessory = getAccessory(save.accessoryId);
   const antennaReady = antenna.id !== "none";
-  const playerEquipmentBonus = antenna.propagationBonus;
+  const transmitterPropagationBonus = Number.isFinite(transmitter.propagationBonus) ? transmitter.propagationBonus : 0;
+  const transmitterNoiseGainMultiplier = Number.isFinite(transmitter.noiseGainMultiplier) ? transmitter.noiseGainMultiplier : 1;
+  const transmitterQsbDepthMultiplier = Number.isFinite(transmitter.qsbDepthMultiplier) ? transmitter.qsbDepthMultiplier : 1;
+  const combinedNoiseGainMultiplier = accessory.noiseGainMultiplier * transmitterNoiseGainMultiplier;
+  const combinedQsbDepthMultiplier = antenna.qsbDepthMultiplier * transmitterQsbDepthMultiplier;
+  const playerEquipmentBonus = antenna.propagationBonus + transmitterPropagationBonus;
   const playerLocation = useMemo(() => toPropagationLocation(location), [location]);
   const [mapOpen, setMapOpen] = useState(false);
   const [mapMode, setMapMode] = useState("propagation");
@@ -349,20 +356,20 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const isTx = cw.isTransmitting;
   const npcChannel = useMemo(
     () => channelProfileForLevel(qso.npc.finalLevel, qso.npc, {
-      qsbDepthMultiplier: antenna.qsbDepthMultiplier,
-      noiseGainMultiplier: accessory.noiseGainMultiplier,
+      qsbDepthMultiplier: combinedQsbDepthMultiplier,
+      noiseGainMultiplier: combinedNoiseGainMultiplier,
       noiseFilterCenterHz: accessory.filterCenterHz,
       noiseFilterQ: accessory.filterQ,
     }),
-    [accessory, antenna.qsbDepthMultiplier, qso.npc],
+    [accessory.filterCenterHz, accessory.filterQ, combinedNoiseGainMultiplier, combinedQsbDepthMultiplier, qso.npc],
   );
   const receiverChannel = useMemo(
     () => (qso.hasContact ? npcChannel : {
-      noiseGain: .065 * accessory.noiseGainMultiplier,
+      noiseGain: .065 * combinedNoiseGainMultiplier,
       noiseFilterCenterHz: accessory.filterCenterHz,
       noiseFilterQ: accessory.filterQ,
     }),
-    [accessory, npcChannel, qso.hasContact],
+    [accessory.filterCenterHz, accessory.filterQ, combinedNoiseGainMultiplier, npcChannel, qso.hasContact],
   );
 
   useEffect(() => {
@@ -626,7 +633,14 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       data-receiver-active={cw.isListening}
       data-npc-playback-recovering={npcPlaybackRecovering}
       data-accessory-id={accessory.id}
+      data-equipment-id={transmitter.id}
+      data-equipment-propagation-bonus={transmitterPropagationBonus}
+      data-player-equipment-bonus={playerEquipmentBonus}
+      data-equipment-noise-gain-multiplier={transmitterNoiseGainMultiplier}
+      data-equipment-qsb-depth-multiplier={transmitterQsbDepthMultiplier}
       data-channel-noise-gain={receiverChannel.noiseGain}
+      data-channel-qsb-depth={npcChannel.qsbDepth}
+      data-channel-qsb-depth-multiplier={combinedQsbDepthMultiplier}
       style={{ "--room": `url(${location.scene})` }}
     >
       <header className="station-topbar">
@@ -647,9 +661,9 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <div className="panel-actions"><button onClick={startNewQso} disabled={qso.phase === QSO_PHASES.QSO_COMPLETE && !saved}>{t.newContact}</button><button className="muted" data-action="clear-input" onClick={() => { setSelectedLogId(null); cw.clearInput(); }}>{t.clearInput}</button></div>
         </aside>
         <section className={`hardware-panel metal-panel ${powered ? "powered" : "power-off"}`}>
-          <div className="board-stage"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="station-board-scenery" /><img className="board-asset" src={isTx ? ASSETS.boardOn : ASSETS.boardOff} alt={`squid01 yellow PCB under an acrylic cover — ${isTx ? t.tx : powered ? t.idle : t.powerOff}`} />{!antennaReady && <div className="antenna-warning"><Broadcast size={17} weight="fill" /><span>{antennaStatus.missing}</span></div>}</div>
+          <div className="board-stage"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="station-board-scenery" /><img className="board-asset" data-testid="station-radio-art" data-radio-art-state={isTx ? "tx" : "idle"} src={isTx ? (transmitter.stationImageOn ?? transmitter.image ?? ASSETS.boardOn) : (transmitter.stationImageOff ?? transmitter.image ?? ASSETS.boardOff)} alt={`${equipmentName(transmitter, language)} — ${isTx ? t.tx : powered ? t.idle : t.powerOff}`} />{!antennaReady && <div className="antenna-warning"><Broadcast size={17} weight="fill" /><span>{antennaStatus.missing}</span></div>}</div>
           <div className="hardware-status">
-            <button className={`station-power ${powered ? "on" : ""}`} onClick={togglePower} aria-pressed={powered} aria-label={powered ? t.powerOff : t.powerOn}><Power size={16} weight="fill" /> SQUID01 / {powered ? "ON" : "OFF"}</button>
+            <button className={`station-power ${powered ? "on" : ""}`} data-testid="station-radio-power" onClick={togglePower} aria-pressed={powered} aria-label={powered ? t.powerOff : t.powerOn}><Power size={16} weight="fill" /> {transmitter.panelLabel ?? transmitter.id.toUpperCase()} / {powered ? "ON" : "OFF"}</button>
             <span>{keyType === "automatic" ? t.configuredSpeed : t.detectedSpeed}: <b>{powered ? `${keyType === "automatic" ? normalizeAutomaticKeyWpm(save.automaticKeyWpm) : cw.analysis.wpm} WPM` : "--"}</b></span>
             <span className={isTx ? "tx-active" : (cw.status === "playing" || cw.isListening) && powered ? "rx-active" : ""}><Broadcast size={16} weight="fill" />{!powered ? t.powerOff : !antennaReady ? antennaStatus.equip : isTx ? t.tx : cw.status === "playing" ? t.cwReceiving : flow.receiverLive}{accessory.id !== "none" ? ` · ${t.filterActive}` : ""}</span>
           </div>

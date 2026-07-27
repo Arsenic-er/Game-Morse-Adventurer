@@ -5,7 +5,7 @@ import {
 } from "@phosphor-icons/react";
 import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";
 import { ACCESSORIES, accessoryName, getAccessory } from "../game/accessoryCatalog.js";
-import { equipmentName, getTransmitter } from "../game/equipmentCatalog.js";
+import { TRANSMITTERS, equipmentName, getTransmitter } from "../game/equipmentCatalog.js";
 import { getLocation, locationName } from "../game/locations.js";
 import { LocationArtwork } from "../game/LocationArtwork.jsx";
 import { AchievementsModal } from "./AchievementsModal.jsx";
@@ -247,15 +247,18 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
   const equippedAntenna = getAntenna(save.antennaId);
   const equippedAccessory = getAccessory(save.accessoryId);
   const [activeCategory, setActiveCategory] = useState("radio");
+  const [draftRadioId, setDraftRadioId] = useState(save.equipmentId);
   const [draftAntennaId, setDraftAntennaId] = useState(save.antennaId);
   const [draftAccessoryId, setDraftAccessoryId] = useState(save.accessoryId ?? "none");
+  const draftRadio = getTransmitter(draftRadioId);
   const draftAntenna = getAntenna(draftAntennaId);
   const draftAccessory = getAccessory(draftAccessoryId);
+  const availableRadios = TRANSMITTERS.filter((radio) => radio.id === transmitter.id || (save.ownedEquipment ?? []).includes(radio.id));
   const availableAntennas = ANTENNAS.filter((antenna) => antenna.id === "none" || save.ownedAntennas.includes(antenna.id));
   const availableAccessories = ACCESSORIES.filter((accessory) => accessory.id === "none" || (save.accessories ?? []).includes(accessory.id));
   const category = activeCategory === "radio" ? {
-    image: transmitter.image,
-    name: equipmentName(transmitter, language),
+    image: draftRadio.image,
+    name: equipmentName(draftRadio, language),
   } : activeCategory === "antenna" ? {
     image: draftAntenna.image,
     name: antennaName(draftAntenna, language),
@@ -263,10 +266,15 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
     image: draftAccessory.image,
     name: accessoryName(draftAccessory, language),
   };
-  const selectedItemId = activeCategory === "antenna" ? draftAntenna.id : activeCategory === "accessories" ? draftAccessory.id : transmitter.id;
-  const alreadyEquipped = activeCategory === "radio"
+  const selectedItemId = activeCategory === "antenna" ? draftAntenna.id : activeCategory === "accessories" ? draftAccessory.id : draftRadio.id;
+  const alreadyEquipped = (activeCategory === "radio" && draftRadio.id === transmitter.id)
     || (activeCategory === "antenna" && draftAntenna.id === equippedAntenna.id)
     || (activeCategory === "accessories" && draftAccessory.id === equippedAccessory.id);
+
+  function chooseRadio(radioId) {
+    setDraftRadioId(radioId);
+    setActiveCategory("radio");
+  }
 
   function chooseAntenna(antennaId) {
     setDraftAntennaId(antennaId);
@@ -279,6 +287,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
   }
 
   function equipSelected() {
+    if (activeCategory === "radio") onEquipItem({ category: "radio", itemId: draftRadio.id });
     if (activeCategory === "antenna") onEquipItem({ category: "antenna", itemId: draftAntenna.id });
     if (activeCategory === "accessories") onEquipItem({ category: "accessories", itemId: draftAccessory.id });
   }
@@ -296,7 +305,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
       <section className="warehouse-screen" data-testid="warehouse-modal" role="dialog" aria-modal="true" aria-labelledby="warehouse-title">
         <aside className="warehouse-category-rail">
           <h2 id="warehouse-title">{t.title}</h2>
-          <button className={activeCategory === "radio" ? "selected" : ""} onClick={() => setActiveCategory("radio")} aria-pressed={activeCategory === "radio"}>
+          <button data-warehouse-category="radio" className={activeCategory === "radio" ? "selected" : ""} onClick={() => setActiveCategory("radio")} aria-pressed={activeCategory === "radio"}>
             <span><img src={transmitter.image} alt="" /></span><strong>{t.radio}</strong>
           </button>
           <button className={activeCategory === "antenna" ? "selected" : ""} onClick={() => setActiveCategory("antenna")} aria-pressed={activeCategory === "antenna"}>
@@ -312,10 +321,23 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
           <section className={`rack-preview category-${activeCategory}`}>
             {category.image ? <img src={category.image} alt={category.name} /> : activeCategory === "antenna" ? <EmptyAntenna size={100} /> : activeCategory === "accessories" ? <EmptyAccessory size={100} /> : <Package size={104} weight="duotone" />}
             <strong>{category.name}</strong>
-            <button className="rack-equip-button" data-action="equip-item" data-equipped-item-id={selectedItemId} disabled={activeCategory === "radio" || alreadyEquipped} onClick={equipSelected}><Check size={20} weight="bold" />{alreadyEquipped ? t.equipped : t.equip}</button>
+            <button className="rack-equip-button" data-action="equip-item" data-equipped-item-id={selectedItemId} disabled={alreadyEquipped} onClick={equipSelected}><Check size={20} weight="bold" />{alreadyEquipped ? t.equipped : t.equip}</button>
           </section>
 
-          <section className="equipment-drawer antenna-drawer">
+          {activeCategory === "radio" && <section className="equipment-drawer antenna-drawer radio-drawer">
+            <h3><span />{t.radio}<span /></h3>
+            <div>
+              {availableRadios.map((radio) => (
+                <button key={radio.id} data-radio-id={radio.id} data-testid={`warehouse-radio-${radio.id}`} className={draftRadio.id === radio.id ? "selected" : ""} aria-pressed={draftRadio.id === radio.id} onClick={() => chooseRadio(radio.id)}>
+                  {radio.image ? <img src={radio.image} alt="" /> : <Radio size={56} />}
+                  <strong>{equipmentName(radio, language)}</strong>
+                  <small>{t.propagation}: {radio.propagationBonus > 0 ? `+${radio.propagationBonus}` : radio.propagationBonus ?? 0}</small>
+                </button>
+              ))}
+            </div>
+          </section>}
+
+          {activeCategory === "antenna" && <section className="equipment-drawer antenna-drawer">
             <h3><span />{t.antennaDrawer}<span /></h3>
             <div>
               {availableAntennas.map((antenna) => (
@@ -326,9 +348,9 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
                 </button>
               ))}
             </div>
-          </section>
+          </section>}
 
-          <section className="equipment-drawer accessory-drawer">
+          {activeCategory === "accessories" && <section className="equipment-drawer accessory-drawer">
             <h3><span />{t.accessoryBar}<span /></h3>
             <div className="accessory-placeholders">
               {availableAccessories.map((accessory) => (
@@ -340,7 +362,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
               ))}
               {Array.from({ length: Math.max(0, 4 - availableAccessories.length) }, (_, slot) => <span className="locked-slot" key={slot}><Package size={30} /><small>{t.locked}</small></span>)}
             </div>
-          </section>
+          </section>}
         </main>
 
         <aside className="warehouse-current-loadout">
@@ -348,7 +370,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
           <header><span />{t.current}<span /></header>
           <b>{save.callsign}</b>
           <ol>
-            <li><strong>1. {t.radio} ({t.fixed})</strong><div><img src={transmitter.image} alt="" /></div><small>{equipmentName(transmitter, language)}</small></li>
+            <li data-testid="current-radio-loadout" data-equipment-id={transmitter.id}><strong>1. {t.radio} ({t.replaceable})</strong><div><img src={transmitter.image} alt="" /></div><small>{equipmentName(transmitter, language)}</small></li>
             <li><strong>2. {t.antenna} ({t.replaceable})</strong><div>{equippedAntenna.image ? <img src={equippedAntenna.image} alt="" /> : <EmptyAntenna size={55} />}</div><small>{antennaName(equippedAntenna, language)}</small></li>
             <li className={equippedAccessory.id === "none" ? "reserved-slot" : ""}><strong>3. {t.accessories} ({t.replaceable})</strong><div>{equippedAccessory.image ? <img src={equippedAccessory.image} alt="" /> : <EmptyAccessory size={48} />}</div><small>{equippedAccessory.id === "none" ? t.noAccessory : accessoryName(equippedAccessory, language)}</small></li>
           </ol>

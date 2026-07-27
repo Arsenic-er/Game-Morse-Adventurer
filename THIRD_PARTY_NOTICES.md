@@ -38,4 +38,11 @@ The following third-party projects are used by or distributed with Game-Morse-Ad
 - Use: Geographic source for the equirectangular pixel-art world map
 - Terms: Public domain
 
+## uSDX / (tr)uSDX design reference
+
+- Original uSDX project: https://github.com/threeme3/usdx
+- Official (tr)uSDX information: https://dl2man.de/
+- Use: public technical and appearance references for the fictional MICA-8 gameplay profile
+- Distribution: no upstream firmware, schematics, PCB files, branding, photographs, or enclosure files are included in this repository or its Windows build; the MICA-8 artwork and game values are original abstractions
+
 Complete dependency license texts are available from each linked upstream project and from installed package metadata.

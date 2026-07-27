@@ -1031,7 +1031,7 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .warehouse-category-rail img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .warehouse-category-rail svg { color: currentColor; }
 .warehouse-category-rail strong { padding: 5px 0; font-size: clamp(10px, 1.15vw, 18px); letter-spacing: .13em; }
-.warehouse-equipment-rack { display: grid; grid-template-rows: 7% 39% 28% 26%; min-width: 0; min-height: 0; padding: 1.7% 2.4% 1.2%; border-right: 5px solid #2d2017; background: rgba(7, 13, 15, .95); box-shadow: inset 0 0 0 4px #1c2628; }
+.warehouse-equipment-rack { display: grid; grid-template-rows: 7% 56% 37%; min-width: 0; min-height: 0; padding: 1.7% 2.4% 1.2%; border-right: 5px solid #2d2017; background: rgba(7, 13, 15, .95); box-shadow: inset 0 0 0 4px #1c2628; }
 .rack-title { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; color: #5aa3a4; font-size: clamp(14px, 1.45vw, 23px); letter-spacing: .16em; }
 .rack-title span, .equipment-drawer h3 span, .warehouse-current-loadout header span { height: 2px; background: #376e70; }
 .rack-preview { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto 50px; place-items: center; min-height: 0; padding: 10px 16px 12px; overflow: hidden; border: 3px solid #4d6667; background: #061014; box-shadow: inset 0 0 0 3px #111d20, 5px 5px 0 #020404; }
@@ -1214,7 +1214,7 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   .qso-result-rewards { padding: 7px 10px; }
   .qso-result-modal > footer button { height: 36px; }
   .warehouse-category-rail { padding: 1.8% 7%; }
-  .warehouse-equipment-rack { grid-template-rows: 7% 38% 29% 26%; padding-top: 1.2%; }
+  .warehouse-equipment-rack { grid-template-rows: 7% 56% 37%; padding-top: 1.2%; }
   .rack-preview { grid-template-rows: minmax(0, 1fr) auto 38px; padding: 7px 13px 8px; }
   .rack-equip-button { height: 36px; font-size: 11px; }
   .equipment-drawer { grid-template-rows: 31px minmax(0, 1fr); }

@@ -70,6 +70,42 @@ test("a repeated purchase is rejected and cannot deduct credits twice", () => {
   assert.deepEqual(retry.save.ownedAntennas, ["dipole", "yagi-3el"]);
 });
 
+test("the MICA-8 is purchased once, delivered unequipped, and can then be equipped", () => {
+  const original = saveFixture({ credits: 900 });
+  const purchased = purchaseItem(original, { category: "radio", itemId: "usdr-8" });
+
+  assert.equal(purchased.purchased, true);
+  assert.equal(purchased.reason, ECONOMY_RESULT.PURCHASED);
+  assert.equal(purchased.save.credits, 100);
+  assert.deepEqual(purchased.save.ownedEquipment, ["squid-01", "usdr-8"]);
+  assert.equal(purchased.save.equipmentId, "squid-01");
+
+  const retry = purchaseItem(purchased.save, { category: "radio", itemId: "usdr-8" });
+  assert.equal(retry.purchased, false);
+  assert.equal(retry.reason, ECONOMY_RESULT.ALREADY_OWNED);
+  assert.strictEqual(retry.save, purchased.save);
+  assert.equal(retry.save.credits, 100);
+
+  const equipped = equipOwnedItem(purchased.save, { category: "radio", itemId: "usdr-8" });
+  assert.equal(equipped.equipped, true);
+  assert.equal(equipped.reason, ECONOMY_RESULT.EQUIPPED);
+  assert.equal(equipped.save.equipmentId, "usdr-8");
+  assert.equal(equipped.save.credits, 100);
+});
+
+test("the MICA-8 cannot be equipped before purchase or bought without 800 credits", () => {
+  const original = saveFixture({ credits: 799 });
+  const purchase = purchaseItem(original, { category: "radio", itemId: "usdr-8" });
+  const equip = equipOwnedItem(original, { category: "radio", itemId: "usdr-8" });
+
+  assert.equal(purchase.purchased, false);
+  assert.equal(purchase.reason, ECONOMY_RESULT.INSUFFICIENT_CREDITS);
+  assert.strictEqual(purchase.save, original);
+  assert.equal(equip.equipped, false);
+  assert.equal(equip.reason, ECONOMY_RESULT.NOT_OWNED);
+  assert.strictEqual(equip.save, original);
+});
+
 test("unknown store item ids are rejected without changing the save", () => {
   const original = saveFixture();
   const result = purchaseItem(original, { category: "antenna", itemId: "not-a-store-item" });

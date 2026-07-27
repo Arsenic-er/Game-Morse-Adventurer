@@ -246,7 +246,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.13.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.14.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   async function readManualState(label) {
     const state = await window.webContents.executeJavaScript(`(() => {
@@ -456,7 +456,7 @@ async function runQaCapture(window) {
     const saves = JSON.parse(localStorage.getItem(key) || "[]");
     const save = saves[0];
     save.keyType = "automatic";
-    save.credits = 500;
+    save.credits = 2000;
     save.qsoLogs = [
       { version: 1, id: "SIM9AK-qa-2", startedAt: "2026-07-15T03:06:00.000Z", completedAt: "2026-07-15T03:12:00.000Z", playerCallsign: save.callsign, callsign: "SIM9AK", frequencyMhz: 21.06, mode: "CW", sent: "559", received: "579", location: "EU-W", npcLatitude: 51.51, npcLongitude: -0.13, distanceKm: 9568.2, basePropagationLevel: 2, finalPropagationLevel: 3, propagationSource: "OFFLINE_DEFAULT", equipmentId: "squid-01", antennaId: save.antennaId, playerLocationId: save.locationId, wpm: 19, copyAccuracy: 94, keyingScore: 91, credits: 100, isFictional: true },
       { version: 1, id: "SIM6JP-qa-1", startedAt: "2026-07-14T22:00:00.000Z", completedAt: "2026-07-14T22:05:00.000Z", playerCallsign: save.callsign, callsign: "SIM6JP", frequencyMhz: 21.06, mode: "CW", sent: "579", received: "599", location: "AS-JA", npcLatitude: 35.68, npcLongitude: 139.76, distanceKm: 162.4, basePropagationLevel: 3, finalPropagationLevel: 4, propagationSource: "OFFLINE_DEFAULT", equipmentId: "squid-01", antennaId: "dipole", playerLocationId: save.locationId, wpm: 18, copyAccuracy: 98, keyingScore: 96, credits: 100, isFictional: true }
@@ -481,12 +481,30 @@ async function runQaCapture(window) {
     const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
     return { credits: save.credits, accessories: save.accessories, accessoryId: save.accessoryId };
   })()`, true);
-  if (accessoryPurchaseState.credits !== 200
+  if (accessoryPurchaseState.credits !== 1700
     || !accessoryPurchaseState.accessories.includes("cw-filter-500")
     || accessoryPurchaseState.accessoryId !== "none") {
     throw new Error(`Accessory purchase was not atomic: ${JSON.stringify(accessoryPurchaseState)}`);
   }
   await capture(window, outputDir, shot("store-accessory-owned"));
+  await click(window, '[data-store-category="radio"]');
+  await waitFor(window, '[data-store-item-id="usdr-8"][data-store-item-state="available"]');
+  await click(window, '[data-store-item-id="usdr-8"]');
+  await capture(window, outputDir, shot("store-radio-available-warmup"));
+  await capture(window, outputDir, shot("store-radio-available"));
+  await click(window, '[data-action="purchase"][data-purchase-item-id="usdr-8"]');
+  await waitFor(window, '[data-store-item-id="usdr-8"][data-store-item-state="owned"]');
+  const radioPurchaseState = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    return { credits: save.credits, ownedEquipment: save.ownedEquipment, equipmentId: save.equipmentId };
+  })()`, true);
+  if (radioPurchaseState.credits !== 900
+    || !radioPurchaseState.ownedEquipment.includes("usdr-8")
+    || radioPurchaseState.equipmentId !== "squid-01") {
+    throw new Error(`Radio purchase was not atomic: ${JSON.stringify(radioPurchaseState)}`);
+  }
+  await capture(window, outputDir, shot("store-radio-owned-warmup"));
+  await capture(window, outputDir, shot("store-radio-owned"));
   await click(window, '[data-action="close-store"]');
   await waitFor(window, ".home-screen");
   await click(window, ".hotspot-warehouse");
@@ -501,6 +519,18 @@ async function runQaCapture(window) {
   );
   if (equippedAccessoryId !== "cw-filter-500") throw new Error(`Accessory did not persist after equip: ${equippedAccessoryId}`);
   await capture(window, outputDir, shot("warehouse-accessory-equipped"));
+  await click(window, '[data-warehouse-category="radio"]');
+  await click(window, '[data-radio-id="usdr-8"]');
+  await capture(window, outputDir, shot("warehouse-radio-selected"));
+  await click(window, '[data-action="equip-item"][data-equipped-item-id="usdr-8"]');
+  const equippedRadioState = await window.webContents.executeJavaScript(`(() => ({
+    saved: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].equipmentId,
+    shown: document.querySelector('[data-testid="current-radio-loadout"]')?.dataset.equipmentId ?? null,
+  }))()`, true);
+  if (equippedRadioState.saved !== "usdr-8" || equippedRadioState.shown !== "usdr-8") {
+    throw new Error(`Radio did not persist after equip: ${JSON.stringify(equippedRadioState)}`);
+  }
+  await capture(window, outputDir, shot("warehouse-radio-equipped"));
   await click(window, ".warehouse-return");
   await waitFor(window, ".home-screen");
   await click(window, ".hotspot-achievements");
@@ -545,14 +575,40 @@ async function runQaCapture(window) {
     const station = document.querySelector(".station-screen");
     return {
       accessoryId: station?.dataset.accessoryId ?? null,
+      equipmentId: station?.dataset.equipmentId ?? null,
+      equipmentPropagationBonus: Number(station?.dataset.equipmentPropagationBonus),
+      equipmentNoiseGainMultiplier: Number(station?.dataset.equipmentNoiseGainMultiplier),
+      equipmentQsbDepthMultiplier: Number(station?.dataset.equipmentQsbDepthMultiplier),
+      playerEquipmentBonus: Number(station?.dataset.playerEquipmentBonus),
       noiseGain: Number(station?.dataset.channelNoiseGain),
+      qsbDepth: Number(station?.dataset.channelQsbDepth),
+      qsbDepthMultiplier: Number(station?.dataset.channelQsbDepthMultiplier),
+      radioArt: document.querySelector('[data-testid="station-radio-art"]')?.getAttribute("src") ?? null,
     };
   })()`, true);
-  if (accessoryReceiverState.accessoryId !== "cw-filter-500"
-    || Math.abs(accessoryReceiverState.noiseGain - 0.04225) > 0.000001) {
-    throw new Error(`Accessory did not affect the open receiver: ${JSON.stringify(accessoryReceiverState)}`);
+  if (accessoryReceiverState.accessoryId !== "cw-filter-500" || accessoryReceiverState.equipmentId !== "usdr-8"
+    || accessoryReceiverState.equipmentPropagationBonus !== 0 || accessoryReceiverState.playerEquipmentBonus !== 0
+    || Math.abs(accessoryReceiverState.equipmentNoiseGainMultiplier - 0.8) > 0.000001
+    || Math.abs(accessoryReceiverState.equipmentQsbDepthMultiplier - 0.85) > 0.000001
+    || Math.abs(accessoryReceiverState.noiseGain - 0.0338) > 0.000001
+    || Math.abs(accessoryReceiverState.qsbDepthMultiplier - 0.85) > 0.000001
+    || !(accessoryReceiverState.qsbDepth >= 0 && accessoryReceiverState.qsbDepth <= 0.765)
+    || !accessoryReceiverState.radioArt?.includes("usdr-8-off.png")) {
+    throw new Error(`Radio/accessory modifiers did not affect the open receiver: ${JSON.stringify(accessoryReceiverState)}`);
   }
+  await capture(window, outputDir, shot("station-listening-warmup"));
   await capture(window, outputDir, shot("station-listening"));
+  await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyX", key: "x", bubbles: true, cancelable: true }))`, true);
+  await waitFor(window, '[data-testid="station-radio-art"][data-radio-art-state="tx"]');
+  const txRadioArt = await window.webContents.executeJavaScript(
+    'document.querySelector(\'[data-testid="station-radio-art"]\')?.getAttribute("src") ?? null',
+    true,
+  );
+  if (!txRadioArt?.includes("usdr-8-on.png")) throw new Error(`Radio TX artwork did not switch: ${txRadioArt}`);
+  await capture(window, outputDir, shot("station-radio-tx"));
+  await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyX", key: "x", bubbles: true, cancelable: true }))`, true);
+  await delay(300);
+  await click(window, '[data-action="clear-input"]');
   await sendAutomaticText(window, "E");
   const beforeClearInput = await window.webContents.executeJavaScript(`(() => {
     const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
@@ -619,6 +675,17 @@ async function runQaCapture(window) {
   }))()`, true);
   await fs.writeFile(path.join(outputDir, "qso-second-reply-debug.json"), `${JSON.stringify(secondReplyDebug, null, 2)}\n`, "utf8");
   await click(window, '[data-action="submit-reply"]');
+  await delay(120);
+  const secondReplyPhase = await window.webContents.executeJavaScript(
+    'document.querySelector(".station-screen")?.dataset.qsoPhase ?? null',
+    true,
+  );
+  if (secondReplyPhase === "PLAYER_RST_AND_73") {
+    await click(window, '[data-action="clear-input"]');
+    await sendAutomaticText(window, `${stationIdentity.npc} DE ${stationIdentity.player} RST 559 73 K`);
+    await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
+    await click(window, '[data-action="submit-reply"]');
+  }
   await waitFor(window, ".qso-result-modal.success", 30000);
   const recoveredIncomingState = await window.webContents.executeJavaScript(`(() => ({
     failures: window.cwgameSystem?.getQaIncomingFailureCount?.() ?? 0,
@@ -634,11 +701,13 @@ async function runQaCapture(window) {
   await capture(window, outputDir, shot("qso-result-unsaved"));
   await click(window, ".qso-result-primary");
   await waitFor(window, ".qso-result-modal.success header .icon-button", 10000);
-  const savedAccessorySnapshot = await window.webContents.executeJavaScript(
-    'JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].qsoLogs[0].accessoryId',
+  const savedEquipmentSnapshot = await window.webContents.executeJavaScript(
+    '(() => { const entry = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].qsoLogs[0]; return { accessoryId: entry.accessoryId, equipmentId: entry.equipmentId }; })()',
     true,
   );
-  if (savedAccessorySnapshot !== "cw-filter-500") throw new Error(`QSO log lost accessory snapshot: ${savedAccessorySnapshot}`);
+  if (savedEquipmentSnapshot.accessoryId !== "cw-filter-500" || savedEquipmentSnapshot.equipmentId !== "usdr-8") {
+    throw new Error(`QSO log lost equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
+  }
   await capture(window, outputDir, shot("qso-result-saved"));
   await click(window, ".qso-result-modal.success header .icon-button");
 
@@ -674,9 +743,9 @@ async function runQaCapture(window) {
       "home-hover-store", "store-antenna", "store-radio", "store-accessory-insufficient",
       "home-hover-warehouse", "warehouse-radio", "warehouse-accessories",
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
-      "home-hover-achievements", "achievements-empty", "home-log-empty", "save-loaded", "store-accessory-owned",
-      "warehouse-accessory-selected", "warehouse-accessory-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "station-listening", "station-input-cleared", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
+      "home-hover-achievements", "achievements-empty", "home-log-empty", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
+      "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
+      "home-log-detail-second", "station-listening", "station-radio-tx", "station-input-cleared", "qso-result-unsaved", "qso-result-saved", "home-log-after-qso", "propagation-map", "world-map",
     ].map(shot), ...manualCaptures],
   };
 }
