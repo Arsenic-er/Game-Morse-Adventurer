@@ -8,11 +8,12 @@ import {
   normalizePracticeRecords,
   practiceLessonPlan,
   practiceMasteryFeedback,
+  practiceWeakTargets,
   practiceStatsByMode,
   recordPracticeAttempt,
   summarizePracticeProgress,
 } from "../src/practice/practiceRecords.js";
-import { PRACTICE_DIFFICULTIES, PRACTICE_MODES } from "../src/practice/practiceEngine.js";
+import { PRACTICE_DIFFICULTIES, PRACTICE_MODES, PRACTICE_SESSION_TYPES } from "../src/practice/practiceEngine.js";
 
 test("practice records provide isolated defaults for all four modes", () => {
   const records = emptyPracticeRecords();
@@ -283,6 +284,64 @@ test("practice progress summary gives an empty legacy save a stable zero baselin
   assert.equal(summary.totalLessons, 19);
   assert.equal(summary.percent, 0);
   assert.deepEqual(Object.keys(summary.modes).sort(), Object.values(PRACTICE_MODES).sort());
+});
+
+test("weak targets are ranked stably and never leak locked lesson content", () => {
+  const base = {
+    ...emptyPracticeRecords()[PRACTICE_MODES.CHARACTER_RX],
+    lesson: 2,
+    completedLessons: 1,
+    weaknesses: { O: 4, A: 2, N: 2, Q: 99, "?": 500 },
+  };
+  assert.deepEqual(practiceWeakTargets(base, PRACTICE_MODES.CHARACTER_RX), [
+    { target: "O", misses: 4 },
+    { target: "A", misses: 2 },
+    { target: "N", misses: 2 },
+  ]);
+  assert.equal(practiceWeakTargets(base, PRACTICE_MODES.CHARACTER_RX, { lesson: 5 }).some(({ target }) => target === "Q"), false);
+
+  const callsign = {
+    ...emptyPracticeRecords()[PRACTICE_MODES.CALLSIGN_RX],
+    weaknesses: { S: 3, I: 2, M: 1, Q: 4, X: 1, R: 5 },
+  };
+  assert.deepEqual(practiceWeakTargets(callsign, PRACTICE_MODES.CALLSIGN_RX), [
+    { target: "SIM7QX", misses: 11 },
+    { target: "SIM3RA", misses: 11 },
+  ]);
+  assert.deepEqual(practiceWeakTargets(base, PRACTICE_MODES.CHARACTER_RX, { limit: -2 }), []);
+});
+
+test("weakness review updates lifetime stats without touching lesson progression", () => {
+  const initial = {
+    ...emptyPracticeRecords(),
+    [PRACTICE_MODES.CHARACTER_RX]: {
+      ...emptyPracticeRecords()[PRACTICE_MODES.CHARACTER_RX],
+      difficulty: PRACTICE_DIFFICULTIES.STANDARD,
+      lesson: 3,
+      completedLessons: 2,
+      lessonAttempts: 6,
+      lessonCorrect: 5,
+    },
+  };
+  const updated = recordPracticeAttempt(initial, PRACTICE_MODES.CHARACTER_RX, {
+    sessionType: PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW,
+    target: "R",
+    lesson: 3,
+    difficulty: PRACTICE_DIFFICULTIES.GUIDED,
+    correct: false,
+    accuracy: 0,
+    rhythm: null,
+    missed: ["R"],
+  }, "2026-01-01T00:00:00.000Z");
+  const record = updated[PRACTICE_MODES.CHARACTER_RX];
+  assert.equal(record.attempts, 1);
+  assert.equal(record.correct, 0);
+  assert.equal(record.weaknesses.R, 1);
+  assert.equal(record.difficulty, PRACTICE_DIFFICULTIES.STANDARD);
+  assert.equal(record.lesson, 3);
+  assert.equal(record.completedLessons, 2);
+  assert.equal(record.lessonAttempts, 6);
+  assert.equal(record.lessonCorrect, 5);
 });
 
 test("derived lifetime stats survive JSON round trips without session attempt ids", () => {

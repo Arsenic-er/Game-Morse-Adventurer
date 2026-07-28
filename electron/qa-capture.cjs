@@ -262,7 +262,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.19.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.20.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   async function readManualState(label) {
     const state = await window.webContents.executeJavaScript(`(() => {
@@ -635,6 +635,34 @@ async function runQaCapture(window) {
   await waitFor(window, '.practice-screen[data-practice-recording="save"][data-practice-difficulty="guided"][data-practice-lesson="1"][data-practice-lessons-completed="0"]');
   await waitFor(window, '[data-testid="practice-lesson-content"]');
   await waitFor(window, '[data-testid="practice-mastery-feedback"][data-mastery-status="not-started"][data-mastery-completed-lessons="0"][data-mastery-block-attempts="0"][data-mastery-block-correct="0"][data-mastery-attempts-remaining="5"][data-mastery-correct-needed="4"][data-mastery-can-pass="true"]');
+  await waitFor(window, '[data-testid="practice-mode-option-character-rx"][data-practice-mode-completed="0"][data-practice-mode-total="5"][data-practice-mode-percent="0"]');
+  await waitFor(window, '[data-testid="practice-mode-option-callsign-rx"][data-practice-mode-completed="0"][data-practice-mode-total="4"][data-practice-mode-percent="0"]');
+  await waitFor(window, '[data-testid="practice-mode-option-manual-tx"][data-practice-mode-completed="0"][data-practice-mode-total="5"][data-practice-mode-percent="0"]');
+  await waitFor(window, '[data-testid="practice-mode-option-paddle-tx"][data-practice-mode-completed="0"][data-practice-mode-total="5"][data-practice-mode-percent="0"]');
+  const initialPracticeOverview = await window.webContents.executeJavaScript(`(() => ({
+    modes: Object.fromEntries(["character-rx", "callsign-rx", "manual-tx", "paddle-tx"].map((mode) => {
+      const node = document.querySelector('[data-testid="practice-mode-option-' + mode + '"]');
+      return [mode, {
+        completed: Number(node?.dataset.practiceModeCompleted),
+        total: Number(node?.dataset.practiceModeTotal),
+        percent: Number(node?.dataset.practiceModePercent),
+      }];
+    })),
+    weakReviewAvailable: document.querySelector('[data-testid="practice-weak-review"]')?.dataset.weakReviewAvailable ?? null,
+    weakReviewTargets: document.querySelector('[data-testid="practice-weak-review"]')?.dataset.weakReviewTargets ?? null,
+  }))()`, true);
+  const expectedInitialPracticeOverview = {
+    "character-rx": { completed: 0, total: 5, percent: 0 },
+    "callsign-rx": { completed: 0, total: 4, percent: 0 },
+    "manual-tx": { completed: 0, total: 5, percent: 0 },
+    "paddle-tx": { completed: 0, total: 5, percent: 0 },
+  };
+  if (JSON.stringify(initialPracticeOverview.modes) !== JSON.stringify(expectedInitialPracticeOverview)
+    || initialPracticeOverview.weakReviewAvailable !== "false"
+    || initialPracticeOverview.weakReviewTargets !== "") {
+    throw new Error(`Initial four-mode curriculum overview is incomplete: ${JSON.stringify(initialPracticeOverview)}`);
+  }
+  await capture(window, outputDir, shot("practice-overview-initial"));
   const persistentPracticeIdentity = await window.webContents.executeJavaScript(`(() => ({
     recording: document.querySelector(".practice-screen")?.dataset.practiceRecording ?? null,
     difficulty: document.querySelector(".practice-screen")?.dataset.practiceDifficulty ?? null,
@@ -757,6 +785,139 @@ async function runQaCapture(window) {
   await click(window, '[data-action="practice-summary-continue"]');
   await waitFor(window, '.practice-screen[data-practice-result="waiting"][data-practice-difficulty="guided"][data-practice-lesson="2"][data-practice-lessons-completed="1"][data-practice-lesson-new="I,M,S,O"]');
   await waitFor(window, '[data-testid="practice-mastery-feedback"][data-mastery-status="not-started"][data-mastery-completed-lessons="1"][data-mastery-attempts-remaining="5"][data-mastery-correct-needed="4"][data-mastery-can-pass="true"]');
+  await waitFor(window, '[data-testid="practice-mode-option-character-rx"][data-practice-mode-completed="1"][data-practice-mode-total="5"][data-practice-mode-percent="20"]');
+  await waitFor(window, `[data-testid="practice-weak-review"][data-weak-review-available="true"][data-weak-review-active="false"][data-weak-review-targets="${wrongPracticeTarget}"]`);
+  const completedOverviewState = await window.webContents.executeJavaScript(`(() => {
+    const character = document.querySelector('[data-testid="practice-mode-option-character-rx"]');
+    const otherModes = ["callsign-rx", "manual-tx", "paddle-tx"].map((mode) => {
+      const node = document.querySelector('[data-testid="practice-mode-option-' + mode + '"]');
+      return {
+        mode,
+        completed: Number(node?.dataset.practiceModeCompleted),
+        total: Number(node?.dataset.practiceModeTotal),
+        percent: Number(node?.dataset.practiceModePercent),
+      };
+    });
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const records = save.practiceRecords ?? {};
+    return {
+      character: {
+        completed: Number(character?.dataset.practiceModeCompleted),
+        total: Number(character?.dataset.practiceModeTotal),
+        percent: Number(character?.dataset.practiceModePercent),
+      },
+      otherModes,
+      aggregateCompleted: Object.values(records).reduce((sum, record) => sum + Number(record?.completedLessons || 0), 0),
+    };
+  })()`, true);
+  if (JSON.stringify(completedOverviewState.character) !== JSON.stringify({ completed: 1, total: 5, percent: 20 })
+    || completedOverviewState.otherModes.some(({ completed, percent }) => completed !== 0 || percent !== 0)
+    || completedOverviewState.aggregateCompleted !== 1) {
+    throw new Error(`Completed lesson did not update the four-mode overview to 1/5 and aggregate 1/19: ${JSON.stringify(completedOverviewState)}`);
+  }
+  await capture(window, outputDir, shot("practice-overview-after-lesson"));
+
+  // The single miss above exposes one durable weak target. The review locks
+  // that pool for five questions and must never mutate the formal lesson block.
+  await click(window, '[data-testid="practice-weak-review"]');
+  await waitFor(window, `.practice-screen[data-practice-session-type="weakness-review"][data-practice-review-targets="${wrongPracticeTarget}"][data-practice-weak-review-available="true"][data-practice-attempts="0"][data-practice-lifetime-attempts="5"][data-practice-lifetime-correct="4"]`);
+  await waitFor(window, `[data-testid="practice-weak-review"][data-weak-review-active="true"][data-weak-review-targets="${wrongPracticeTarget}"]`);
+  const lockedWeakReviewControls = await window.webContents.executeJavaScript(`(() => ({
+    modeButtons: Array.from(document.querySelectorAll("[data-practice-mode-option]"))
+      .map((node) => ({ mode: node.dataset.practiceModeOption, disabled: Boolean(node.disabled) })),
+    endDisabled: Boolean(document.querySelector('[data-action="practice-end"]')?.disabled),
+  }))()`, true);
+  if (lockedWeakReviewControls.modeButtons.length !== 4
+    || lockedWeakReviewControls.modeButtons.some(({ disabled }) => !disabled)
+    || !lockedWeakReviewControls.endDisabled) {
+    throw new Error(`Weakness review did not lock mode switching and early completion: ${JSON.stringify(lockedWeakReviewControls)}`);
+  }
+  await capture(window, outputDir, shot("practice-weak-review"));
+
+  const weakReviewTargets = [];
+  for (let index = 0; index < 5; index += 1) {
+    const question = await window.webContents.executeJavaScript(`(() => ({
+      id: document.querySelector(".practice-screen")?.dataset.practiceQuestionId ?? "",
+      target: document.querySelector(".practice-screen")?.dataset.practiceTarget ?? "",
+      sessionType: document.querySelector(".practice-screen")?.dataset.practiceSessionType ?? null,
+      reviewTargets: document.querySelector(".practice-screen")?.dataset.practiceReviewTargets ?? "",
+      attempts: Number(document.querySelector(".practice-screen")?.dataset.practiceAttempts),
+      lifetimeAttempts: Number(document.querySelector(".practice-screen")?.dataset.practiceLifetimeAttempts),
+      lifetimeCorrect: Number(document.querySelector(".practice-screen")?.dataset.practiceLifetimeCorrect),
+    }))()`, true);
+    if (!question.id || question.target !== wrongPracticeTarget
+      || question.sessionType !== "weakness-review" || question.reviewTargets !== wrongPracticeTarget
+      || question.attempts !== index || question.lifetimeAttempts !== 5 + index
+      || question.lifetimeCorrect !== 4 + index) {
+      throw new Error(`Weakness-review question ${index + 1} escaped its fixed pool or lost lifetime state: ${JSON.stringify(question)}`);
+    }
+    weakReviewTargets.push(question.target);
+    const intentionallyWrong = index === 4;
+    const answer = intentionallyWrong ? (question.target === "E" ? "T" : "E") : question.target;
+    await setInputValue(window, '[data-testid="practice-answer"]', answer);
+    await click(window, '[data-action="practice-submit"]');
+    await waitFor(window, `.practice-screen[data-practice-session-type="weakness-review"][data-practice-attempts="${index + 1}"][data-practice-lifetime-attempts="${6 + index}"][data-practice-lifetime-correct="${intentionallyWrong ? 8 : 5 + index}"]`);
+    await waitFor(window, intentionallyWrong
+      ? '.practice-screen[data-practice-result="wrong"]'
+      : '.practice-screen[data-practice-result="correct"]');
+    const settlement = await window.webContents.executeJavaScript(`(() => {
+      const record = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].practiceRecords?.["character-rx"];
+      return {
+        attempts: Number(record?.attempts),
+        correct: Number(record?.correct),
+        lesson: Number(record?.lesson),
+        completedLessons: Number(record?.completedLessons),
+        lessonAttempts: Number(record?.lessonAttempts),
+        lessonCorrect: Number(record?.lessonCorrect),
+      };
+    })()`, true);
+    if (settlement.attempts !== 6 + index || settlement.correct !== (intentionallyWrong ? 8 : 5 + index)
+      || settlement.lesson !== 2 || settlement.completedLessons !== 1
+      || settlement.lessonAttempts !== 0 || settlement.lessonCorrect !== 0) {
+      throw new Error(`Weakness review mutated formal progress or lost a lifetime result: ${JSON.stringify(settlement)}`);
+    }
+    if (index < 4) {
+      await click(window, '[data-action="practice-next"]');
+      await waitFor(window, '.practice-screen[data-practice-session-type="weakness-review"][data-practice-result="waiting"]');
+    }
+  }
+  if (weakReviewTargets.some((target) => target !== wrongPracticeTarget)) {
+    throw new Error(`Weakness review did not keep its single-target fixed pool: ${JSON.stringify(weakReviewTargets)}`);
+  }
+  await waitFor(window, '[data-testid="practice-summary-modal"][data-summary-session-type="weakness-review"][data-summary-progression-eligible="false"][data-summary-attempts="5"][data-summary-correct="4"]');
+  const completedWeakReviewState = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const record = save.practiceRecords?.["character-rx"];
+    const modal = document.querySelector('[data-testid="practice-summary-modal"]');
+    return {
+      attempts: Number(record?.attempts),
+      correct: Number(record?.correct),
+      lesson: Number(record?.lesson),
+      completedLessons: Number(record?.completedLessons),
+      lessonAttempts: Number(record?.lessonAttempts),
+      lessonCorrect: Number(record?.lessonCorrect),
+      weakness: Number(record?.weaknesses?.[${JSON.stringify(wrongPracticeTarget)}]),
+      summarySessionType: modal?.dataset.summarySessionType ?? null,
+      progressionEligible: modal?.dataset.summaryProgressionEligible ?? null,
+      summaryAttempts: Number(modal?.dataset.summaryAttempts),
+      summaryCorrect: Number(modal?.dataset.summaryCorrect),
+    };
+  })()`, true);
+  if (completedWeakReviewState.attempts !== 10 || completedWeakReviewState.correct !== 8
+    || completedWeakReviewState.lesson !== 2 || completedWeakReviewState.completedLessons !== 1
+    || completedWeakReviewState.lessonAttempts !== 0 || completedWeakReviewState.lessonCorrect !== 0
+    || completedWeakReviewState.weakness < 2
+    || completedWeakReviewState.summarySessionType !== "weakness-review"
+    || completedWeakReviewState.progressionEligible !== "false"
+    || completedWeakReviewState.summaryAttempts !== 5 || completedWeakReviewState.summaryCorrect !== 4) {
+    throw new Error(`Weakness-review summary or formal-progress isolation failed: ${JSON.stringify(completedWeakReviewState)}`);
+  }
+  await capture(window, outputDir, shot("practice-weak-summary"));
+
+  await click(window, '[data-action="practice-summary-continue"]');
+  await waitFor(window, '.practice-screen[data-practice-session-type="lesson"][data-practice-result="waiting"][data-practice-lifetime-attempts="10"][data-practice-lifetime-correct="8"][data-practice-lesson="2"][data-practice-lessons-completed="1"][data-practice-lesson-attempts="0"]');
+  await waitFor(window, '[data-testid="practice-mode-option-character-rx"][data-practice-mode-completed="1"][data-practice-mode-total="5"][data-practice-mode-percent="20"]');
+  await waitFor(window, `[data-testid="practice-weak-review"][data-weak-review-available="true"][data-weak-review-active="false"][data-weak-review-targets="${wrongPracticeTarget}"]`);
   await capture(window, outputDir, shot("practice-lesson-two"));
   await click(window, '[data-action="practice-back"]');
   await waitFor(window, ".home-screen");
@@ -770,19 +931,28 @@ async function runQaCapture(window) {
     const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
     return {
       attempts: Number(save.practiceRecords?.["character-rx"]?.attempts),
+      correct: Number(save.practiceRecords?.["character-rx"]?.correct),
       difficulty: save.practiceRecords?.["character-rx"]?.difficulty ?? null,
       lesson: Number(save.practiceRecords?.["character-rx"]?.lesson),
       completedLessons: Number(save.practiceRecords?.["character-rx"]?.completedLessons),
+      lessonAttempts: Number(save.practiceRecords?.["character-rx"]?.lessonAttempts),
+      lessonCorrect: Number(save.practiceRecords?.["character-rx"]?.lessonCorrect),
+      weakness: Number(save.practiceRecords?.["character-rx"]?.weaknesses?.[${JSON.stringify(wrongPracticeTarget)}]),
       notificationCount: document.querySelectorAll('[data-testid="achievement-notification"]').length,
     };
   })()`, true);
-  if (practiceReloadState.attempts !== 5 || practiceReloadState.difficulty !== "guided"
+  if (practiceReloadState.attempts !== 10 || practiceReloadState.correct !== 8
+    || practiceReloadState.difficulty !== "guided"
     || practiceReloadState.lesson !== 2 || practiceReloadState.completedLessons !== 1
+    || practiceReloadState.lessonAttempts !== 0 || practiceReloadState.lessonCorrect !== 0
+    || practiceReloadState.weakness < 2
     || practiceReloadState.notificationCount !== 0) {
     throw new Error(`Practice lifetime record or reload notification policy failed: ${JSON.stringify(practiceReloadState)}`);
   }
   await click(window, ".start-actions button:nth-child(2)");
-  await waitFor(window, '.practice-screen[data-practice-recording="save"][data-practice-lifetime-attempts="5"][data-practice-difficulty="guided"][data-practice-lesson="2"][data-practice-lessons-completed="1"]');
+  await waitFor(window, '.practice-screen[data-practice-recording="save"][data-practice-session-type="lesson"][data-practice-lifetime-attempts="10"][data-practice-lifetime-correct="8"][data-practice-difficulty="guided"][data-practice-lesson="2"][data-practice-lessons-completed="1"][data-practice-lesson-attempts="0"]');
+  await waitFor(window, '[data-testid="practice-mode-option-character-rx"][data-practice-mode-completed="1"][data-practice-mode-total="5"][data-practice-mode-percent="20"]');
+  await waitFor(window, `[data-testid="practice-weak-review"][data-weak-review-available="true"][data-weak-review-active="false"][data-weak-review-targets="${wrongPracticeTarget}"]`);
   await capture(window, outputDir, shot("practice-lifetime-reloaded"));
   await click(window, '[data-action="practice-back"]');
   await waitFor(window, ".start-screen");
@@ -1117,16 +1287,23 @@ async function runQaCapture(window) {
     return {
       totalQsos: Number(save.qsoRecords?.total),
       practiceAttempts: Number(save.practiceRecords?.["character-rx"]?.attempts),
+      practiceCorrect: Number(save.practiceRecords?.["character-rx"]?.correct),
       practiceDifficulty: save.practiceRecords?.["character-rx"]?.difficulty ?? null,
       practiceLesson: Number(save.practiceRecords?.["character-rx"]?.lesson),
       practiceLessonsCompleted: Number(save.practiceRecords?.["character-rx"]?.completedLessons),
+      practiceLessonAttempts: Number(save.practiceRecords?.["character-rx"]?.lessonAttempts),
+      practiceLessonCorrect: Number(save.practiceRecords?.["character-rx"]?.lessonCorrect),
+      practiceWeakness: Number(save.practiceRecords?.["character-rx"]?.weaknesses?.[${JSON.stringify(wrongPracticeTarget)}]),
       notificationCount: document.querySelectorAll('[data-testid="achievement-notification"]').length,
       liveRegionCount: document.querySelectorAll('.achievement-notification-region[role="status"][aria-live="polite"]').length,
     };
   })()`, true);
-  if (finalReloadState.totalQsos !== 5 || finalReloadState.practiceAttempts !== 5
+  if (finalReloadState.totalQsos !== 5 || finalReloadState.practiceAttempts !== 10
+    || finalReloadState.practiceCorrect !== 8
     || finalReloadState.practiceDifficulty !== "guided"
     || finalReloadState.practiceLesson !== 2 || finalReloadState.practiceLessonsCompleted !== 1
+    || finalReloadState.practiceLessonAttempts !== 0 || finalReloadState.practiceLessonCorrect !== 0
+    || finalReloadState.practiceWeakness < 2
     || finalReloadState.notificationCount !== 0 || finalReloadState.liveRegionCount !== 1) {
     throw new Error(`Reload repeated an unlock or lost durable records: ${JSON.stringify(finalReloadState)}`);
   }
@@ -1148,7 +1325,7 @@ async function runQaCapture(window) {
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "practice-session-only", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "home-hover-practice", "practice-lesson-guidance", "practice-session-summary", "practice-lesson-two", "home-after-practice", "practice-lifetime-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
+      "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-review", "practice-weak-summary", "practice-lesson-two", "home-after-practice", "practice-lifetime-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
     ].map(shot), ...manualCaptures],
   };
 }

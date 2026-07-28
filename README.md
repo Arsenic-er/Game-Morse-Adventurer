@@ -36,6 +36,8 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - Each lesson now identifies the targets introduced in that lesson and its full review pool. A live mastery card explains the scored block, pass rule, remaining questions, correct answers still needed, and whether the current block can still pass.
 - With an active save, lifetime results and curriculum progress accumulate independently for all four modes. Practice-record schema v2 safely migrates older saves with conservative defaults; without a selected save, training remains available but records stay session-only.
 - The Home `MORSE CODE` book shows the aggregate completed-lesson count and percentage across all 19 lessons, and refreshes immediately when the player returns from practice.
+- The practice sidebar now provides a four-mode curriculum overview with each mode's completed lessons, total lessons, and percentage. When the selected mode has recorded weaknesses, a five-question weakness review locks its target pool at session start and draws only from currently unlocked weak targets.
+- Weakness review updates lifetime attempts, correct answers, averages, weakness weights, recent targets, and last-practiced time, but is never eligible to advance, reset, or otherwise change the formal lesson, its scored block, or completed-lesson count.
 - A player-led fictional QSO loop: the receiver opens automatically, the player calls CQ, propagation determines whether a station responds, and a successful contact continues through callsigns, RST, 73/SK, credits, and logging.
 - A four-language first-watch briefing and full/hints/off duty coach teach each QSO stage without revealing the remote callsign during blind copy.
 - `AGN K` repeats the same remote station over the same channel without changing propagation, attempts, or rewards; malformed messages retain their decoded text for correction instead of ending the QSO after two errors.
@@ -71,11 +73,11 @@ pnpm run dev
 pnpm run desktop:build
 ```
 
-The automated suite covers the CW core and repeating keyer, receiver audio filtering, practice engine, blind-copy QSO state machine, strict QSO ordering and `AGN K` repeats, operating-review history, independent-watch reward eligibility, CQ response probability, persistent QSO logs and results, achievement derivation, idempotent credit settlement, store economy, radio/accessory ownership and loadouts, propagation model, map projection, and save data rules.
+The automated suite covers the CW core and repeating keyer, receiver audio filtering, practice engine, four-mode curriculum summaries, weakness-review pool isolation and formal-lesson invariants, blind-copy QSO state machine, strict QSO ordering and `AGN K` repeats, operating-review history, independent-watch reward eligibility, CQ response probability, persistent QSO logs and results, achievement derivation, idempotent credit settlement, store economy, radio/accessory ownership and loadouts, propagation model, map projection, and save data rules.
 
 ## Project status
 
-Version **v0.19.0** improves the existing CW learning loop without adding radios, antennas, or accessories. Every lesson now explains its newly introduced targets and complete review pool, while a live mastery card turns the pass threshold into concrete remaining-question and correct-answer feedback. The Home `MORSE CODE` book displays save-aware aggregate progress across all 19 lessons, updates after a completed lesson, and survives reload through the existing practice-record schema v2. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
+Version **v0.20.0** extends the existing CW learning loop without adding radios, antennas, or accessories. A compact four-mode curriculum overview makes each mode's progress visible at once. An available weakness-review control starts a fixed five-question drill drawn only from the selected mode's currently unlocked weak targets; the drill updates lifetime practice statistics while leaving the formal lesson, lesson-scored attempts and correct answers, unlock progress, and completed-lesson count completely unchanged. The overview, weakness state, and lifetime results remain save-aware across reloads through practice-record schema v2. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
 
 ## Rights and third-party software
 

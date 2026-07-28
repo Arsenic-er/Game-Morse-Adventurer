@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  CHARACTER_POOL, PRACTICE_DIFFICULTIES, PRACTICE_MODES, completePracticeSession, createPracticeBag, createPracticeSession,
+  CHARACTER_POOL, PRACTICE_DIFFICULTIES, PRACTICE_MODES, PRACTICE_SESSION_TYPES, completePracticeSession, createPracticeBag, createPracticeSession,
+  createWeaknessReviewSession,
   currentPracticeQuestion, emptyPracticeStats, evaluateReception, evaluateSending, normalizePracticeSession,
   normalizePracticeStats, practiceDifficultyProfile, practiceLessonCount, practicePoolFor, practiceReceiveWpm,
   practiceLessonContent, practiceTargetFor, settlePracticeQuestion, summarizePracticeSession,
@@ -86,6 +87,62 @@ test("deterministic shuffled bags contain each target once", () => {
   assert.equal(first.length, CHARACTER_POOL.length);
   assert.equal(new Set(first).size, first.length);
   assert.deepEqual([...first].sort(), [...CHARACTER_POOL].sort());
+});
+
+test("explicit target pools create five-question weakness review sessions with bag boundary avoidance", () => {
+  let session = createWeaknessReviewSession({
+    mode: PRACTICE_MODES.CHARACTER_RX,
+    lesson: 2,
+    targetPool: ["o", "A", "?", "I", "N", "T", "O"],
+    seed: "weakness-review",
+    startedAt: "2026-01-01T00:00:00.000Z",
+  });
+  assert.equal(session.sessionType, PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW);
+  assert.equal(session.questionLimit, 5);
+  assert.deepEqual(session.targetPool, ["O", "A", "I", "N", "T"]);
+  const targets = [];
+  for (let index = 0; index < 5; index += 1) {
+    const question = currentPracticeQuestion(session);
+    assert.equal(question.sessionType, PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW);
+    assert.equal(question.progressionEligible, false);
+    targets.push(question.target);
+    session = settlePracticeQuestion(session, question.id, {
+      correct: true, accuracy: 100, rhythm: null, missed: [],
+    }, `2026-01-01T00:00:0${index + 1}.000Z`);
+  }
+  assert.equal(new Set(targets).size, 5);
+  assert.equal(currentPracticeQuestion(session), null);
+  assert.equal(targets.slice(-4).includes(session.queue[0]), false);
+  const summary = summarizePracticeSession(session);
+  assert.equal(summary.sessionType, PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW);
+  assert.equal(summary.progressionEligible, false);
+  assert.equal(summary.lessonPassed, false);
+});
+
+test("createPracticeSession treats an explicit valid target pool as a fixed review contract", () => {
+  const session = createPracticeSession({
+    mode: PRACTICE_MODES.MANUAL_TX,
+    lesson: 1,
+    targetPool: ["E", "A"],
+    questionLimit: 99,
+  });
+  assert.equal(session.sessionType, PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW);
+  assert.equal(session.questionLimit, 5);
+  assert.deepEqual([...session.targetPool].sort(), ["A", "E"]);
+});
+
+test("weakness review rejects an empty invalid target pool and normalizes damaged pools", () => {
+  assert.equal(createWeaknessReviewSession({ mode: PRACTICE_MODES.CHARACTER_RX, lesson: 1, targetPool: ["Q", "?"] }), null);
+  const normalized = normalizePracticeSession({
+    mode: PRACTICE_MODES.CHARACTER_RX,
+    lesson: 1,
+    sessionType: PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW,
+    targetPool: ["n", "Q", "N", null],
+    questionLimit: 999,
+  });
+  assert.deepEqual(normalized.targetPool, ["N"]);
+  assert.equal(normalized.questionLimit, 5);
+  assert.deepEqual(normalized.queue, ["N"]);
 });
 
 test("bag refill avoids repeating its boundary target", () => {
@@ -225,6 +282,9 @@ test("question limits complete sessions and summaries are serializable", () => {
   assert.deepEqual(summary, {
     schemaVersion: 2,
     mode: PRACTICE_MODES.PADDLE_TX,
+    sessionType: PRACTICE_SESSION_TYPES.LESSON,
+    progressionEligible: true,
+    targetPool: null,
     difficulty: PRACTICE_DIFFICULTIES.GUIDED,
     lesson: null,
     lessonCount: 5,

@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowRight, Broadcast, Check, Ear, Eye, EyeSlash,
+  ArrowLeft, ArrowRight, Broadcast, Check, Crosshair, Ear, Eye, EyeSlash,
   GearSix, Keyboard, Lightning, Play, Radio, SpeakerHigh, X,
 } from "@phosphor-icons/react";
 import { encodeTextToEvents } from "../cw/morse.js";
 import { useCwCore } from "../cw/useCwCore.js";
 import {
-  emptyPracticeRecords, practiceLessonPlan, practiceMasteryFeedback, practiceStatsByMode, recordPracticeAttempt,
+  emptyPracticeRecords, practiceLessonPlan, practiceMasteryFeedback, practiceStatsByMode, practiceWeakTargets, recordPracticeAttempt,
+  summarizePracticeProgress,
 } from "./practiceRecords.js";
 import {
-  PRACTICE_DIFFICULTIES, PRACTICE_MODES, completePracticeSession, createPracticeSession, currentPracticeQuestion,
+  PRACTICE_DIFFICULTIES, PRACTICE_MODES, PRACTICE_SESSION_TYPES, completePracticeSession, createPracticeSession,
+  createWeaknessReviewSession, currentPracticeQuestion,
   evaluateReception, evaluateSending, isReceptionMode, isSendingMode, normalizePracticeStats,
   practiceDifficultyProfile, practiceLessonContent, practiceLessonCount, practiceReceiveWpm, settlePracticeQuestion, summarizePracticeSession,
+  WEAKNESS_REVIEW_QUESTION_LIMIT,
 } from "./practiceEngine.js";
 
 const ASSETS = {
@@ -36,7 +39,9 @@ const TEXT = {
     lessonContents: "本课内容", introduced: "本课新增", practiceRange: "练习题池", masteryProgress: "本课达标进度",
     completedLessons: "已完成课程", currentBlock: "当前计分块", passRule: "达标规则", remainingQuestions: "剩余题数", correctNeeded: "尚需答对",
     thresholdSecured: "所需正确题数已满足，请完成剩余题目", cannotPass: "本计分块已无法达标，完成后将重新开始", blockProgressing: "继续完成本计分块", blockNotStarted: "尚未开始本课计分",
-    replayNoProgress: "复习已完成课程，不计入当前课程达标进度",
+    replayNoProgress: "复习已完成课程，不计入当前课程达标进度", curriculumOverview: "课程总览",
+    weakReview: "薄弱专项复习", weakReviewActive: "专项复习中", weakReviewTargets: "专项题池", weakReviewUnavailable: "完成错题后开放",
+    weakReviewComplete: "专项复习完成", weakReviewNoProgress: "累计成绩已更新，正式课程进度没有变化", returnToLesson: "返回正式课程",
   },
   "zh-TW": {
     title: "CW 練習臺", back: "返回開始介面", settings: "設定", independent: "獨立訓練環境 · 不受傳播影響",
@@ -53,7 +58,9 @@ const TEXT = {
     lessonContents: "本課內容", introduced: "本課新增", practiceRange: "練習題庫", masteryProgress: "本課達標進度",
     completedLessons: "已完成課程", currentBlock: "目前計分區塊", passRule: "達標規則", remainingQuestions: "剩餘題數", correctNeeded: "尚需答對",
     thresholdSecured: "所需正確題數已滿足，請完成剩餘題目", cannotPass: "本計分區塊已無法達標，完成後將重新開始", blockProgressing: "繼續完成本計分區塊", blockNotStarted: "尚未開始本課計分",
-    replayNoProgress: "複習已完成課程，不計入目前課程達標進度",
+    replayNoProgress: "複習已完成課程，不計入目前課程達標進度", curriculumOverview: "課程總覽",
+    weakReview: "薄弱專項複習", weakReviewActive: "專項複習中", weakReviewTargets: "專項題庫", weakReviewUnavailable: "完成錯題後開放",
+    weakReviewComplete: "專項複習完成", weakReviewNoProgress: "累計成績已更新，正式課程進度沒有變化", returnToLesson: "返回正式課程",
   },
   ja: {
     title: "CW 練習台", back: "開始画面へ戻る", settings: "設定", independent: "独立した練習環境・伝搬の影響なし",
@@ -70,7 +77,9 @@ const TEXT = {
     lessonContents: "レッスン内容", introduced: "今回追加", practiceRange: "出題範囲", masteryProgress: "このレッスンの合格進捗",
     completedLessons: "完了レッスン", currentBlock: "現在の採点ブロック", passRule: "合格条件", remainingQuestions: "残り問題", correctNeeded: "あと必要な正解",
     thresholdSecured: "必要正解数に到達。残りを完了してください", cannotPass: "このブロックでは合格不可。完了後に再挑戦します", blockProgressing: "採点ブロックを続けてください", blockNotStarted: "このレッスンは未採点です",
-    replayNoProgress: "完了済みレッスンの復習は現在の合格進捗に加算されません",
+    replayNoProgress: "完了済みレッスンの復習は現在の合格進捗に加算されません", curriculumOverview: "カリキュラム",
+    weakReview: "弱点集中練習", weakReviewActive: "集中練習中", weakReviewTargets: "集中出題", weakReviewUnavailable: "誤答後に利用できます",
+    weakReviewComplete: "弱点練習完了", weakReviewNoProgress: "通算成績のみ更新し、正式レッスンの進捗は変わりません", returnToLesson: "正式レッスンへ戻る",
   },
   en: {
     title: "CW Practice", back: "Back to title", settings: "Settings", independent: "Independent training · propagation disabled",
@@ -87,7 +96,9 @@ const TEXT = {
     lessonContents: "Lesson contents", introduced: "New this lesson", practiceRange: "Practice pool", masteryProgress: "This lesson's pass progress",
     completedLessons: "Lessons completed", currentBlock: "Current scored block", passRule: "Pass rule", remainingQuestions: "Questions left", correctNeeded: "Correct answers needed",
     thresholdSecured: "Required correct answers reached; finish the remaining questions", cannotPass: "This block can no longer pass; finish it to restart", blockProgressing: "Continue this scored block", blockNotStarted: "This lesson has not started scoring",
-    replayNoProgress: "Reviewing a completed lesson does not advance the current pass block",
+    replayNoProgress: "Reviewing a completed lesson does not advance the current pass block", curriculumOverview: "Curriculum",
+    weakReview: "Weak-target review", weakReviewActive: "Review in progress", weakReviewTargets: "Review pool", weakReviewUnavailable: "Available after a missed target",
+    weakReviewComplete: "Weak-target review complete", weakReviewNoProgress: "Lifetime results updated; formal lesson progress is unchanged", returnToLesson: "Return to lesson",
   },
 };
 
@@ -117,6 +128,18 @@ function recordForMode(persistentStats, mode) {
   };
 }
 
+function recordSnapshot(record) {
+  return {
+    ...record.stats,
+    recentTargets: [...record.recentTargets],
+    difficulty: record.difficulty,
+    lesson: record.lesson,
+    lessonAttempts: record.lessonAttempts,
+    lessonCorrect: record.lessonCorrect,
+    completedLessons: record.completedLessons,
+  };
+}
+
 function weaknessDelta(current = {}, baseline = {}) {
   return Object.fromEntries(Object.entries(current)
     .map(([character, count]) => [character, Math.max(0, Number(count) - Number(baseline[character] ?? 0))])
@@ -129,21 +152,25 @@ function sessionSummary(session, baselineWeaknesses, baselineProgress = {}) {
   const baselineCompletedLessons = Number(baselineProgress.completedLessons) || 0;
   const baselineAttempts = Number(baselineProgress.lessonAttempts) || 0;
   const baselineCorrect = Number(baselineProgress.lessonCorrect) || 0;
-  const progressionEligible = baselineProgress.eligible === true;
-  const lessonAttempts = baselineAttempts + summary.questionCount;
-  const lessonCorrect = baselineCorrect + summary.correctCount;
+  const progressionEligible = summary.progressionEligible && baselineProgress.eligible === true;
+  const reviewCompleted = summary.sessionType === PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW
+    && summary.questionCount >= (session.questionLimit ?? WEAKNESS_REVIEW_QUESTION_LIMIT);
+  const lessonAttempts = progressionEligible ? baselineAttempts + summary.questionCount : baselineAttempts;
+  const lessonCorrect = progressionEligible ? baselineCorrect + summary.correctCount : baselineCorrect;
   const lessonAccuracy = lessonAttempts ? Math.round((lessonCorrect / lessonAttempts) * 100) : 0;
-  const lessonPassed = lessonAttempts >= summary.requiredAttempts
+  const lessonPassed = progressionEligible && lessonAttempts >= summary.requiredAttempts
     && lessonAccuracy >= summary.requiredAccuracy;
   const nextLesson = summary.lesson === null
     ? null
     : Math.min(summary.lessonCount, summary.lesson + (lessonPassed ? 1 : 0));
   return {
     ...summary,
+    progressionEligible,
     lessonAttempts,
     lessonCorrect,
     lessonAccuracy,
     lessonPassed,
+    reviewCompleted,
     nextLesson,
     nextLessonUnlocked: lessonPassed && progressionEligible && summary.lesson < summary.lessonCount && summary.lesson > baselineCompletedLessons,
     curriculumCompleted: lessonPassed && progressionEligible && summary.lesson === summary.lessonCount && summary.lesson > baselineCompletedLessons,
@@ -183,6 +210,36 @@ function createSessionRun(mode, persistentStats, overrides = {}) {
   };
 }
 
+function createWeaknessReviewRun(mode, persistentStats, overrides = {}) {
+  const record = recordForMode(persistentStats, mode);
+  const difficulty = overrides.difficulty ?? record.difficulty;
+  const lesson = overrides.lesson ?? record.lesson;
+  const targets = practiceWeakTargets(recordSnapshot(record), mode, { lesson, limit: 5 });
+  if (!targets.length) return null;
+  const startedAt = new Date().toISOString();
+  const session = createWeaknessReviewSession({
+    mode,
+    difficulty,
+    lesson,
+    targetPool: targets.map(({ target }) => target),
+    startedAt,
+    seed: `${mode}:weak:${startedAt}:${Math.random().toString(36).slice(2, 10)}`,
+    weaknesses: record.stats.weaknesses,
+    recentTargets: record.recentTargets,
+  });
+  if (!session) return null;
+  return {
+    baselineWeaknesses: { ...record.stats.weaknesses },
+    baselineProgress: {
+      eligible: false,
+      completedLessons: record.completedLessons,
+      lessonAttempts: record.lessonAttempts,
+      lessonCorrect: record.lessonCorrect,
+    },
+    session,
+  };
+}
+
 export function PracticeScreen({
   language,
   automaticKeyWpm = 18,
@@ -199,6 +256,7 @@ export function PracticeScreen({
   const effectivePersistentStats = recordingCallsign
     ? persistentStats
     : practiceStatsByMode(sessionOnlyRecords);
+  const curriculumProgress = summarizePracticeProgress(effectivePersistentStats);
   const [run, setRun] = useState(() => createSessionRun(PRACTICE_MODES.CHARACTER_RX, effectivePersistentStats));
   const [answer, setAnswer] = useState("");
   const [visualAid, setVisualAid] = useState(false);
@@ -220,6 +278,11 @@ export function PracticeScreen({
     [effectivePersistentStats, mode],
   );
   const lifetimeStats = lifetimeRecord.stats;
+  const weakReviewTargets = useMemo(
+    () => practiceWeakTargets(recordSnapshot(lifetimeRecord), mode, { lesson, limit: 5 }),
+    [lesson, lifetimeRecord, mode],
+  );
+  const reviewingWeaknesses = session.sessionType === PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW;
   const lessonContent = useMemo(() => practiceLessonContent(mode, lesson), [lesson, mode]);
   const mastery = useMemo(
     () => practiceMasteryFeedback(lifetimeRecord, mode, { difficulty, lesson }),
@@ -318,7 +381,7 @@ export function PracticeScreen({
   }
 
   function changeDifficulty(nextDifficulty) {
-    if (nextDifficulty === difficulty || switchLocked) return;
+    if (nextDifficulty === difficulty || switchLocked || reviewingWeaknesses) return;
     cw.stopAll();
     setRun(createSessionRun(mode, effectivePersistentStats, { difficulty: nextDifficulty, lesson }));
     notifiedQuestionIdsRef.current = new Set();
@@ -328,9 +391,21 @@ export function PracticeScreen({
   }
 
   function changeLesson(nextLesson) {
-    if (nextLesson === lesson || nextLesson > maxUnlockedLesson || switchLocked) return;
+    if (nextLesson === lesson || nextLesson > maxUnlockedLesson || switchLocked || reviewingWeaknesses) return;
     cw.stopAll();
     setRun(createSessionRun(mode, effectivePersistentStats, { difficulty, lesson: nextLesson }));
+    notifiedQuestionIdsRef.current = new Set();
+    setResult(null);
+    setAnswer("");
+    setSummaryState(null);
+  }
+
+  function startWeaknessReview() {
+    if (reviewingWeaknesses || switchLocked || !weakReviewTargets.length) return;
+    cw.stopAll();
+    const nextRun = createWeaknessReviewRun(mode, effectivePersistentStats, { difficulty, lesson });
+    if (!nextRun) return;
+    setRun(nextRun);
     notifiedQuestionIdsRef.current = new Set();
     setResult(null);
     setAnswer("");
@@ -357,6 +432,7 @@ export function PracticeScreen({
       recentTargets: nextSession.recentTargets,
       difficulty,
       lesson,
+      sessionType: session.sessionType,
     });
     if (!recordingCallsign) {
       setSessionOnlyRecords((current) => recordPracticeAttempt(current, mode, {
@@ -364,12 +440,13 @@ export function PracticeScreen({
         target: question.target,
         difficulty,
         lesson,
+        sessionType: session.sessionType,
       }));
     }
     if (nextSession.completedAt) {
       const payload = {
         mode,
-        reason: "lesson-complete",
+        reason: reviewingWeaknesses ? "weakness-review-complete" : "lesson-complete",
         session: nextSession,
         summary: sessionSummary(nextSession, run.baselineWeaknesses, run.baselineProgress),
         recentTargets: nextSession.recentTargets,
@@ -400,6 +477,13 @@ export function PracticeScreen({
   }
 
   function continueTraining() {
+    if (summaryState?.summary.reviewCompleted) {
+      setRun(createSessionRun(mode, effectivePersistentStats, { difficulty, lesson }));
+      notifiedQuestionIdsRef.current = new Set();
+      setResult(null);
+      setSummaryState(null);
+      return;
+    }
     const latestWeaknesses = { ...session.stats.weaknesses };
     const nextLesson = summaryState?.summary.nextLessonUnlocked
       ? summaryState.summary.nextLesson
@@ -468,10 +552,14 @@ export function PracticeScreen({
       data-practice-mastery-correct={mastery.blockCorrect}
       data-practice-mastery-remaining={mastery.attemptsRemaining}
       data-practice-mastery-can-pass={mastery.canStillPass ? "true" : "false"}
+      data-practice-session-type={session.sessionType}
+      data-practice-review-targets={(session.targetPool ?? weakReviewTargets.map(({ target: item }) => item)).join(",")}
+      data-practice-weak-review-available={weakReviewTargets.length ? "true" : "false"}
       data-practice-question-id={displayedQuestion?.id ?? ""}
       data-practice-target={window.cwgameSystem?.qaCapture ? target : undefined}
       data-practice-attempts={sessionStats.attempts}
       data-practice-lifetime-attempts={lifetimeStats.attempts}
+      data-practice-lifetime-correct={lifetimeStats.correct}
       data-practice-result={resultState}
       data-practice-recording={recordingCallsign ? "save" : "session"}
       data-pulse-count={cw.analysis.pulseCount}
@@ -492,11 +580,37 @@ export function PracticeScreen({
 
       <div className="practice-layout">
         <aside className="practice-sidebar metal-panel">
-          <div className="panel-title"><span>MODE</span><b>M2 / TRAIN</b></div>
-          <nav className="practice-mode-list" aria-label="Practice modes">
+          <div className="panel-title"><span>{t.curriculumOverview}</span><b>M2 / TRAIN</b></div>
+          <nav className="practice-mode-list" aria-label={t.curriculumOverview}>
             {Object.values(PRACTICE_MODES).map((id) => {
               const ModeIcon = MODE_ICONS[id];
-              return <button key={id} data-practice-mode-option={id} className={mode === id ? "selected" : ""} onClick={() => changeMode(id)}><ModeIcon size={22} weight="fill" /><span>{modeLabels[id]}</span></button>;
+              const progress = curriculumProgress.modes[id];
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  data-testid={`practice-mode-option-${id}`}
+                  data-practice-mode-option={id}
+                  data-practice-mode-completed={progress.completedLessons}
+                  data-practice-mode-total={progress.totalLessons}
+                  data-practice-mode-percent={progress.percent}
+                  className={mode === id ? "selected" : ""}
+                  aria-label={`${modeLabels[id]} ${progress.completedLessons}/${progress.totalLessons}`}
+                  disabled={reviewingWeaknesses}
+                  onClick={() => changeMode(id)}
+                >
+                  <ModeIcon className="practice-mode-icon" size={22} weight="fill" />
+                  <span className="practice-mode-copy">
+                    <strong>{modeLabels[id]}</strong>
+                    <small aria-hidden="true">{progress.completedLessons}/{progress.totalLessons}</small>
+                    <span
+                      className="practice-mode-progress"
+                      data-testid={`practice-mode-progress-${id}`}
+                      aria-hidden="true"
+                    ><i style={{ width: `${progress.percent}%` }} /></span>
+                  </span>
+                </button>
+              );
             })}
           </nav>
           <section className="practice-curriculum" aria-label={t.lessonProgress}>
@@ -508,7 +622,7 @@ export function PracticeScreen({
                   type="button"
                   data-practice-difficulty-option={id}
                   className={difficulty === id ? "selected" : ""}
-                  disabled={switchLocked}
+                  disabled={switchLocked || reviewingWeaknesses}
                   onClick={() => changeDifficulty(id)}
                 >{difficultyLabels[id]}</button>
               ))}
@@ -521,7 +635,7 @@ export function PracticeScreen({
                   type="button"
                   data-practice-lesson-option={id}
                   className={lesson === id ? "selected" : lifetimeRecord.completedLessons >= id ? "completed" : ""}
-                  disabled={switchLocked || id > maxUnlockedLesson}
+                  disabled={switchLocked || reviewingWeaknesses || id > maxUnlockedLesson}
                   onClick={() => changeLesson(id)}
                 >{id}</button>
               ))}
@@ -532,12 +646,33 @@ export function PracticeScreen({
               <p><b>{t.introduced}</b><strong>{lessonContent.introducedTargets.join(" · ")}</strong></p>
               <p><b>{t.practiceRange}</b><code title={lessonContent.targetPool.join(" · ")}>{lessonContent.targetPool.join(" · ")}</code></p>
             </div>
+            <button
+              type="button"
+              className={`practice-weak-review-button ${reviewingWeaknesses ? "active" : ""}`}
+              data-action="practice-weak-review"
+              data-testid="practice-weak-review"
+              data-weak-review-available={weakReviewTargets.length ? "true" : "false"}
+              data-weak-review-active={reviewingWeaknesses ? "true" : "false"}
+              data-weak-review-targets={(session.targetPool ?? weakReviewTargets.map(({ target: item }) => item)).join(",")}
+              disabled={reviewingWeaknesses || switchLocked || !weakReviewTargets.length}
+              onClick={startWeaknessReview}
+            >
+              <Crosshair size={18} weight="bold" />
+              <span>
+                <b>{reviewingWeaknesses ? t.weakReviewActive : t.weakReview}</b>
+                <small>{reviewingWeaknesses
+                  ? `${t.weakReviewTargets}: ${session.targetPool.join(" · ")}`
+                  : weakReviewTargets.length
+                    ? `${t.weakReviewTargets}: ${weakReviewTargets.map(({ target: item }) => item).join(" · ")}`
+                    : t.weakReviewUnavailable}</small>
+              </span>
+            </button>
           </section>
           <div className="practice-policy"><Radio size={18} /><span>{t.sim}</span></div>
         </aside>
 
         <section className="practice-workspace metal-panel">
-          <header><span className="panel-kicker">{receiving ? "RX / COPY" : "TX / KEYING"} · {difficultyLabels[difficulty]} · {t.lesson} {lesson}</span><h1>{modeLabels[mode]}</h1></header>
+          <header><span className="panel-kicker">{receiving ? "RX / COPY" : "TX / KEYING"} · {difficultyLabels[difficulty]} · {reviewingWeaknesses ? t.weakReviewActive : `${t.lesson} ${lesson}`}</span><h1>{modeLabels[mode]}</h1></header>
           <div className="practice-prompt">
             <span>{t.target}</span>
             <strong>{receiving && !visualAid && !result ? "?".repeat(Math.min(target.length, 6)) : target}</strong>
@@ -562,7 +697,7 @@ export function PracticeScreen({
             {sending && <button onClick={cw.replayInput} disabled={!cw.analysis.pulseCount || cw.isPlaying}><Broadcast size={19} />{t.replay}</button>}
             <button className="primary-button" data-action="practice-submit" onClick={scoreAttempt} disabled={Boolean(result || session.completedAt || (receiving ? !answer.trim() : !cw.analysis.pulseCount))}><Check size={20} weight="bold" />{t.submit}</button>
             <button data-action="practice-next" onClick={nextPrompt} disabled={!result || session.completedAt}><ArrowRight size={20} />{t.next}</button>
-            <button data-action="practice-end" onClick={endSession}><X size={19} />{t.endSession}</button>
+            <button data-action="practice-end" onClick={endSession} disabled={reviewingWeaknesses}><X size={19} />{t.endSession}</button>
           </footer>
 
           <div className={`practice-result ${result ? (result.correct ? "correct" : "wrong") : ""}`} aria-live="polite">
@@ -619,6 +754,8 @@ export function PracticeScreen({
             className="practice-summary-modal metal-panel"
             data-testid="practice-summary-modal"
             data-summary-mode={summaryState.mode}
+            data-summary-session-type={summaryState.summary.sessionType}
+            data-summary-progression-eligible={summaryState.summary.progressionEligible ? "true" : "false"}
             data-summary-attempts={summaryState.summary.questionCount}
             data-summary-correct={summaryState.summary.correctCount}
             data-summary-lesson={summaryState.summary.lesson}
@@ -630,17 +767,17 @@ export function PracticeScreen({
           >
             <header>
               <div><span>SESSION COMPLETE</span><h2 id="practice-summary-title">{t.summaryTitle}</h2><p>{t.summarySubtitle}</p></div>
-              <IconButton label={t.continueTraining} data-action="practice-summary-close" onClick={continueTraining}><X size={20} weight="bold" /></IconButton>
+              <IconButton label={summaryState.summary.reviewCompleted ? t.returnToLesson : t.continueTraining} data-action="practice-summary-close" onClick={continueTraining}><X size={20} weight="bold" /></IconButton>
             </header>
-            <div className={`practice-summary-progress ${summaryState.summary.lessonPassed ? "passed" : "retry"}`}>
-              <strong>{summaryState.summary.lessonPassed ? t.pass : t.retry}</strong>
-              <span>
-                {summaryState.summary.curriculumCompleted
+            <div className={`practice-summary-progress ${summaryState.summary.reviewCompleted ? "review" : summaryState.summary.lessonPassed ? "passed" : "retry"}`}>
+              <strong>{summaryState.summary.reviewCompleted ? t.weakReviewComplete : summaryState.summary.lessonPassed ? t.pass : t.retry}</strong>
+              <span>{summaryState.summary.reviewCompleted
+                ? t.weakReviewNoProgress
+                : summaryState.summary.curriculumCompleted
                   ? t.completed
                   : summaryState.summary.nextLessonUnlocked
                     ? `${t.unlocked}: ${summaryState.summary.nextLesson}`
-                    : `${summaryState.summary.lessonCorrect}/${summaryState.summary.lessonAttempts} · ${summaryState.summary.lessonAccuracy}% / ${summaryState.summary.requiredAccuracy}%`}
-              </span>
+                    : `${summaryState.summary.lessonCorrect}/${summaryState.summary.lessonAttempts} · ${summaryState.summary.lessonAccuracy}% / ${summaryState.summary.requiredAccuracy}%`}</span>
             </div>
             <dl className="practice-summary-metrics">
               <div><dt>{t.attempts}</dt><dd>{summaryState.summary.questionCount}</dd></div>
@@ -656,7 +793,7 @@ export function PracticeScreen({
             </section>
             <footer>
               <button data-action="practice-summary-back" onClick={leavePractice}><ArrowLeft size={19} />{t.leavePractice}</button>
-              <button className="primary-button" data-action="practice-summary-continue" onClick={continueTraining}><ArrowRight size={19} />{t.continueTraining}</button>
+              <button className="primary-button" data-action="practice-summary-continue" onClick={continueTraining}><ArrowRight size={19} />{summaryState.summary.reviewCompleted ? t.returnToLesson : t.continueTraining}</button>
             </footer>
           </section>
         </div>

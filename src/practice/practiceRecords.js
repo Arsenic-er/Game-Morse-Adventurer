@@ -1,6 +1,7 @@
 import {
   PRACTICE_DIFFICULTIES,
   PRACTICE_MODES,
+  PRACTICE_SESSION_TYPES,
   emptyPracticeStats,
   normalizePracticeDifficulty,
   normalizePracticeLesson,
@@ -135,6 +136,24 @@ export function summarizePracticeProgress(value) {
   };
 }
 
+export function practiceWeakTargets(record, mode = PRACTICE_MODES.CHARACTER_RX, options = {}) {
+  const current = normalizePracticeRecord(record, mode);
+  const requestedLesson = normalizePracticeLesson(options?.lesson ?? current.lesson, mode);
+  const lesson = Math.min(current.lesson, requestedLesson);
+  const limit = Math.min(5, cappedInteger(options?.limit ?? 5, 5));
+  if (!limit) return [];
+  return practicePoolFor(mode, { lesson })
+    .map((target, index) => ({
+      target,
+      misses: [...target].reduce((total, character) => total + (current.weaknesses[character] ?? 0), 0),
+      index,
+    }))
+    .filter(({ misses }) => misses > 0)
+    .sort((left, right) => right.misses - left.misses || left.index - right.index)
+    .slice(0, limit)
+    .map(({ target, misses }) => ({ target, misses }));
+}
+
 export function practiceLessonPlan(record, mode, difficulty, lesson) {
   const current = normalizePracticeRecord(record, mode);
   const selectedDifficulty = normalizePracticeDifficulty(difficulty ?? current.difficulty);
@@ -245,7 +264,9 @@ export function recordPracticeAttempt(records, mode, result, practicedAt = new D
   const normalized = normalizePracticeRecords(records);
   const current = normalized[mode];
   const nextStats = updatePracticeStats(current, result);
-  const nextProgress = advancePracticeProgress(current, mode, result);
+  const nextProgress = result?.sessionType === PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW
+    ? current
+    : advancePracticeProgress(current, mode, result);
   const target = String(result?.target ?? "").trim().toUpperCase();
   const recentTargets = recentTargetsFor(mode, [...current.recentTargets, target]);
   return {
