@@ -344,6 +344,84 @@ test("weakness review updates lifetime stats without touching lesson progression
   assert.equal(record.lessonCorrect, 5);
 });
 
+test('review recovery stays consistent between session and lifetime records while formal progress is isolated', async () => {
+  const {
+    createWeaknessReviewSession,
+    currentPracticeQuestion,
+    settlePracticeQuestion,
+  } = await import('../src/practice/practiceEngine.js');
+  const progress = {
+    difficulty: PRACTICE_DIFFICULTIES.STANDARD,
+    lesson: 3,
+    completedLessons: 2,
+    lessonAttempts: 6,
+    lessonCorrect: 5,
+  };
+  let records = {
+    ...emptyPracticeRecords(),
+    [PRACTICE_MODES.CHARACTER_RX]: {
+      ...emptyPracticeRecords()[PRACTICE_MODES.CHARACTER_RX],
+      ...progress,
+      weaknesses: { N: 5 },
+    },
+  };
+  let session = createWeaknessReviewSession({
+    mode: PRACTICE_MODES.CHARACTER_RX,
+    lesson: 3,
+    targetPool: ['N'],
+    weaknesses: records[PRACTICE_MODES.CHARACTER_RX].weaknesses,
+    seed: 'record-recovery',
+    startedAt: '2026-01-01T00:00:00.000Z',
+  });
+  for (let index = 0; index < 5; index += 1) {
+    const question = currentPracticeQuestion(session);
+    const result = {
+      sessionType: PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW,
+      target: question.target,
+      lesson: 3,
+      difficulty: PRACTICE_DIFFICULTIES.GUIDED,
+      correct: true,
+      accuracy: 100,
+      rhythm: null,
+      missed: [],
+    };
+    session = settlePracticeQuestion(session, question.id, result, `2026-01-01T00:00:0${index + 1}.000Z`);
+    records = recordPracticeAttempt(records, PRACTICE_MODES.CHARACTER_RX, result, `2026-01-01T00:00:0${index + 1}.000Z`);
+    assert.deepEqual(records[PRACTICE_MODES.CHARACTER_RX].weaknesses, session.stats.weaknesses);
+  }
+  const record = records[PRACTICE_MODES.CHARACTER_RX];
+  assert.deepEqual(record.weaknesses, {});
+  assert.equal(record.attempts, session.stats.attempts);
+  assert.equal(record.correct, session.stats.correct);
+  assert.equal(record.difficulty, progress.difficulty);
+  assert.equal(record.lesson, progress.lesson);
+  assert.equal(record.completedLessons, progress.completedLessons);
+  assert.equal(record.lessonAttempts, progress.lessonAttempts);
+  assert.equal(record.lessonCorrect, progress.lessonCorrect);
+  assert.deepEqual(practiceWeakTargets(record, PRACTICE_MODES.CHARACTER_RX), []);
+});
+
+test('a correct formal lesson answer never decays lifetime weakness weight', () => {
+  const initial = {
+    ...emptyPracticeRecords(),
+    [PRACTICE_MODES.CHARACTER_RX]: {
+      ...emptyPracticeRecords()[PRACTICE_MODES.CHARACTER_RX],
+      weaknesses: { A: 2 },
+    },
+  };
+  const updated = recordPracticeAttempt(initial, PRACTICE_MODES.CHARACTER_RX, {
+    sessionType: PRACTICE_SESSION_TYPES.LESSON,
+    target: 'A',
+    lesson: 1,
+    difficulty: PRACTICE_DIFFICULTIES.GUIDED,
+    correct: true,
+    accuracy: 100,
+    rhythm: null,
+    missed: [],
+  });
+  assert.deepEqual(updated[PRACTICE_MODES.CHARACTER_RX].weaknesses, { A: 2 });
+});
+
 test("derived lifetime stats survive JSON round trips without session attempt ids", () => {
   const updated = recordPracticeAttempt(emptyPracticeRecords(), PRACTICE_MODES.PADDLE_TX, {
     target: "A",

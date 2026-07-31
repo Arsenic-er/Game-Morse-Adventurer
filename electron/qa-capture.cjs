@@ -262,7 +262,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.20.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.21.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   async function readManualState(label) {
     const state = await window.webContents.executeJavaScript(`(() => {
@@ -820,8 +820,8 @@ async function runQaCapture(window) {
   // The single miss above exposes one durable weak target. The review locks
   // that pool for five questions and must never mutate the formal lesson block.
   await click(window, '[data-testid="practice-weak-review"]');
-  await waitFor(window, `.practice-screen[data-practice-session-type="weakness-review"][data-practice-review-targets="${wrongPracticeTarget}"][data-practice-weak-review-available="true"][data-practice-attempts="0"][data-practice-lifetime-attempts="5"][data-practice-lifetime-correct="4"]`);
-  await waitFor(window, `[data-testid="practice-weak-review"][data-weak-review-active="true"][data-weak-review-targets="${wrongPracticeTarget}"]`);
+  await waitFor(window, `.practice-screen[data-practice-session-type="weakness-review"][data-practice-review-targets="${wrongPracticeTarget}"][data-practice-weak-review-available="true"][data-practice-review-recovered="0"][data-practice-review-remaining="1"][data-practice-attempts="0"][data-practice-lifetime-attempts="5"][data-practice-lifetime-correct="4"]`);
+  await waitFor(window, `[data-testid="practice-weak-review"][data-weak-review-active="true"][data-weak-review-targets="${wrongPracticeTarget}"][data-weak-review-recovered="0"][data-weak-review-remaining="1"]`);
   const lockedWeakReviewControls = await window.webContents.executeJavaScript(`(() => ({
     modeButtons: Array.from(document.querySelectorAll("[data-practice-mode-option]"))
       .map((node) => ({ mode: node.dataset.practiceModeOption, disabled: Boolean(node.disabled) })),
@@ -832,7 +832,7 @@ async function runQaCapture(window) {
     || !lockedWeakReviewControls.endDisabled) {
     throw new Error(`Weakness review did not lock mode switching and early completion: ${JSON.stringify(lockedWeakReviewControls)}`);
   }
-  await capture(window, outputDir, shot("practice-weak-review"));
+  await capture(window, outputDir, shot("practice-weak-recovery-review"));
 
   const weakReviewTargets = [];
   for (let index = 0; index < 5; index += 1) {
@@ -844,22 +844,23 @@ async function runQaCapture(window) {
       attempts: Number(document.querySelector(".practice-screen")?.dataset.practiceAttempts),
       lifetimeAttempts: Number(document.querySelector(".practice-screen")?.dataset.practiceLifetimeAttempts),
       lifetimeCorrect: Number(document.querySelector(".practice-screen")?.dataset.practiceLifetimeCorrect),
+      recovered: Number(document.querySelector(".practice-screen")?.dataset.practiceReviewRecovered),
+      remaining: Number(document.querySelector(".practice-screen")?.dataset.practiceReviewRemaining),
     }))()`, true);
     if (!question.id || question.target !== wrongPracticeTarget
       || question.sessionType !== "weakness-review" || question.reviewTargets !== wrongPracticeTarget
       || question.attempts !== index || question.lifetimeAttempts !== 5 + index
-      || question.lifetimeCorrect !== 4 + index) {
+      || question.lifetimeCorrect !== 4 + index
+      || question.recovered !== Math.min(index, 1)
+      || question.remaining !== Math.max(1 - index, 0)) {
       throw new Error(`Weakness-review question ${index + 1} escaped its fixed pool or lost lifetime state: ${JSON.stringify(question)}`);
     }
     weakReviewTargets.push(question.target);
-    const intentionallyWrong = index === 4;
-    const answer = intentionallyWrong ? (question.target === "E" ? "T" : "E") : question.target;
-    await setInputValue(window, '[data-testid="practice-answer"]', answer);
+    await setInputValue(window, '[data-testid="practice-answer"]', question.target);
     await click(window, '[data-action="practice-submit"]');
-    await waitFor(window, `.practice-screen[data-practice-session-type="weakness-review"][data-practice-attempts="${index + 1}"][data-practice-lifetime-attempts="${6 + index}"][data-practice-lifetime-correct="${intentionallyWrong ? 8 : 5 + index}"]`);
-    await waitFor(window, intentionallyWrong
-      ? '.practice-screen[data-practice-result="wrong"]'
-      : '.practice-screen[data-practice-result="correct"]');
+    await waitFor(window, `.practice-screen[data-practice-session-type="weakness-review"][data-practice-review-recovered="1"][data-practice-review-remaining="0"][data-practice-attempts="${index + 1}"][data-practice-lifetime-attempts="${6 + index}"][data-practice-lifetime-correct="${5 + index}"]`);
+    await waitFor(window, '[data-testid="practice-weak-review"][data-weak-review-recovered="1"][data-weak-review-remaining="0"]');
+    await waitFor(window, '.practice-screen[data-practice-result="correct"]');
     const settlement = await window.webContents.executeJavaScript(`(() => {
       const record = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].practiceRecords?.["character-rx"];
       return {
@@ -871,7 +872,7 @@ async function runQaCapture(window) {
         lessonCorrect: Number(record?.lessonCorrect),
       };
     })()`, true);
-    if (settlement.attempts !== 6 + index || settlement.correct !== (intentionallyWrong ? 8 : 5 + index)
+    if (settlement.attempts !== 6 + index || settlement.correct !== 5 + index
       || settlement.lesson !== 2 || settlement.completedLessons !== 1
       || settlement.lessonAttempts !== 0 || settlement.lessonCorrect !== 0) {
       throw new Error(`Weakness review mutated formal progress or lost a lifetime result: ${JSON.stringify(settlement)}`);
@@ -884,7 +885,7 @@ async function runQaCapture(window) {
   if (weakReviewTargets.some((target) => target !== wrongPracticeTarget)) {
     throw new Error(`Weakness review did not keep its single-target fixed pool: ${JSON.stringify(weakReviewTargets)}`);
   }
-  await waitFor(window, '[data-testid="practice-summary-modal"][data-summary-session-type="weakness-review"][data-summary-progression-eligible="false"][data-summary-attempts="5"][data-summary-correct="4"]');
+  await waitFor(window, '[data-testid="practice-summary-modal"][data-summary-session-type="weakness-review"][data-summary-progression-eligible="false"][data-summary-attempts="5"][data-summary-correct="5"][data-summary-recovered="1"][data-summary-remaining-weakness="0"][data-summary-review-mastered="true"]');
   const completedWeakReviewState = await window.webContents.executeJavaScript(`(() => {
     const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
     const record = save.practiceRecords?.["character-rx"];
@@ -896,29 +897,35 @@ async function runQaCapture(window) {
       completedLessons: Number(record?.completedLessons),
       lessonAttempts: Number(record?.lessonAttempts),
       lessonCorrect: Number(record?.lessonCorrect),
-      weakness: Number(record?.weaknesses?.[${JSON.stringify(wrongPracticeTarget)}]),
+      weakness: Number(record?.weaknesses?.[${JSON.stringify(wrongPracticeTarget)}] ?? 0),
       summarySessionType: modal?.dataset.summarySessionType ?? null,
       progressionEligible: modal?.dataset.summaryProgressionEligible ?? null,
       summaryAttempts: Number(modal?.dataset.summaryAttempts),
       summaryCorrect: Number(modal?.dataset.summaryCorrect),
+      summaryRecovered: Number(modal?.dataset.summaryRecovered),
+      summaryRemainingWeakness: Number(modal?.dataset.summaryRemainingWeakness),
+      summaryReviewMastered: modal?.dataset.summaryReviewMastered ?? null,
     };
   })()`, true);
-  if (completedWeakReviewState.attempts !== 10 || completedWeakReviewState.correct !== 8
+  if (completedWeakReviewState.attempts !== 10 || completedWeakReviewState.correct !== 9
     || completedWeakReviewState.lesson !== 2 || completedWeakReviewState.completedLessons !== 1
     || completedWeakReviewState.lessonAttempts !== 0 || completedWeakReviewState.lessonCorrect !== 0
-    || completedWeakReviewState.weakness < 2
+    || completedWeakReviewState.weakness !== 0
     || completedWeakReviewState.summarySessionType !== "weakness-review"
     || completedWeakReviewState.progressionEligible !== "false"
-    || completedWeakReviewState.summaryAttempts !== 5 || completedWeakReviewState.summaryCorrect !== 4) {
+    || completedWeakReviewState.summaryAttempts !== 5 || completedWeakReviewState.summaryCorrect !== 5
+    || completedWeakReviewState.summaryRecovered !== 1
+    || completedWeakReviewState.summaryRemainingWeakness !== 0
+    || completedWeakReviewState.summaryReviewMastered !== "true") {
     throw new Error(`Weakness-review summary or formal-progress isolation failed: ${JSON.stringify(completedWeakReviewState)}`);
   }
-  await capture(window, outputDir, shot("practice-weak-summary"));
+  await capture(window, outputDir, shot("practice-weak-summary-recovered"));
 
   await click(window, '[data-action="practice-summary-continue"]');
-  await waitFor(window, '.practice-screen[data-practice-session-type="lesson"][data-practice-result="waiting"][data-practice-lifetime-attempts="10"][data-practice-lifetime-correct="8"][data-practice-lesson="2"][data-practice-lessons-completed="1"][data-practice-lesson-attempts="0"]');
+  await waitFor(window, '.practice-screen[data-practice-session-type="lesson"][data-practice-result="waiting"][data-practice-lifetime-attempts="10"][data-practice-lifetime-correct="9"][data-practice-lesson="2"][data-practice-lessons-completed="1"][data-practice-lesson-attempts="0"][data-practice-weak-review-available="false"][data-practice-review-targets=""][data-practice-review-recovered="0"][data-practice-review-remaining="0"]');
   await waitFor(window, '[data-testid="practice-mode-option-character-rx"][data-practice-mode-completed="1"][data-practice-mode-total="5"][data-practice-mode-percent="20"]');
-  await waitFor(window, `[data-testid="practice-weak-review"][data-weak-review-available="true"][data-weak-review-active="false"][data-weak-review-targets="${wrongPracticeTarget}"]`);
-  await capture(window, outputDir, shot("practice-lesson-two"));
+  await waitFor(window, '[data-testid="practice-weak-review"][data-weak-review-available="false"][data-weak-review-active="false"][data-weak-review-targets=""][data-weak-review-recovered="0"][data-weak-review-remaining="0"]');
+  await capture(window, outputDir, shot("practice-weak-cleared"));
   await click(window, '[data-action="practice-back"]');
   await waitFor(window, ".home-screen");
   await waitFor(window, '[data-testid="home-practice-progress"][data-practice-completed="1"][data-practice-total="19"][data-practice-percent="5"]');
@@ -937,23 +944,23 @@ async function runQaCapture(window) {
       completedLessons: Number(save.practiceRecords?.["character-rx"]?.completedLessons),
       lessonAttempts: Number(save.practiceRecords?.["character-rx"]?.lessonAttempts),
       lessonCorrect: Number(save.practiceRecords?.["character-rx"]?.lessonCorrect),
-      weakness: Number(save.practiceRecords?.["character-rx"]?.weaknesses?.[${JSON.stringify(wrongPracticeTarget)}]),
+      weakness: Number(save.practiceRecords?.["character-rx"]?.weaknesses?.[${JSON.stringify(wrongPracticeTarget)}] ?? 0),
       notificationCount: document.querySelectorAll('[data-testid="achievement-notification"]').length,
     };
   })()`, true);
-  if (practiceReloadState.attempts !== 10 || practiceReloadState.correct !== 8
+  if (practiceReloadState.attempts !== 10 || practiceReloadState.correct !== 9
     || practiceReloadState.difficulty !== "guided"
     || practiceReloadState.lesson !== 2 || practiceReloadState.completedLessons !== 1
     || practiceReloadState.lessonAttempts !== 0 || practiceReloadState.lessonCorrect !== 0
-    || practiceReloadState.weakness < 2
+    || practiceReloadState.weakness !== 0
     || practiceReloadState.notificationCount !== 0) {
     throw new Error(`Practice lifetime record or reload notification policy failed: ${JSON.stringify(practiceReloadState)}`);
   }
   await click(window, ".start-actions button:nth-child(2)");
-  await waitFor(window, '.practice-screen[data-practice-recording="save"][data-practice-session-type="lesson"][data-practice-lifetime-attempts="10"][data-practice-lifetime-correct="8"][data-practice-difficulty="guided"][data-practice-lesson="2"][data-practice-lessons-completed="1"][data-practice-lesson-attempts="0"]');
+  await waitFor(window, '.practice-screen[data-practice-recording="save"][data-practice-session-type="lesson"][data-practice-lifetime-attempts="10"][data-practice-lifetime-correct="9"][data-practice-difficulty="guided"][data-practice-lesson="2"][data-practice-lessons-completed="1"][data-practice-lesson-attempts="0"][data-practice-weak-review-available="false"][data-practice-review-targets=""][data-practice-review-remaining="0"]');
   await waitFor(window, '[data-testid="practice-mode-option-character-rx"][data-practice-mode-completed="1"][data-practice-mode-total="5"][data-practice-mode-percent="20"]');
-  await waitFor(window, `[data-testid="practice-weak-review"][data-weak-review-available="true"][data-weak-review-active="false"][data-weak-review-targets="${wrongPracticeTarget}"]`);
-  await capture(window, outputDir, shot("practice-lifetime-reloaded"));
+  await waitFor(window, '[data-testid="practice-weak-review"][data-weak-review-available="false"][data-weak-review-active="false"][data-weak-review-targets=""][data-weak-review-remaining="0"]');
+  await capture(window, outputDir, shot("practice-weak-cleared-reloaded"));
   await click(window, '[data-action="practice-back"]');
   await waitFor(window, ".start-screen");
   await click(window, ".menu-primary");
@@ -1293,17 +1300,17 @@ async function runQaCapture(window) {
       practiceLessonsCompleted: Number(save.practiceRecords?.["character-rx"]?.completedLessons),
       practiceLessonAttempts: Number(save.practiceRecords?.["character-rx"]?.lessonAttempts),
       practiceLessonCorrect: Number(save.practiceRecords?.["character-rx"]?.lessonCorrect),
-      practiceWeakness: Number(save.practiceRecords?.["character-rx"]?.weaknesses?.[${JSON.stringify(wrongPracticeTarget)}]),
+      practiceWeakness: Number(save.practiceRecords?.["character-rx"]?.weaknesses?.[${JSON.stringify(wrongPracticeTarget)}] ?? 0),
       notificationCount: document.querySelectorAll('[data-testid="achievement-notification"]').length,
       liveRegionCount: document.querySelectorAll('.achievement-notification-region[role="status"][aria-live="polite"]').length,
     };
   })()`, true);
   if (finalReloadState.totalQsos !== 5 || finalReloadState.practiceAttempts !== 10
-    || finalReloadState.practiceCorrect !== 8
+    || finalReloadState.practiceCorrect !== 9
     || finalReloadState.practiceDifficulty !== "guided"
     || finalReloadState.practiceLesson !== 2 || finalReloadState.practiceLessonsCompleted !== 1
     || finalReloadState.practiceLessonAttempts !== 0 || finalReloadState.practiceLessonCorrect !== 0
-    || finalReloadState.practiceWeakness < 2
+    || finalReloadState.practiceWeakness !== 0
     || finalReloadState.notificationCount !== 0 || finalReloadState.liveRegionCount !== 1) {
     throw new Error(`Reload repeated an unlock or lost durable records: ${JSON.stringify(finalReloadState)}`);
   }
@@ -1325,7 +1332,7 @@ async function runQaCapture(window) {
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "practice-session-only", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-review", "practice-weak-summary", "practice-lesson-two", "home-after-practice", "practice-lifetime-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
+      "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
     ].map(shot), ...manualCaptures],
   };
 }

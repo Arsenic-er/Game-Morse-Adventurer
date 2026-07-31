@@ -83,6 +83,22 @@ function normalizeWeaknesses(value) {
   return normalized;
 }
 
+function recoverTargetWeakness(weaknesses, target) {
+  const normalized = { ...normalizeWeaknesses(weaknesses) };
+  const characters = [...new Set([...normalizeCwText(target).replace(/\s/g, '')])]
+    .filter((character) => /^[A-Z0-9]$/.test(character) && normalized[character] > 0);
+  let recoveredCharacter = null;
+  characters.forEach((character) => {
+    if (recoveredCharacter === null || normalized[character] > normalized[recoveredCharacter]) {
+      recoveredCharacter = character;
+    }
+  });
+  if (recoveredCharacter === null) return normalized;
+  if (normalized[recoveredCharacter] <= 1) delete normalized[recoveredCharacter];
+  else normalized[recoveredCharacter] -= 1;
+  return normalized;
+}
+
 function normalizeAttemptIds(value) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.map((id) => String(id ?? "").trim().slice(0, 160)).filter(Boolean))].slice(-MAX_SETTLED_ATTEMPT_IDS);
@@ -357,8 +373,10 @@ export function updatePracticeStats(stats, result) {
 
   const attempts = Math.min(MAX_COUNTER, current.attempts + 1);
   const correct = Math.min(attempts, current.correct + (result?.correct ? 1 : 0));
-  const weaknesses = { ...current.weaknesses };
-  (result?.missed ?? []).forEach((rawCharacter) => {
+  const weaknesses = result?.correct && result?.sessionType === PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW
+    ? recoverTargetWeakness(current.weaknesses, result?.target)
+    : { ...current.weaknesses };
+  (result?.correct ? [] : result?.missed ?? []).forEach((rawCharacter) => {
     const characters = normalizeCwText(rawCharacter).replace(/\s/g, "");
     [...characters].forEach((character) => {
       if (/^[A-Z0-9]$/.test(character)) weaknesses[character] = Math.min(MAX_COUNTER, (weaknesses[character] ?? 0) + 1);
@@ -485,7 +503,12 @@ export function settlePracticeQuestion(session, questionId, result, settledAt = 
   const activeQuestion = currentPracticeQuestion(current);
   if (!activeQuestion || String(questionId) !== activeQuestion.id || current.stats.settledAttemptIds.includes(activeQuestion.id)) return current;
 
-  const stats = updatePracticeStats(current.stats, { ...result, attemptId: activeQuestion.id });
+  const stats = updatePracticeStats(current.stats, {
+    ...result,
+    target: activeQuestion.target,
+    sessionType: current.sessionType,
+    attemptId: activeQuestion.id,
+  });
   const questionIndex = current.questionIndex + 1;
   const recentTargets = [...current.recentTargets, activeQuestion.target].slice(-4);
   let bagIndex = current.bagIndex;

@@ -41,7 +41,8 @@ const TEXT = {
     thresholdSecured: "所需正确题数已满足，请完成剩余题目", cannotPass: "本计分块已无法达标，完成后将重新开始", blockProgressing: "继续完成本计分块", blockNotStarted: "尚未开始本课计分",
     replayNoProgress: "复习已完成课程，不计入当前课程达标进度", curriculumOverview: "课程总览",
     weakReview: "薄弱专项复习", weakReviewActive: "专项复习中", weakReviewTargets: "专项题池", weakReviewUnavailable: "完成错题后开放",
-    weakReviewComplete: "专项复习完成", weakReviewNoProgress: "累计成绩已更新，正式课程进度没有变化", returnToLesson: "返回正式课程",
+    weakReviewRecoveryHint: "专项中答对会削减该字符的薄弱权重", recoveredPoints: "恢复点数", remainingWeakness: "剩余薄弱权重",
+    weakReviewComplete: "专项复习完成", weaknessMastered: "薄弱项已掌握", weaknessMasteredDetail: "薄弱权重已归零，下次不再进入专项；正式课程进度不变", weakReviewNoProgress: "累计成绩已更新，正式课程进度没有变化", returnToLesson: "返回正式课程",
   },
   "zh-TW": {
     title: "CW 練習臺", back: "返回開始介面", settings: "設定", independent: "獨立訓練環境 · 不受傳播影響",
@@ -60,7 +61,8 @@ const TEXT = {
     thresholdSecured: "所需正確題數已滿足，請完成剩餘題目", cannotPass: "本計分區塊已無法達標，完成後將重新開始", blockProgressing: "繼續完成本計分區塊", blockNotStarted: "尚未開始本課計分",
     replayNoProgress: "複習已完成課程，不計入目前課程達標進度", curriculumOverview: "課程總覽",
     weakReview: "薄弱專項複習", weakReviewActive: "專項複習中", weakReviewTargets: "專項題庫", weakReviewUnavailable: "完成錯題後開放",
-    weakReviewComplete: "專項複習完成", weakReviewNoProgress: "累計成績已更新，正式課程進度沒有變化", returnToLesson: "返回正式課程",
+    weakReviewRecoveryHint: "專項中答對會削減該字元的薄弱權重", recoveredPoints: "恢復點數", remainingWeakness: "剩餘薄弱權重",
+    weakReviewComplete: "專項複習完成", weaknessMastered: "薄弱項已掌握", weaknessMasteredDetail: "薄弱權重已歸零，下次不再進入專項；正式課程進度不變", weakReviewNoProgress: "累計成績已更新，正式課程進度沒有變化", returnToLesson: "返回正式課程",
   },
   ja: {
     title: "CW 練習台", back: "開始画面へ戻る", settings: "設定", independent: "独立した練習環境・伝搬の影響なし",
@@ -79,7 +81,8 @@ const TEXT = {
     thresholdSecured: "必要正解数に到達。残りを完了してください", cannotPass: "このブロックでは合格不可。完了後に再挑戦します", blockProgressing: "採点ブロックを続けてください", blockNotStarted: "このレッスンは未採点です",
     replayNoProgress: "完了済みレッスンの復習は現在の合格進捗に加算されません", curriculumOverview: "カリキュラム",
     weakReview: "弱点集中練習", weakReviewActive: "集中練習中", weakReviewTargets: "集中出題", weakReviewUnavailable: "誤答後に利用できます",
-    weakReviewComplete: "弱点練習完了", weakReviewNoProgress: "通算成績のみ更新し、正式レッスンの進捗は変わりません", returnToLesson: "正式レッスンへ戻る",
+    weakReviewRecoveryHint: "集中練習で正解すると、その文字の弱点ウェイトが減ります", recoveredPoints: "回復ポイント", remainingWeakness: "残り弱点ウェイト",
+    weakReviewComplete: "弱点練習完了", weaknessMastered: "弱点を克服しました", weaknessMasteredDetail: "弱点ウェイトはゼロになり、次回の集中練習には入りません。正式レッスンの進捗は変わりません", weakReviewNoProgress: "通算成績のみ更新し、正式レッスンの進捗は変わりません", returnToLesson: "正式レッスンへ戻る",
   },
   en: {
     title: "CW Practice", back: "Back to title", settings: "Settings", independent: "Independent training · propagation disabled",
@@ -98,7 +101,8 @@ const TEXT = {
     thresholdSecured: "Required correct answers reached; finish the remaining questions", cannotPass: "This block can no longer pass; finish it to restart", blockProgressing: "Continue this scored block", blockNotStarted: "This lesson has not started scoring",
     replayNoProgress: "Reviewing a completed lesson does not advance the current pass block", curriculumOverview: "Curriculum",
     weakReview: "Weak-target review", weakReviewActive: "Review in progress", weakReviewTargets: "Review pool", weakReviewUnavailable: "Available after a missed target",
-    weakReviewComplete: "Weak-target review complete", weakReviewNoProgress: "Lifetime results updated; formal lesson progress is unchanged", returnToLesson: "Return to lesson",
+    weakReviewRecoveryHint: "Correct review answers reduce that character's weakness weight", recoveredPoints: "Recovered", remainingWeakness: "Weakness left",
+    weakReviewComplete: "Weak-target review complete", weaknessMastered: "Weak target mastered", weaknessMasteredDetail: "Its weakness weight is now zero, so it will not enter the next review; formal lesson progress is unchanged", weakReviewNoProgress: "Lifetime results updated; formal lesson progress is unchanged", returnToLesson: "Return to lesson",
   },
 };
 
@@ -146,9 +150,26 @@ function weaknessDelta(current = {}, baseline = {}) {
     .filter(([, count]) => count > 0));
 }
 
+function weaknessRecovery(current = {}, baseline = {}) {
+  return Object.fromEntries(Object.entries(baseline)
+    .map(([character, count]) => [character, Math.max(0, Number(count) - Number(current[character] ?? 0))])
+    .filter(([, count]) => count > 0));
+}
+
+function weaknessWeight(weaknesses = {}) {
+  return Object.values(weaknesses)
+    .reduce((total, count) => total + Math.max(0, Number(count) || 0), 0);
+}
+
 function sessionSummary(session, baselineWeaknesses, baselineProgress = {}) {
   const summary = summarizePracticeSession(session);
   const weaknesses = weaknessDelta(summary.weaknesses, baselineWeaknesses);
+  const recoveredWeaknesses = weaknessRecovery(summary.weaknesses, baselineWeaknesses);
+  const recoveredPoints = weaknessWeight(recoveredWeaknesses);
+  const remainingWeaknessWeight = weaknessWeight(summary.weaknesses);
+  const remainingWeakCharacters = Object.entries(summary.weaknesses)
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .map(([character, misses]) => ({ character, misses }));
   const baselineCompletedLessons = Number(baselineProgress.completedLessons) || 0;
   const baselineAttempts = Number(baselineProgress.lessonAttempts) || 0;
   const baselineCorrect = Number(baselineProgress.lessonCorrect) || 0;
@@ -174,6 +195,10 @@ function sessionSummary(session, baselineWeaknesses, baselineProgress = {}) {
     nextLesson,
     nextLessonUnlocked: lessonPassed && progressionEligible && summary.lesson < summary.lessonCount && summary.lesson > baselineCompletedLessons,
     curriculumCompleted: lessonPassed && progressionEligible && summary.lesson === summary.lessonCount && summary.lesson > baselineCompletedLessons,
+    recoveredWeaknesses,
+    recoveredPoints,
+    remainingWeaknessWeight,
+    remainingWeakCharacters,
     weaknesses,
     weakCharacters: Object.entries(weaknesses)
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
@@ -291,6 +316,8 @@ export function PracticeScreen({
   const maxUnlockedLesson = Math.min(lessonCount, lifetimeRecord.completedLessons + 1);
   const sessionWeaknesses = weaknessDelta(sessionStats.weaknesses, run.baselineWeaknesses);
   const sessionWeakEntries = Object.entries(sessionWeaknesses).sort((left, right) => right[1] - left[1]).slice(0, 5);
+  const liveRecoveredPoints = weaknessWeight(weaknessRecovery(sessionStats.weaknesses, run.baselineWeaknesses));
+  const liveRemainingWeakness = weaknessWeight(sessionStats.weaknesses);
   const lifetimeWeakEntries = Object.entries(lifetimeStats.weaknesses).sort((left, right) => right[1] - left[1]).slice(0, 5);
   const cw = useCwCore({ targetText: target, automaticWpm: automaticKeyWpm });
   const receiving = isReceptionMode(mode);
@@ -311,6 +338,8 @@ export function PracticeScreen({
         : mastery.status === "not-started"
           ? t.blockNotStarted
           : `${t.correctNeeded}: ${mastery.correctNeeded} · ${t.remainingQuestions}: ${mastery.attemptsRemaining}`;
+  const summaryReviewMastered = Boolean(summaryState?.summary.reviewCompleted
+    && summaryState.summary.remainingWeaknessWeight === 0);
 
   useEffect(() => {
     cw.clearInput();
@@ -553,6 +582,8 @@ export function PracticeScreen({
       data-practice-mastery-remaining={mastery.attemptsRemaining}
       data-practice-mastery-can-pass={mastery.canStillPass ? "true" : "false"}
       data-practice-session-type={session.sessionType}
+      data-practice-review-recovered={reviewingWeaknesses ? liveRecoveredPoints : 0}
+      data-practice-review-remaining={reviewingWeaknesses ? liveRemainingWeakness : weaknessWeight(lifetimeStats.weaknesses)}
       data-practice-review-targets={(session.targetPool ?? weakReviewTargets.map(({ target: item }) => item)).join(",")}
       data-practice-weak-review-available={weakReviewTargets.length ? "true" : "false"}
       data-practice-question-id={displayedQuestion?.id ?? ""}
@@ -648,12 +679,15 @@ export function PracticeScreen({
             </div>
             <button
               type="button"
+              aria-label={`${reviewingWeaknesses ? t.weakReviewActive : t.weakReview}. ${t.weakReviewRecoveryHint}`}
               className={`practice-weak-review-button ${reviewingWeaknesses ? "active" : ""}`}
               data-action="practice-weak-review"
               data-testid="practice-weak-review"
               data-weak-review-available={weakReviewTargets.length ? "true" : "false"}
               data-weak-review-active={reviewingWeaknesses ? "true" : "false"}
               data-weak-review-targets={(session.targetPool ?? weakReviewTargets.map(({ target: item }) => item)).join(",")}
+              data-weak-review-recovered={reviewingWeaknesses ? liveRecoveredPoints : 0}
+              data-weak-review-remaining={reviewingWeaknesses ? liveRemainingWeakness : weaknessWeight(lifetimeStats.weaknesses)}
               disabled={reviewingWeaknesses || switchLocked || !weakReviewTargets.length}
               onClick={startWeaknessReview}
             >
@@ -661,10 +695,11 @@ export function PracticeScreen({
               <span>
                 <b>{reviewingWeaknesses ? t.weakReviewActive : t.weakReview}</b>
                 <small>{reviewingWeaknesses
-                  ? `${t.weakReviewTargets}: ${session.targetPool.join(" · ")}`
+                  ? `${t.recoveredPoints}: ${liveRecoveredPoints} · ${t.remainingWeakness}: ${liveRemainingWeakness}`
                   : weakReviewTargets.length
                     ? `${t.weakReviewTargets}: ${weakReviewTargets.map(({ target: item }) => item).join(" · ")}`
                     : t.weakReviewUnavailable}</small>
+                <em title={t.weakReviewRecoveryHint}>{t.weakReviewRecoveryHint}</em>
               </span>
             </button>
           </section>
@@ -758,6 +793,9 @@ export function PracticeScreen({
             data-summary-progression-eligible={summaryState.summary.progressionEligible ? "true" : "false"}
             data-summary-attempts={summaryState.summary.questionCount}
             data-summary-correct={summaryState.summary.correctCount}
+            data-summary-recovered={summaryState.summary.recoveredPoints}
+            data-summary-remaining-weakness={summaryState.summary.remainingWeaknessWeight}
+            data-summary-review-mastered={summaryReviewMastered ? "true" : "false"}
             data-summary-lesson={summaryState.summary.lesson}
             data-summary-lesson-passed={summaryState.summary.lessonPassed ? "true" : "false"}
             data-summary-next-lesson={summaryState.summary.nextLesson ?? ""}
@@ -769,27 +807,31 @@ export function PracticeScreen({
               <div><span>SESSION COMPLETE</span><h2 id="practice-summary-title">{t.summaryTitle}</h2><p>{t.summarySubtitle}</p></div>
               <IconButton label={summaryState.summary.reviewCompleted ? t.returnToLesson : t.continueTraining} data-action="practice-summary-close" onClick={continueTraining}><X size={20} weight="bold" /></IconButton>
             </header>
-            <div className={`practice-summary-progress ${summaryState.summary.reviewCompleted ? "review" : summaryState.summary.lessonPassed ? "passed" : "retry"}`}>
-              <strong>{summaryState.summary.reviewCompleted ? t.weakReviewComplete : summaryState.summary.lessonPassed ? t.pass : t.retry}</strong>
+            <div className={`practice-summary-progress ${summaryReviewMastered ? "mastered" : summaryState.summary.reviewCompleted ? "review" : summaryState.summary.lessonPassed ? "passed" : "retry"}`}>
+              <strong>{summaryState.summary.reviewCompleted
+                ? summaryReviewMastered ? t.weaknessMastered : t.weakReviewComplete
+                : summaryState.summary.lessonPassed ? t.pass : t.retry}</strong>
               <span>{summaryState.summary.reviewCompleted
-                ? t.weakReviewNoProgress
+                ? summaryReviewMastered ? t.weaknessMasteredDetail : t.weakReviewNoProgress
                 : summaryState.summary.curriculumCompleted
                   ? t.completed
                   : summaryState.summary.nextLessonUnlocked
                     ? `${t.unlocked}: ${summaryState.summary.nextLesson}`
                     : `${summaryState.summary.lessonCorrect}/${summaryState.summary.lessonAttempts} · ${summaryState.summary.lessonAccuracy}% / ${summaryState.summary.requiredAccuracy}%`}</span>
             </div>
-            <dl className="practice-summary-metrics">
+            <dl className={summaryState.summary.reviewCompleted ? "practice-summary-metrics review" : "practice-summary-metrics"}>
               <div><dt>{t.attempts}</dt><dd>{summaryState.summary.questionCount}</dd></div>
               <div><dt>{t.correctCount}</dt><dd>{summaryState.summary.correctCount}</dd></div>
               <div><dt>{t.accuracy}</dt><dd>{summaryState.summary.averageAccuracy}%</dd></div>
               <div><dt>{t.rhythm}</dt><dd>{summaryState.summary.averageRhythm}%</dd></div>
+              {summaryState.summary.reviewCompleted
+                && <div className="recovered"><dt>{t.recoveredPoints}</dt><dd>+{summaryState.summary.recoveredPoints}</dd></div>}
             </dl>
             <section className="practice-summary-weaknesses">
-              <h3>{t.weak}</h3>
-              {summaryState.summary.weakCharacters.length
-                ? <div className="weak-list">{summaryState.summary.weakCharacters.slice(0, 8).map(({ character, misses }) => <span key={character}><b>{character}</b><i>{misses}</i></span>)}</div>
-                : <p>{t.noWeak}</p>}
+              <h3>{summaryState.summary.reviewCompleted ? t.remainingWeakness : t.weak}</h3>
+              {(summaryState.summary.reviewCompleted ? summaryState.summary.remainingWeakCharacters : summaryState.summary.weakCharacters).length
+                ? <div className="weak-list">{(summaryState.summary.reviewCompleted ? summaryState.summary.remainingWeakCharacters : summaryState.summary.weakCharacters).slice(0, 8).map(({ character, misses }) => <span key={character}><b>{character}</b><i>{misses}</i></span>)}</div>
+                : <p>{summaryReviewMastered ? t.weaknessMastered : t.noWeak}</p>}
             </section>
             <footer>
               <button data-action="practice-summary-back" onClick={leavePractice}><ArrowLeft size={19} />{t.leavePractice}</button>

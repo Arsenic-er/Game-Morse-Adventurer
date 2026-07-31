@@ -701,12 +701,14 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   background: #201708;
   text-align: left;
 }
-.practice-weak-review-button > span { display: grid; gap: 4px; min-width: 0; }
+.practice-weak-review-button > span { display: grid; gap: 2px; min-width: 0; }
 .practice-weak-review-button b { overflow: hidden; color: #f0cb79; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .practice-weak-review-button small { overflow: hidden; color: #987c48; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.practice-weak-review-button em { overflow: hidden; color: #628d8b; font-size: 6px; font-style: normal; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .practice-curriculum .practice-weak-review-button.active { border-color: #68a9a5; color: #9ed6d0; background: #08272c; opacity: 1; }
 .practice-weak-review-button.active b { color: #b9e5df; }
 .practice-weak-review-button.active small { color: #75aaa7; }
+.practice-weak-review-button.active em { color: #7fb4af; }
 .practice-policy { align-self: end; display: grid; grid-template-columns: 24px 1fr; gap: 8px; margin: 12px; padding: 12px; border: 2px solid #264c53; color: #5f8889; font-size: 10px; line-height: 1.65; background: #04131a; }
 
 .practice-workspace {
@@ -814,14 +816,18 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .practice-summary-progress strong { font-size: 13px; }
 .practice-summary-progress.passed { border-color: #5b963c; color: #b8ea85; background: #0b2310; }
 .practice-summary-progress.review { border-color: #4f8988; color: #a7d9d4; background: #082329; }
+.practice-summary-progress.mastered { border-color: #5b963c; color: #b8ea85; background: #0b2310; }
 .practice-summary-modal > header { display: grid; grid-template-columns: minmax(0, 1fr) 42px; align-items: center; gap: 14px; padding: 0 16px; border-bottom: 3px solid #755921; background: #10262a; }
 .practice-summary-modal > header span { color: #b98931; font-size: 8px; letter-spacing: .16em; }
 .practice-summary-modal > header h2 { margin: 4px 0 0; color: #ffe09a; font-size: 21px; letter-spacing: .1em; }
 .practice-summary-modal > header p { margin: 4px 0 0; color: #769694; font-size: 9px; }
 .practice-summary-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin: 0; padding: 15px; }
+.practice-summary-metrics.review { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .practice-summary-metrics > div { display: grid; place-items: center; gap: 7px; min-height: 76px; border: 2px solid #386366; background: #06161b; }
 .practice-summary-metrics dt { color: #789b98; font-size: 9px; }
 .practice-summary-metrics dd { margin: 0; color: var(--pixel-amber); font-size: 23px; }
+.practice-summary-metrics.review .recovered { border-color: #568c67; background: #0b2115; }
+.practice-summary-metrics.review .recovered dd { color: #a9e78d; }
 .practice-summary-weaknesses { min-height: 0; padding: 0 16px 14px; overflow: auto; }
 .practice-summary-weaknesses h3 { margin: 0 0 10px; color: #a9c8c3; font-size: 12px; }
 .practice-summary-weaknesses p { color: #668785; font-size: 10px; }

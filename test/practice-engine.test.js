@@ -214,6 +214,85 @@ test("practice stats track averages, rhythm and weaknesses", () => {
   assert.equal(stats.weaknesses.Q, 1);
 });
 
+test('only correct weakness-review answers recover one weighted target character', () => {
+  const damaged = {
+    attempts: -20,
+    correct: 500,
+    weaknesses: { q: 3.9, A: 3, INVALID: 99, '?': 50 },
+  };
+  const recoveredTie = updatePracticeStats(damaged, {
+    sessionType: PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW,
+    target: 'qAq',
+    correct: true,
+    accuracy: 100,
+    rhythm: null,
+    missed: ['A'],
+  });
+  assert.deepEqual(recoveredTie.weaknesses, { Q: 2, A: 3 });
+
+  const recoveredCallsign = updatePracticeStats({ weaknesses: { S: 2, I: 5, M: 1, '7': 5, Q: 5, X: 5 } }, {
+    sessionType: PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW,
+    target: 'SIM7QX',
+    correct: true,
+    accuracy: 100,
+    rhythm: null,
+    missed: [],
+  });
+  assert.deepEqual(recoveredCallsign.weaknesses, { S: 2, I: 4, M: 1, '7': 5, Q: 5, X: 5 });
+
+  const formalAnswer = updatePracticeStats({ weaknesses: { A: 2 } }, {
+    sessionType: PRACTICE_SESSION_TYPES.LESSON,
+    target: 'A',
+    correct: true,
+    accuracy: 100,
+    rhythm: null,
+    missed: [],
+  });
+  assert.deepEqual(formalAnswer.weaknesses, { A: 2 });
+
+  const reviewMiss = updatePracticeStats({ weaknesses: { A: 2 } }, {
+    sessionType: PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW,
+    target: 'A',
+    correct: false,
+    accuracy: 0,
+    rhythm: null,
+    missed: ['A'],
+  });
+  assert.deepEqual(reviewMiss.weaknesses, { A: 3 });
+});
+
+test('five correct review questions retire a weakness without changing the fixed pool', () => {
+  let session = createWeaknessReviewSession({
+    mode: PRACTICE_MODES.CHARACTER_RX,
+    lesson: 1,
+    targetPool: ['N'],
+    weaknesses: { n: 5, INVALID: 900 },
+    seed: 'recover-five',
+    startedAt: '2026-01-01T00:00:00.000Z',
+  });
+  for (let index = 0; index < 5; index += 1) {
+    const question = currentPracticeQuestion(session);
+    assert.equal(question.target, 'N');
+    session = settlePracticeQuestion(session, question.id, {
+      correct: true,
+      accuracy: 100,
+      rhythm: null,
+      missed: [],
+    }, `2026-01-01T00:00:0${index + 1}.000Z`);
+    assert.deepEqual(session.targetPool, ['N']);
+  }
+  assert.equal(currentPracticeQuestion(session), null);
+  assert.deepEqual(session.stats.weaknesses, {});
+  const summary = summarizePracticeSession(session);
+  assert.equal(summary.questionCount, 5);
+  assert.equal(summary.correctCount, 5);
+  assert.equal(summary.progressionEligible, false);
+  assert.equal(summary.lessonPassed, false);
+  assert.deepEqual(summary.targetPool, ['N']);
+  assert.deepEqual(summary.weaknesses, {});
+  assert.deepEqual(summary.weakCharacters, []);
+});
+
 test("practice percentages clamp corrupt totals and out-of-range samples", () => {
   const normalized = normalizePracticeStats({
     attempts: 2,
