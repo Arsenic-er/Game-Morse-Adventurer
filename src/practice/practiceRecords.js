@@ -11,8 +11,12 @@ import {
   practicePoolFor,
   updatePracticeStats,
 } from "./practiceEngine.js";
+import {
+  PRACTICE_CALLSIGN_REGIONS,
+  normalizePracticeCallsignRegion,
+} from "./practiceCallsignCatalog.js";
 
-export const PRACTICE_RECORDS_VERSION = 2;
+export const PRACTICE_RECORDS_VERSION = 3;
 export const PRACTICE_RECENT_TARGET_LIMIT = 4;
 
 const MAX_COUNTER = 1_000_000;
@@ -33,8 +37,8 @@ function validIsoDate(value) {
   return new Date(value).toISOString();
 }
 
-function recentTargetsFor(mode, value) {
-  const pool = new Set(practicePoolFor(mode));
+function recentTargetsFor(mode, value, callsignRegion = PRACTICE_CALLSIGN_REGIONS.ALL) {
+  const pool = new Set(practicePoolFor(mode, { callsignRegion }));
   if (!Array.isArray(value)) return [];
   return value
     .map((target) => String(target ?? "").trim().toUpperCase())
@@ -56,7 +60,7 @@ function normalizeProgress(value, mode) {
   return { difficulty, lesson, lessonAttempts, lessonCorrect, completedLessons };
 }
 
-function recordFromStats(stats, recentTargets = [], lastPracticedAt = null, progress = null, mode = PRACTICE_MODES.CHARACTER_RX) {
+function recordFromStats(stats, recentTargets = [], lastPracticedAt = null, progress = null, mode = PRACTICE_MODES.CHARACTER_RX, callsignRegion = PRACTICE_CALLSIGN_REGIONS.ALL) {
   const normalized = normalizePracticeStats(stats);
   return {
     attempts: normalized.attempts,
@@ -69,6 +73,9 @@ function recordFromStats(stats, recentTargets = [], lastPracticedAt = null, prog
     recentTargets,
     lastPracticedAt,
     ...normalizeProgress(progress, mode),
+    ...(mode === PRACTICE_MODES.CALLSIGN_RX
+      ? { callsignRegion: normalizePracticeCallsignRegion(callsignRegion) }
+      : {}),
   };
 }
 
@@ -81,12 +88,16 @@ export function emptyPracticeRecord(mode = PRACTICE_MODES.CHARACTER_RX) {
 
 export function normalizePracticeRecord(value, mode = PRACTICE_MODES.CHARACTER_RX) {
   const source = value ?? {};
+  const callsignRegion = mode === PRACTICE_MODES.CALLSIGN_RX
+    ? normalizePracticeCallsignRegion(source.callsignRegion)
+    : PRACTICE_CALLSIGN_REGIONS.ALL;
   return recordFromStats(
     source,
-    recentTargetsFor(mode, source.recentTargets),
+    recentTargetsFor(mode, source.recentTargets, callsignRegion),
     validIsoDate(source.lastPracticedAt),
     source,
     mode,
+    callsignRegion,
   );
 }
 
@@ -111,6 +122,7 @@ export function practiceStatsByMode(value) {
       lessonAttempts: record.lessonAttempts,
       lessonCorrect: record.lessonCorrect,
       completedLessons: record.completedLessons,
+      ...(mode === PRACTICE_MODES.CALLSIGN_RX ? { callsignRegion: record.callsignRegion } : {}),
     }];
   }));
 }
@@ -142,7 +154,7 @@ export function practiceWeakTargets(record, mode = PRACTICE_MODES.CHARACTER_RX, 
   const lesson = Math.min(current.lesson, requestedLesson);
   const limit = Math.min(5, cappedInteger(options?.limit ?? 5, 5));
   if (!limit) return [];
-  return practicePoolFor(mode, { lesson })
+  return practicePoolFor(mode, { lesson, callsignRegion: current.callsignRegion })
     .map((target, index) => ({
       target,
       misses: [...target].reduce((total, character) => total + (current.weaknesses[character] ?? 0), 0),
@@ -152,6 +164,22 @@ export function practiceWeakTargets(record, mode = PRACTICE_MODES.CHARACTER_RX, 
     .sort((left, right) => right.misses - left.misses || left.index - right.index)
     .slice(0, limit)
     .map(({ target, misses }) => ({ target, misses }));
+}
+
+export function updatePracticePreference(records, mode, preferences = {}) {
+  const normalized = normalizePracticeRecords(records);
+  if (mode !== PRACTICE_MODES.CALLSIGN_RX) return normalized;
+  const current = normalized[PRACTICE_MODES.CALLSIGN_RX];
+  const callsignRegion = normalizePracticeCallsignRegion(preferences?.callsignRegion ?? current.callsignRegion);
+  if (callsignRegion === current.callsignRegion) return normalized;
+  return {
+    ...normalized,
+    [PRACTICE_MODES.CALLSIGN_RX]: {
+      ...current,
+      callsignRegion,
+      recentTargets: [],
+    },
+  };
 }
 
 export function practiceLessonPlan(record, mode, difficulty, lesson) {
@@ -263,12 +291,18 @@ export function recordPracticeAttempt(records, mode, result, practicedAt = new D
   if (!Object.values(PRACTICE_MODES).includes(mode)) return normalizePracticeRecords(records);
   const normalized = normalizePracticeRecords(records);
   const current = normalized[mode];
+  const callsignRegion = mode === PRACTICE_MODES.CALLSIGN_RX
+    ? normalizePracticeCallsignRegion(result?.callsignRegion ?? current.callsignRegion)
+    : PRACTICE_CALLSIGN_REGIONS.ALL;
   const nextStats = updatePracticeStats(current, result);
   const nextProgress = result?.sessionType === PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW
     ? current
     : advancePracticeProgress(current, mode, result);
   const target = String(result?.target ?? "").trim().toUpperCase();
-  const recentTargets = recentTargetsFor(mode, [...current.recentTargets, target]);
+  const previousTargets = mode === PRACTICE_MODES.CALLSIGN_RX && callsignRegion !== current.callsignRegion
+    ? []
+    : current.recentTargets;
+  const recentTargets = recentTargetsFor(mode, [...previousTargets, target], callsignRegion);
   return {
     ...normalized,
     [mode]: recordFromStats(
@@ -277,6 +311,7 @@ export function recordPracticeAttempt(records, mode, result, practicedAt = new D
       validIsoDate(practicedAt) ?? new Date().toISOString(),
       nextProgress,
       mode,
+      callsignRegion,
     ),
   };
 }

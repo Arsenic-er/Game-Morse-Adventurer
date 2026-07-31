@@ -262,7 +262,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.21.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.22.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   async function readManualState(label) {
     const state = await window.webContents.executeJavaScript(`(() => {
@@ -403,6 +403,23 @@ async function runQaCapture(window) {
     || !sessionOnlyPracticeState.statusText
     || sessionOnlyPracticeState.saveCount !== 0) {
     throw new Error(`No-save practice was not explicitly session-only: ${JSON.stringify(sessionOnlyPracticeState)}`);
+  }
+  await click(window, '[data-practice-mode-option="callsign-rx"]');
+  await click(window, '[data-callsign-region-option="japan"]');
+  await waitFor(window, '.practice-screen[data-practice-recording="session"][data-practice-callsign-region="japan"]');
+  await click(window, '[data-practice-mode-option="character-rx"]');
+  await click(window, '[data-practice-mode-option="callsign-rx"]');
+  const sessionOnlyRegionState = await window.webContents.executeJavaScript(`(() => ({
+    region: document.querySelector(".practice-screen")?.dataset.practiceCallsignRegion ?? null,
+    lessonPool: document.querySelector(".practice-screen")?.dataset.practiceLessonPool ?? "",
+    saveCount: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1") || "[]").length,
+    checked: document.querySelector('[data-callsign-region-option="japan"]')?.getAttribute("aria-checked") ?? null,
+  }))()`, true);
+  if (sessionOnlyRegionState.region !== "japan"
+    || sessionOnlyRegionState.lessonPool !== "SIM1JA,SIM2TK"
+    || sessionOnlyRegionState.saveCount !== 0
+    || sessionOnlyRegionState.checked !== "true") {
+    throw new Error(`No-save callsign region preference was not session-only: ${JSON.stringify(sessionOnlyRegionState)}`);
   }
   await capture(window, outputDir, shot("practice-session-only"));
   await click(window, ".practice-sidebar nav button:nth-of-type(4)");
@@ -961,6 +978,115 @@ async function runQaCapture(window) {
   await waitFor(window, '[data-testid="practice-mode-option-character-rx"][data-practice-mode-completed="1"][data-practice-mode-total="5"][data-practice-mode-percent="20"]');
   await waitFor(window, '[data-testid="practice-weak-review"][data-weak-review-available="false"][data-weak-review-active="false"][data-weak-review-targets=""][data-weak-review-remaining="0"]');
   await capture(window, outputDir, shot("practice-weak-cleared-reloaded"));
+
+  await click(window, '[data-testid="practice-mode-option-callsign-rx"]');
+  await waitFor(window, '.practice-screen[data-practice-mode="callsign-rx"][data-practice-callsign-region="all"][data-practice-session-type="lesson"][data-practice-lesson="1"][data-practice-lessons-completed="0"][data-practice-attempts="0"][data-practice-lifetime-attempts="0"]');
+  await waitFor(window, '[data-testid="practice-callsign-region"][data-callsign-region="all"]');
+  await waitFor(window, '[data-callsign-region-option="all"][aria-checked="true"]');
+  await click(window, '[data-callsign-region-option="japan"]');
+  await waitFor(window, '.practice-screen[data-practice-mode="callsign-rx"][data-practice-callsign-region="japan"][data-practice-lesson-new="SIM1JA,SIM2TK"][data-practice-lesson-pool="SIM1JA,SIM2TK"][data-practice-attempts="0"][data-practice-lifetime-attempts="0"]');
+  await waitFor(window, '[data-testid="practice-callsign-region"][data-callsign-region="japan"]');
+  await waitFor(window, '[data-callsign-region-option="japan"][aria-checked="true"]');
+  const selectedCallsignRegion = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const callsign = save.practiceRecords?.["callsign-rx"];
+    const character = save.practiceRecords?.["character-rx"];
+    return {
+      recordsVersion: Number(save.practiceRecordsVersion),
+      region: callsign?.callsignRegion ?? null,
+      attempts: Number(callsign?.attempts),
+      correct: Number(callsign?.correct),
+      lesson: Number(callsign?.lesson),
+      completedLessons: Number(callsign?.completedLessons),
+      recentTargets: callsign?.recentTargets ?? [],
+      characterAttempts: Number(character?.attempts),
+      characterCorrect: Number(character?.correct),
+      characterLesson: Number(character?.lesson),
+      characterCompletedLessons: Number(character?.completedLessons),
+    };
+  })()`, true);
+  if (selectedCallsignRegion.recordsVersion !== 3
+    || selectedCallsignRegion.region !== "japan"
+    || selectedCallsignRegion.attempts !== 0 || selectedCallsignRegion.correct !== 0
+    || selectedCallsignRegion.lesson !== 1 || selectedCallsignRegion.completedLessons !== 0
+    || selectedCallsignRegion.recentTargets.length !== 0
+    || selectedCallsignRegion.characterAttempts !== 10 || selectedCallsignRegion.characterCorrect !== 9
+    || selectedCallsignRegion.characterLesson !== 2 || selectedCallsignRegion.characterCompletedLessons !== 1) {
+    throw new Error(`Selecting a callsign region mutated progress or failed to persist: ${JSON.stringify(selectedCallsignRegion)}`);
+  }
+  await capture(window, outputDir, shot("practice-callsign-region-selected"));
+
+  const regionalQuestion = await window.webContents.executeJavaScript(`(() => ({
+    target: document.querySelector(".practice-screen")?.dataset.practiceTarget ?? "",
+    pool: document.querySelector(".practice-screen")?.dataset.practiceLessonPool ?? "",
+  }))()`, true);
+  if (!["SIM1JA", "SIM2TK"].includes(regionalQuestion.target)
+    || regionalQuestion.pool !== "SIM1JA,SIM2TK") {
+    throw new Error(`Japan callsign lesson leaked a regional target: ${JSON.stringify(regionalQuestion)}`);
+  }
+  await setInputValue(window, '[data-testid="practice-answer"]', regionalQuestion.target);
+  await click(window, '[data-action="practice-submit"]');
+  await waitFor(window, '.practice-screen[data-practice-mode="callsign-rx"][data-practice-callsign-region="japan"][data-practice-result="correct"][data-practice-attempts="1"][data-practice-lifetime-attempts="1"][data-practice-lifetime-correct="1"]');
+  const lockedRegionState = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const record = save.practiceRecords?.["callsign-rx"];
+    return {
+      region: record?.callsignRegion ?? null,
+      attempts: Number(record?.attempts),
+      correct: Number(record?.correct),
+      lesson: Number(record?.lesson),
+      completedLessons: Number(record?.completedLessons),
+      lessonAttempts: Number(record?.lessonAttempts),
+      lessonCorrect: Number(record?.lessonCorrect),
+      recentTargets: record?.recentTargets ?? [],
+      regionButtons: Array.from(document.querySelectorAll("[data-callsign-region-option]"))
+        .map((node) => ({ id: node.dataset.callsignRegionOption, disabled: Boolean(node.disabled), checked: node.getAttribute("aria-checked") })),
+    };
+  })()`, true);
+  if (lockedRegionState.region !== "japan"
+    || lockedRegionState.attempts !== 1 || lockedRegionState.correct !== 1
+    || lockedRegionState.lesson !== 1 || lockedRegionState.completedLessons !== 0
+    || lockedRegionState.lessonAttempts !== 1 || lockedRegionState.lessonCorrect !== 1
+    || JSON.stringify(lockedRegionState.recentTargets) !== JSON.stringify([regionalQuestion.target])
+    || lockedRegionState.regionButtons.length !== 5
+    || lockedRegionState.regionButtons.some(({ disabled }) => !disabled)
+    || lockedRegionState.regionButtons.find(({ id }) => id === "japan")?.checked !== "true") {
+    throw new Error(`Regional callsign settlement or selector locking failed: ${JSON.stringify(lockedRegionState)}`);
+  }
+  await capture(window, outputDir, shot("practice-callsign-region-locked"));
+  await click(window, '[data-action="practice-end"]');
+  await waitFor(window, '[data-testid="practice-summary-modal"][data-summary-mode="callsign-rx"][data-summary-attempts="1"][data-summary-correct="1"]');
+  await click(window, '[data-action="practice-summary-back"]');
+  await waitFor(window, ".start-screen");
+
+  await window.reload();
+  await waitFor(window, ".start-screen");
+  await delay(250);
+  await click(window, ".start-actions button:nth-child(2)");
+  await waitFor(window, '.practice-screen[data-practice-recording="save"]');
+  await click(window, '[data-testid="practice-mode-option-callsign-rx"]');
+  await waitFor(window, '.practice-screen[data-practice-mode="callsign-rx"][data-practice-callsign-region="japan"][data-practice-lesson="1"][data-practice-lessons-completed="0"][data-practice-lesson-attempts="1"][data-practice-lifetime-attempts="1"][data-practice-lifetime-correct="1"][data-practice-lesson-pool="SIM1JA,SIM2TK"]');
+  await waitFor(window, '[data-testid="practice-callsign-region"][data-callsign-region="japan"]');
+  await waitFor(window, '[data-callsign-region-option="japan"][aria-checked="true"]');
+  const reloadedCallsignRegion = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const record = save.practiceRecords?.["callsign-rx"];
+    return {
+      region: record?.callsignRegion ?? null,
+      attempts: Number(record?.attempts),
+      correct: Number(record?.correct),
+      lessonAttempts: Number(record?.lessonAttempts),
+      lessonCorrect: Number(record?.lessonCorrect),
+      recentTargets: record?.recentTargets ?? [],
+    };
+  })()`, true);
+  if (reloadedCallsignRegion.region !== "japan"
+    || reloadedCallsignRegion.attempts !== 1 || reloadedCallsignRegion.correct !== 1
+    || reloadedCallsignRegion.lessonAttempts !== 1 || reloadedCallsignRegion.lessonCorrect !== 1
+    || JSON.stringify(reloadedCallsignRegion.recentTargets) !== JSON.stringify([regionalQuestion.target])) {
+    throw new Error(`Callsign region did not survive reload: ${JSON.stringify(reloadedCallsignRegion)}`);
+  }
+  await capture(window, outputDir, shot("practice-callsign-region-reloaded"));
   await click(window, '[data-action="practice-back"]');
   await waitFor(window, ".start-screen");
   await click(window, ".menu-primary");
@@ -1301,6 +1427,13 @@ async function runQaCapture(window) {
       practiceLessonAttempts: Number(save.practiceRecords?.["character-rx"]?.lessonAttempts),
       practiceLessonCorrect: Number(save.practiceRecords?.["character-rx"]?.lessonCorrect),
       practiceWeakness: Number(save.practiceRecords?.["character-rx"]?.weaknesses?.[${JSON.stringify(wrongPracticeTarget)}] ?? 0),
+      callsignRegion: save.practiceRecords?.["callsign-rx"]?.callsignRegion ?? null,
+      callsignAttempts: Number(save.practiceRecords?.["callsign-rx"]?.attempts),
+      callsignCorrect: Number(save.practiceRecords?.["callsign-rx"]?.correct),
+      callsignLesson: Number(save.practiceRecords?.["callsign-rx"]?.lesson),
+      callsignLessonsCompleted: Number(save.practiceRecords?.["callsign-rx"]?.completedLessons),
+      callsignLessonAttempts: Number(save.practiceRecords?.["callsign-rx"]?.lessonAttempts),
+      callsignLessonCorrect: Number(save.practiceRecords?.["callsign-rx"]?.lessonCorrect),
       notificationCount: document.querySelectorAll('[data-testid="achievement-notification"]').length,
       liveRegionCount: document.querySelectorAll('.achievement-notification-region[role="status"][aria-live="polite"]').length,
     };
@@ -1311,6 +1444,10 @@ async function runQaCapture(window) {
     || finalReloadState.practiceLesson !== 2 || finalReloadState.practiceLessonsCompleted !== 1
     || finalReloadState.practiceLessonAttempts !== 0 || finalReloadState.practiceLessonCorrect !== 0
     || finalReloadState.practiceWeakness !== 0
+    || finalReloadState.callsignRegion !== "japan"
+    || finalReloadState.callsignAttempts !== 1 || finalReloadState.callsignCorrect !== 1
+    || finalReloadState.callsignLesson !== 1 || finalReloadState.callsignLessonsCompleted !== 0
+    || finalReloadState.callsignLessonAttempts !== 1 || finalReloadState.callsignLessonCorrect !== 1
     || finalReloadState.notificationCount !== 0 || finalReloadState.liveRegionCount !== 1) {
     throw new Error(`Reload repeated an unlock or lost durable records: ${JSON.stringify(finalReloadState)}`);
   }
@@ -1332,7 +1469,7 @@ async function runQaCapture(window) {
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "practice-session-only", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
+      "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "practice-callsign-region-selected", "practice-callsign-region-locked", "practice-callsign-region-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
     ].map(shot), ...manualCaptures],
   };
 }

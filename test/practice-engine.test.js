@@ -1,13 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  CHARACTER_POOL, PRACTICE_DIFFICULTIES, PRACTICE_MODES, PRACTICE_SESSION_TYPES, completePracticeSession, createPracticeBag, createPracticeSession,
+  CHARACTER_POOL, FICTIONAL_CALLSIGNS, PRACTICE_DIFFICULTIES, PRACTICE_MODES, PRACTICE_SESSION_TYPES, completePracticeSession, createPracticeBag, createPracticeSession,
   createWeaknessReviewSession,
   currentPracticeQuestion, emptyPracticeStats, evaluateReception, evaluateSending, normalizePracticeSession,
   normalizePracticeStats, practiceDifficultyProfile, practiceLessonCount, practicePoolFor, practiceReceiveWpm,
   practiceLessonContent, practiceTargetFor, settlePracticeQuestion, summarizePracticeSession,
   updatePracticeStats,
 } from "../src/practice/practiceEngine.js";
+import {
+  PRACTICE_CALLSIGN_REGIONS,
+  practiceCallsignCatalog,
+  practiceCallsignPool,
+} from "../src/practice/practiceCallsignCatalog.js";
 
 test("difficulty profiles define stable speed and promotion gates", () => {
   assert.deepEqual(
@@ -28,9 +33,45 @@ test("lesson pools expand cumulatively without leaking locked targets", () => {
   assert.equal(practicePoolFor(PRACTICE_MODES.PADDLE_TX, { lesson: 5 }).includes("SIM3RA"), true);
 });
 
+test("regional callsign catalogs are fictional, bounded and globally unique", () => {
+  const catalog = practiceCallsignCatalog();
+  assert.deepEqual(Object.keys(catalog), Object.values(PRACTICE_CALLSIGN_REGIONS));
+  assert.deepEqual(catalog.all, FICTIONAL_CALLSIGNS);
+  assert.deepEqual(catalog.all, ["SIM7QX", "SIM3RA", "SIM9AK", "SIM5TU", "SIM2DX", "SIM8CW", "SIM4NZ", "SIM6JP"]);
+  const specificRegions = Object.values(PRACTICE_CALLSIGN_REGIONS).filter((region) => region !== PRACTICE_CALLSIGN_REGIONS.ALL);
+  const regionalCallsigns = specificRegions.flatMap((region) => {
+    assert.equal(catalog[region].length, 8);
+    return catalog[region];
+  });
+  assert.equal(new Set(regionalCallsigns).size, 32);
+  assert.equal(new Set([...catalog.all, ...regionalCallsigns]).size, 40);
+  assert.equal(regionalCallsigns.every((callsign) => callsign.startsWith("SIM") && /^[A-Z0-9]+$/.test(callsign) && callsign.length <= 7), true);
+});
+
+test("callsign lessons unlock two regional targets at a time and invalid regions use all", () => {
+  for (const region of Object.values(PRACTICE_CALLSIGN_REGIONS)) {
+    const completePool = practiceCallsignPool(region);
+    for (let lesson = 1; lesson <= 4; lesson += 1) {
+      assert.deepEqual(
+        practicePoolFor(PRACTICE_MODES.CALLSIGN_RX, { lesson, callsignRegion: region }),
+        completePool.slice(0, lesson * 2),
+      );
+    }
+  }
+  assert.deepEqual(
+    practicePoolFor(PRACTICE_MODES.CALLSIGN_RX, { callsignRegion: "invalid" }),
+    FICTIONAL_CALLSIGNS,
+  );
+  assert.deepEqual(
+    practicePoolFor(PRACTICE_MODES.CHARACTER_RX, { lesson: 1, callsignRegion: PRACTICE_CALLSIGN_REGIONS.JAPAN }),
+    ["A", "N", "T", "E"],
+  );
+});
+
 test("lesson content explains newly introduced, review, and full target pools", () => {
   assert.deepEqual(practiceLessonContent(PRACTICE_MODES.CHARACTER_RX, 2), {
     mode: PRACTICE_MODES.CHARACTER_RX,
+    callsignRegion: PRACTICE_CALLSIGN_REGIONS.ALL,
     lesson: 2,
     lessonCount: 5,
     introducedTargets: ["I", "M", "S", "O"],
@@ -46,6 +87,12 @@ test("lesson content explains newly introduced, review, and full target pools", 
   const finalCallsign = practiceLessonContent(PRACTICE_MODES.CALLSIGN_RX, 4);
   assert.deepEqual(finalCallsign.introducedTargets, ["SIM4NZ", "SIM6JP"]);
   assert.equal(finalCallsign.reviewTargets.length, 6);
+
+  const japanLesson = practiceLessonContent(PRACTICE_MODES.CALLSIGN_RX, 2, PRACTICE_CALLSIGN_REGIONS.JAPAN);
+  assert.equal(japanLesson.callsignRegion, PRACTICE_CALLSIGN_REGIONS.JAPAN);
+  assert.deepEqual(japanLesson.reviewTargets, practiceCallsignPool(PRACTICE_CALLSIGN_REGIONS.JAPAN).slice(0, 2));
+  assert.deepEqual(japanLesson.introducedTargets, practiceCallsignPool(PRACTICE_CALLSIGN_REGIONS.JAPAN).slice(2, 4));
+  assert.deepEqual(japanLesson.targetPool, practiceCallsignPool(PRACTICE_CALLSIGN_REGIONS.JAPAN).slice(0, 4));
 });
 
 test("guided sessions stay inside the selected lesson and complete at its gate", () => {
@@ -87,6 +134,80 @@ test("deterministic shuffled bags contain each target once", () => {
   assert.equal(first.length, CHARACTER_POOL.length);
   assert.equal(new Set(first).size, first.length);
   assert.deepEqual([...first].sort(), [...CHARACTER_POOL].sort());
+});
+
+test("regional callsign bags are deterministic and avoid recent targets inside their region", () => {
+  const japanPool = practiceCallsignPool(PRACTICE_CALLSIGN_REGIONS.JAPAN);
+  const first = createPracticeBag({
+    mode: PRACTICE_MODES.CALLSIGN_RX,
+    callsignRegion: PRACTICE_CALLSIGN_REGIONS.JAPAN,
+    lesson: 4,
+    seed: "regional",
+  });
+  const repeated = createPracticeBag({
+    mode: PRACTICE_MODES.CALLSIGN_RX,
+    callsignRegion: PRACTICE_CALLSIGN_REGIONS.JAPAN,
+    lesson: 4,
+    seed: "regional",
+  });
+  assert.deepEqual(first, repeated);
+  assert.deepEqual([...first].sort(), [...japanPool].sort());
+
+  const recentTargets = japanPool.slice(0, 4);
+  const session = createPracticeSession({
+    mode: PRACTICE_MODES.CALLSIGN_RX,
+    callsignRegion: PRACTICE_CALLSIGN_REGIONS.JAPAN,
+    lesson: 4,
+    seed: "regional-recent",
+    recentTargets,
+  });
+  assert.equal(recentTargets.includes(currentPracticeQuestion(session).target), false);
+});
+
+test("sessions normalize and preserve callsign regions without leaking them into other modes", () => {
+  const legacy = normalizePracticeSession({ mode: PRACTICE_MODES.CALLSIGN_RX, lesson: 4, seed: "legacy" });
+  assert.equal(legacy.schemaVersion, 3);
+  assert.equal(legacy.callsignRegion, PRACTICE_CALLSIGN_REGIONS.ALL);
+  assert.equal(legacy.queue.every((target) => FICTIONAL_CALLSIGNS.includes(target)), true);
+
+  const japan = normalizePracticeSession({
+    mode: PRACTICE_MODES.CALLSIGN_RX,
+    callsignRegion: PRACTICE_CALLSIGN_REGIONS.JAPAN,
+    lesson: 4,
+    seed: "japan",
+  });
+  assert.equal(japan.callsignRegion, PRACTICE_CALLSIGN_REGIONS.JAPAN);
+  assert.equal(japan.queue.every((target) => practiceCallsignPool(PRACTICE_CALLSIGN_REGIONS.JAPAN).includes(target)), true);
+  assert.equal(currentPracticeQuestion(japan).callsignRegion, PRACTICE_CALLSIGN_REGIONS.JAPAN);
+
+  const invalid = normalizePracticeSession({ mode: PRACTICE_MODES.CALLSIGN_RX, callsignRegion: "moon", lesson: 4 });
+  assert.equal(invalid.callsignRegion, PRACTICE_CALLSIGN_REGIONS.ALL);
+  const nonCallsign = normalizePracticeSession({ mode: PRACTICE_MODES.MANUAL_TX, callsignRegion: PRACTICE_CALLSIGN_REGIONS.JAPAN });
+  assert.equal(nonCallsign.callsignRegion, PRACTICE_CALLSIGN_REGIONS.ALL);
+});
+
+test("weakness review target pools cannot cross callsign regions", () => {
+  const japanTarget = practiceCallsignPool(PRACTICE_CALLSIGN_REGIONS.JAPAN)[0];
+  const usaTarget = practiceCallsignPool(PRACTICE_CALLSIGN_REGIONS.USA)[0];
+  const review = createWeaknessReviewSession({
+    mode: PRACTICE_MODES.CALLSIGN_RX,
+    callsignRegion: PRACTICE_CALLSIGN_REGIONS.JAPAN,
+    lesson: 4,
+    targetPool: [japanTarget, usaTarget],
+    seed: "regional-review",
+  });
+  assert.equal(review.callsignRegion, PRACTICE_CALLSIGN_REGIONS.JAPAN);
+  assert.deepEqual(review.targetPool, [japanTarget]);
+  assert.equal(currentPracticeQuestion(review).callsignRegion, PRACTICE_CALLSIGN_REGIONS.JAPAN);
+  const summary = summarizePracticeSession(review);
+  assert.equal(summary.callsignRegion, PRACTICE_CALLSIGN_REGIONS.JAPAN);
+  assert.deepEqual(summary.targetPool, [japanTarget]);
+  assert.equal(createWeaknessReviewSession({
+    mode: PRACTICE_MODES.CALLSIGN_RX,
+    callsignRegion: PRACTICE_CALLSIGN_REGIONS.JAPAN,
+    lesson: 4,
+    targetPool: [usaTarget],
+  }), null);
 });
 
 test("explicit target pools create five-question weakness review sessions with bag boundary avoidance", () => {
@@ -359,8 +480,9 @@ test("question limits complete sessions and summaries are serializable", () => {
   assert.equal(currentPracticeQuestion(session), null);
   const summary = summarizePracticeSession(session);
   assert.deepEqual(summary, {
-    schemaVersion: 2,
+    schemaVersion: 3,
     mode: PRACTICE_MODES.PADDLE_TX,
+    callsignRegion: PRACTICE_CALLSIGN_REGIONS.ALL,
     sessionType: PRACTICE_SESSION_TYPES.LESSON,
     progressionEligible: true,
     targetPool: null,
@@ -393,7 +515,8 @@ test("legacy stats and partial sessions normalize with migration-safe defaults",
   assert.deepEqual(stats.weaknesses, { Q: 2 });
 
   const session = normalizePracticeSession({ mode: PRACTICE_MODES.CHARACTER_RX, questionIndex: 2, stats });
-  assert.equal(session.schemaVersion, 2);
+  assert.equal(session.schemaVersion, 3);
+  assert.equal(session.callsignRegion, PRACTICE_CALLSIGN_REGIONS.ALL);
   assert.equal(session.questionIndex, 2);
   assert.ok(session.queue.length > 0);
   assert.doesNotThrow(() => JSON.stringify(session));

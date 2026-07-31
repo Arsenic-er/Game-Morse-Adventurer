@@ -9,6 +9,7 @@ import {
 import { recordCompletedQso } from "../src/qso/qsoLog.js";
 import { PRACTICE_MODES } from "../src/practice/practiceEngine.js";
 import { recordPracticeAttempt } from "../src/practice/practiceRecords.js";
+import { PRACTICE_CALLSIGN_REGIONS } from "../src/practice/practiceCallsignCatalog.js";
 
 function storageStub() {
   const data = new Map();
@@ -358,10 +359,11 @@ test("only three normalized save slots are persisted", () => {
 test("new and migrated saves receive bounded per-mode practice records", () => {
   const storage = storageStub();
   const fresh = createSave({ callsign: "JA1TRY", locationId: "japan-tokyo-kanto" });
-  assert.equal(fresh.practiceRecordsVersion, 2);
+  assert.equal(fresh.practiceRecordsVersion, 3);
   assert.equal(fresh.practiceRecords[PRACTICE_MODES.CHARACTER_RX].attempts, 0);
   assert.equal(fresh.practiceRecords[PRACTICE_MODES.CHARACTER_RX].difficulty, "guided");
   assert.equal(fresh.practiceRecords[PRACTICE_MODES.CHARACTER_RX].lesson, 1);
+  assert.equal(fresh.practiceRecords[PRACTICE_MODES.CALLSIGN_RX].callsignRegion, PRACTICE_CALLSIGN_REGIONS.ALL);
 
   storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{
     id: "legacy-practice",
@@ -369,10 +371,49 @@ test("new and migrated saves receive bounded per-mode practice records", () => {
     locationId: "china-beijing-outskirts",
   }]));
   const [migrated] = loadSaves(storage);
-  assert.equal(migrated.practiceRecordsVersion, 2);
+  assert.equal(migrated.practiceRecordsVersion, 3);
   assert.equal(migrated.practiceRecords[PRACTICE_MODES.PADDLE_TX].attempts, 0);
   assert.equal(migrated.practiceRecords[PRACTICE_MODES.PADDLE_TX].difficulty, "guided");
   assert.equal(migrated.practiceRecords[PRACTICE_MODES.PADDLE_TX].lesson, 1);
+});
+
+test("practice record v2 migration preserves callsign progress and repairs its region", () => {
+  const storage = storageStub();
+  storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{
+    id: "practice-v2",
+    callsign: "SIMV2",
+    locationId: "japan-tokyo-kanto",
+    practiceRecordsVersion: 2,
+    practiceRecords: {
+      [PRACTICE_MODES.CALLSIGN_RX]: {
+        attempts: 7,
+        correct: 5,
+        difficulty: "standard",
+        completedLessons: 1,
+        lessonAttempts: 3,
+        lessonCorrect: 2,
+        recentTargets: ["SIM7QX"],
+      },
+    },
+  }]));
+  const [migrated] = loadSaves(storage);
+  const record = migrated.practiceRecords[PRACTICE_MODES.CALLSIGN_RX];
+  assert.equal(migrated.practiceRecordsVersion, 3);
+  assert.equal(record.callsignRegion, PRACTICE_CALLSIGN_REGIONS.ALL);
+  assert.equal(record.attempts, 7);
+  assert.equal(record.correct, 5);
+  assert.equal(record.difficulty, "standard");
+  assert.equal(record.completedLessons, 1);
+  assert.equal(record.lessonAttempts, 3);
+  assert.equal(record.lessonCorrect, 2);
+  assert.deepEqual(record.recentTargets, ["SIM7QX"]);
+
+  const broken = { ...migrated, practiceRecords: {
+    ...migrated.practiceRecords,
+    [PRACTICE_MODES.CALLSIGN_RX]: { ...record, callsignRegion: "moon" },
+  } };
+  persistSaves([broken], storage);
+  assert.equal(loadSaves(storage)[0].practiceRecords[PRACTICE_MODES.CALLSIGN_RX].callsignRegion, PRACTICE_CALLSIGN_REGIONS.ALL);
 });
 
 test("practice records persist with their save without leaking session attempt ids", () => {

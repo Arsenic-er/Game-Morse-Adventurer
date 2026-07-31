@@ -29,7 +29,7 @@ import {
   loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves,
 } from "./game/saveStore.js";
 import { PracticeScreen } from "./practice/PracticeScreen.jsx";
-import { practiceStatsByMode, recordPracticeAttempt } from "./practice/practiceRecords.js";
+import { practiceStatsByMode, recordPracticeAttempt, updatePracticePreference } from "./practice/practiceRecords.js";
 import { PropagationMap } from "./propagation/PropagationMap.jsx";
 import {
   channelProfileForLevel, generatePropagationMap, selectNpcForQso, selectNpcResponseForCq,
@@ -55,7 +55,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.21.0";
+const BUILD_VERSION = "0.22.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -909,6 +909,17 @@ export function App() {
     }
   }
 
+  function updateActivePracticePreference(mode, preferences) {
+    if (!activeSaveId) return;
+    commitSaves((current) => current.map((save) => save.id === activeSaveId
+      ? {
+          ...save,
+          practiceRecords: updatePracticePreference(save.practiceRecords, mode, preferences),
+          updatedAt: new Date().toISOString(),
+        }
+      : save));
+  }
+
   function enterPractice(origin) {
     setPracticeReturnScreen(origin === "home" ? "home" : "start");
     setScreen("practice");
@@ -936,6 +947,7 @@ export function App() {
       persistentStats={persistentStats}
       recordingCallsign={activeSave?.callsign ?? null}
       onRecordAttempt={recordActivePracticeAttempt}
+      onPreferenceChange={updateActivePracticePreference}
       onSessionComplete={() => {}}
       onSettings={() => setSettingsOpen(true)}
       onBack={leavePractice}

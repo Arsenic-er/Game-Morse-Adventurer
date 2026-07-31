@@ -672,6 +672,10 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .practice-curriculum header b { color: var(--pixel-amber); font-size: 10px; }
 .practice-difficulty-options,
 .practice-lesson-options { display: grid; gap: 5px; }
+.practice-callsign-region-picker { display: grid; gap: 5px; padding: 6px; border: 2px solid #244c53; background: #020f14; }
+.practice-callsign-region-picker > span { color: #82aaa6; font-size: 8px; letter-spacing: .08em; }
+.practice-callsign-region-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.practice-curriculum .practice-callsign-region-options button { height: 24px; padding: 0 2px; overflow: hidden; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
 .practice-difficulty-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .practice-lesson-options { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .practice-curriculum button { min-width: 0; height: 28px; padding: 0 3px; border: 2px solid #28545c; color: #739b9a; background: #061b22; box-shadow: 2px 2px 0 #010609; font-size: 8px; }

@@ -8,6 +8,7 @@ import { useCwCore } from "../cw/useCwCore.js";
 import {
   emptyPracticeRecords, practiceLessonPlan, practiceMasteryFeedback, practiceStatsByMode, practiceWeakTargets, recordPracticeAttempt,
   summarizePracticeProgress,
+  updatePracticePreference,
 } from "./practiceRecords.js";
 import {
   PRACTICE_DIFFICULTIES, PRACTICE_MODES, PRACTICE_SESSION_TYPES, completePracticeSession, createPracticeSession,
@@ -16,6 +17,7 @@ import {
   practiceDifficultyProfile, practiceLessonContent, practiceLessonCount, practiceReceiveWpm, settlePracticeQuestion, summarizePracticeSession,
   WEAKNESS_REVIEW_QUESTION_LIMIT,
 } from "./practiceEngine.js";
+import { PRACTICE_CALLSIGN_REGIONS, normalizePracticeCallsignRegion } from "./practiceCallsignCatalog.js";
 
 const ASSETS = {
   room: "./assets/radio-room-bg.png",
@@ -40,6 +42,7 @@ const TEXT = {
     completedLessons: "已完成课程", currentBlock: "当前计分块", passRule: "达标规则", remainingQuestions: "剩余题数", correctNeeded: "尚需答对",
     thresholdSecured: "所需正确题数已满足，请完成剩余题目", cannotPass: "本计分块已无法达标，完成后将重新开始", blockProgressing: "继续完成本计分块", blockNotStarted: "尚未开始本课计分",
     replayNoProgress: "复习已完成课程，不计入当前课程达标进度", curriculumOverview: "课程总览",
+    callsignRegion: "呼号地区", callsignRegions: { all: "全部", japan: "日本", usa: "美国", china: "中国", europe: "欧洲" },
     weakReview: "薄弱专项复习", weakReviewActive: "专项复习中", weakReviewTargets: "专项题池", weakReviewUnavailable: "完成错题后开放",
     weakReviewRecoveryHint: "专项中答对会削减该字符的薄弱权重", recoveredPoints: "恢复点数", remainingWeakness: "剩余薄弱权重",
     weakReviewComplete: "专项复习完成", weaknessMastered: "薄弱项已掌握", weaknessMasteredDetail: "薄弱权重已归零，下次不再进入专项；正式课程进度不变", weakReviewNoProgress: "累计成绩已更新，正式课程进度没有变化", returnToLesson: "返回正式课程",
@@ -60,6 +63,7 @@ const TEXT = {
     completedLessons: "已完成課程", currentBlock: "目前計分區塊", passRule: "達標規則", remainingQuestions: "剩餘題數", correctNeeded: "尚需答對",
     thresholdSecured: "所需正確題數已滿足，請完成剩餘題目", cannotPass: "本計分區塊已無法達標，完成後將重新開始", blockProgressing: "繼續完成本計分區塊", blockNotStarted: "尚未開始本課計分",
     replayNoProgress: "複習已完成課程，不計入目前課程達標進度", curriculumOverview: "課程總覽",
+    callsignRegion: "呼號地區", callsignRegions: { all: "全部", japan: "日本", usa: "美國", china: "中國", europe: "歐洲" },
     weakReview: "薄弱專項複習", weakReviewActive: "專項複習中", weakReviewTargets: "專項題庫", weakReviewUnavailable: "完成錯題後開放",
     weakReviewRecoveryHint: "專項中答對會削減該字元的薄弱權重", recoveredPoints: "恢復點數", remainingWeakness: "剩餘薄弱權重",
     weakReviewComplete: "專項複習完成", weaknessMastered: "薄弱項已掌握", weaknessMasteredDetail: "薄弱權重已歸零，下次不再進入專項；正式課程進度不變", weakReviewNoProgress: "累計成績已更新，正式課程進度沒有變化", returnToLesson: "返回正式課程",
@@ -80,6 +84,7 @@ const TEXT = {
     completedLessons: "完了レッスン", currentBlock: "現在の採点ブロック", passRule: "合格条件", remainingQuestions: "残り問題", correctNeeded: "あと必要な正解",
     thresholdSecured: "必要正解数に到達。残りを完了してください", cannotPass: "このブロックでは合格不可。完了後に再挑戦します", blockProgressing: "採点ブロックを続けてください", blockNotStarted: "このレッスンは未採点です",
     replayNoProgress: "完了済みレッスンの復習は現在の合格進捗に加算されません", curriculumOverview: "カリキュラム",
+    callsignRegion: "コール地域", callsignRegions: { all: "すべて", japan: "日本", usa: "米国", china: "中国", europe: "欧州" },
     weakReview: "弱点集中練習", weakReviewActive: "集中練習中", weakReviewTargets: "集中出題", weakReviewUnavailable: "誤答後に利用できます",
     weakReviewRecoveryHint: "集中練習で正解すると、その文字の弱点ウェイトが減ります", recoveredPoints: "回復ポイント", remainingWeakness: "残り弱点ウェイト",
     weakReviewComplete: "弱点練習完了", weaknessMastered: "弱点を克服しました", weaknessMasteredDetail: "弱点ウェイトはゼロになり、次回の集中練習には入りません。正式レッスンの進捗は変わりません", weakReviewNoProgress: "通算成績のみ更新し、正式レッスンの進捗は変わりません", returnToLesson: "正式レッスンへ戻る",
@@ -100,6 +105,7 @@ const TEXT = {
     completedLessons: "Lessons completed", currentBlock: "Current scored block", passRule: "Pass rule", remainingQuestions: "Questions left", correctNeeded: "Correct answers needed",
     thresholdSecured: "Required correct answers reached; finish the remaining questions", cannotPass: "This block can no longer pass; finish it to restart", blockProgressing: "Continue this scored block", blockNotStarted: "This lesson has not started scoring",
     replayNoProgress: "Reviewing a completed lesson does not advance the current pass block", curriculumOverview: "Curriculum",
+    callsignRegion: "Callsign region", callsignRegions: { all: "All", japan: "Japan", usa: "USA", china: "China", europe: "Europe" },
     weakReview: "Weak-target review", weakReviewActive: "Review in progress", weakReviewTargets: "Review pool", weakReviewUnavailable: "Available after a missed target",
     weakReviewRecoveryHint: "Correct review answers reduce that character's weakness weight", recoveredPoints: "Recovered", remainingWeakness: "Weakness left",
     weakReviewComplete: "Weak-target review complete", weaknessMastered: "Weak target mastered", weaknessMasteredDetail: "Its weakness weight is now zero, so it will not enter the next review; formal lesson progress is unchanged", weakReviewNoProgress: "Lifetime results updated; formal lesson progress is unchanged", returnToLesson: "Return to lesson",
@@ -129,6 +135,9 @@ function recordForMode(persistentStats, mode) {
     lessonAttempts: Number(source?.lessonAttempts) || 0,
     lessonCorrect: Number(source?.lessonCorrect) || 0,
     completedLessons: Number(source?.completedLessons) || 0,
+    callsignRegion: mode === PRACTICE_MODES.CALLSIGN_RX
+      ? normalizePracticeCallsignRegion(source?.callsignRegion)
+      : PRACTICE_CALLSIGN_REGIONS.ALL,
   };
 }
 
@@ -141,6 +150,7 @@ function recordSnapshot(record) {
     lessonAttempts: record.lessonAttempts,
     lessonCorrect: record.lessonCorrect,
     completedLessons: record.completedLessons,
+    callsignRegion: record.callsignRegion,
   };
 }
 
@@ -212,6 +222,9 @@ function createSessionRun(mode, persistentStats, overrides = {}) {
   const recentTargets = overrides.recentTargets ?? record.recentTargets;
   const difficulty = overrides.difficulty ?? record.difficulty;
   const lesson = overrides.lesson ?? record.lesson;
+  const callsignRegion = mode === PRACTICE_MODES.CALLSIGN_RX
+    ? normalizePracticeCallsignRegion(overrides.callsignRegion ?? record.callsignRegion)
+    : PRACTICE_CALLSIGN_REGIONS.ALL;
   const plan = practiceLessonPlan(record, mode, difficulty, lesson);
   const startedAt = new Date().toISOString();
   return {
@@ -224,6 +237,7 @@ function createSessionRun(mode, persistentStats, overrides = {}) {
     },
     session: createPracticeSession({
       mode,
+      callsignRegion,
       difficulty,
       lesson,
       startedAt,
@@ -239,11 +253,15 @@ function createWeaknessReviewRun(mode, persistentStats, overrides = {}) {
   const record = recordForMode(persistentStats, mode);
   const difficulty = overrides.difficulty ?? record.difficulty;
   const lesson = overrides.lesson ?? record.lesson;
-  const targets = practiceWeakTargets(recordSnapshot(record), mode, { lesson, limit: 5 });
+  const callsignRegion = mode === PRACTICE_MODES.CALLSIGN_RX
+    ? normalizePracticeCallsignRegion(overrides.callsignRegion ?? record.callsignRegion)
+    : PRACTICE_CALLSIGN_REGIONS.ALL;
+  const targets = practiceWeakTargets(recordSnapshot(record), mode, { lesson, limit: 5, callsignRegion });
   if (!targets.length) return null;
   const startedAt = new Date().toISOString();
   const session = createWeaknessReviewSession({
     mode,
+    callsignRegion,
     difficulty,
     lesson,
     targetPool: targets.map(({ target }) => target),
@@ -271,6 +289,7 @@ export function PracticeScreen({
   persistentStats = null,
   recordingCallsign = "",
   onRecordAttempt,
+  onPreferenceChange,
   onSessionComplete,
   onBack,
   onSettings,
@@ -290,6 +309,9 @@ export function PracticeScreen({
   const notifiedQuestionIdsRef = useRef(new Set());
   const session = run.session;
   const mode = session.mode;
+  const callsignRegion = mode === PRACTICE_MODES.CALLSIGN_RX
+    ? normalizePracticeCallsignRegion(session.callsignRegion)
+    : PRACTICE_CALLSIGN_REGIONS.ALL;
   const difficulty = session.difficulty;
   const lesson = session.lesson ?? 1;
   const lessonCount = practiceLessonCount(mode);
@@ -304,11 +326,11 @@ export function PracticeScreen({
   );
   const lifetimeStats = lifetimeRecord.stats;
   const weakReviewTargets = useMemo(
-    () => practiceWeakTargets(recordSnapshot(lifetimeRecord), mode, { lesson, limit: 5 }),
-    [lesson, lifetimeRecord, mode],
+    () => practiceWeakTargets(recordSnapshot(lifetimeRecord), mode, { lesson, limit: 5, callsignRegion }),
+    [callsignRegion, lesson, lifetimeRecord, mode],
   );
   const reviewingWeaknesses = session.sessionType === PRACTICE_SESSION_TYPES.WEAKNESS_REVIEW;
-  const lessonContent = useMemo(() => practiceLessonContent(mode, lesson), [lesson, mode]);
+  const lessonContent = useMemo(() => practiceLessonContent(mode, lesson, callsignRegion), [callsignRegion, lesson, mode]);
   const mastery = useMemo(
     () => practiceMasteryFeedback(lifetimeRecord, mode, { difficulty, lesson }),
     [difficulty, lesson, lifetimeRecord, mode],
@@ -412,7 +434,7 @@ export function PracticeScreen({
   function changeDifficulty(nextDifficulty) {
     if (nextDifficulty === difficulty || switchLocked || reviewingWeaknesses) return;
     cw.stopAll();
-    setRun(createSessionRun(mode, effectivePersistentStats, { difficulty: nextDifficulty, lesson }));
+    setRun(createSessionRun(mode, effectivePersistentStats, { difficulty: nextDifficulty, lesson, callsignRegion }));
     notifiedQuestionIdsRef.current = new Set();
     setResult(null);
     setAnswer("");
@@ -422,7 +444,27 @@ export function PracticeScreen({
   function changeLesson(nextLesson) {
     if (nextLesson === lesson || nextLesson > maxUnlockedLesson || switchLocked || reviewingWeaknesses) return;
     cw.stopAll();
-    setRun(createSessionRun(mode, effectivePersistentStats, { difficulty, lesson: nextLesson }));
+    setRun(createSessionRun(mode, effectivePersistentStats, { difficulty, lesson: nextLesson, callsignRegion }));
+    notifiedQuestionIdsRef.current = new Set();
+    setResult(null);
+    setAnswer("");
+    setSummaryState(null);
+  }
+
+  function changeCallsignRegion(value) {
+    const nextRegion = normalizePracticeCallsignRegion(value);
+    if (mode !== PRACTICE_MODES.CALLSIGN_RX || nextRegion === callsignRegion || switchLocked || reviewingWeaknesses) return;
+    cw.stopAll();
+    setRun(createSessionRun(mode, effectivePersistentStats, {
+      difficulty,
+      lesson,
+      callsignRegion: nextRegion,
+      recentTargets: [],
+    }));
+    if (!recordingCallsign) {
+      setSessionOnlyRecords((current) => updatePracticePreference(current, mode, { callsignRegion: nextRegion }));
+    }
+    onPreferenceChange?.(mode, { callsignRegion: nextRegion });
     notifiedQuestionIdsRef.current = new Set();
     setResult(null);
     setAnswer("");
@@ -432,7 +474,7 @@ export function PracticeScreen({
   function startWeaknessReview() {
     if (reviewingWeaknesses || switchLocked || !weakReviewTargets.length) return;
     cw.stopAll();
-    const nextRun = createWeaknessReviewRun(mode, effectivePersistentStats, { difficulty, lesson });
+    const nextRun = createWeaknessReviewRun(mode, effectivePersistentStats, { difficulty, lesson, callsignRegion });
     if (!nextRun) return;
     setRun(nextRun);
     notifiedQuestionIdsRef.current = new Set();
@@ -461,6 +503,7 @@ export function PracticeScreen({
       recentTargets: nextSession.recentTargets,
       difficulty,
       lesson,
+      callsignRegion,
       sessionType: session.sessionType,
     });
     if (!recordingCallsign) {
@@ -469,6 +512,7 @@ export function PracticeScreen({
         target: question.target,
         difficulty,
         lesson,
+        callsignRegion,
         sessionType: session.sessionType,
       }));
     }
@@ -507,7 +551,7 @@ export function PracticeScreen({
 
   function continueTraining() {
     if (summaryState?.summary.reviewCompleted) {
-      setRun(createSessionRun(mode, effectivePersistentStats, { difficulty, lesson }));
+      setRun(createSessionRun(mode, effectivePersistentStats, { difficulty, lesson, callsignRegion }));
       notifiedQuestionIdsRef.current = new Set();
       setResult(null);
       setSummaryState(null);
@@ -522,6 +566,7 @@ export function PracticeScreen({
       recentTargets: session.recentTargets,
       difficulty,
       lesson: nextLesson,
+      callsignRegion,
     }));
     notifiedQuestionIdsRef.current = new Set();
     setResult(null);
@@ -570,6 +615,7 @@ export function PracticeScreen({
     <main
       className="screen practice-screen"
       data-practice-mode={mode}
+      data-practice-callsign-region={callsignRegion}
       data-practice-difficulty={difficulty}
       data-practice-lesson={lesson}
       data-practice-lessons-completed={lifetimeRecord.completedLessons}
@@ -645,6 +691,42 @@ export function PracticeScreen({
             })}
           </nav>
           <section className="practice-curriculum" aria-label={t.lessonProgress}>
+            {mode === PRACTICE_MODES.CALLSIGN_RX && (
+              <div className="practice-callsign-region-picker" data-testid="practice-callsign-region" data-callsign-region={callsignRegion}>
+                <span>{t.callsignRegion}</span>
+                <div className="practice-callsign-region-options" role="radiogroup" aria-label={t.callsignRegion}>
+                  {Object.values(PRACTICE_CALLSIGN_REGIONS).map((id, index, regionIds) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={callsignRegion === id}
+                      tabIndex={callsignRegion === id ? 0 : -1}
+                      aria-label={t.callsignRegions[id]}
+                      title={t.callsignRegions[id]}
+                      data-callsign-region-option={id}
+                      className={callsignRegion === id ? "selected" : ""}
+                      disabled={switchLocked || reviewingWeaknesses}
+                      onClick={() => changeCallsignRegion(id)}
+                      onKeyDown={(event) => {
+                        const delta = event.key === "ArrowLeft" || event.key === "ArrowUp"
+                          ? -1
+                          : event.key === "ArrowRight" || event.key === "ArrowDown"
+                            ? 1
+                            : 0;
+                        if (!delta) return;
+                        event.preventDefault();
+                        const nextId = regionIds[(index + delta + regionIds.length) % regionIds.length];
+                        changeCallsignRegion(nextId);
+                        event.currentTarget.parentElement
+                          ?.querySelector(`[data-callsign-region-option="${nextId}"]`)
+                          ?.focus();
+                      }}
+                    >{t.callsignRegions[id]}</button>
+                  ))}
+                </div>
+              </div>
+            )}
             <header><span>{t.difficulty}</span><b>{difficultyLabels[difficulty]}</b></header>
             <div className="practice-difficulty-options">
               {Object.values(PRACTICE_DIFFICULTIES).map((id) => (
