@@ -7,7 +7,7 @@ export const ANTENNAS = [
     starter: false,
     purchasable: false,
     price: 0,
-    names: { "zh-CN": "未装备天线", "zh-TW": "未裝備天線", ja: "アンテナなし", en: "No antenna" },
+    names: { "zh-CN": "未装备天线", "zh-TW": "未裝備天線", ja: "アンテナなし", en: "No antenna", es: "Sin antena", de: "Keine Antenne", ru: "Без антенны" },
   },
   {
     id: "dipole",
@@ -17,7 +17,7 @@ export const ANTENNAS = [
     starter: true,
     purchasable: false,
     price: 0,
-    names: { "zh-CN": "半波偶极天线", "zh-TW": "半波偶極天線", ja: "半波長ダイポール", en: "Half-wave dipole" },
+    names: { "zh-CN": "半波偶极天线", "zh-TW": "半波偶極天線", ja: "半波長ダイポール", en: "Half-wave dipole", es: "Dipolo de media onda", de: "Halbwellendipol", ru: "Полуволновой диполь" },
   },
   {
     id: "yagi-3el",
@@ -27,7 +27,7 @@ export const ANTENNAS = [
     starter: false,
     purchasable: true,
     price: 500,
-    names: { "zh-CN": "三单元八木天线", "zh-TW": "三單元八木天線", ja: "3エレ八木", en: "3-element Yagi" },
+    names: { "zh-CN": "三单元八木天线", "zh-TW": "三單元八木天線", ja: "3エレ八木", en: "3-element Yagi", es: "Yagi de 3 elementos", de: "3-Element-Yagi", ru: "Трёхэлементная Яги" },
   },
   {
     id: "vertical",
@@ -37,7 +37,7 @@ export const ANTENNAS = [
     starter: false,
     purchasable: true,
     price: 200,
-    names: { "zh-CN": "垂直天线", "zh-TW": "垂直天線", ja: "バーチカル", en: "Vertical antenna" },
+    names: { "zh-CN": "垂直天线", "zh-TW": "垂直天線", ja: "バーチカル", en: "Vertical antenna", es: "Antena vertical", de: "Vertikalantenne", ru: "Вертикальная антенна" },
   },
 ];
 

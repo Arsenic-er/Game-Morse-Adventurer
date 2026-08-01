@@ -90,6 +90,39 @@ const TEXT = {
       "regions-3": { title: "Radio-Wave Traveler", description: "Contact stations in at least 3 different regions." },
     },
   },
+  es: {
+    title: "Archivo de logros", kicker: "Registro de actividad del operador", operator: "Indicativo de estación", unlockedCount: "Desbloqueados", progress: "Progreso", unlocked: "Desbloqueado", locked: "Bloqueado", complete: "Completo", close: "Volver al Centro de Gestión",
+    achievements: {
+      "first-qso": { title: "Primer contacto", description: "Completa y registra tu primer QSO." },
+      "qso-5": { title: "Encuentro en el aire", description: "Completa un total de 5 QSO." },
+      "qso-10": { title: "Operador activo", description: "Completa un total de 10 QSO." },
+      "dx-5000": { title: "Más allá de 5.000 kilómetros", description: "Completa un contacto DX de al menos 5.000 km." },
+      "weak-signal": { title: "Cazador de señales débiles", description: "Completa un QSO con propagación débil." },
+      "regions-3": { title: "Viajero de las ondas", description: "Contacta estaciones de al menos 3 regiones diferentes." },
+    },
+  },
+  de: {
+    title: "Erfolgsarchiv", kicker: "Betriebsaktivitätsprotokoll", operator: "Stationsrufzeichen", unlockedCount: "Freigeschaltet", progress: "Fortschritt", unlocked: "Freigeschaltet", locked: "Gesperrt", complete: "Abgeschlossen", close: "Zurück zum Verwaltungszentrum",
+    achievements: {
+      "first-qso": { title: "Erster Kontakt", description: "Schließe dein erstes QSO ab und protokolliere es." },
+      "qso-5": { title: "Treffen auf der Frequenz", description: "Schließe insgesamt 5 QSOs ab." },
+      "qso-10": { title: "Aktiver Operator", description: "Schließe insgesamt 10 QSOs ab." },
+      "dx-5000": { title: "Mehr als 5.000 Kilometer", description: "Schließe eine DX-Verbindung über mindestens 5.000 km ab." },
+      "weak-signal": { title: "Schwachsignaljäger", description: "Schließe ein QSO bei schwacher Ausbreitung ab." },
+      "regions-3": { title: "Funkwellenreisender", description: "Kontaktiere Stationen in mindestens 3 verschiedenen Regionen." },
+    },
+  },
+  ru: {
+    title: "Архив достижений", kicker: "Журнал активности оператора", operator: "Позывной станции", unlockedCount: "Открыто", progress: "Прогресс", unlocked: "Открыто", locked: "Закрыто", complete: "Выполнено", close: "Назад в Центр управления",
+    achievements: {
+      "first-qso": { title: "Первая связь", description: "Проведите и запишите первое QSO." },
+      "qso-5": { title: "Встреча в эфире", description: "Проведите всего 5 QSO." },
+      "qso-10": { title: "Активный оператор", description: "Проведите всего 10 QSO." },
+      "dx-5000": { title: "За 5 000 километров", description: "Проведите DX-связь на расстоянии не менее 5 000 км." },
+      "weak-signal": { title: "Охотник за слабым сигналом", description: "Проведите QSO при слабом прохождении." },
+      "regions-3": { title: "Путешественник по радиоволнам", description: "Свяжитесь со станциями как минимум из 3 разных регионов." },
+    },
+  },
 };
 
 const ACHIEVEMENT_ICONS = {
@@ -106,6 +139,9 @@ const NOTIFICATION_TEXT = {
   "zh-TW": { unlocked: "成就解鎖", remaining: "佇列中還有 {count} 項", dismiss: "關閉成就通知" },
   ja: { unlocked: "実績を解除", remaining: "残り {count} 件", dismiss: "実績通知を閉じる" },
   en: { unlocked: "Achievement Unlocked", remaining: "{count} remaining", dismiss: "Dismiss achievement notification" },
+  es: { unlocked: "Logro desbloqueado", remaining: "Quedan {count}", dismiss: "Cerrar notificación de logro" },
+  de: { unlocked: "Erfolg freigeschaltet", remaining: "Noch {count}", dismiss: "Erfolgsmeldung schließen" },
+  ru: { unlocked: "Достижение открыто", remaining: "Осталось: {count}", dismiss: "Закрыть уведомление о достижении" },
 };
 
 function progressPercent(achievement) {

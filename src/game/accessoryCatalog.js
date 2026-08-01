@@ -14,6 +14,9 @@ export const ACCESSORIES = Object.freeze([
       "zh-TW": "未裝備配件",
       ja: "アクセサリーなし",
       en: "No accessory",
+      es: "Sin accesorio",
+      de: "Kein Zubehör",
+      ru: "Без аксессуаров",
     },
   },
   {
@@ -31,6 +34,9 @@ export const ACCESSORIES = Object.freeze([
       "zh-TW": "CW-500 音訊濾波器",
       ja: "CW-500 オーディオフィルター",
       en: "CW-500 audio filter",
+      es: "Filtro de audio CW-500",
+      de: "CW-500-Audiofilter",
+      ru: "Аудиофильтр CW-500",
     },
   },
 ]);

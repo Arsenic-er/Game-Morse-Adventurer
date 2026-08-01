@@ -244,6 +244,7 @@ async function runQaCapture(window) {
   const suffix = process.env.CWGAME_QA_SUFFIX || `${captureWidth}x${captureHeight}`;
   const shot = (stem) => `${stem}-${suffix}.png`;
   const manualCaptures = [];
+  const languageCaptures = [];
   await fs.mkdir(outputDir, { recursive: true });
   await fs.rm(path.join(outputDir, "qa-failure.txt"), { force: true });
   const consoleErrors = [];
@@ -262,7 +263,84 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.22.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.23.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+
+  const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
+  const languageStorageKey = "game-morse-adventurer.language.v1";
+  async function openStartLanguageMenu() {
+    const open = await window.webContents.executeJavaScript('Boolean(document.querySelector(".start-language .language-menu"))', true);
+    if (!open) await click(window, ".start-language .language-globe");
+    await waitFor(window, ".start-language .language-menu");
+  }
+  async function readStartLanguageState() {
+    return window.webContents.executeJavaScript(`(() => ({
+      language: document.documentElement.lang,
+      subtitle: document.querySelector(".title-lockup p")?.textContent.trim() ?? "",
+      actions: Array.from(document.querySelectorAll(".start-actions button"), (button) => button.textContent.trim()),
+      disclaimer: document.querySelector(".callsign-disclaimer")?.textContent.trim() ?? "",
+      languageLabel: document.querySelector(".start-language .language-globe")?.getAttribute("aria-label")?.trim() ?? "",
+      storedLanguage: localStorage.getItem(${JSON.stringify(languageStorageKey)}),
+    }))()`, true);
+  }
+  async function selectStartLanguage(languageId) {
+    await openStartLanguageMenu();
+    await click(window, `.start-language [data-language-id="${languageId}"]`);
+    await waitForMissing(window, ".start-language .language-menu");
+    await delay(80);
+    const state = await readStartLanguageState();
+    if (state.language !== languageId || state.storedLanguage !== languageId) throw new Error(`Start language ${languageId} did not apply and persist: ${JSON.stringify(state)}`);
+    const criticalText = [state.subtitle, ...state.actions, state.disclaimer, state.languageLabel];
+    if (state.actions.length !== 4 || criticalText.some((value) => !value || /undefined|null|\ufffd/i.test(value))) throw new Error(`Start language ${languageId} has missing critical copy: ${JSON.stringify(state)}`);
+    return state;
+  }
+  await openStartLanguageMenu();
+  const startLanguageIds = await window.webContents.executeJavaScript('Array.from(document.querySelectorAll(".start-language [data-language-id]"), (button) => button.dataset.languageId)', true);
+  if (JSON.stringify(startLanguageIds) !== JSON.stringify(supportedLanguageIds)) throw new Error(`Start menu languages are incomplete or out of order: ${JSON.stringify(startLanguageIds)}`);
+  await capture(window, outputDir, shot("language-start-seven"));
+  languageCaptures.push(shot("language-start-seven"));
+  const startCopyByLanguage = {};
+  for (const languageId of supportedLanguageIds) startCopyByLanguage[languageId] = await selectStartLanguage(languageId);
+  for (const languageId of ["es", "de", "ru"]) {
+    if (startCopyByLanguage[languageId].actions[0] === startCopyByLanguage.en.actions[0] || startCopyByLanguage[languageId].disclaimer === startCopyByLanguage.en.disclaimer) throw new Error(`Start language ${languageId} silently fell back to English: ${JSON.stringify(startCopyByLanguage[languageId])}`);
+  }
+  await selectStartLanguage("en");
+  async function applySettingsLanguage(languageId) {
+    await click(window, ".start-actions button:nth-child(3)");
+    await waitFor(window, ".settings-modal");
+    const settingsLanguageIds = await window.webContents.executeJavaScript('Array.from(document.querySelectorAll(".settings-modal [data-language-id]"), (button) => button.dataset.languageId)', true);
+    if (JSON.stringify(settingsLanguageIds) !== JSON.stringify(supportedLanguageIds)) throw new Error(`Settings menu languages are incomplete or out of order: ${JSON.stringify(settingsLanguageIds)}`);
+    await click(window, `.settings-modal [data-language-id="${languageId}"]`);
+    const draftState = await window.webContents.executeJavaScript(`(() => ({
+      selected: document.querySelector(${JSON.stringify(`.settings-modal [data-language-id="${languageId}"]`)})?.classList.contains("selected") ?? false,
+      applyText: document.querySelector(".settings-modal footer .primary-button")?.textContent.trim() ?? "",
+      modalText: document.querySelector(".settings-modal")?.textContent.trim() ?? "",
+    }))()`, true);
+    if (!draftState.selected || !draftState.applyText || !draftState.modalText || /undefined|null|\ufffd/i.test(draftState.modalText)) throw new Error(`Settings language ${languageId} has incomplete draft copy: ${JSON.stringify(draftState)}`);
+    await click(window, ".settings-modal footer .primary-button");
+    await waitForMissing(window, ".settings-modal");
+    const appliedState = await readStartLanguageState();
+    if (appliedState.language !== languageId || appliedState.storedLanguage !== languageId) throw new Error(`Settings language ${languageId} did not apply and persist: ${JSON.stringify(appliedState)}`);
+    return appliedState;
+  }
+  await applySettingsLanguage("ru");
+  await click(window, ".start-actions button:nth-child(3)");
+  await waitFor(window, ".settings-modal");
+  await capture(window, outputDir, shot("language-settings-russian"));
+  languageCaptures.push(shot("language-settings-russian"));
+  await click(window, '.settings-modal [data-language-id="de"]');
+  await click(window, ".settings-modal footer .primary-button");
+  await waitForMissing(window, ".settings-modal");
+  const germanState = await readStartLanguageState();
+  if (germanState.language !== "de" || germanState.storedLanguage !== "de") throw new Error(`Settings language de did not apply and persist: ${JSON.stringify(germanState)}`);
+  const spanishState = await applySettingsLanguage("es");
+  await window.reload();
+  await waitFor(window, ".start-screen");
+  const reloadedLanguageState = await readStartLanguageState();
+  if (reloadedLanguageState.language !== "es" || reloadedLanguageState.storedLanguage !== "es" || JSON.stringify(reloadedLanguageState.actions) !== JSON.stringify(spanishState.actions) || reloadedLanguageState.disclaimer !== spanishState.disclaimer) throw new Error(`Spanish language preference did not survive reload: ${JSON.stringify({ spanishState, reloadedLanguageState })}`);
+  await capture(window, outputDir, shot("language-reload-spanish"));
+  languageCaptures.push(shot("language-reload-spanish"));
+  const restoredEnglishState = await selectStartLanguage("en");
+  if (restoredEnglishState.storedLanguage !== "en") throw new Error(`English QA reset did not persist: ${JSON.stringify(restoredEnglishState)}`);
 
   async function readManualState(label) {
     const state = await window.webContents.executeJavaScript(`(() => {
@@ -1470,7 +1548,7 @@ async function runQaCapture(window) {
       "home-hover-achievements", "achievements-empty", "home-log-empty", "practice-session-only", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
       "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "practice-callsign-region-selected", "practice-callsign-region-locked", "practice-callsign-region-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
-    ].map(shot), ...manualCaptures],
+    ].map(shot), ...languageCaptures, ...manualCaptures],
   };
 }
 

@@ -17,6 +17,9 @@ const TEXT = {
   "zh-TW": { title: "管理中心", station: "進入發射臺", practice: "CW 練習與教學", practiceProgress: "課程進度", warehouse: "倉庫", store: "商店", log: "通聯日誌", achievements: "成就", placeholder: "功能預留", later: "此功能將在後續版本開放。", back: "返回存檔", settings: "設定", local: "當地時間", close: "關閉" },
   ja: { title: "管理センター", station: "運用卓へ", practice: "CW 練習・レッスン", practiceProgress: "レッスン進捗", warehouse: "倉庫", store: "ショップ", log: "交信ログ", achievements: "実績", placeholder: "準備中", later: "この機能は今後のバージョンで開放されます。", back: "セーブへ戻る", settings: "設定", local: "現地時刻", close: "閉じる" },
   en: { title: "Management Center", station: "Enter Station", practice: "CW Practice & Lessons", practiceProgress: "Lesson progress", warehouse: "Warehouse", store: "Store", log: "QSO Log", achievements: "Achievements", placeholder: "Coming Soon", later: "This feature will open in a later version.", back: "Back to Saves", settings: "Settings", local: "Local time", close: "Close" },
+  es: { title: "Centro de Gestión", station: "Entrar en la estación", practice: "Práctica y lecciones de CW", practiceProgress: "Progreso de lecciones", warehouse: "Almacén", store: "Tienda", log: "Registro QSO", achievements: "Logros", placeholder: "Próximamente", later: "Esta función se abrirá en una versión posterior.", back: "Volver a partidas", settings: "Ajustes", local: "Hora local", close: "Cerrar" },
+  de: { title: "Verwaltungszentrum", station: "Station betreten", practice: "CW-Übung und Lektionen", practiceProgress: "Lektionsfortschritt", warehouse: "Lager", store: "Laden", log: "QSO-Logbuch", achievements: "Erfolge", placeholder: "Demnächst", later: "Diese Funktion wird in einer späteren Version geöffnet.", back: "Zurück zu Spielständen", settings: "Einstellungen", local: "Ortszeit", close: "Schließen" },
+  ru: { title: "Центр управления", station: "Войти на станцию", practice: "Практика и уроки CW", practiceProgress: "Прогресс уроков", warehouse: "Склад", store: "Магазин", log: "Журнал QSO", achievements: "Достижения", placeholder: "Скоро", later: "Эта функция появится в следующей версии.", back: "Назад к сохранениям", settings: "Настройки", local: "Местное время", close: "Закрыть" },
 };
 
 const WAREHOUSE_TEXT = {
@@ -24,6 +27,9 @@ const WAREHOUSE_TEXT = {
   "zh-TW": { title: "設備倉庫", rack: "設備架", radio: "電臺", antenna: "天線", accessories: "配件", antennaDrawer: "天線抽屜", accessoryBar: "配件欄", later: "後續開放", current: "目前配置", fixed: "固定", replaceable: "可更換", reserved: "預留", equip: "裝備", equipped: "已裝備", noAntenna: "空天線槽", noAccessory: "空配件槽", locked: "未開放", back: "返回管理中心", propagation: "傳播修正", noise: "雜訊修正" },
   ja: { title: "装備倉庫", rack: "装備ラック", radio: "無線機", antenna: "アンテナ", accessories: "アクセサリー", antennaDrawer: "アンテナ引出し", accessoryBar: "アクセサリー欄", later: "今後開放", current: "現在の構成", fixed: "固定", replaceable: "交換可能", reserved: "予約", equip: "装備", equipped: "装備中", noAntenna: "空きアンテナ枠", noAccessory: "空きアクセサリー枠", locked: "未開放", back: "管理センターへ戻る", propagation: "伝搬補正", noise: "ノイズ補正" },
   en: { title: "Equipment Warehouse", rack: "Equipment Rack", radio: "Radio", antenna: "Antenna", accessories: "Accessories", antennaDrawer: "Antenna Drawer", accessoryBar: "Accessory Rack", later: "Coming later", current: "Current Loadout", fixed: "Fixed", replaceable: "Replaceable", reserved: "Reserved", equip: "Equip", equipped: "Equipped", noAntenna: "Empty antenna slot", noAccessory: "Empty accessory slot", locked: "Locked", back: "Back to Management Center", propagation: "Propagation modifier", noise: "Noise modifier" },
+  es: { title: "Almacén de equipos", rack: "Estante de equipos", radio: "Radio", antenna: "Antena", accessories: "Accesorios", antennaDrawer: "Cajón de antenas", accessoryBar: "Estante de accesorios", later: "Más adelante", current: "Equipo actual", fixed: "Fijo", replaceable: "Sustituible", reserved: "Reservado", equip: "Equipar", equipped: "Equipado", noAntenna: "Ranura de antena vacía", noAccessory: "Ranura de accesorio vacía", locked: "Bloqueado", back: "Volver al Centro de Gestión", propagation: "Modificador de propagación", noise: "Modificador de ruido" },
+  de: { title: "Ausrüstungslager", rack: "Ausrüstungsregal", radio: "Funkgerät", antenna: "Antenne", accessories: "Zubehör", antennaDrawer: "Antennenschublade", accessoryBar: "Zubehörregal", later: "Später verfügbar", current: "Aktuelle Ausrüstung", fixed: "Fest", replaceable: "Austauschbar", reserved: "Reserviert", equip: "Ausrüsten", equipped: "Ausgerüstet", noAntenna: "Leerer Antennenplatz", noAccessory: "Leerer Zubehörplatz", locked: "Gesperrt", back: "Zurück zum Verwaltungszentrum", propagation: "Ausbreitungsmodifikator", noise: "Rauschmodifikator" },
+  ru: { title: "Склад оборудования", rack: "Стеллаж оборудования", radio: "Радиостанция", antenna: "Антенна", accessories: "Аксессуары", antennaDrawer: "Ящик антенн", accessoryBar: "Полка аксессуаров", later: "Позже", current: "Текущая комплектация", fixed: "Фиксировано", replaceable: "Заменяемо", reserved: "Зарезервировано", equip: "Установить", equipped: "Установлено", noAntenna: "Пустое место антенны", noAccessory: "Пустое место аксессуара", locked: "Заблокировано", back: "Назад в Центр управления", propagation: "Модификатор прохождения", noise: "Модификатор шума" },
 };
 
 const PANEL_ICONS = { store: Storefront, log: Notebook, achievements: Trophy };
@@ -57,6 +63,27 @@ const QSO_LOG_TEXT = {
     stationTime: "Station local", utcTime: "Coordinated UTC",
     emptyTitle: "No QSO records yet", emptyText: "Complete a contact and save its log to add the first record.", back: "Back to Management Center", close: "Close QSO log",
   },
+  es: {
+    title: "Registro QSO", kicker: "Registro de estación", records: "registros", latest: "Más reciente", dateTime: "Hora local / UTC", callsign: "Indicativo",
+    frequency: "Frecuencia", rst: "RST enviado / recibido", region: "Región", distance: "Distancia", propagation: "Propagación", antenna: "Antena",
+    equipment: "Equipo", accessory: "Accesorio", wpm: "Velocidad", performance: "Precisión / Ritmo", repeats: "Peticiones de repetición", credits: "Créditos", sim: "SIM · Estación ficticia",
+    stationTime: "Hora local de estación", utcTime: "UTC coordinado",
+    emptyTitle: "Aún no hay registros QSO", emptyText: "Completa un contacto y guarda su registro para añadir la primera entrada.", back: "Volver al Centro de Gestión", close: "Cerrar registro QSO",
+  },
+  de: {
+    title: "QSO-Logbuch", kicker: "Stationsprotokoll", records: "Einträge", latest: "Neuester", dateTime: "Stationszeit / UTC", callsign: "Rufzeichen",
+    frequency: "Frequenz", rst: "Gesendeter / empfangener RST", region: "Region", distance: "Entfernung", propagation: "Ausbreitung", antenna: "Antenne",
+    equipment: "Ausrüstung", accessory: "Zubehör", wpm: "Geschwindigkeit", performance: "Sendegenauigkeit / Rhythmus", repeats: "Wiederholungsanfragen", credits: "Kredite", sim: "SIM · Fiktive Station",
+    stationTime: "Stationsortszeit", utcTime: "Koordinierte UTC",
+    emptyTitle: "Noch keine QSO-Einträge", emptyText: "Schließe eine Verbindung ab und speichere ihr Log, um den ersten Eintrag anzulegen.", back: "Zurück zum Verwaltungszentrum", close: "QSO-Logbuch schließen",
+  },
+  ru: {
+    title: "Журнал QSO", kicker: "Журнал станции", records: "записей", latest: "Последняя", dateTime: "Местное время / UTC", callsign: "Позывной",
+    frequency: "Частота", rst: "Переданный / принятый RST", region: "Регион", distance: "Расстояние", propagation: "Прохождение", antenna: "Антенна",
+    equipment: "Оборудование", accessory: "Аксессуар", wpm: "Скорость", performance: "Точность / Ритм", repeats: "Запросы повтора", credits: "Кредиты", sim: "SIM · Вымышленная станция",
+    stationTime: "Местное время станции", utcTime: "Всемирное время UTC",
+    emptyTitle: "Записей QSO пока нет", emptyText: "Завершите связь и сохраните журнал, чтобы добавить первую запись.", back: "Назад в Центр управления", close: "Закрыть журнал QSO",
+  },
 };
 
 const QSO_REVIEW_TEXT = {
@@ -83,6 +110,24 @@ const QSO_REVIEW_TEXT = {
     full: "Full", hints: "Hints only", off: "Off", used: "Used", unused: "Not used", yes: "Qualified", no: "Not qualified",
     accepted: "Accepted", error: "Error", repeat: "Repeat", unknown: "Not recorded", reason: "Reason", accuracy: "Accuracy", rhythm: "Rhythm",
     PLAYER_CQ: "Call CQ", PLAYER_RST_AND_73: "Exchange RST / 73", missingCq: "CQ is missing", missingDe: "DE is missing", missingPlayerCallsign: "Your callsign is missing", wrongCqOrder: "CQ message is out of order", missingK: "Final K is missing", invalidAgn: "A repeat request must be AGN K", missingCallsign: "Both callsigns are required", invalidRst: "RST format is invalid", missing73: "73 is missing", wrongReplyOrder: "Reply message is out of order", notWaitingForPlayer: "This stage is not accepting a transmission",
+  },
+  es: {
+    title: "Revisión de operación", empty: "Este registro antiguo no contiene historial de intentos", guidance: "Guía", visual: "Ayuda visual", independent: "Guardia independiente",
+    full: "Completa", hints: "Solo pistas", off: "Desactivada", used: "Usada", unused: "No usada", yes: "Apto", no: "No apto",
+    accepted: "Aceptado", error: "Error", repeat: "Repetición", unknown: "Sin registro", reason: "Motivo", accuracy: "Precisión", rhythm: "Ritmo",
+    PLAYER_CQ: "Llamar CQ", PLAYER_RST_AND_73: "Intercambiar RST / 73", missingCq: "Falta CQ", missingDe: "Falta DE", missingPlayerCallsign: "Falta tu indicativo", wrongCqOrder: "El mensaje CQ está desordenado", missingK: "Falta la K final", invalidAgn: "La petición de repetición debe ser AGN K", missingCallsign: "Se requieren ambos indicativos", invalidRst: "El formato RST no es válido", missing73: "Falta 73", wrongReplyOrder: "El mensaje de respuesta está desordenado", notWaitingForPlayer: "Esta etapa no acepta una transmisión",
+  },
+  de: {
+    title: "Betriebsauswertung", empty: "Dieses ältere Log enthält keinen Versuchsverlauf", guidance: "Führung", visual: "Visuelle Hilfe", independent: "Selbstständige Wache",
+    full: "Vollständig", hints: "Nur Hinweise", off: "Aus", used: "Benutzt", unused: "Nicht benutzt", yes: "Bestanden", no: "Nicht bestanden",
+    accepted: "Akzeptiert", error: "Fehler", repeat: "Wiederholung", unknown: "Nicht erfasst", reason: "Grund", accuracy: "Genauigkeit", rhythm: "Rhythmus",
+    PLAYER_CQ: "CQ rufen", PLAYER_RST_AND_73: "RST / 73 austauschen", missingCq: "CQ fehlt", missingDe: "DE fehlt", missingPlayerCallsign: "Dein Rufzeichen fehlt", wrongCqOrder: "CQ-Nachricht hat die falsche Reihenfolge", missingK: "Abschließendes K fehlt", invalidAgn: "Eine Wiederholungsanfrage muss AGN K sein", missingCallsign: "Beide Rufzeichen sind erforderlich", invalidRst: "RST-Format ist ungültig", missing73: "73 fehlt", wrongReplyOrder: "Antwort hat die falsche Reihenfolge", notWaitingForPlayer: "Diese Phase nimmt keine Sendung an",
+  },
+  ru: {
+    title: "Разбор работы", empty: "В старой записи нет истории попыток", guidance: "Подсказки", visual: "Визуальная помощь", independent: "Самостоятельная вахта",
+    full: "Полные", hints: "Только намёки", off: "Выкл.", used: "Использована", unused: "Не использована", yes: "Зачёт", no: "Нет зачёта",
+    accepted: "Принято", error: "Ошибка", repeat: "Повтор", unknown: "Не записано", reason: "Причина", accuracy: "Точность", rhythm: "Ритм",
+    PLAYER_CQ: "Вызвать CQ", PLAYER_RST_AND_73: "Обменяться RST / 73", missingCq: "Отсутствует CQ", missingDe: "Отсутствует DE", missingPlayerCallsign: "Отсутствует ваш позывной", wrongCqOrder: "Неверный порядок сообщения CQ", missingK: "Нет завершающего K", invalidAgn: "Запрос повтора должен быть AGN K", missingCallsign: "Нужны оба позывных", invalidRst: "Неверный формат RST", missing73: "Отсутствует 73", wrongReplyOrder: "Неверный порядок ответа", notWaitingForPlayer: "На этом этапе передача не принимается",
   },
 };
 
@@ -141,7 +186,8 @@ function formatDateTimeInZone(date, locale, timeZone) {
 }
 
 function logDateTime(entry, language, stationTimeZone) {
-  const locale = language === "zh-CN" ? "zh-CN" : language === "zh-TW" ? "zh-TW" : language === "ja" ? "ja-JP" : "en-US";
+  const locales = { "zh-CN": "zh-CN", "zh-TW": "zh-TW", ja: "ja-JP", en: "en-US", es: "es-ES", de: "de-DE", ru: "ru-RU" };
+  const locale = locales[language] ?? "en-US";
   const raw = firstValue(entry.completedAt, entry.timestamp, entry.dateTime, entry.createdAt);
   const parsed = raw ? new Date(raw) : null;
   if (parsed && !Number.isNaN(parsed.getTime())) {

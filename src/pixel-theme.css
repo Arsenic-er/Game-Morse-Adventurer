@@ -22,6 +22,14 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Press Start 2P";
+  src: url("./assets/fonts/press-start-2p-regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   --pixel-font: "Fusion Bold Pixel Hans", "Microsoft YaHei", sans-serif;
   --pixel-ink: #02090e;
@@ -43,6 +51,9 @@
 html[lang="zh-TW"] { --pixel-font: "Fusion Bold Pixel Hant", "Microsoft JhengHei", sans-serif; }
 html[lang="ja"] { --pixel-font: "Fusion Bold Pixel JA", "Yu Gothic UI", sans-serif; }
 html[lang="en"] { --pixel-font: "Fusion Bold Pixel Hans", "Segoe UI", sans-serif; }
+html[lang="es"],
+html[lang="de"],
+html[lang="ru"] { --pixel-font: "Press Start 2P", "Segoe UI", sans-serif; }
 
 html, body, button, input, select, textarea, kbd {
   font-family: var(--pixel-font) !important;

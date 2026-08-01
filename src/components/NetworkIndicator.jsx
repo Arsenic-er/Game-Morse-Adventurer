@@ -5,6 +5,9 @@ const LABELS = {
   "zh-TW": { good: "網路良好", medium: "網路一般", poor: "網路較差", offline: "無網路" },
   ja: { good: "通信良好", medium: "通信普通", poor: "通信不安定", offline: "オフライン" },
   en: { good: "Network good", medium: "Network medium", poor: "Network poor", offline: "Offline" },
+  es: { good: "Red buena", medium: "Red media", poor: "Red débil", offline: "Sin conexión" },
+  de: { good: "Netzwerk gut", medium: "Netzwerk mittel", poor: "Netzwerk schwach", offline: "Offline" },
+  ru: { good: "Сеть хорошая", medium: "Сеть средняя", poor: "Сеть слабая", offline: "Нет сети" },
 };
 
 function browserNetworkState() {

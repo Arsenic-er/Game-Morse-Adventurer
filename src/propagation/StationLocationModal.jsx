@@ -8,6 +8,9 @@ const TEXT = {
   "zh-TW": { title: "選擇臺站位置", hint: "點擊世界地圖確定臺站所在地", cancel: "取消", confirm: "確認位置", latitude: "緯度", longitude: "經度", presets: "預設" },
   ja: { title: "無線局の場所", hint: "世界地図をクリックして場所を選択", cancel: "キャンセル", confirm: "場所を確定", latitude: "緯度", longitude: "経度", presets: "プリセット" },
   en: { title: "Choose station location", hint: "Click the world map to place your station", cancel: "Cancel", confirm: "Confirm location", latitude: "Latitude", longitude: "Longitude", presets: "Presets" },
+  es: { title: "Elegir ubicación de la estación", hint: "Haz clic en el mapa mundial para situar tu estación", cancel: "Cancelar", confirm: "Confirmar ubicación", latitude: "Latitud", longitude: "Longitud", presets: "Preajustes" },
+  de: { title: "Stationsstandort wählen", hint: "Klicke auf die Weltkarte, um deine Station zu platzieren", cancel: "Abbrechen", confirm: "Standort bestätigen", latitude: "Breitengrad", longitude: "Längengrad", presets: "Vorgaben" },
+  ru: { title: "Выберите место станции", hint: "Щёлкните по карте мира, чтобы разместить станцию", cancel: "Отмена", confirm: "Подтвердить место", latitude: "Широта", longitude: "Долгота", presets: "Шаблоны" },
 };
 
 const PRESETS = [
@@ -51,4 +54,3 @@ export function StationLocationModal({ language, current = DEFAULT_PLAYER_LOCATI
     </div>
   );
 }
-

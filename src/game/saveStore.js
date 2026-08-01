@@ -166,7 +166,8 @@ export function persistActiveSaveId(saveId, storage = globalThis.localStorage) {
 }
 
 export function formatSaveTime(value, language = "en") {
-  const locale = language === "zh-CN" ? "zh-CN" : language === "zh-TW" ? "zh-TW" : language === "ja" ? "ja-JP" : "en-US";
+  const locales = { "zh-CN": "zh-CN", "zh-TW": "zh-TW", ja: "ja-JP", en: "en-US", es: "es-ES", de: "de-DE", ru: "ru-RU" };
+  const locale = locales[language] ?? "en-US";
   return new Date(value).toLocaleString(locale, {
     year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
   });

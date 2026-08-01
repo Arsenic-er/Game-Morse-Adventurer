@@ -14,7 +14,7 @@ export const TRANSMITTERS = Object.freeze([
     starter: true,
     purchasable: false,
     price: 0,
-    names: { "zh-CN": "SQUID-01 单频套件", "zh-TW": "SQUID-01 單頻套件", ja: "SQUID-01 単周波キット", en: "SQUID-01 single-band kit" },
+    names: { "zh-CN": "SQUID-01 单频套件", "zh-TW": "SQUID-01 單頻套件", ja: "SQUID-01 単周波キット", en: "SQUID-01 single-band kit", es: "Kit monobanda SQUID-01", de: "SQUID-01-Einbandbausatz", ru: "Однодиапазонный набор SQUID-01" },
   },
   {
     id: "usdr-8",
@@ -40,6 +40,9 @@ export const TRANSMITTERS = Object.freeze([
       "zh-TW": "MICA-8 微型 QRP 收發機",
       ja: "MICA-8 マイクロ QRPトランシーバー",
       en: "MICA-8 micro QRP transceiver",
+      es: "Transceptor QRP micro MICA-8",
+      de: "MICA-8-Mikro-QRP-Transceiver",
+      ru: "Микро-QRP-трансивер MICA-8",
     },
   },
 ]);
@@ -48,14 +51,14 @@ export const KEY_OPTIONS = Object.freeze([
   {
     id: "manual",
     image: "./assets/manual-key.png",
-    names: { "zh-CN": "手键", "zh-TW": "手鍵", ja: "縦振り電鍵", en: "Straight key" },
-    controls: { "zh-CN": "空格键", "zh-TW": "空白鍵", ja: "スペース", en: "Space" },
+    names: { "zh-CN": "手键", "zh-TW": "手鍵", ja: "縦振り電鍵", en: "Straight key", es: "Manipulador vertical", de: "Handtaste", ru: "Ручной ключ" },
+    controls: { "zh-CN": "空格键", "zh-TW": "空白鍵", ja: "スペース", en: "Space", es: "Espacio", de: "Leertaste", ru: "Пробел" },
   },
   {
     id: "automatic",
     image: "./assets/automatic-key.png",
-    names: { "zh-CN": "自动键", "zh-TW": "自動鍵", ja: "オートキー", en: "Automatic paddle" },
-    controls: { "zh-CN": "Z 短音 / X 长音", "zh-TW": "Z 短音 / X 長音", ja: "Z 短点 / X 長点", en: "Z dot / X dash" },
+    names: { "zh-CN": "自动键", "zh-TW": "自動鍵", ja: "オートキー", en: "Automatic paddle", es: "Pala automática", de: "Automatische Taste", ru: "Автоматический ключ" },
+    controls: { "zh-CN": "Z 短音 / X 长音", "zh-TW": "Z 短音 / X 長音", ja: "Z 短点 / X 長点", en: "Z dot / X dash", es: "Z punto / X raya", de: "Z Punkt / X Strich", ru: "Z точка / X тире" },
   },
 ]);
 

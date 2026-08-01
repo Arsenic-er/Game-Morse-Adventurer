@@ -36,6 +36,30 @@ const TEXT = {
     save: "Save log and settle", next: "Start next QSO", restart: "Restart this QSO", continue: "Return to station",
     failedHint: "The reply did not complete the minimum QSO flow. No credits are deducted and no log entry is written.",
   },
+  es: {
+    success: "QSO completado", failed: "QSO incompleto", saved: "Guardado en el registro permanente", unsaved: "Pendiente de registro",
+    callsign: "Indicativo remoto", region: "Región", distance: "Distancia", rst: "RST intercambiado", propagation: "Nivel de propagación",
+    equipment: "Resumen de equipo", speed: "Velocidad detectada", accuracy: "Precisión de transmisión", rhythm: "Ritmo de manipulación", repeats: "Peticiones de repetición",
+    credits: "Créditos obtenidos", sim: "Estación ficticia", newRegion: "Primer contacto en la región", newDistance: "Nuevo récord de distancia",
+    save: "Guardar registro y liquidar", next: "Iniciar siguiente QSO", restart: "Reiniciar este QSO", continue: "Volver a la estación",
+    failedHint: "La respuesta no completó el flujo QSO mínimo. No se descuentan créditos ni se escribe ninguna entrada.",
+  },
+  de: {
+    success: "QSO abgeschlossen", failed: "QSO unvollständig", saved: "Im dauerhaften Log gespeichert", unsaved: "Wartet auf Protokollierung",
+    callsign: "Gegenstationsrufzeichen", region: "Region", distance: "Entfernung", rst: "Ausgetauschter RST", propagation: "Ausbreitungsstufe",
+    equipment: "Ausrüstungsübersicht", speed: "Erkannte Geschwindigkeit", accuracy: "Sendegenauigkeit", rhythm: "Tastrhythmus", repeats: "Wiederholungsanfragen",
+    credits: "Verdiente Kredite", sim: "Fiktive Station", newRegion: "Erster Kontakt in der Region", newDistance: "Neuer Entfernungsrekord",
+    save: "Log speichern und abrechnen", next: "Nächstes QSO starten", restart: "Dieses QSO neu starten", continue: "Zurück zur Station",
+    failedHint: "Die Antwort hat den minimalen QSO-Ablauf nicht abgeschlossen. Es werden keine Kredite abgezogen und kein Logeintrag geschrieben.",
+  },
+  ru: {
+    success: "QSO завершено", failed: "QSO не завершено", saved: "Сохранено в постоянном журнале", unsaved: "Ожидает записи в журнал",
+    callsign: "Позывной корреспондента", region: "Регион", distance: "Расстояние", rst: "Обмен RST", propagation: "Уровень прохождения",
+    equipment: "Снимок оборудования", speed: "Определённая скорость", accuracy: "Точность передачи", rhythm: "Ритм ключа", repeats: "Запросы повтора",
+    credits: "Получено кредитов", sim: "Вымышленная станция", newRegion: "Первая связь в регионе", newDistance: "Новый рекорд расстояния",
+    save: "Сохранить журнал и рассчитать", next: "Начать следующее QSO", restart: "Начать это QSO заново", continue: "Вернуться на станцию",
+    failedHint: "Ответ не завершил минимальный порядок QSO. Кредиты не списываются, запись в журнал не создаётся.",
+  },
 };
 
 function value(value, suffix = "") {
@@ -74,6 +98,30 @@ const REVIEW_TEXT = {
     independent: "Independent watch", qualified: "Qualified", notQualified: "Not qualified", unavailable: "Not recorded in legacy log", rewardBreakdown: "Reward breakdown",
     baseReward: "Base reward", independentBonus: "Independent-watch bonus", totalReward: "Total",
     PLAYER_CQ: "Call CQ", PLAYER_RST_AND_73: "Exchange RST / 73", missingCq: "CQ is missing", missingDe: "DE is missing", missingPlayerCallsign: "Your callsign is missing", wrongCqOrder: "CQ message is out of order", missingK: "Final K is missing", invalidAgn: "A repeat request must be AGN K", missingCallsign: "Both callsigns are required", invalidRst: "RST format is invalid", missing73: "73 is missing", wrongReplyOrder: "Reply message is out of order", notWaitingForPlayer: "This stage is not accepting a transmission",
+  },
+  es: {
+    title: "Revisión de operación", empty: "Este registro antiguo no contiene historial de intentos", stage: "Etapa", message: "Mensaje", reason: "Motivo",
+    accepted: "Aceptado", error: "Error", repeat: "Repetición", unknown: "Sin registro", wpm: "WPM", accuracy: "Precisión", rhythm: "Ritmo",
+    guidance: "Guía", full: "Completa", hints: "Solo pistas", off: "Desactivada", visualAssist: "Ayuda visual", used: "Usada", unused: "No usada",
+    independent: "Guardia independiente", qualified: "Apto", notQualified: "No apto", unavailable: "No consta en el registro antiguo", rewardBreakdown: "Desglose de recompensa",
+    baseReward: "Recompensa base", independentBonus: "Bono de guardia independiente", totalReward: "Total",
+    PLAYER_CQ: "Llamar CQ", PLAYER_RST_AND_73: "Intercambiar RST / 73", missingCq: "Falta CQ", missingDe: "Falta DE", missingPlayerCallsign: "Falta tu indicativo", wrongCqOrder: "El mensaje CQ está desordenado", missingK: "Falta la K final", invalidAgn: "La petición de repetición debe ser AGN K", missingCallsign: "Se requieren ambos indicativos", invalidRst: "El formato RST no es válido", missing73: "Falta 73", wrongReplyOrder: "El mensaje de respuesta está desordenado", notWaitingForPlayer: "Esta etapa no acepta una transmisión",
+  },
+  de: {
+    title: "Betriebsauswertung", empty: "Dieses ältere Log enthält keinen Versuchsverlauf", stage: "Phase", message: "Nachricht", reason: "Grund",
+    accepted: "Akzeptiert", error: "Fehler", repeat: "Wiederholung", unknown: "Nicht erfasst", wpm: "WPM", accuracy: "Genauigkeit", rhythm: "Rhythmus",
+    guidance: "Führung", full: "Vollständig", hints: "Nur Hinweise", off: "Aus", visualAssist: "Visuelle Hilfe", used: "Benutzt", unused: "Nicht benutzt",
+    independent: "Selbstständige Wache", qualified: "Bestanden", notQualified: "Nicht bestanden", unavailable: "Im älteren Log nicht erfasst", rewardBreakdown: "Belohnungsaufschlüsselung",
+    baseReward: "Grundbelohnung", independentBonus: "Bonus für selbstständige Wache", totalReward: "Gesamt",
+    PLAYER_CQ: "CQ rufen", PLAYER_RST_AND_73: "RST / 73 austauschen", missingCq: "CQ fehlt", missingDe: "DE fehlt", missingPlayerCallsign: "Dein Rufzeichen fehlt", wrongCqOrder: "CQ-Nachricht hat die falsche Reihenfolge", missingK: "Abschließendes K fehlt", invalidAgn: "Eine Wiederholungsanfrage muss AGN K sein", missingCallsign: "Beide Rufzeichen sind erforderlich", invalidRst: "RST-Format ist ungültig", missing73: "73 fehlt", wrongReplyOrder: "Antwort hat die falsche Reihenfolge", notWaitingForPlayer: "Diese Phase nimmt keine Sendung an",
+  },
+  ru: {
+    title: "Разбор работы", empty: "В старой записи нет истории попыток", stage: "Этап", message: "Сообщение", reason: "Причина",
+    accepted: "Принято", error: "Ошибка", repeat: "Повтор", unknown: "Не записано", wpm: "WPM", accuracy: "Точность", rhythm: "Ритм",
+    guidance: "Подсказки", full: "Полные", hints: "Только намёки", off: "Выкл.", visualAssist: "Визуальная помощь", used: "Использована", unused: "Не использована",
+    independent: "Самостоятельная вахта", qualified: "Зачёт", notQualified: "Нет зачёта", unavailable: "Нет в старой записи", rewardBreakdown: "Состав награды",
+    baseReward: "Базовая награда", independentBonus: "Бонус самостоятельной вахты", totalReward: "Итого",
+    PLAYER_CQ: "Вызвать CQ", PLAYER_RST_AND_73: "Обменяться RST / 73", missingCq: "Отсутствует CQ", missingDe: "Отсутствует DE", missingPlayerCallsign: "Отсутствует ваш позывной", wrongCqOrder: "Неверный порядок сообщения CQ", missingK: "Нет завершающего K", invalidAgn: "Запрос повтора должен быть AGN K", missingCallsign: "Нужны оба позывных", invalidRst: "Неверный формат RST", missing73: "Отсутствует 73", wrongReplyOrder: "Неверный порядок ответа", notWaitingForPlayer: "На этом этапе передача не принимается",
   },
 };
 

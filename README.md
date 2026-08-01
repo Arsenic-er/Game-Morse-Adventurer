@@ -4,7 +4,7 @@
 
 ### A pixel-art CW amateur radio station adventure
 
-[**English**](./README.md) · [**简体中文**](./README.zh-CN.md) · [**繁體中文**](./README.zh-TW.md) · [**日本語**](./README.ja.md)
+[**English**](./README.md) · [**简体中文**](./README.zh-CN.md) · [**繁體中文**](./README.zh-TW.md) · [**日本語**](./README.ja.md) · [**Español**](./README.es.md) · [**Deutsch**](./README.de.md) · [**Русский**](./README.ru.md)
 
 [![Windows portable](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml/badge.svg)](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml)
 
@@ -25,8 +25,8 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 
 ## Highlights
 
-- Hard-edged dark pixel UI using the Fusion Bold Pixel font family.
-- English, Simplified Chinese, Traditional Chinese, and Japanese interfaces.
+- Hard-edged dark pixel UI using Fusion Bold Pixel for English, Chinese, and Japanese, plus Press Start 2P for Spanish, German, and Russian.
+- English, Simplified Chinese, Traditional Chinese, Japanese, Spanish, German, and Russian interfaces with a persistent language preference.
 - A location-aware Home management center with filter-highlighted station, warehouse, shop, log, achievement, and a new interactive `MORSE CODE` book hotspot that opens practice without leaving the active save.
 - Three local save slots with a seven-character uppercase callsign, fixed starting location, swappable equipment, and credits.
 - Standard Morse timing, fixed 650 Hz sidetone, decoding, rhythm scoring, and straight-key WPM detection.
@@ -42,14 +42,14 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - Weakness review updates lifetime attempts, correct answers, averages, weakness weights, recent targets, and last-practiced time, but is never eligible to advance, reset, or otherwise change the formal lesson, its scored block, or completed-lesson count.
 - Each correct review answer removes at most one weakness point from its target, while an incorrect answer still adds one. Multi-character prompts recover the eligible character with the highest current weight, breaking ties by target order. The five-question pool remains fixed; a target that reaches zero leaves the next review pool.
 - A player-led fictional QSO loop: the receiver opens automatically, the player calls CQ, propagation determines whether a station responds, and a successful contact continues through callsigns, RST, 73/SK, credits, and logging.
-- A four-language first-watch briefing and full/hints/off duty coach teach each QSO stage without revealing the remote callsign during blind copy.
+- A seven-language first-watch briefing and full/hints/off duty coach teach each QSO stage without revealing the remote callsign during blind copy.
 - `AGN K` repeats the same remote station over the same channel without changing propagation, attempts, or rewards; malformed messages retain their decoded text for correction instead of ending the QSO after two errors.
 - QSO messages are validated in radio order: remote call, `DE`, player call, `RST`, report, `73`, then `K`; misplaced or missing procedural signs receive a specific correction instead of a false pass.
 - Persistent QSO result pages and logbook entries include callsign, region, distance, RST, propagation, equipment, WPM, transmit accuracy, rhythm, repeat-request count, and a line-by-line operating review of accepted, rejected, and repeat attempts.
 - Completing a QSO with guidance off and without opening visual assistance qualifies as an independent watch and awards an extra 50 credits on top of the 100-credit base reward.
-- A four-language achievement archive derives six permanent milestones from durable QSO records and retained logs without granting duplicate rewards. Newly unlocked QSO achievements appear immediately in a non-blocking notification queue.
+- A seven-language achievement archive derives six permanent milestones from durable QSO records and retained logs without granting duplicate rewards. Newly unlocked QSO achievements appear immediately in a non-blocking notification queue.
 - Atomic, idempotent credit settlement prevents a completed QSO from being rewarded more than once.
-- A four-language station store supports atomic purchases, persistent ownership, and warehouse-only equipment changes.
+- A seven-language station store supports atomic purchases, persistent ownership, and warehouse-only equipment changes.
 - The first replacement radio, the fictional MICA-8, costs 800 credits and is inspired by open uSDX/uSDR QRP concepts: a 5 W eight-band hardware profile, 20% lower receiver noise, 15% shallower perceived QSB through AGC, and paired idle/TX pixel artwork whose red diode lights only while transmitting. Current gameplay remains fixed at 21.060 MHz CW.
 - A single accessory slot supports the 300-credit CW-500 audio filter, centered at 650 Hz with a 500 Hz bandwidth and 35% lower receiver noise; the equipped accessory is preserved in QSO logs.
 - Station clocks display both the selected station's local time and UTC.
@@ -80,7 +80,7 @@ The automated suite covers the CW core and repeating keyer, receiver audio filte
 
 ## Project status
 
-Version **v0.22.0** adds five fictional-callsign reception filters without adding radios, antennas, or accessories. All preserves the existing eight-target pool; Japan, United States, China, and Europe each provide eight unique `SIM` targets, unlocked 2/4/6/8 across four lessons. The shuffled bag, recent-four avoidance, and weakness review stay inside the selected region's currently unlocked pool. Practice-record schema v3 migrates older saves to All, restores the selected region and matching pool after reload, and clears the entire callsign recent-target window when the player changes region while preserving lifetime results, weaknesses, formal lesson scoring, unlocks, and the aggregate 19-lesson progress. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
+Version **v0.23.0** extends the full game interface and GitHub introduction to English, Simplified Chinese, Traditional Chinese, Japanese, Spanish, German, and Russian. Language choice is detected from the system on first launch, persists independently of save slots, and is available on both the title screen and Settings. Press Start 2P supplies pixel glyphs for Spanish, German, and Russian. The v0.22 regional fictional-callsign filters, schema-v3 migration, weakness review, and 19-lesson progress remain intact. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
 
 ## Rights and third-party software
 

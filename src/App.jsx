@@ -44,6 +44,7 @@ import { QsoResultModal } from "./screens/QsoResultModal.jsx";
 import { SaveSelectScreen } from "./screens/SaveSelectScreen.jsx";
 import { StationManualModal } from "./screens/StationManualModal.jsx";
 import { AchievementNotification } from "./screens/AchievementsModal.jsx";
+import { LANGUAGES, loadLanguagePreference, persistLanguagePreference } from "./i18n/languageRegistry.js";
 
 const ASSETS = {
   room: "./assets/radio-room-bg.png",
@@ -55,20 +56,16 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.22.0";
+const BUILD_VERSION = "0.23.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
   ja: { missing: "アンテナ未装備のため無線交信は停止中", equip: "管理センターの倉庫でアンテナを装備してください" },
   en: { missing: "No antenna equipped — RF operation disabled", equip: "Equip an antenna in the Management Center warehouse" },
+  es: { missing: "No hay antena equipada — operación RF desactivada", equip: "Equipa una antena en el almacén del Centro de Gestión" },
+  de: { missing: "Keine Antenne ausgerüstet — Funkbetrieb deaktiviert", equip: "Rüste im Lager des Verwaltungszentrums eine Antenne aus" },
+  ru: { missing: "Антенна не установлена — радиосвязь отключена", equip: "Установите антенну на складе Центра управления" },
 };
-
-const LANGUAGES = [
-  { id: "zh-CN", label: "简体中文", short: "简" },
-  { id: "zh-TW", label: "繁體中文", short: "繁" },
-  { id: "ja", label: "日本語", short: "日" },
-  { id: "en", label: "English", short: "EN" },
-];
 
 const COPY = {
   "zh-CN": {
@@ -143,6 +140,60 @@ const COPY = {
     phaseWaiting: "Play the NPC calling message", phaseReply: "Send both callsigns", phaseNpcRst: "Play the NPC RST", phasePlayerRst: "Send RST and 73",
     phaseFinal: "Play 73 / SK", phaseComplete: "QSO complete; save the log", phaseFailed: "QSO failed; restart", invalidReply: "Reply format is not valid",
   },
+  es: {
+    subtitle: "Simulador de estación de radioaficionado", newGame: "Iniciar guardia", continue: "Continuar guardia", practice: "Práctica de CW", fieldGuide: "Manual de estación", callsignDisclaimer: "Todos los indicativos de este juego son ajenos a los indicativos reales. Cualquier parecido es pura coincidencia.",
+    prototype: "Prototipo completo M5", language: "Idioma", settings: "Ajustes", close: "Cerrar", interface: "Idioma de la interfaz",
+    keyType: "Tipo de manipulador", manual: "Manipulador vertical", automatic: "Pala automática", manualHint: "Mantén Espacio para transmitir",
+    automaticHint: "Z envía puntos / X envía rayas; mantén para repetir", automaticSpeed: "Velocidad de la pala automática", automaticSpeedHint: "Solo afecta a la pala automática; la velocidad del manipulador vertical se detecta automáticamente", configuredSpeed: "Velocidad del manipulador", apply: "Aplicar ajustes", station: "Guardia de estación", log: "Registro QSO", time: "Hora",
+    call: "Indicativo", frequency: "Frecuencia", mode: "Modo", contact: "QSO actual", sent: "Enviado", received: "Recibido",
+    location: "Ubicación", notes: "Notas", newContact: "Nuevo QSO", clearInput: "Borrar entrada", propagation: "Propagación",
+    openMap: "Abrir mapa de propagación", detected: "Detección automática", detectedSpeed: "Velocidad detectada", tx: "Transmitir", idle: "Recibiendo",
+    reply: "Responder", send: "Enviar", saveLog: "Guardar registro", saved: "Registro guardado", map: "Mapa de propagación",
+    worldMode: "Mapa mundial normal", heatMode: "Mapa de nivel de propagación", legend: "Nivel de propagación", back: "Volver al inicio",
+    qsoReady: "Esperando a que termine la llamada de la otra estación…", qsoReply: "Enviando respuesta…", qsoSent: "Respuesta enviada. Esperando reporte…",
+    fixedToneHint: "El tono del kit es fijo; la velocidad automática es ajustable y la manual se detecta", filterActive: "Filtro de 500 Hz", playCq: "Reproducir CQ", replayInput: "Reproducir entrada", target: "Objetivo",
+    decoded: "Decodificado", accuracy: "Precisión de transmisión", rhythm: "Ritmo", powerOn: "Encender", powerOff: "Apagar", cwReady: "Núcleo CW listo", cwPlaying: "Reproduciendo CQ estándar",
+    cwKeying: "Grabando manipulación", cwReplay: "Reproduciendo entrada", cwCaptured: "Entrada capturada", cwReceiving: "Recibiendo CW",
+    playNpc: "Reproducir estación", submitReply: "Enviar respuesta", restartQso: "Reiniciar", credits: "Créditos", sim: "Estación ficticia", propLevel: "Nivel de propagación",
+    phaseWaiting: "Reproduce la llamada de la estación NPC", phaseReply: "Envía ambos indicativos", phaseNpcRst: "Reproduce el RST de la estación NPC", phasePlayerRst: "Envía RST y 73",
+    phaseFinal: "Reproduce 73 / SK", phaseComplete: "QSO completado; guarda el registro", phaseFailed: "QSO fallido; reinicia", invalidReply: "El formato de respuesta no es válido",
+  },
+  de: {
+    subtitle: "Amateurfunk-Stationssimulator", newGame: "Funkwache beginnen", continue: "Funkwache fortsetzen", practice: "CW-Training", fieldGuide: "Stationshandbuch", callsignDisclaimer: "Alle Rufzeichen in diesem Spiel stehen in keinem Zusammenhang mit realen Rufzeichen. Ähnlichkeiten sind rein zufällig.",
+    prototype: "Vollständiger M5-Prototyp", language: "Sprache", settings: "Einstellungen", close: "Schließen", interface: "Oberflächensprache",
+    keyType: "Tastentyp", manual: "Handtaste", automatic: "Automatische Taste", manualHint: "Leertaste zum Senden halten",
+    automaticHint: "Z sendet Punkte / X Striche; halten zum Wiederholen", automaticSpeed: "Tempo der automatischen Taste", automaticSpeedHint: "Wirkt nur auf die automatische Taste; das Tempo der Handtaste wird automatisch erkannt", configuredSpeed: "Tasttempo", apply: "Einstellungen anwenden", station: "Funkwache", log: "QSO-Log", time: "Zeit",
+    call: "Rufzeichen", frequency: "Frequenz", mode: "Betriebsart", contact: "Aktuelles QSO", sent: "Gesendet", received: "Empfangen",
+    location: "Standort", notes: "Notizen", newContact: "Neues QSO", clearInput: "Eingabe löschen", propagation: "Ausbreitung",
+    openMap: "Ausbreitungskarte öffnen", detected: "Automatisch erkannt", detectedSpeed: "Erkanntes Tempo", tx: "Senden", idle: "Empfang",
+    reply: "Antwort", send: "Senden", saveLog: "Log speichern", saved: "Log gespeichert", map: "Ausbreitungskarte",
+    worldMode: "Normale Weltkarte", heatMode: "Karte der Ausbreitungsstufe", legend: "Ausbreitungsstufe", back: "Zurück zum Titel",
+    qsoReady: "Warten auf das Ende des Gegenrufs…", qsoReply: "Antwort wird gesendet…", qsoSent: "Antwort gesendet. Warte auf Rapport…",
+    fixedToneHint: "Der Bausatzton ist fest; das Automatiktasten-Tempo ist einstellbar, Handtasten-Tempo wird erkannt", filterActive: "500-Hz-Filter", playCq: "CQ abspielen", replayInput: "Eingabe abspielen", target: "Ziel",
+    decoded: "Dekodiert", accuracy: "Sendegenauigkeit", rhythm: "Rhythmus", powerOn: "Einschalten", powerOff: "Ausschalten", cwReady: "CW-Kern bereit", cwPlaying: "Standard-CQ wird abgespielt",
+    cwKeying: "Tastung wird aufgezeichnet", cwReplay: "Eingabe wird abgespielt", cwCaptured: "Eingabe erfasst", cwReceiving: "CW-Empfang",
+    playNpc: "Station abspielen", submitReply: "Antwort senden", restartQso: "Neu starten", credits: "Kredite", sim: "Fiktive Station", propLevel: "Ausbreitungsstufe",
+    phaseWaiting: "Ruf der NPC-Station abspielen", phaseReply: "Beide Rufzeichen senden", phaseNpcRst: "RST der NPC-Station abspielen", phasePlayerRst: "RST und 73 senden",
+    phaseFinal: "73 / SK abspielen", phaseComplete: "QSO abgeschlossen; Log speichern", phaseFailed: "QSO fehlgeschlagen; neu starten", invalidReply: "Antwortformat ist ungültig",
+  },
+  ru: {
+    subtitle: "Симулятор любительской радиостанции", newGame: "Начать дежурство", continue: "Продолжить дежурство", practice: "Практика CW", fieldGuide: "Руководство станции", callsignDisclaimer: "Все позывные в этой игре не связаны с реальными позывными. Любые совпадения случайны.",
+    prototype: "Полный прототип M5", language: "Язык", settings: "Настройки", close: "Закрыть", interface: "Язык интерфейса",
+    keyType: "Тип ключа", manual: "Ручной ключ", automatic: "Автоматический ключ", manualHint: "Удерживайте Пробел для передачи",
+    automaticHint: "Z передаёт точки / X тире; удерживайте для повтора", automaticSpeed: "Скорость автоматического ключа", automaticSpeedHint: "Влияет только на автоматический ключ; скорость ручного ключа определяется автоматически", configuredSpeed: "Скорость ключа", apply: "Применить настройки", station: "Дежурство", log: "Журнал QSO", time: "Время",
+    call: "Позывной", frequency: "Частота", mode: "Режим", contact: "Текущее QSO", sent: "Передано", received: "Принято",
+    location: "Место", notes: "Заметки", newContact: "Новое QSO", clearInput: "Очистить ввод", propagation: "Прохождение",
+    openMap: "Открыть карту прохождения", detected: "Автоопределение", detectedSpeed: "Определённая скорость", tx: "Передача", idle: "Приём",
+    reply: "Ответ", send: "Передать", saveLog: "Сохранить журнал", saved: "Журнал сохранён", map: "Карта прохождения",
+    worldMode: "Обычная карта мира", heatMode: "Карта уровня прохождения", legend: "Уровень прохождения", back: "Назад к заставке",
+    qsoReady: "Ожидание окончания вызова другой станции…", qsoReply: "Передача ответа…", qsoSent: "Ответ передан. Ожидание рапорта…",
+    fixedToneHint: "Тон набора фиксирован; скорость автоматического ключа регулируется, ручного — определяется", filterActive: "Фильтр 500 Гц", playCq: "Воспроизвести CQ", replayInput: "Воспроизвести ввод", target: "Цель",
+    decoded: "Декодировано", accuracy: "Точность передачи", rhythm: "Ритм", powerOn: "Включить", powerOff: "Выключить", cwReady: "Ядро CW готово", cwPlaying: "Воспроизводится стандартный CQ",
+    cwKeying: "Запись манипуляции", cwReplay: "Воспроизведение ввода", cwCaptured: "Ввод записан", cwReceiving: "Приём CW",
+    playNpc: "Воспроизвести станцию", submitReply: "Передать ответ", restartQso: "Начать заново", credits: "Кредиты", sim: "Вымышленная станция", propLevel: "Уровень прохождения",
+    phaseWaiting: "Воспроизведите вызов станции NPC", phaseReply: "Передайте оба позывных", phaseNpcRst: "Воспроизведите RST станции NPC", phasePlayerRst: "Передайте RST и 73",
+    phaseFinal: "Воспроизведите 73 / SK", phaseComplete: "QSO завершено; сохраните журнал", phaseFailed: "QSO не удалось; начните заново", invalidReply: "Неверный формат ответа",
+  },
 };
 
 const STATION_FLOW_COPY = {
@@ -174,15 +225,22 @@ const STATION_FLOW_COPY = {
     phaseFinal: "Automatically receiving 73 / SK", noResponse: "No reply this time. You may call CQ again.",
     invalidCq: "CQ format is not valid", noContact: "No response yet", blindContact: "Blind copy · identify the call from audio", blindIncomingLine: "REMOTE // CW RX", listeningLine: "LISTENING // 21.060 MHz",
   },
+  es: {
+    sendCq: "Enviar CQ", sendMessage: "Enviar mensaje", receiverLive: "Receptor abierto · ruido de fondo", receiverRecovering: "Recepción interrumpida · recuperación automática…",
+    phaseCq: "Envía una llamada CQ", phaseWaitingResponse: "CQ enviado. Escuchando respuestas…", phaseNpcReply: "Recibiendo automáticamente una estación que responde…", phasePlayerRst: "Envía ambos indicativos, RST y 73",
+    phaseFinal: "Recibiendo automáticamente 73 / SK", noResponse: "No hubo respuesta. Puedes volver a llamar CQ.", invalidCq: "El formato de CQ no es válido", noContact: "Aún no hay respuesta", blindContact: "Copia a oído · identifica el indicativo por el audio", blindIncomingLine: "REMOTE // RX CW", listeningLine: "ESCUCHANDO // 21.060 MHz",
+  },
+  de: {
+    sendCq: "CQ senden", sendMessage: "Nachricht senden", receiverLive: "Empfänger offen · Hintergrundrauschen", receiverRecovering: "Empfang unterbrochen · automatische Wiederherstellung…",
+    phaseCq: "CQ-Ruf senden", phaseWaitingResponse: "CQ gesendet. Warte auf Antworten…", phaseNpcReply: "Antwortende Station wird automatisch empfangen…", phasePlayerRst: "Beide Rufzeichen, RST und 73 senden",
+    phaseFinal: "73 / SK wird automatisch empfangen", noResponse: "Diesmal keine Antwort. Du kannst erneut CQ rufen.", invalidCq: "CQ-Format ist ungültig", noContact: "Noch keine Antwort", blindContact: "Blindmitschrift · Rufzeichen aus dem Ton erkennen", blindIncomingLine: "REMOTE // CW RX", listeningLine: "EMPFANG // 21.060 MHz",
+  },
+  ru: {
+    sendCq: "Передать CQ", sendMessage: "Передать сообщение", receiverLive: "Приёмник открыт · фоновый шум", receiverRecovering: "Приём прерван · автоматическое восстановление…",
+    phaseCq: "Передайте вызов CQ", phaseWaitingResponse: "CQ передан. Слушаем ответы…", phaseNpcReply: "Автоматический приём ответившей станции…", phasePlayerRst: "Передайте оба позывных, RST и 73",
+    phaseFinal: "Автоматический приём 73 / SK", noResponse: "В этот раз ответа нет. Можно снова вызвать CQ.", invalidCq: "Неверный формат CQ", noContact: "Ответа пока нет", blindContact: "Слепой приём · определите позывной по звуку", blindIncomingLine: "REMOTE // ПРИЁМ CW", listeningLine: "ПРИЁМ // 21.060 MHz",
+  },
 };
-
-function detectLanguage() {
-  const language = navigator.language || "en";
-  if (/^zh-(TW|HK|MO)/i.test(language)) return "zh-TW";
-  if (/^zh/i.test(language)) return "zh-CN";
-  if (/^ja/i.test(language)) return "ja";
-  return "en";
-}
 
 function IconButton({ label, children, className = "", ...props }) {
   return <button className={`icon-button ${className}`} aria-label={label} title={label} {...props}>{children}</button>;
@@ -192,7 +250,7 @@ function LanguageMenu({ language, onSelect, compact = false }) {
   return (
     <div className={`language-menu ${compact ? "compact" : ""}`} role="menu">
       {LANGUAGES.map((item) => (
-        <button key={item.id} className={language === item.id ? "selected" : ""} onClick={() => onSelect(item.id)} role="menuitem">
+        <button key={item.id} data-language-id={item.id} className={language === item.id ? "selected" : ""} onClick={() => onSelect(item.id)} role="menuitem">
           <span className="language-short">{item.short}</span><span>{item.label}</span>
           {language === item.id && <Check size={17} weight="bold" />}
         </button>
@@ -797,7 +855,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
 }
 
 export function App() {
-  const [language, setLanguage] = useState(detectLanguage);
+  const [language, setLanguage] = useState(loadLanguagePreference);
   const [keyType, setKeyType] = useState("manual");
   const [automaticKeyWpm, setAutomaticKeyWpm] = useState(DEFAULT_AUTOMATIC_KEY_WPM);
   const [qsoGuidance, setQsoGuidance] = useState("full");
@@ -810,7 +868,10 @@ export function App() {
   const savesRef = useRef(saves);
   const [activeSaveId, setActiveSaveId] = useState(() => loadActiveSaveId());
   const activeSave = saves.find((save) => save.id === activeSaveId) ?? null;
-  useEffect(() => { document.documentElement.lang = language; }, [language]);
+  useEffect(() => {
+    document.documentElement.lang = language;
+    persistLanguagePreference(language);
+  }, [language]);
 
   function commitSaves(nextSavesOrUpdater) {
     const nextSaves = typeof nextSavesOrUpdater === "function"

@@ -267,6 +267,141 @@ const TEXT = {
       },
     ],
   },
+  es: {
+    title: "Manual de la estación", kicker: "Guía rápida del operador CW", close: "Cerrar manual de la estación", previous: "Capítulo anterior", next: "Capítulo siguiente", chapter: "Capítulo", noteLabel: "Nota del operador", shortcut: "Flechas para pasar página · ESC para cerrar",
+    chapters: [
+      {
+        tab: "Iniciar guardia", code: "Conceptos básicos y partidas", title: "Construye tu primera estación", summary: "Una partida nueva comienza con un guardado independiente. Tu indicativo, ubicación, equipo y créditos permanecen vinculados a esa estación.",
+        cards: [
+          { title: "Elige un indicativo", body: "El indicativo puede contener hasta 7 letras inglesas y números. Las minúsculas se convierten en mayúsculas. Todos los demás indicativos del juego son ficticios." },
+          { title: "Elige una ubicación", body: "Selecciona una ciudad inicial de China, Japón, Estados Unidos o Europa. Determina la tarjeta de guardado, la ventana del centro de gestión y el paisaje de la estación." },
+          { title: "Carga una partida", body: "Iniciar guardia abre primero la selección de partidas. Cada tarjeta muestra indicativo, ubicación, radio, antena y créditos antes de entrar al centro de gestión." },
+          { title: "Centro de gestión", body: "Usa la radio de la mesa para entrar en la estación, el armario para el almacén y el portátil para la tienda. El registro y la página de logros del periódico también son interactivos." },
+        ],
+        tip: "Confirma primero tu indicativo y ubicación. Al guardar, se convierten en la identidad de esta estación.",
+      },
+      {
+        tab: "Escuchar y CQ", code: "Recepción y llamada", title: "La frecuencia está abierta al llegar", summary: "El receptor comienza a vigilar al abrir la estación. El ruido de fondo continuo indica que estás de guardia; no existe un botón de recepción independiente.",
+        cards: [
+          { title: "Escucha primero", body: "Al entrar en la frecuencia quizá solo oigas ruido de fondo. Comprueba la propagación y escucha el canal antes de llamar." },
+          { title: "Envía un CQ completo", body: "Manipula la llamada CQ completa. El sistema solo intenta generar una respuesta remota después de reconocer un CQ válido y completo de tu estación." },
+          { title: "Espera una respuesta", body: "No se garantiza una respuesta tras cada CQ. El nivel final de propagación determina la probabilidad; el ruido y el desvanecimiento QSB solo afectan a la claridad con que llega." },
+          { title: "Completa el QSO", body: "Sigue el objetivo actual para intercambiar indicativos e informes. Tras el éxito, guarda el registro, liquida los créditos y vuelve o inicia el siguiente QSO." },
+        ],
+        tip: "El ruido de fondo no es una avería: es el sonido del receptor activo vigilando la frecuencia.",
+      },
+      {
+        tab: "Control del manipulador", code: "Manipulador vertical y automático", title: "Elige cómo transmitir", summary: "El manipulador vertical permite dar forma a cada pulsación. El automático produce puntos y rayas estándar. Ambos usan el mismo tono fijo, pero aplican reglas de velocidad diferentes.",
+        cards: [
+          { title: "Vertical · Espacio", body: "Mantén Espacio para transmitir y suéltalo para terminar el pulso. Una pulsación corta crea un punto y una larga una raya; la velocidad y el ritmo se detectan a partir de tus tiempos reales." },
+          { title: "Automático · Z / X", body: "Z envía puntos y X envía rayas. Mantener una tecla repite ese elemento con el espaciado estándar hasta soltarla." },
+          { title: "Ajusta los WPM automáticos", body: "Selecciona el manipulador automático en Ajustes y usa menos, más o el deslizador para elegir 5–40 WPM. El valor se guarda en la partida actual." },
+          { title: "Enviar y registrar", body: "El automático usa los WPM configurados y el vertical detecta la velocidad. Tras manipular CQ o una respuesta, pulsa Enviar o F2; tras el éxito, F3 registra el QSO, y tras un fallo F3 lo reinicia." },
+        ],
+        tip: "Manipulador automático: Z = · y X = −. Mantén la tecla para repetir elementos sin pulsarla continuamente.",
+      },
+      {
+        tab: "Propagación", code: "Mapa, antenas y accesorios", title: "El equipo y las ondas deciden juntos", summary: "El mapa de propagación es funcional, no decorativo. Su intensidad de campo alimenta los cálculos de señal, ruido, desvanecimiento y respuestas remotas.",
+        cards: [
+          { title: "Cambia el modo del mapa", body: "El icono del globo muestra el mapa mundial normal y el icono térmico los niveles de propagación. Haz clic en el mapa para ampliar las condiciones actuales." },
+          { title: "Equipa una antena", body: "Elige y equipa antenas en la categoría Antenas del almacén. Sin antena, el lugar exterior queda vacío y el contacto RF se desactiva por completo." },
+          { title: "Usa accesorios", body: "El almacén dispone de una ranura activa de accesorio y tres reservadas. Compra un accesorio en la tienda y vuelve al almacén para equiparlo." },
+          { title: "Filtro CW-500", body: "El CW-500 ofrece recepción estrecha de 500 Hz centrada en 650 Hz y reduce el ruido del receptor un 35 %. Mejora la escucha, pero no cambia la propagación ni la probabilidad de respuesta." },
+        ],
+        tip: "Una buena antena mejora la estación, una buena propagación abre el camino y el filtro solo procesa el ruido final del receptor.",
+      },
+    ],
+  },
+  de: {
+    title: "Stationshandbuch", kicker: "CW-Kurzanleitung für Operatoren", close: "Stationshandbuch schließen", previous: "Vorheriges Kapitel", next: "Nächstes Kapitel", chapter: "Kapitel", noteLabel: "Operatorhinweis", shortcut: "Pfeiltasten blättern · ESC schließt",
+    chapters: [
+      {
+        tab: "Wache beginnen", code: "Grundlagen und Spielstände", title: "Baue deine erste Station", summary: "Ein neues Spiel beginnt mit einem eigenen Spielstand. Rufzeichen, Standort, Ausrüstung und Kredite bleiben mit dieser Station verbunden.",
+        cards: [
+          { title: "Rufzeichen wählen", body: "Ein Rufzeichen darf bis zu 7 englische Buchstaben und Ziffern enthalten. Kleinbuchstaben werden großgeschrieben. Alle anderen Rufzeichen im Spiel sind fiktiv." },
+          { title: "Standort wählen", body: "Wähle eine Startstadt in China, Japan, den Vereinigten Staaten oder Europa. Sie bestimmt Spielstandkarte, Fenster des Verwaltungszentrums und Stationslandschaft." },
+          { title: "Spielstand laden", body: "Wache beginnen öffnet zuerst die Spielstandauswahl. Jede Karte zeigt Rufzeichen, Standort, Funkgerät, Antenne und Kredite, bevor du das Verwaltungszentrum betrittst." },
+          { title: "Verwaltungszentrum", body: "Das Funkgerät auf dem Tisch führt zur Station, der Schrank zum Lager und der Laptop zum Laden. Logbuch und Erfolgsseite in der Zeitung sind ebenfalls interaktiv." },
+        ],
+        tip: "Bestätige zuerst Rufzeichen und Standort. Nach dem Speichern bilden sie die Identität dieser Station.",
+      },
+      {
+        tab: "Hören und CQ", code: "Empfang und Anruf", title: "Die Frequenz ist beim Eintreffen offen", summary: "Der Empfänger überwacht sofort beim Öffnen der Station. Ständiges Hintergrundrauschen bedeutet, dass du auf Wache bist; es gibt keine separate Empfangstaste.",
+        cards: [
+          { title: "Zuerst hören", body: "Beim Betreten der Frequenz hörst du möglicherweise nur Hintergrundrauschen. Prüfe die Ausbreitung und höre den Kanal ab, bevor du rufst." },
+          { title: "Vollständiges CQ senden", body: "Taste den vollständigen CQ-Ruf. Das System versucht erst dann eine Gegenstationsantwort, wenn es ein gültiges, vollständiges CQ deiner Station erkennt." },
+          { title: "Auf Antwort warten", body: "Nicht auf jedes CQ folgt garantiert eine Antwort. Die endgültige Ausbreitungsstufe bestimmt die Chance; Rauschen und QSB beeinflussen nur, wie klar die Antwort ankommt." },
+          { title: "QSO abschließen", body: "Folge dem aktuellen Ziel und tausche Rufzeichen und Rapporte aus. Speichere nach Erfolg das Log, rechne die Kredite ab und kehre zurück oder starte das nächste QSO." },
+        ],
+        tip: "Hintergrundrauschen ist kein Fehler. Es ist der Klang eines aktiven Empfängers, der die Frequenz überwacht.",
+      },
+      {
+        tab: "Tastensteuerung", code: "Handtaste und automatische Taste", title: "Wähle deine Tastweise", summary: "Mit der Handtaste formst du jeden Druck selbst. Die automatische Taste erzeugt genormte Punkte und Striche. Beide nutzen denselben festen Ton, aber unterschiedliche Geschwindigkeitsregeln.",
+        cards: [
+          { title: "Handtaste · Leertaste", body: "Halte die Leertaste zum Senden und lasse sie los, um den Impuls zu beenden. Kurz ergibt einen Punkt, lang einen Strich; Geschwindigkeit und Rhythmus werden aus deinem echten Timing erkannt." },
+          { title: "Automatisch · Z / X", body: "Z sendet Punkte, X sendet Striche. Beim Halten wiederholt sich das Element im Standardabstand bis zum Loslassen." },
+          { title: "Automatik-WPM einstellen", body: "Wähle in den Einstellungen die automatische Taste und stelle mit Minus, Plus oder Schieberegler 5–40 WPM ein. Der Wert wird im aktuellen Spielstand gespeichert." },
+          { title: "Senden und protokollieren", body: "Die automatische Taste nutzt die eingestellten WPM, bei der Handtaste wird die Geschwindigkeit erkannt. Sende CQ oder Antwort mit Senden bzw. F2; nach Erfolg protokolliert F3 das QSO, nach Fehlschlag startet F3 neu." },
+        ],
+        tip: "Automatische Taste: Z = · und X = −. Halte eine Taste für fortlaufende Elemente, statt wiederholt zu tippen.",
+      },
+      {
+        tab: "Ausbreitung", code: "Karte, Antennen, Zubehör", title: "Ausrüstung und Funkwellen entscheiden gemeinsam", summary: "Die Ausbreitungskarte ist funktional, nicht dekorativ. Ihre Feldstärke fließt in Signalpegel, Rauschen, Fading und Antworten der Gegenstation ein.",
+        cards: [
+          { title: "Kartenmodus wechseln", body: "Das Globussymbol zeigt die normale Weltkarte, das Wärmekartensymbol die Ausbreitungsstufen. Ein Klick auf die Karte öffnet eine größere Ansicht der aktuellen Bedingungen." },
+          { title: "Antenne ausrüsten", body: "Wähle Antennen in der Lagerkategorie Antenne und rüste sie aus. Ohne Antenne bleibt die Außenposition leer und Funkverbindungen sind vollständig deaktiviert." },
+          { title: "Zubehör verwenden", body: "Das Lager besitzt derzeit einen aktiven Zubehörplatz und drei reservierte Plätze. Kaufe Zubehör im Laden und rüste es anschließend im Lager aus." },
+          { title: "CW-500-Filter", body: "Der CW-500 bietet 500 Hz Schmalbandempfang um 650 Hz und senkt das Empfängerrauschen um 35 %. Er verbessert das Hören, ändert aber weder Ausbreitung noch Antwortchance." },
+        ],
+        tip: "Eine gute Antenne verbessert die Station, gute Ausbreitung öffnet den Weg, und der Filter verarbeitet nur das letztlich hörbare Empfängerrauschen.",
+      },
+    ],
+  },
+  ru: {
+    title: "Руководство станции", kicker: "Краткое руководство оператора CW", close: "Закрыть руководство станции", previous: "Предыдущая глава", next: "Следующая глава", chapter: "Глава", noteLabel: "Заметка оператора", shortcut: "Стрелки листают страницы · ESC закрывает",
+    chapters: [
+      {
+        tab: "Начать вахту", code: "Основы и сохранения", title: "Создайте свою первую станцию", summary: "Новая игра начинается с отдельного сохранения. Позывной, место, оборудование и кредиты остаются привязаны к этой станции.",
+        cards: [
+          { title: "Выберите позывной", body: "Позывной может содержать до 7 английских букв и цифр. Строчные буквы автоматически становятся прописными. Все прочие позывные в игре вымышлены." },
+          { title: "Выберите место", body: "Выберите начальный город в Китае, Японии, США или Европе. От него зависят карточка сохранения, вид из окна Центра управления и пейзаж станции." },
+          { title: "Загрузите сохранение", body: "Начать вахту сначала открывает выбор сохранения. До входа в Центр управления каждая карточка показывает позывной, место, радиостанцию, антенну и кредиты." },
+          { title: "Центр управления", body: "Радиостанция на столе ведёт к рабочему месту, шкаф — на склад, ноутбук — в магазин. Журнал и страница достижений в газете тоже интерактивны." },
+        ],
+        tip: "Сначала проверьте позывной и место. После сохранения они станут идентичностью этой станции.",
+      },
+      {
+        tab: "Слушать и CQ", code: "Приём и вызов", title: "Частота открыта сразу после входа", summary: "Приёмник начинает наблюдение при открытии экрана станции. Постоянный фоновый шум означает, что вы на вахте; отдельной кнопки Приём нет.",
+        cards: [
+          { title: "Сначала слушайте", body: "При входе на частоту вы можете услышать лишь фоновый шум. Проверьте прохождение и послушайте канал перед вызовом." },
+          { title: "Передайте полный CQ", body: "Передайте полный вызов CQ. Система пытается вызвать ответ корреспондента только после распознавания правильного и завершённого CQ вашей станции." },
+          { title: "Ждите ответа", body: "Ответ после каждого CQ не гарантирован. Итоговый уровень прохождения определяет вероятность; шум и замирания QSB влияют только на разборчивость ответа." },
+          { title: "Завершите QSO", body: "Следуйте текущей задаче, чтобы обменяться позывными и рапортами. После успеха сохраните журнал, начислите кредиты, затем вернитесь или начните следующее QSO." },
+        ],
+        tip: "Фоновый шум — не неисправность. Это звук активного приёмника, наблюдающего частоту.",
+      },
+      {
+        tab: "Управление ключом", code: "Ручной и автоматический ключи", title: "Выберите способ передачи", summary: "Ручной ключ позволяет формировать каждое нажатие. Автоматический создаёт стандартные точки и тире. Оба используют один фиксированный тон, но правила скорости различаются.",
+        cards: [
+          { title: "Ручной ключ · Пробел", body: "Удерживайте Пробел для передачи и отпустите, чтобы закончить импульс. Короткое нажатие даёт точку, долгое — тире; скорость и ритм определяются по вашему реальному времени." },
+          { title: "Автоматический · Z / X", body: "Z передаёт точки, X — тире. Удержание клавиши повторяет элемент со стандартным интервалом до отпускания." },
+          { title: "Настройте скорость автомата", body: "Выберите автоматический ключ в Настройках и задайте 5–40 WPM кнопками минус, плюс или ползунком. Значение сохраняется в текущем сохранении." },
+          { title: "Отправка и журнал", body: "Автомат использует заданную скорость, а скорость ручного ключа определяется автоматически. После CQ или ответа нажмите Отправить либо F2; после успеха F3 записывает QSO, после неудачи F3 начинает его заново." },
+        ],
+        tip: "Автоматический ключ: Z = ·, X = −. Удерживайте клавишу для непрерывных элементов вместо частых нажатий.",
+      },
+      {
+        tab: "Прохождение", code: "Карта, антенны, аксессуары", title: "Оборудование и радиоволны решают вместе", summary: "Карта прохождения функциональна, а не декоративна. Её напряжённость поля участвует в расчётах уровня сигнала, шума, замираний и ответов корреспондентов.",
+        cards: [
+          { title: "Переключайте режимы карты", body: "Значок глобуса показывает обычную карту мира, значок тепловой карты — уровни прохождения. Нажмите на карту, чтобы открыть крупный вид текущих условий." },
+          { title: "Установите антенну", body: "Выберите и установите антенну в категории Антенны на складе. Без антенны внешнее место остаётся пустым, а радиосвязь полностью отключается." },
+          { title: "Используйте аксессуары", body: "На складе есть одно активное место аксессуара и три зарезервированных. Купите аксессуар в магазине, затем вернитесь на склад и установите его." },
+          { title: "Фильтр CW-500", body: "CW-500 обеспечивает узкополосный приём 500 Гц с центром 650 Гц и уменьшает шум приёмника на 35 %. Слушать легче, но прохождение и вероятность ответа не меняются." },
+        ],
+        tip: "Хорошая антенна улучшает станцию, хорошее прохождение открывает путь, а фильтр обрабатывает только итоговый шум приёмника.",
+      },
+    ],
+  },
 };
 
 const CHAPTER_ICONS = [FloppyDisk, Broadcast, Keyboard, MapTrifold];

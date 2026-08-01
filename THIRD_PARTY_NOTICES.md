@@ -9,6 +9,14 @@ The following third-party projects are used by or distributed with Game-Morse-Ad
 - License: SIL Open Font License 1.1
 - Reserved Font Name: Fusion Pixel
 
+## Press Start 2P
+
+- Author: CodeMan38 and Google Fonts contributors
+- Project: https://github.com/google/fonts/tree/main/ofl/pressstart2p
+- Use: Pixel interface font for Spanish, German, and Russian
+- License: SIL Open Font License 1.1
+- Bundled license text: `src/assets/fonts/OFL-PressStart2P.txt`
+
 ## Phosphor Icons
 
 - Project: https://phosphoricons.com/

@@ -33,6 +33,24 @@ const TEXT = {
     enterCall: "Enter station callsign", callRule: "A–Z / 0–9 only, maximum 7 characters, auto uppercase", chooseRegion: "Choose region", chooseLocation: "Choose location",
     chooseAntenna: "Starting antenna", starterIncluded: "A half-wave dipole is included with the starter station", noSave: "Choose an empty slot to begin a new station record", delete: "Delete save", deleteConfirm: "Delete this save?",
   },
+  es: {
+    title: "Cargar partida", save: "Partida", empty: "Vacía · Nueva", lastSaved: "Último guardado", callsign: "Indicativo", equipment: "Equipo",
+    antenna: "Antena", credits: "Créditos", location: "Ubicación inicial", load: "Cargar partida", create: "Crear y cargar", back: "Volver",
+    enterCall: "Introduce el indicativo de la estación", callRule: "Solo A–Z / 0–9, máximo 7 caracteres, mayúsculas automáticas", chooseRegion: "Elegir región", chooseLocation: "Elegir ubicación",
+    chooseAntenna: "Antena inicial", starterIncluded: "La estación inicial incluye un dipolo de media onda", noSave: "Elige una ranura vacía para crear un nuevo registro de estación", delete: "Borrar partida", deleteConfirm: "¿Borrar esta partida?",
+  },
+  de: {
+    title: "Spielstand laden", save: "Spielstand", empty: "Leer · Neu", lastSaved: "Zuletzt gespeichert", callsign: "Rufzeichen", equipment: "Ausrüstung",
+    antenna: "Antenne", credits: "Kredite", location: "Startstandort", load: "Spielstand laden", create: "Erstellen und laden", back: "Zurück",
+    enterCall: "Stationsrufzeichen eingeben", callRule: "Nur A–Z / 0–9, höchstens 7 Zeichen, automatisch großgeschrieben", chooseRegion: "Region wählen", chooseLocation: "Standort wählen",
+    chooseAntenna: "Startantenne", starterIncluded: "Die Startstation enthält einen Halbwellendipol", noSave: "Wähle einen leeren Platz für einen neuen Stationsdatensatz", delete: "Spielstand löschen", deleteConfirm: "Diesen Spielstand löschen?",
+  },
+  ru: {
+    title: "Загрузить сохранение", save: "Сохранение", empty: "Пусто · Новое", lastSaved: "Последнее сохранение", callsign: "Позывной", equipment: "Оборудование",
+    antenna: "Антенна", credits: "Кредиты", location: "Начальное место", load: "Загрузить", create: "Создать и загрузить", back: "Назад",
+    enterCall: "Введите позывной станции", callRule: "Только A–Z / 0–9, не более 7 символов, автоматический верхний регистр", chooseRegion: "Выберите регион", chooseLocation: "Выберите место",
+    chooseAntenna: "Начальная антенна", starterIncluded: "В начальную станцию входит полуволновой диполь", noSave: "Выберите пустую ячейку, чтобы создать запись станции", delete: "Удалить сохранение", deleteConfirm: "Удалить это сохранение?",
+  },
 };
 
 export function SaveSelectScreen({
