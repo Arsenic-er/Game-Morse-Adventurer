@@ -46,7 +46,7 @@ Game-Morse-Adventurer is a local Windows game prototype for learning and using M
 - `AGN K` repeats the same remote station over the same channel without changing propagation, attempts, or rewards; malformed messages retain their decoded text for correction instead of ending the QSO after two errors.
 - QSO messages are validated in radio order: remote call, `DE`, player call, `RST`, report, `73`, then `K`; misplaced or missing procedural signs receive a specific correction instead of a false pass.
 - Persistent QSO result pages and logbook entries include callsign, region, distance, RST, propagation, equipment, WPM, transmit accuracy, rhythm, repeat-request count, and a line-by-line operating review of accepted, rejected, and repeat attempts.
-- Completing a QSO with guidance off and without opening visual assistance qualifies as an independent watch and awards an extra 50 credits on top of the 100-credit base reward.
+- Every settled QSO now stores a permanent seven-language reward breakdown: 100 base credits, +50 for an independent watch, +75 for a P0–P2 weak-signal contact, +20 for a first contact with a region, and +25 for a new distance record. The result page and Home logbook read the same schema-v4 ledger; legacy logs retain their historical totals without retroactive rewards.
 - A seven-language achievement archive derives six permanent milestones from durable QSO records and retained logs without granting duplicate rewards. Newly unlocked QSO achievements appear immediately in a non-blocking notification queue.
 - Atomic, idempotent credit settlement prevents a completed QSO from being rewarded more than once.
 - A seven-language station store supports atomic purchases, persistent ownership, and warehouse-only equipment changes.
@@ -80,7 +80,7 @@ The automated suite covers the CW core and repeating keyer, receiver audio filte
 
 ## Project status
 
-Version **v0.23.0** extends the full game interface and GitHub introduction to English, Simplified Chinese, Traditional Chinese, Japanese, Spanish, German, and Russian. Language choice is detected from the system on first launch, persists independently of save slots, and is available on both the title screen and Settings. Press Start 2P supplies pixel glyphs for Spanish, German, and Russian. The v0.22 regional fictional-callsign filters, schema-v3 migration, weakness review, and 19-lesson progress remain intact. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
+Version **v0.24.0** closes the QSO reward loop with atomic, idempotent settlement for the base contact, independent watch, P0–P2 weak-signal contact, first region, and distance-record bonuses. The exact breakdown is stored in QSO log schema v4 and remains visible on both the result page and Home logbook. Older logs keep their original totals without inferred bonuses or retroactive payouts. The seven-language interface, regional fictional-callsign training, weakness review, and 19-lesson progress remain intact. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
 
 ## Rights and third-party software
 

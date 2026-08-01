@@ -6,7 +6,7 @@ import {
 import {
   DEFAULT_AUTOMATIC_KEY_WPM, normalizeAutomaticKeyWpm,
 } from "../src/cw/automaticKeyer.js";
-import { recordCompletedQso } from "../src/qso/qsoLog.js";
+import { QSO_LOG_VERSION, recordCompletedQso } from "../src/qso/qsoLog.js";
 import { PRACTICE_MODES } from "../src/practice/practiceEngine.js";
 import { recordPracticeAttempt } from "../src/practice/practiceRecords.js";
 import { PRACTICE_CALLSIGN_REGIONS } from "../src/practice/practiceCallsignCatalog.js";
@@ -84,7 +84,8 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
   assert.equal(save.qsoLogs.length, 1);
   assert.equal(save.qsoLogs[0].id, "legacy-qso");
   assert.equal(save.qsoLogs[0].callsign, "SIM7QX");
-  assert.equal(save.qsoLogs[0].version, 3);
+  assert.equal(save.qsoLogs[0].version, QSO_LOG_VERSION);
+  assert.equal(save.qsoLogs[0].rewardBreakdown, null);
   assert.equal(save.qsoLogs[0].guidanceLevel, "full");
   assert.equal(save.qsoLogs[0].visualAssistUsed, false);
   assert.equal(save.qsoLogs[0].independentWatch, false);

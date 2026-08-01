@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  MAX_QSO_ATTEMPT_HISTORY, MAX_QSO_LOGS, appendQsoLog, normalizeQsoLogEntry, normalizeQsoLogs,
+  MAX_QSO_ATTEMPT_HISTORY, MAX_QSO_LOGS, QSO_LOG_VERSION, appendQsoLog, normalizeQsoLogEntry, normalizeQsoLogs,
   normalizeQsoRecords, recordCompletedQso,
 } from "../src/qso/qsoLog.js";
 
@@ -44,9 +44,9 @@ function entry(overrides = {}) {
   };
 }
 
-test("normalizes the complete QSO log v3 schema", () => {
+test("normalizes the complete QSO log v4 schema", () => {
   const normalized = normalizeQsoLogEntry(entry());
-  assert.equal(normalized.version, 3);
+  assert.equal(normalized.version, QSO_LOG_VERSION);
   assert.equal(normalized.startedAt, "2026-07-15T00:00:00.000Z");
   assert.equal(normalized.completedAt, "2026-07-15T00:05:00.000Z");
   assert.equal(normalized.playerCallsign, "BH1ABC");
@@ -64,6 +64,7 @@ test("normalizes the complete QSO log v3 schema", () => {
   assert.equal(normalized.guidanceLevel, "off");
   assert.equal(normalized.visualAssistUsed, false);
   assert.equal(normalized.independentWatch, true);
+  assert.equal(normalized.rewardBreakdown, null);
   assert.deepEqual(normalized.attemptHistory, [{
     stage: "PLAYER_RST_AND_73",
     message: "SIM7QX DE BH1ABC RST 559 73 K",
@@ -75,7 +76,7 @@ test("normalizes the complete QSO log v3 schema", () => {
   }]);
 });
 
-test("legacy QSO logs safely migrate to v3 defaults", () => {
+test("legacy QSO logs safely migrate to v4 defaults without retroactive rewards", () => {
   const normalized = normalizeQsoLogEntry(entry({
     version: 1,
     accessoryId: undefined,
@@ -88,13 +89,15 @@ test("legacy QSO logs safely migrate to v3 defaults", () => {
     attemptHistory: undefined,
   }));
   assert.equal(normalized.accessoryId, "none");
-  assert.equal(normalized.version, 3);
+  assert.equal(normalized.version, QSO_LOG_VERSION);
   assert.equal(normalized.repeatRequests, 0);
   assert.equal(normalized.transmitAccuracy, 87.7);
   assert.equal("copyAccuracy" in normalized, false);
   assert.equal(normalized.guidanceLevel, "full");
   assert.equal(normalized.visualAssistUsed, false);
   assert.equal(normalized.independentWatch, false);
+  assert.equal(normalized.rewardBreakdown, null);
+  assert.equal(normalized.credits, 150);
   assert.deepEqual(normalized.attemptHistory, []);
 });
 
@@ -104,6 +107,31 @@ test("v3 assistance fields enforce independent-watch integrity", () => {
   const invalidGuidance = normalizeQsoLogEntry(entry({ guidanceLevel: "unknown" }));
   assert.equal(invalidGuidance.guidanceLevel, "full");
   assert.equal(invalidGuidance.independentWatch, false);
+});
+
+test("persists a safe reward breakdown and derives its credit total", () => {
+  const normalized = normalizeQsoLogEntry(entry({
+    credits: 9999,
+    rewardBreakdown: {
+      version: 1,
+      base: 100,
+      independentWatch: 50,
+      weakSignal: 75,
+      newRegion: 20,
+      newDistanceRecord: 25,
+      total: 1,
+    },
+  }));
+  assert.equal(normalized.credits, 270);
+  assert.deepEqual(normalized.rewardBreakdown, {
+    version: 1,
+    base: 100,
+    independentWatch: 50,
+    weakSignal: 75,
+    newRegion: 20,
+    newDistanceRecord: 25,
+    total: 270,
+  });
 });
 
 test("attempt history is sanitized and capped to the newest valid records", () => {
@@ -190,7 +218,20 @@ test("records a completed QSO atomically and idempotently", () => {
   assert.equal(first.added, true);
   assert.equal(first.newRegion, true);
   assert.equal(first.newDistanceRecord, true);
-  assert.equal(first.save.credits, 175);
+  assert.equal(first.creditsAwarded, 195);
+  assert.equal(first.save.credits, 220);
+  assert.strictEqual(first.settledEntry, first.save.qsoLogs.find((log) => log.id === "SIM7QX-1"));
+  assert.deepEqual(first.rewardBreakdown, {
+    version: 1,
+    base: 100,
+    independentWatch: 50,
+    weakSignal: 0,
+    newRegion: 20,
+    newDistanceRecord: 25,
+    total: 195,
+  });
+  assert.deepEqual(first.settledEntry.rewardBreakdown, first.rewardBreakdown);
+  assert.equal(first.settledEntry.credits, 195);
   assert.deepEqual(first.save.ownedEquipment, ["squid-01"]);
   assert.deepEqual(first.save.ownedAntennas, ["dipole", "vertical"]);
   assert.deepEqual(first.save.accessories, []);
@@ -210,7 +251,10 @@ test("records a completed QSO atomically and idempotently", () => {
   assert.equal(duplicate.newRegion, false);
   assert.equal(duplicate.newDistanceRecord, false);
   assert.strictEqual(duplicate.save, first.save);
-  assert.equal(duplicate.save.credits, 175);
+  assert.equal(duplicate.save.credits, 220);
+  assert.equal(duplicate.creditsAwarded, 0);
+  assert.deepEqual(duplicate.rewardBreakdown, first.rewardBreakdown);
+  assert.deepEqual(duplicate.settledEntry, first.settledEntry);
   assert.equal(duplicate.save.qsoRecords.total, 8);
 });
 
@@ -225,6 +269,77 @@ test("reports ordinary contacts without false milestones", () => {
   assert.equal(result.newRegion, false);
   assert.equal(result.newDistanceRecord, false);
   assert.equal(result.save.qsoRecords.longestQsoId, "far");
+  assert.equal(result.creditsAwarded, 150);
+  assert.deepEqual(result.rewardBreakdown, {
+    version: 1,
+    base: 100,
+    independentWatch: 50,
+    weakSignal: 0,
+    newRegion: 0,
+    newDistanceRecord: 0,
+    total: 150,
+  });
+});
+
+test("awards weak-signal credit at P2 but not P3", () => {
+  const save = {
+    credits: 10,
+    qsoLogs: [entry({ id: "far", location: "NA-W", distanceKm: 9000 })],
+    qsoRecords: { total: 1, longestDistanceKm: 9000, longestQsoId: "far", contactedRegions: ["NA-W"] },
+  };
+  const p2 = recordCompletedQso(save, entry({
+    id: "p2", distanceKm: 1000, finalPropagationLevel: 2,
+    guidanceLevel: "full", independentWatch: false,
+  }));
+  assert.equal(p2.creditsAwarded, 175);
+  assert.equal(p2.save.credits, 185);
+  assert.equal(p2.rewardBreakdown.weakSignal, 75);
+
+  const p3 = recordCompletedQso(p2.save, entry({
+    id: "p3", distanceKm: 1100, finalPropagationLevel: 3,
+    guidanceLevel: "full", independentWatch: false,
+  }));
+  assert.equal(p3.creditsAwarded, 100);
+  assert.equal(p3.save.credits, 285);
+  assert.equal(p3.rewardBreakdown.weakSignal, 0);
+});
+
+test("does not infer a weak-signal reward from a missing or invalid propagation level", () => {
+  const save = {
+    credits: 10,
+    qsoLogs: [entry({ id: "far", location: "NA-W", distanceKm: 9000, finalPropagationLevel: 4 })],
+    qsoRecords: {
+      total: 1,
+      longestDistanceKm: 9000,
+      longestQsoId: "far",
+      contactedRegions: ["NA-W"],
+      weakSignalQsos: 0,
+    },
+  };
+  for (const [id, finalPropagationLevel] of [["missing-level", undefined], ["invalid-level", -1]]) {
+    const result = recordCompletedQso(save, entry({
+      id,
+      distanceKm: 100,
+      finalPropagationLevel,
+      guidanceLevel: "full",
+      independentWatch: false,
+    }));
+    assert.equal(result.creditsAwarded, 100);
+    assert.equal(result.rewardBreakdown.weakSignal, 0);
+    assert.equal(result.save.qsoRecords.weakSignalQsos, 0);
+  }
+});
+
+test("does not retroactively award credits to a legacy settled log", () => {
+  const legacyEntry = entry({ id: "legacy", version: 3, rewardBreakdown: undefined, credits: 150 });
+  const save = { credits: 7, qsoLogs: [legacyEntry], qsoRecords: null };
+  const retry = recordCompletedQso(save, legacyEntry);
+  assert.equal(retry.added, false);
+  assert.strictEqual(retry.save, save);
+  assert.equal(retry.save.credits, 7);
+  assert.equal(retry.creditsAwarded, 0);
+  assert.equal(retry.rewardBreakdown, null);
+  assert.equal(retry.settledEntry.credits, 150);
 });
 
 test("keeps settlements idempotent after an old log is evicted", () => {

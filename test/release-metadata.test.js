@@ -20,7 +20,10 @@ test("release metadata uses the package version across the game, QA, and localiz
     "packaged QA must assert the same title-screen version",
   );
 
-  for (const readme of ["README.md", "README.zh-CN.md", "README.zh-TW.md", "README.ja.md"]) {
+  for (const readme of [
+    "README.md", "README.zh-CN.md", "README.zh-TW.md", "README.ja.md",
+    "README.es.md", "README.de.md", "README.ru.md",
+  ]) {
     assert.ok(read(readme).includes(`**v${version}**`), `${readme} must describe v${version}`);
   }
   assert.ok(

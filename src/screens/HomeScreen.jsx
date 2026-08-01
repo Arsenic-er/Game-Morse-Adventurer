@@ -8,6 +8,7 @@ import { ACCESSORIES, accessoryName, getAccessory } from "../game/accessoryCatal
 import { TRANSMITTERS, equipmentName, getTransmitter } from "../game/equipmentCatalog.js";
 import { getLocation, locationName } from "../game/locations.js";
 import { LocationArtwork } from "../game/LocationArtwork.jsx";
+import { QsoRewardBreakdown } from "../components/QsoRewardBreakdown.jsx";
 import { summarizePracticeProgress } from "../practice/practiceRecords.js";
 import { AchievementsModal } from "./AchievementsModal.jsx";
 import { StoreModal } from "./StoreModal.jsx";
@@ -328,6 +329,7 @@ function QsoLogModal({ language, save, onClose }) {
                 <div><dt>{t.repeats}</dt><dd>{formatMetric(firstValue(selected.repeatRequests, 0))}</dd></div>
                 <div className="qso-log-credit-fact"><dt>{t.credits}</dt><dd><Coins size={17} weight="fill" />{formatCredits(firstValue(selected.credits, selected.creditsAwarded))}</dd></div>
               </dl>
+              <QsoRewardBreakdown language={language} breakdown={selected.rewardBreakdown ?? null} credits={firstValue(selected.credits, selected.creditsAwarded)} compact />
               <QsoLogReview entry={selected} language={language} />
             </article>
           </div>

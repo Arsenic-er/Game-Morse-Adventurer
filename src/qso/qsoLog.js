@@ -1,3 +1,10 @@
+import {
+  calculateQsoRewardBreakdown,
+  isWeakSignalLevel,
+  normalizeQsoRewardBreakdown,
+} from "../game/qsoRewards.js";
+
+export const QSO_LOG_VERSION = 4;
 export const MAX_QSO_LOGS = 200;
 export const MAX_QSO_ATTEMPT_HISTORY = 50;
 
@@ -105,8 +112,9 @@ export function normalizeQsoLogEntry(entry) {
 
   const guidanceLevel = normalizeGuidanceLevel(entry.guidanceLevel);
   const visualAssistUsed = entry.visualAssistUsed === true;
+  const rewardBreakdown = normalizeQsoRewardBreakdown(entry.rewardBreakdown);
   return {
-    version: 3,
+    version: QSO_LOG_VERSION,
     id: normalizeId(entry.id, callsign, completedAt),
     startedAt,
     completedAt,
@@ -135,7 +143,9 @@ export function normalizeQsoLogEntry(entry) {
     visualAssistUsed,
     independentWatch: entry.independentWatch === true && guidanceLevel === "off" && !visualAssistUsed,
     attemptHistory: normalizeAttemptHistory(entry.attemptHistory),
-    credits: Math.max(0, Math.floor(finiteNumber(entry.credits ?? entry.creditsAwarded))),
+    rewardBreakdown,
+    credits: rewardBreakdown?.total
+      ?? Math.max(0, Math.floor(finiteNumber(entry.credits ?? entry.creditsAwarded))),
     isFictional: entry.isFictional !== false,
   };
 }
@@ -211,12 +221,34 @@ export function recordCompletedQso(save, candidate) {
   const currentLogs = normalizeQsoLogs(save.qsoLogs);
   const previousRecords = normalizeQsoRecords(save.qsoRecords, currentLogs);
   if (previousRecords.settledQsoIds.includes(entry.id)) {
-    return { save, added: false, newRegion: false, newDistanceRecord: false };
+    const settledEntry = currentLogs.find((log) => log.id === entry.id) ?? null;
+    return {
+      save,
+      added: false,
+      newRegion: false,
+      newDistanceRecord: false,
+      settledEntry,
+      rewardBreakdown: settledEntry?.rewardBreakdown ?? null,
+      creditsAwarded: 0,
+    };
   }
 
   const newRegion = !previousRecords.contactedRegions.includes(entry.location);
   const newDistanceRecord = !previousRecords.longestQsoId || entry.distanceKm > previousRecords.longestDistanceKm;
-  const qsoLogs = appendQsoLog(currentLogs, entry);
+  const settlementPropagationLevel = candidate?.finalPropagationLevel ?? candidate?.finalLevel;
+  const rewardBreakdown = calculateQsoRewardBreakdown({
+    independentWatch: entry.independentWatch,
+    finalPropagationLevel: settlementPropagationLevel,
+    newRegion,
+    newDistanceRecord,
+  });
+  const settledEntry = normalizeQsoLogEntry({
+    ...entry,
+    rewardBreakdown,
+    credits: rewardBreakdown.total,
+  });
+  const qsoLogs = appendQsoLog(currentLogs, settledEntry);
+  const persistedEntry = qsoLogs.find((log) => log.id === settledEntry.id) ?? settledEntry;
   const contactedRegions = newRegion
     ? [...previousRecords.contactedRegions, entry.location].sort()
     : previousRecords.contactedRegions;
@@ -225,15 +257,18 @@ export function recordCompletedQso(save, candidate) {
     longestDistanceKm: newDistanceRecord ? entry.distanceKm : previousRecords.longestDistanceKm,
     longestQsoId: newDistanceRecord ? entry.id : previousRecords.longestQsoId,
     contactedRegions,
-    weakSignalQsos: previousRecords.weakSignalQsos + (entry.finalPropagationLevel <= 2 ? 1 : 0),
+    weakSignalQsos: previousRecords.weakSignalQsos + (isWeakSignalLevel(settlementPropagationLevel) ? 1 : 0),
     settledQsoIds: [...previousRecords.settledQsoIds, entry.id].sort(),
   };
-  const credits = Math.max(0, finiteNumber(save.credits)) + entry.credits;
+  const credits = Math.max(0, finiteNumber(save.credits)) + rewardBreakdown.total;
 
   return {
     save: { ...save, credits, qsoLogs, qsoRecords },
     added: true,
     newRegion,
     newDistanceRecord,
+    settledEntry: persistedEntry,
+    rewardBreakdown,
+    creditsAwarded: rewardBreakdown.total,
   };
 }

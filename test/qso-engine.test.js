@@ -5,7 +5,7 @@ import {
   qsoCanAcceptPlayer, qsoNeedsNpcPlayback, resolveCqResponse,
   restartQso, submitPlayerMessage, validatePlayerMessage,
 } from "../src/qso/qsoEngine.js";
-import { MAX_QSO_ATTEMPT_HISTORY } from "../src/qso/qsoLog.js";
+import { MAX_QSO_ATTEMPT_HISTORY, QSO_LOG_VERSION } from "../src/qso/qsoLog.js";
 
 const npc = {
   callsign: "SIM7QX", regionId: "NA-SIM", latitude: 37.77, longitude: -122.42,
@@ -80,7 +80,7 @@ test("completes the minimum QSO state machine", () => {
   assert.equal(log.visualAssistUsed, true);
   assert.equal(log.independentWatch, false);
   assert.equal(log.attemptHistory.length, 2);
-  assert.equal(log.version, 3);
+  assert.equal(log.version, QSO_LOG_VERSION);
   assert.equal(log.credits, 100);
   assert.equal(log.isFictional, true);
 });

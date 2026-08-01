@@ -56,7 +56,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.23.0";
+const BUILD_VERSION = "0.24.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -562,7 +562,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       window.removeEventListener("blur", onBlur);
       cw.stopAll();
     };
-  }, [antennaReady, briefingOpen, cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll, inputBlocked, keyType, mapOpen, powered, qso, retryRequired]);
+  }, [antennaReady, briefingOpen, cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll, inputBlocked, keyType, mapOpen, powered, qso, retryRequired, save, saved]);
 
   function submitReply() {
     if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
@@ -694,7 +694,9 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     setSettlementMeta({
       newRegion: settlement.newRegion,
       newDistanceRecord: settlement.newDistanceRecord,
-      creditsAwarded: settlement.added ? entry.credits : 0,
+      creditsAwarded: settlement.creditsAwarded,
+      rewardBreakdown: settlement.rewardBreakdown,
+      settledEntry: settlement.settledEntry,
     });
     setSaved(true);
   }
@@ -740,7 +742,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const decodedText = cw.analysis.decoded || "---";
   const utc = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
   const local = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: location.timeZone });
-  const displayLineFull = qso.phase === QSO_PHASES.QSO_COMPLETE ? `QSO COMPLETE +${qso.creditsAwarded}`
+  const displayLineFull = qso.phase === QSO_PHASES.QSO_COMPLETE ? "QSO COMPLETE"
     : qso.phase === QSO_PHASES.QSO_FAILED ? "QSO FAILED"
       : qso.phase === QSO_PHASES.WAITING_RESPONSE ? flow.listeningLine
       : qsoCanAcceptPlayer(qso) ? (cw.analysis.decoded || "...")
@@ -753,8 +755,11 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const resultMeta = settlementMeta ?? (pendingSettlement ? {
     newRegion: pendingSettlement.newRegion,
     newDistanceRecord: pendingSettlement.newDistanceRecord,
-    creditsAwarded: pendingSettlement.added ? resultEntry.credits : 0,
+    creditsAwarded: pendingSettlement.creditsAwarded,
+    rewardBreakdown: pendingSettlement.rewardBreakdown,
+    settledEntry: pendingSettlement.settledEntry,
   } : null);
+  const displayedResultEntry = resultMeta?.settledEntry ?? resultEntry;
   const liveContactRevealed = qso.contactRevealed === true;
   const blindContact = !selectedLog && qso.hasContact && !liveContactRevealed;
   const contactVisible = Boolean(selectedLog || liveContactRevealed);
@@ -846,7 +851,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       {!mapOpen && briefingOpen && <QsoBriefingModal language={language} guidance={save.qsoGuidance} onStart={startBriefedWatch} onSkip={skipBriefing} onClose={closeBriefing} />}
       {!mapOpen && !briefingOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_FAILED && <QsoResultModal language={language} failed onRestart={saveOrRestart} />}
       {!mapOpen && !briefingOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_COMPLETE && <QsoResultModal
-        language={language} entry={resultEntry} creditsAwarded={resultMeta?.creditsAwarded ?? 0} saved={saved}
+        language={language} entry={displayedResultEntry} creditsAwarded={resultMeta?.creditsAwarded ?? 0} saved={saved}
+        rewardBreakdown={resultMeta?.rewardBreakdown ?? null}
         newRegion={resultMeta?.newRegion} newDistanceRecord={resultMeta?.newDistanceRecord}
         onSave={saveOrRestart} onNext={startNewQso} onClose={() => saved && setResultDismissed(true)}
       />}

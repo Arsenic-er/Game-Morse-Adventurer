@@ -2,6 +2,7 @@ import {
   ArrowClockwise, Broadcast, CheckCircle, FloppyDisk, Gauge, MapPin, Radio,
   Ruler, ShieldCheck, WarningCircle, X,
 } from "@phosphor-icons/react";
+import { QsoRewardBreakdown } from "../components/QsoRewardBreakdown.jsx";
 
 const TEXT = {
   "zh-CN": {
@@ -172,11 +173,9 @@ function QsoAttemptHistory({ entry, language }) {
 
 export function QsoResultModal({
   language, failed = false, entry = null, creditsAwarded = 0, saved = false,
-  newRegion = false, newDistanceRecord = false, onSave, onRestart, onNext, onClose,
+  rewardBreakdown = null, onSave, onRestart, onNext, onClose,
 }) {
   const t = TEXT[language] ?? TEXT.en;
-  const hasReviewData = Array.isArray(entry?.attemptHistory) && entry.attemptHistory.length > 0;
-  const independentBonus = hasReviewData && entry?.independentWatch === true ? 50 : 0;
   return (
     <div className="qso-result-backdrop">
       <section className={`qso-result-modal ${failed ? "failed" : "success"}`} role="dialog" aria-modal="true" aria-labelledby="qso-result-title">
@@ -213,12 +212,7 @@ export function QsoResultModal({
             <div className="qso-result-rewards">
               <span>{saved ? t.saved : t.unsaved}</span>
               <strong>+{creditsAwarded} <small>{t.credits}</small></strong>
-              <div className="qso-reward-breakdown">
-                <i>{(REVIEW_TEXT[language] ?? REVIEW_TEXT.en).baseReward} +{Math.max(0, Number(creditsAwarded || 0) - independentBonus)}</i>
-                {independentBonus > 0 && <i data-reward="independent-watch">{(REVIEW_TEXT[language] ?? REVIEW_TEXT.en).independentBonus} +50</i>}
-                {!hasReviewData && <i>{(REVIEW_TEXT[language] ?? REVIEW_TEXT.en).independent}: ---</i>}
-                {newRegion && <b>{t.newRegion}</b>}{newDistanceRecord && <b>{t.newDistance}</b>}
-              </div>
+              <QsoRewardBreakdown language={language} breakdown={rewardBreakdown} credits={creditsAwarded} compact />
             </div>
           </div>
         )}
