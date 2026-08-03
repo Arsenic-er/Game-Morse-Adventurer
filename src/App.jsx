@@ -39,7 +39,9 @@ import {
   qsoCanAcceptPlayer, qsoNeedsNpcPlayback, resolveCqResponse, restartQso, submitPlayerMessage,
 } from "./qso/qsoEngine.js";
 import { recordCompletedQso } from "./qso/qsoLog.js";
+import { QSO_EXIT_RISKS, qsoExitRisk } from "./qso/qsoExitGuard.js";
 import { HomeScreen } from "./screens/HomeScreen.jsx";
+import { QsoLeaveConfirmModal } from "./screens/QsoLeaveConfirmModal.jsx";
 import { QsoResultModal } from "./screens/QsoResultModal.jsx";
 import { SaveSelectScreen } from "./screens/SaveSelectScreen.jsx";
 import { StationManualModal } from "./screens/StationManualModal.jsx";
@@ -56,7 +58,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.24.0";
+const BUILD_VERSION = "0.25.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -415,6 +417,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const [qsoSerial, setQsoSerial] = useState(0);
   const [npcPlaybackRetry, setNpcPlaybackRetry] = useState(0);
   const [npcPlaybackRecovering, setNpcPlaybackRecovering] = useState(false);
+  const [exitRequest, setExitRequest] = useState(null);
+  const exitConfirmingRef = useRef(false);
   const propagationKey = `${clock.getUTCFullYear()}-${clock.getUTCMonth()}-${clock.getUTCDate()}-${clock.getUTCHours()}-${Math.floor(clock.getUTCMinutes() / 10)}`;
   const propagationMap = useMemo(() => generatePropagationMap({ playerLocation, utc: clock }), [playerLocation, propagationKey]);
   const initialNpc = useMemo(() => selectNpcForQso(propagationMap, { playerEquipmentBonus, seed: `${propagationKey}:0` }), [playerEquipmentBonus, propagationMap, propagationKey]);
@@ -432,6 +436,11 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     automaticWpm: save.automaticKeyWpm,
   });
   const isTx = cw.isTransmitting;
+  const exitRisk = qsoExitRisk(qso, {
+    saved,
+    pulseCount: cw.analysis.pulseCount,
+    isKeying: cw.isKeying,
+  });
   const retryRequired = Boolean(qso.lastError && qso.lastError !== "noResponse");
   const npcChannel = useMemo(
     () => channelProfileForLevel(qso.npc.finalLevel, qso.npc, {
@@ -457,16 +466,30 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   }, []);
 
   useEffect(() => {
-    if (!powered) {
+    if (!powered || exitRequest) {
       cw.stopListening();
       return undefined;
     }
     cw.startListening(receiverChannel);
     return () => cw.stopListening();
-  }, [cw.startListening, cw.stopListening, powered, receiverChannel]);
+  }, [cw.startListening, cw.stopListening, exitRequest, powered, receiverChannel]);
 
   useEffect(() => {
-    if (briefingOpen || qso.phase !== QSO_PHASES.WAITING_RESPONSE || !powered || !antennaReady) return undefined;
+    window.cwgameSystem?.setQsoUnloadGuard?.(exitRisk, language);
+    function onBeforeUnload(event) {
+      if (exitRisk === QSO_EXIT_RISKS.NONE) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.cwgameSystem?.setQsoUnloadGuard?.(QSO_EXIT_RISKS.NONE, language);
+    };
+  }, [exitRisk, language]);
+
+  useEffect(() => {
+    if (briefingOpen || exitRequest || qso.phase !== QSO_PHASES.WAITING_RESPONSE || !powered || !antennaReady) return undefined;
     const delay = window.cwgameSystem?.qaCapture ? 60 : 1800;
     const timer = window.setTimeout(() => {
       const seed = `${propagationKey}:${qsoSerial}:${qso.unansweredCalls}:${save.callsign}`;
@@ -479,12 +502,12 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     }, delay);
     return () => window.clearTimeout(timer);
   }, [
-    antennaReady, briefingOpen, playerEquipmentBonus, powered, propagationKey, propagationMap,
+    antennaReady, briefingOpen, exitRequest, playerEquipmentBonus, powered, propagationKey, propagationMap,
     qso.phase, qso.unansweredCalls, qsoSerial, save.callsign,
   ]);
 
   useEffect(() => {
-    if (briefingOpen || !qsoNeedsNpcPlayback(qso) || !powered || !antennaReady) return undefined;
+    if (briefingOpen || exitRequest || !qsoNeedsNpcPlayback(qso) || !powered || !antennaReady) return undefined;
     const activePhase = qso.phase;
     let cancelled = false;
     let retryTimer = null;
@@ -522,13 +545,13 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       if (focusHandler) window.removeEventListener("focus", focusHandler);
     };
   }, [
-    antennaReady, briefingOpen, cw.clearInput, cw.playIncoming, npcChannel, powered,
+    antennaReady, briefingOpen, cw.clearInput, cw.playIncoming, exitRequest, npcChannel, powered,
     npcPlaybackRetry, qso.npc.wpm, qso.npcMessage, qso.phase,
   ]);
 
   useEffect(() => {
     function onDown(event) {
-      if (mapOpen || briefingOpen || inputBlocked || !powered || !antennaReady) return;
+      if (mapOpen || briefingOpen || exitRequest || inputBlocked || !powered || !antennaReady) return;
       if (["Space", "KeyZ", "KeyX", "F2", "F3"].includes(event.code)) event.preventDefault();
       if (event.repeat) return;
       if (event.code === "F2") { submitReply(); return; }
@@ -562,7 +585,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       window.removeEventListener("blur", onBlur);
       cw.stopAll();
     };
-  }, [antennaReady, briefingOpen, cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll, inputBlocked, keyType, mapOpen, powered, qso, retryRequired, save, saved]);
+  }, [antennaReady, briefingOpen, cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll, exitRequest, inputBlocked, keyType, mapOpen, powered, qso, retryRequired, save, saved]);
 
   function submitReply() {
     if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
@@ -634,6 +657,39 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     briefingOpenedManuallyRef.current = false;
     onSaveUpdate({ qsoBriefSeen: true });
     setBriefingOpen(false);
+  }
+
+  function performExit(destination) {
+    if (destination === "new-qso") {
+      startNewQso();
+      return;
+    }
+    cw.stopAll();
+    cw.stopListening();
+    onBack();
+  }
+
+  function requestExit(destination, trigger = null) {
+    if (exitRisk === QSO_EXIT_RISKS.NONE) {
+      performExit(destination);
+      return;
+    }
+    exitConfirmingRef.current = false;
+    cw.stopAll();
+    setExitRequest({ destination, reason: exitRisk, returnFocusTo: trigger });
+  }
+
+  function cancelExit() {
+    if (exitConfirmingRef.current) return;
+    setExitRequest(null);
+  }
+
+  function confirmExit() {
+    if (!exitRequest || exitConfirmingRef.current) return;
+    exitConfirmingRef.current = true;
+    const { destination } = exitRequest;
+    setExitRequest(null);
+    performExit(destination);
   }
 
   function startNewQso() {
@@ -780,6 +836,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       data-guidance-level={qso.guidanceLevel}
       data-visual-assist-used={qso.visualAssistUsed}
       data-independent-watch={qso.independentWatch}
+      data-qso-exit-protected={exitRisk !== QSO_EXIT_RISKS.NONE}
+      data-qso-exit-risk={exitRisk}
       data-attempt-count={qso.attemptHistory?.length ?? 0}
       data-qa-npc-callsign={window.cwgameSystem?.qaCapture ? qso.npc.callsign : undefined}
       data-decoded={cw.analysis.decoded}
@@ -800,7 +858,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       <header className="station-topbar">
         <div className="clock-group"><span>UTC <b>{utc}</b></span><i /><span>LOCAL <b>{local}</b></span></div>
         <div className="station-name"><Radio size={18} weight="fill" /> {save.callsign} · {t.station} · {t.credits} {credits}</div>
-        <div className="top-actions"><IconButton label={qsoCoachText(language).briefingTitle} onClick={openBriefing}><Question size={21} weight="bold" /></IconButton><IconButton label={t.back} data-action="back-home" onClick={onBack}><ArrowLeft size={21} /></IconButton><IconButton label={t.settings} onClick={onSettings}><GearSix size={21} /></IconButton></div>
+        <div className="top-actions"><IconButton label={qsoCoachText(language).briefingTitle} onClick={openBriefing}><Question size={21} weight="bold" /></IconButton><IconButton label={t.back} data-action="back-home" onClick={(event) => requestExit("home", event.currentTarget)}><ArrowLeft size={21} /></IconButton><IconButton label={t.settings} onClick={onSettings}><GearSix size={21} /></IconButton></div>
       </header>
       <div className="station-grid">
         <aside className="log-panel metal-panel">
@@ -812,7 +870,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
             <div><dt>{t.mode}</dt><dd>CW</dd></div><div><dt>{t.sent}</dt><dd>{contactSent}</dd></div><div><dt>{t.received}</dt><dd>{contactReceived}</dd></div>
             <div><dt>{t.location}</dt><dd>{contactLocation}</dd></div><div><dt>{t.notes}</dt><dd>SIM / P{contactLevel}</dd></div>
           </dl></div>
-          <div className="panel-actions"><button onClick={startNewQso} disabled={qso.phase === QSO_PHASES.QSO_COMPLETE && !saved}>{t.newContact}</button><button className="muted" data-action="clear-input" onClick={clearCurrentInput}>{t.clearInput}</button></div>
+          <div className="panel-actions"><button data-action="new-qso" onClick={(event) => requestExit("new-qso", event.currentTarget)} disabled={qso.phase === QSO_PHASES.QSO_COMPLETE && !saved}>{t.newContact}</button><button className="muted" data-action="clear-input" onClick={clearCurrentInput}>{t.clearInput}</button></div>
         </aside>
         <section className={`hardware-panel metal-panel ${powered ? "powered" : "power-off"}`}>
           <div className="board-stage"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="station-board-scenery" /><img className="board-asset" data-testid="station-radio-art" data-radio-art-state={isTx ? "tx" : "idle"} src={isTx ? (transmitter.stationImageOn ?? transmitter.image ?? ASSETS.boardOn) : (transmitter.stationImageOff ?? transmitter.image ?? ASSETS.boardOff)} alt={`${equipmentName(transmitter, language)} — ${isTx ? t.tx : powered ? t.idle : t.powerOff}`} />{!antennaReady && <div className="antenna-warning"><Broadcast size={17} weight="fill" /><span>{antennaStatus.missing}</span></div>}</div>
@@ -854,7 +912,15 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
         language={language} entry={displayedResultEntry} creditsAwarded={resultMeta?.creditsAwarded ?? 0} saved={saved}
         rewardBreakdown={resultMeta?.rewardBreakdown ?? null}
         newRegion={resultMeta?.newRegion} newDistanceRecord={resultMeta?.newDistanceRecord}
-        onSave={saveOrRestart} onNext={startNewQso} onClose={() => saved && setResultDismissed(true)}
+        onSave={saveOrRestart} onNext={startNewQso} onLeave={(event) => requestExit("home", event.currentTarget)} onClose={() => saved && setResultDismissed(true)}
+      />}
+      {exitRequest && <QsoLeaveConfirmModal
+        language={language}
+        reason={exitRequest.reason}
+        destination={exitRequest.destination}
+        returnFocusTo={exitRequest.returnFocusTo}
+        onCancel={cancelExit}
+        onConfirm={confirmExit}
       />}
     </main>
   );

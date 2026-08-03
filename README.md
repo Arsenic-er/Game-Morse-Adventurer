@@ -80,7 +80,7 @@ The automated suite covers the CW core and repeating keyer, receiver audio filte
 
 ## Project status
 
-Version **v0.24.0** closes the QSO reward loop with atomic, idempotent settlement for the base contact, independent watch, P0–P2 weak-signal contact, first region, and distance-record bonuses. The exact breakdown is stored in QSO log schema v4 and remains visible on both the result page and Home logbook. Older logs keep their original totals without inferred bonuses or retroactive payouts. The seven-language interface, regional fictional-callsign training, weakness review, and 19-lesson progress remain intact. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
+Version **v0.25.0** prevents accidental loss of an active or completed-but-unsaved QSO. Returning Home and starting a new QSO now share a seven-language pixel warning; while it is open, keying, receiver audio, response timers, and NPC playback are paused, and cancelling resumes the same contact. Window close and reload use a matching native warning. A pristine watch and a saved result still leave immediately. The schema-v4 reward ledger, seven-language interface, regional fictional-callsign training, weakness review, and 19-lesson progress remain intact. Every accepted `main` revision is packaged as a checksummed Windows x64 portable artifact.
 
 ## Rights and third-party software
 

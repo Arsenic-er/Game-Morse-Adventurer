@@ -158,6 +158,7 @@ test("every interface dictionary has the same non-empty shape in all seven langu
     ["src/screens/HomeScreen.jsx", "QSO_REVIEW_TEXT"],
     ["src/screens/QsoResultModal.jsx", "TEXT"],
     ["src/screens/QsoResultModal.jsx", "REVIEW_TEXT"],
+    ["src/screens/QsoLeaveConfirmModal.jsx", "QSO_LEAVE_TEXT"],
     ["src/screens/SaveSelectScreen.jsx", "TEXT"],
     ["src/screens/StationManualModal.jsx", "TEXT"],
     ["src/screens/StoreModal.jsx", "TEXT"],

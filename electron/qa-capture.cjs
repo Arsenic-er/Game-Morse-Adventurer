@@ -263,7 +263,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.24.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.25.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
   const languageStorageKey = "game-morse-adventurer.language.v1";
@@ -1202,6 +1202,13 @@ async function runQaCapture(window) {
     || initialReceiverState.hasManualReceiveButton || initialReceiverState.hiddenContact !== "---") {
     throw new Error(`Station did not enter automatic receive state: ${JSON.stringify(initialReceiverState)}`);
   }
+  await click(window, '.station-topbar .top-actions [data-action="back-home"]');
+  await waitFor(window, ".home-screen");
+  if (await window.webContents.executeJavaScript('Boolean(document.querySelector("[data-testid=qso-leave-dialog]"))', true)) {
+    throw new Error("A pristine PLAYER_CQ incorrectly opened the leave guard.");
+  }
+  await click(window, ".hotspot-station");
+  await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-qso-exit-risk="none"][data-receiver-active="true"]', 10000);
   const accessoryReceiverState = await window.webContents.executeJavaScript(`(() => {
     const station = document.querySelector(".station-screen");
     return {
@@ -1240,6 +1247,31 @@ async function runQaCapture(window) {
   await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyX", key: "x", bubbles: true, cancelable: true }))`, true);
   await delay(300);
   await click(window, '[data-action="clear-input"]');
+  await sendAutomaticText(window, "E");
+  const draftBeforeResetGuard = await window.webContents.executeJavaScript(`(() => ({
+    phase: document.querySelector(".station-screen")?.dataset.qsoPhase,
+    pulseCount: Number(document.querySelector(".station-screen")?.dataset.pulseCount),
+    npc: document.querySelector(".station-screen")?.dataset.qaNpcCallsign,
+  }))()`, true);
+  await click(window, '[data-action="new-qso"]');
+  await waitFor(window, '[data-testid="qso-leave-dialog"][data-leave-reason="active"][data-leave-destination="new-qso"]');
+  const activeGuardFocus = await window.webContents.executeJavaScript('document.activeElement?.dataset.action ?? null', true);
+  if (activeGuardFocus !== "cancel-qso-leave") throw new Error(`Leave guard did not focus its safe action: ${activeGuardFocus}`);
+  await capture(window, outputDir, shot("qso-leave-active"));
+  await window.webContents.executeJavaScript('window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, cancelable: true }))', true);
+  await waitForMissing(window, '[data-testid="qso-leave-dialog"]');
+  const draftAfterCancel = await window.webContents.executeJavaScript(`(() => ({
+    phase: document.querySelector(".station-screen")?.dataset.qsoPhase,
+    pulseCount: Number(document.querySelector(".station-screen")?.dataset.pulseCount),
+    npc: document.querySelector(".station-screen")?.dataset.qaNpcCallsign,
+  }))()`, true);
+  if (JSON.stringify(draftAfterCancel) !== JSON.stringify(draftBeforeResetGuard)) {
+    throw new Error(`Cancelling the new-QSO guard changed the draft: ${JSON.stringify({ draftBeforeResetGuard, draftAfterCancel })}`);
+  }
+  await click(window, '[data-action="new-qso"]');
+  await waitFor(window, '[data-testid="qso-leave-dialog"][data-leave-destination="new-qso"]');
+  await click(window, '[data-action="confirm-qso-leave"]');
+  await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-qso-exit-risk="none"][data-pulse-count="0"]');
   await sendAutomaticText(window, "E");
   const beforeClearInput = await window.webContents.executeJavaScript(`(() => {
     const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
@@ -1283,7 +1315,36 @@ async function runQaCapture(window) {
     displayText: document.querySelector(".morse-display")?.textContent ?? "",
   }))()`, true);
   await fs.writeFile(path.join(outputDir, "qso-cq-debug.json"), `${JSON.stringify(cqDebug, null, 2)}\n`, "utf8");
-  await click(window, '[data-action="submit-reply"]');
+  await window.webContents.executeJavaScript(`(() => {
+    document.querySelector('[data-action="submit-reply"]')?.click();
+    document.querySelector('.station-topbar [data-action="back-home"]')?.click();
+  })()`, true);
+  await waitFor(window, '[data-testid="qso-leave-dialog"][data-leave-reason="active"][data-leave-destination="home"]');
+  await waitFor(window, '[data-qso-phase="WAITING_RESPONSE"][data-receiver-active="false"]');
+  const frozenOnAirState = await window.webContents.executeJavaScript(`(() => ({
+    phase: document.querySelector(".station-screen")?.dataset.qsoPhase,
+    pulses: Number(document.querySelector(".station-screen")?.dataset.pulseCount),
+    attempts: Number(document.querySelector(".station-screen")?.dataset.attemptCount),
+    logs: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].qsoLogs.length,
+  }))()`, true);
+  await delay(220);
+  await window.webContents.executeJavaScript(`(() => {
+    for (const code of ["KeyZ", "KeyX", "F2", "F3"]) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code, bubbles: true, cancelable: true }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code, bubbles: true, cancelable: true }));
+    }
+  })()`, true);
+  const frozenOnAirAfterDelay = await window.webContents.executeJavaScript(`(() => ({
+    phase: document.querySelector(".station-screen")?.dataset.qsoPhase,
+    pulses: Number(document.querySelector(".station-screen")?.dataset.pulseCount),
+    attempts: Number(document.querySelector(".station-screen")?.dataset.attemptCount),
+    logs: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].qsoLogs.length,
+  }))()`, true);
+  if (JSON.stringify(frozenOnAirAfterDelay) !== JSON.stringify(frozenOnAirState)) {
+    throw new Error(`QSO advanced behind the leave guard: ${JSON.stringify({ frozenOnAirState, frozenOnAirAfterDelay })}`);
+  }
+  await click(window, '[data-action="cancel-qso-leave"]');
+  await waitForMissing(window, '[data-testid="qso-leave-dialog"]');
   await waitFor(window, '[data-qso-phase="PLAYER_RST_AND_73"]', 10000);
   const firstRecoveryState = await window.webContents.executeJavaScript(`(() => ({
     failures: window.cwgameSystem?.getQaIncomingFailureCount?.() ?? 0,
@@ -1373,6 +1434,11 @@ async function runQaCapture(window) {
   await fs.writeFile(path.join(outputDir, "incoming-recovery-debug.json"), `${JSON.stringify({ firstRecoveryState, recoveredIncomingState }, null, 2)}\n`, "utf8");
   await capture(window, outputDir, shot("qso-result-unsaved-warmup"));
   await capture(window, outputDir, shot("qso-result-unsaved"));
+  await click(window, '[data-action="leave-unsaved-qso"]');
+  await waitFor(window, '[data-testid="qso-leave-dialog"][data-leave-reason="unsaved"][data-leave-destination="home"]');
+  await capture(window, outputDir, shot("qso-leave-unsaved"));
+  await click(window, '[data-action="cancel-qso-leave"]');
+  await waitForMissing(window, '[data-testid="qso-leave-dialog"]');
   const resultReviewState = await window.webContents.executeJavaScript(`(() => ({
     accepted: document.querySelectorAll(".qso-attempt-history > li.accepted").length,
     errors: document.querySelectorAll(".qso-attempt-history > li.error").length,
@@ -1592,7 +1658,7 @@ async function runQaCapture(window) {
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "practice-session-only", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "practice-callsign-region-selected", "practice-callsign-region-locked", "practice-callsign-region-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
+      "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "practice-callsign-region-selected", "practice-callsign-region-locked", "practice-callsign-region-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "qso-leave-active", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-leave-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
     ].map(shot), ...languageCaptures, ...manualCaptures],
   };
 }

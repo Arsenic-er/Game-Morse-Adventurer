@@ -1461,6 +1461,29 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .qso-result-modal > footer button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; min-width: 190px; height: 42px; border: 2px solid #477f80; color: #91bcba; background: #07191d; box-shadow: 3px 3px 0 #010405; font-size: 9px; }
 .qso-result-modal > footer button:hover { transform: none; border-color: #69b6b4; }
 .qso-result-modal > footer .qso-result-primary { min-width: 260px; border: 3px solid #b57d1c; color: #ffe09a; background: #533505; box-shadow: inset 0 0 0 2px #8b5c13, 4px 4px 0 #010304; font-size: 11px; }
+.qso-result-modal > footer .qso-result-leave { border-color: #85453e; color: #e6aaa0; background: #25100e; }
+
+.qso-leave-backdrop { position: fixed; z-index: 650; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(1, 6, 9, .94); }
+.qso-leave-dialog { width: min(560px, calc(100vw - 32px)); border: 4px solid #bd8128; color: #c7d8d4; background: #071418; box-shadow: 9px 9px 0 #010304, inset 0 0 0 3px #4c1e18; animation: qso-leave-alert 220ms steps(2, end); }
+.qso-leave-dialog > header { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px; min-height: 82px; padding: 12px 16px; border-bottom: 3px solid #703329; background: #26100e; }
+.qso-leave-dialog > header > svg { color: #ef6e5d; filter: drop-shadow(3px 3px 0 #080201); }
+.qso-leave-dialog header small { display: block; color: #d29a55; font-size: 8px; letter-spacing: .15em; }
+.qso-leave-dialog header h2 { margin: 7px 0 0; color: #ffd7af; font-size: 18px; letter-spacing: .06em; line-height: 1.35; }
+.qso-leave-body { padding: 22px 20px; background-image: linear-gradient(rgba(80, 137, 139, .08) 1px, transparent 1px); background-size: 100% 24px; }
+.qso-leave-body p { margin: 0; color: #b8ccc7; font-size: 10px; line-height: 1.9; }
+.qso-leave-body strong { display: block; margin-top: 14px; color: #eaa090; font-size: 9px; letter-spacing: .05em; }
+.qso-leave-dialog > footer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 14px; border-top: 3px solid #315d60; background: #071b20; }
+.qso-leave-dialog > footer button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 48px; padding: 8px 10px; font-size: 8px; line-height: 1.45; white-space: normal; }
+.qso-leave-danger { border: 3px solid #9b4b42; color: #f3b0a5; background: #2c100e; box-shadow: inset 0 0 0 2px #501d18, 4px 4px 0 #010304; }
+.qso-leave-stay { border: 3px solid #4f9d98; color: #d3fff4; background: #0a3c3c; box-shadow: inset 0 0 0 2px #17615d, 4px 4px 0 #010304; }
+.qso-leave-danger:hover { border-color: #d3685b; color: #ffd8cf; background: #451814; transform: none; }
+.qso-leave-stay:hover { border-color: #78d3c8; color: #ecfff9; background: #11504e; transform: none; }
+@keyframes qso-leave-alert { from { transform: translateY(8px); opacity: .55; } to { transform: translateY(0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .qso-leave-dialog { animation: none; } }
+@media (max-width: 660px) {
+  .qso-leave-dialog > footer { grid-template-columns: 1fr; }
+  .qso-leave-stay { grid-row: 1; }
+}
 
 .antenna-warning { position: absolute; z-index: 8; left: 50%; top: 12px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 2px solid #b54b40; color: #ffb1a4; background: #310d09; box-shadow: 4px 4px 0 rgba(0, 0, 0, .75); font-size: 9px; transform: translateX(-50%); }
 .station-screen.antenna-missing .station-board-scenery::after { background: rgba(1, 8, 12, .7); }

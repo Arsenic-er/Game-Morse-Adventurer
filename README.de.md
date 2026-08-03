@@ -80,7 +80,7 @@ Die automatisierte Testsuite deckt CW-Kern und wiederholenden Keyer, Empfänger-
 
 ## Projektstatus
 
-Version **v0.24.0** schließt den QSO-Belohnungskreislauf: Basisverbindung, selbstständige Wache, P0–P2-Schwachsignal, erste Region und Entfernungsrekord werden atomar und idempotent abgerechnet. Die Aufschlüsselung wird im QSO-Logschema v4 gespeichert und auf Ergebnisseite und Home-Logbuch identisch angezeigt. Ältere Logs behalten ihre ursprüngliche Summe ohne geschätzte Boni oder Nachzahlung. Die Oberfläche in sieben Sprachen, regionales Training mit fiktiven Rufzeichen, Schwächenwiederholung und der Fortschritt über 19 Lektionen bleiben erhalten. Jede akzeptierte Änderung an `main` wird als portables Windows-x64-Artefakt mit Prüfsumme paketiert.
+Version **v0.25.0** schützt ein laufendes oder abgeschlossenes, aber noch nicht gespeichertes QSO vor versehentlichem Verlust. Die Rückkehr zur Zentrale und ein neues QSO verwenden denselben Pixelhinweis in sieben Sprachen; während er geöffnet ist, pausieren Tastung, Empfängerrauschen, Antworttimer und NPC-Wiedergabe. Nach Abbruch wird derselbe Kontakt fortgesetzt. Beim Schließen des Fensters oder Neuladen erscheint ein entsprechender nativer Hinweis. Eine unberührte Wache und ein gespeichertes Ergebnis können weiterhin sofort verlassen werden. QSO-Logschema v4, sieben Sprachen, regionales Training mit fiktiven Rufzeichen, Schwächenwiederholung und der Fortschritt über 19 Lektionen bleiben erhalten. Jede akzeptierte Änderung an `main` wird als portables Windows-x64-Artefakt mit Prüfsumme paketiert.
 
 ## Rechte und Drittsoftware
 

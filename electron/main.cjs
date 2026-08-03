@@ -1,8 +1,9 @@
-const { app, BrowserWindow, Menu, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, dialog, ipcMain } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const { runQaCapture } = require("./qa-capture.cjs");
 const { readWindowsWifiStatus } = require("./network-status.cjs");
+const { qsoExitDialogOptions } = require("./qso-exit-dialog.cjs");
 
 const qaCaptureMode = process.argv.includes("--qa-capture");
 const qaWidth = Math.max(1280, Number(process.env.CWGAME_QA_WIDTH) || 1672);
@@ -21,8 +22,15 @@ if (!gotLock) {
   app.quit();
 } else {
   let mainWindow = null;
+  let qsoUnloadGuard = { risk: "none", language: "en" };
 
   ipcMain.handle("cwgame:network-status", () => readWindowsWifiStatus());
+  ipcMain.on("cwgame:qso-unload-guard", (event, payload = {}) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return;
+    const risk = ["active", "unsaved"].includes(payload.risk) ? payload.risk : "none";
+    const language = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"].includes(payload.language) ? payload.language : "en";
+    qsoUnloadGuard = { risk, language };
+  });
 
   function createWindow() {
     mainWindow = new BrowserWindow({
@@ -46,6 +54,11 @@ if (!gotLock) {
 
     Menu.setApplicationMenu(null);
     mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
+    mainWindow.webContents.on("will-prevent-unload", (event) => {
+      if (qsoUnloadGuard.risk === "none") return;
+      const choice = dialog.showMessageBoxSync(mainWindow, qsoExitDialogOptions(qsoUnloadGuard));
+      if (choice === 1) event.preventDefault();
+    });
     if (qaCaptureMode) {
       mainWindow.webContents.once("did-finish-load", async () => {
         try {
@@ -65,7 +78,7 @@ if (!gotLock) {
     } else {
       mainWindow.once("ready-to-show", () => mainWindow.show());
     }
-    mainWindow.on("closed", () => { mainWindow = null; });
+    mainWindow.on("closed", () => { mainWindow = null; qsoUnloadGuard = { risk: "none", language: "en" }; });
   }
 
   app.whenReady().then(createWindow);

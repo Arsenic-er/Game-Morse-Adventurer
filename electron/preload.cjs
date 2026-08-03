@@ -5,6 +5,7 @@ const failedIncomingPhases = new Set();
 
 contextBridge.exposeInMainWorld("cwgameSystem", {
   getNetworkStatus: () => ipcRenderer.invoke("cwgame:network-status"),
+  setQsoUnloadGuard: (risk, language) => ipcRenderer.send("cwgame:qso-unload-guard", { risk, language }),
   qaCapture,
   consumeQaIncomingFailure: (phase) => {
     if (!qaCapture || failedIncomingPhases.has(phase)) return false;

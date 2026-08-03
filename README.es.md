@@ -80,7 +80,7 @@ La suite automatizada cubre el núcleo CW y la repetición del manipulador, el f
 
 ## Estado del proyecto
 
-La versión **v0.24.0** completa el ciclo de recompensas QSO: contacto base, guardia independiente, señal débil P0–P2, primera región y récord de distancia se liquidan de forma atómica e idempotente. El desglose queda guardado en el esquema v4 del registro y se muestra igual en el resultado y en el libro de guardia de Home. Los registros antiguos conservan sus totales sin inferir bonificaciones ni pagarlas retroactivamente. Se mantienen la interfaz en siete idiomas, la práctica regional de indicativos ficticios, el repaso de debilidades y el progreso de 19 lecciones. Cada revisión aceptada en `main` se empaqueta como artefacto portátil Windows x64 con suma de comprobación.
+La versión **v0.25.0** evita perder por accidente un QSO activo o completado sin guardar. Volver al centro e iniciar otro QSO comparten un aviso pixelado en siete idiomas; mientras está abierto se pausan la manipulación, el ruido del receptor, los temporizadores de respuesta y la reproducción del NPC, y al cancelarlo continúa el mismo contacto. Cerrar la ventana o recargar muestra un aviso nativo equivalente. Una guardia intacta y un resultado ya guardado siguen saliendo de inmediato. Se mantienen el registro de recompensas schema v4, la interfaz en siete idiomas, la práctica regional de indicativos ficticios, el repaso de debilidades y el progreso de 19 lecciones. Cada revisión aceptada en `main` se empaqueta como artefacto portátil Windows x64 con suma de comprobación.
 
 ## Derechos y software de terceros
 

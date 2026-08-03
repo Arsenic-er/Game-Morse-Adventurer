@@ -1,5 +1,5 @@
 import {
-  ArrowClockwise, Broadcast, CheckCircle, FloppyDisk, Gauge, MapPin, Radio,
+  ArrowClockwise, ArrowLeft, Broadcast, CheckCircle, FloppyDisk, Gauge, MapPin, Radio,
   Ruler, ShieldCheck, WarningCircle, X,
 } from "@phosphor-icons/react";
 import { QsoRewardBreakdown } from "../components/QsoRewardBreakdown.jsx";
@@ -10,7 +10,7 @@ const TEXT = {
     callsign: "对方呼号", region: "地区", distance: "距离", rst: "双方 RST", propagation: "传播等级",
     equipment: "设备快照", speed: "检测速度", accuracy: "发报准确率", rhythm: "发报节奏", repeats: "请求重发",
     credits: "本次信用点", sim: "虚构台站", newRegion: "首次通联地区", newDistance: "最远距离纪录",
-    save: "写入日志并结算", next: "开始下一次通联", restart: "重新开始本次通联", continue: "返回发射台",
+    save: "写入日志并结算", leave: "不保存并返回管理中心", next: "开始下一次通联", restart: "重新开始本次通联", continue: "返回发射台",
     failedHint: "本次回应未通过最小 QSO 流程判定，不会扣除信用点，也不会写入日志。",
   },
   "zh-TW": {
@@ -18,7 +18,7 @@ const TEXT = {
     callsign: "對方呼號", region: "地區", distance: "距離", rst: "雙方 RST", propagation: "傳播等級",
     equipment: "設備快照", speed: "偵測速度", accuracy: "發報準確率", rhythm: "發報節奏", repeats: "請求重發",
     credits: "本次信用點", sim: "虛構臺站", newRegion: "首次通聯地區", newDistance: "最遠距離紀錄",
-    save: "寫入日誌並結算", next: "開始下一次通聯", restart: "重新開始本次通聯", continue: "返回發射臺",
+    save: "寫入日誌並結算", leave: "不儲存並返回管理中心", next: "開始下一次通聯", restart: "重新開始本次通聯", continue: "返回發射臺",
     failedHint: "本次回應未通過最小 QSO 流程判定，不會扣除信用點，也不會寫入日誌。",
   },
   ja: {
@@ -26,7 +26,7 @@ const TEXT = {
     callsign: "相手局", region: "地域", distance: "距離", rst: "双方の RST", propagation: "伝搬レベル",
     equipment: "装備スナップショット", speed: "検出速度", accuracy: "送信正確度", rhythm: "送信リズム", repeats: "再送要求",
     credits: "今回のクレジット", sim: "架空局", newRegion: "初交信地域", newDistance: "最長距離記録",
-    save: "ログ保存と精算", next: "次の交信を開始", restart: "この交信をやり直す", continue: "運用卓へ戻る",
+    save: "ログ保存と精算", leave: "保存せず管理センターへ戻る", next: "次の交信を開始", restart: "この交信をやり直す", continue: "運用卓へ戻る",
     failedHint: "最小 QSO 手順を完了できませんでした。クレジット消費やログ記録はありません。",
   },
   en: {
@@ -34,7 +34,7 @@ const TEXT = {
     callsign: "Remote callsign", region: "Region", distance: "Distance", rst: "RST exchanged", propagation: "Propagation level",
     equipment: "Equipment snapshot", speed: "Detected speed", accuracy: "Transmit accuracy", rhythm: "Keying rhythm", repeats: "Repeat requests",
     credits: "Credits earned", sim: "Fictional station", newRegion: "First contact in region", newDistance: "New distance record",
-    save: "Save log and settle", next: "Start next QSO", restart: "Restart this QSO", continue: "Return to station",
+    save: "Save log and settle", leave: "Return home without saving", next: "Start next QSO", restart: "Restart this QSO", continue: "Return to station",
     failedHint: "The reply did not complete the minimum QSO flow. No credits are deducted and no log entry is written.",
   },
   es: {
@@ -42,7 +42,7 @@ const TEXT = {
     callsign: "Indicativo remoto", region: "Región", distance: "Distancia", rst: "RST intercambiado", propagation: "Nivel de propagación",
     equipment: "Resumen de equipo", speed: "Velocidad detectada", accuracy: "Precisión de transmisión", rhythm: "Ritmo de manipulación", repeats: "Peticiones de repetición",
     credits: "Créditos obtenidos", sim: "Estación ficticia", newRegion: "Primer contacto en la región", newDistance: "Nuevo récord de distancia",
-    save: "Guardar registro y liquidar", next: "Iniciar siguiente QSO", restart: "Reiniciar este QSO", continue: "Volver a la estación",
+    save: "Guardar registro y liquidar", leave: "Volver sin guardar", next: "Iniciar siguiente QSO", restart: "Reiniciar este QSO", continue: "Volver a la estación",
     failedHint: "La respuesta no completó el flujo QSO mínimo. No se descuentan créditos ni se escribe ninguna entrada.",
   },
   de: {
@@ -50,7 +50,7 @@ const TEXT = {
     callsign: "Gegenstationsrufzeichen", region: "Region", distance: "Entfernung", rst: "Ausgetauschter RST", propagation: "Ausbreitungsstufe",
     equipment: "Ausrüstungsübersicht", speed: "Erkannte Geschwindigkeit", accuracy: "Sendegenauigkeit", rhythm: "Tastrhythmus", repeats: "Wiederholungsanfragen",
     credits: "Verdiente Kredite", sim: "Fiktive Station", newRegion: "Erster Kontakt in der Region", newDistance: "Neuer Entfernungsrekord",
-    save: "Log speichern und abrechnen", next: "Nächstes QSO starten", restart: "Dieses QSO neu starten", continue: "Zurück zur Station",
+    save: "Log speichern und abrechnen", leave: "Ohne Speichern zur Zentrale", next: "Nächstes QSO starten", restart: "Dieses QSO neu starten", continue: "Zurück zur Station",
     failedHint: "Die Antwort hat den minimalen QSO-Ablauf nicht abgeschlossen. Es werden keine Kredite abgezogen und kein Logeintrag geschrieben.",
   },
   ru: {
@@ -58,7 +58,7 @@ const TEXT = {
     callsign: "Позывной корреспондента", region: "Регион", distance: "Расстояние", rst: "Обмен RST", propagation: "Уровень прохождения",
     equipment: "Снимок оборудования", speed: "Определённая скорость", accuracy: "Точность передачи", rhythm: "Ритм ключа", repeats: "Запросы повтора",
     credits: "Получено кредитов", sim: "Вымышленная станция", newRegion: "Первая связь в регионе", newDistance: "Новый рекорд расстояния",
-    save: "Сохранить журнал и рассчитать", next: "Начать следующее QSO", restart: "Начать это QSO заново", continue: "Вернуться на станцию",
+    save: "Сохранить журнал и рассчитать", leave: "Вернуться без сохранения", next: "Начать следующее QSO", restart: "Начать это QSO заново", continue: "Вернуться на станцию",
     failedHint: "Ответ не завершил минимальный порядок QSO. Кредиты не списываются, запись в журнал не создаётся.",
   },
 };
@@ -173,7 +173,7 @@ function QsoAttemptHistory({ entry, language }) {
 
 export function QsoResultModal({
   language, failed = false, entry = null, creditsAwarded = 0, saved = false,
-  rewardBreakdown = null, onSave, onRestart, onNext, onClose,
+  rewardBreakdown = null, onSave, onRestart, onNext, onLeave, onClose,
 }) {
   const t = TEXT[language] ?? TEXT.en;
   return (
@@ -221,7 +221,7 @@ export function QsoResultModal({
           {failed ? (
             <button className="qso-result-primary" onClick={onRestart}><ArrowClockwise size={21} weight="bold" />{t.restart}</button>
           ) : !saved ? (
-            <button className="qso-result-primary" onClick={onSave}><FloppyDisk size={21} weight="fill" />{t.save}</button>
+            <><button className="qso-result-leave" data-action="leave-unsaved-qso" onClick={onLeave}><ArrowLeft size={21} weight="bold" />{t.leave}</button><button className="qso-result-primary" onClick={onSave}><FloppyDisk size={21} weight="fill" />{t.save}</button></>
           ) : (
             <><button className="qso-result-primary" onClick={onNext}><Radio size={21} weight="fill" />{t.next}</button><button onClick={onClose}>{t.continue}</button></>
           )}
