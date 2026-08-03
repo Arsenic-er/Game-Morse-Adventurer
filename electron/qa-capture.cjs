@@ -263,7 +263,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.25.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.26.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
   const languageStorageKey = "game-morse-adventurer.language.v1";
@@ -1305,6 +1305,24 @@ async function runQaCapture(window) {
   const playerIdentity = await window.webContents.executeJavaScript(`(() => ({
     player: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
   }))()`, true);
+  const partialCall = playerIdentity.player.slice(0, Math.max(2, playerIdentity.player.length - 3));
+  await sendAutomaticText(window, `CQ DE ${partialCall} K`);
+  await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
+  await click(window, '[data-action="submit-reply"]');
+  await waitFor(window, '[data-qso-phase="NPC_REPLY"][data-copy-outcome="query"][data-reply-disposition="query"]', 10000);
+  const queryState = await window.webContents.executeJavaScript(`(() => ({
+    quality: Number(document.querySelector(".station-screen")?.dataset.cqQuality),
+    outcome: document.querySelector(".station-screen")?.dataset.copyOutcome ?? null,
+    profile: document.querySelector(".station-screen")?.dataset.operatorProfile ?? null,
+    hasContact: document.querySelector(".station-screen")?.dataset.qaHasContact ?? null,
+  }))()`, true);
+  if (!(queryState.quality > 0 && queryState.quality < 100)
+    || queryState.outcome !== "query" || !queryState.profile || queryState.hasContact !== "false") {
+    throw new Error(`Imperfect CQ did not produce a safe operator query: ${JSON.stringify(queryState)}`);
+  }
+  await capture(window, outputDir, shot("qso-npc-query"));
+  await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-channel-notice="npcQuery"]', 10000);
+
   const cqMessage = `CQ CQ DE ${playerIdentity.player} ${playerIdentity.player} K`;
   await sendAutomaticText(window, cqMessage);
   await markStep("cq-keyed");
@@ -1420,6 +1438,7 @@ async function runQaCapture(window) {
   await waitFor(window, ".qso-result-modal.success", 30000);
   await waitFor(window, ".qso-operation-review");
   await waitFor(window, ".qso-attempt-history > li.accepted");
+  await waitFor(window, ".qso-attempt-history > li.transmitted");
   await waitFor(window, ".qso-attempt-history > li.error");
   await waitFor(window, ".qso-attempt-history > li.repeat");
   const recoveredIncomingState = await window.webContents.executeJavaScript(`(() => ({
@@ -1441,6 +1460,7 @@ async function runQaCapture(window) {
   await waitForMissing(window, '[data-testid="qso-leave-dialog"]');
   const resultReviewState = await window.webContents.executeJavaScript(`(() => ({
     accepted: document.querySelectorAll(".qso-attempt-history > li.accepted").length,
+    transmitted: document.querySelectorAll(".qso-attempt-history > li.transmitted").length,
     errors: document.querySelectorAll(".qso-attempt-history > li.error").length,
     repeats: document.querySelectorAll(".qso-attempt-history > li.repeat").length,
     reward: document.querySelector(".qso-result-rewards strong")?.textContent.replace(/\\s+/g, " ").trim() ?? "",
@@ -1452,7 +1472,7 @@ async function runQaCapture(window) {
   }))()`, true);
   const previewRewardParts = ["base", "independentWatch", "weakSignal", "newRegion", "newDistanceRecord"]
     .reduce((total, key) => total + Number(resultReviewState.rewards[key] ?? 0), 0);
-  if (resultReviewState.accepted < 2 || resultReviewState.errors < 1 || resultReviewState.repeats < 1
+  if (resultReviewState.accepted < 2 || resultReviewState.transmitted < 1 || resultReviewState.errors < 1 || resultReviewState.repeats < 1
     || resultReviewState.rewardVersion !== "1" || resultReviewState.rewards.base !== 100
     || resultReviewState.rewards.independentWatch !== undefined
     || previewRewardParts !== resultReviewState.rewards.total
@@ -1520,6 +1540,13 @@ async function runQaCapture(window) {
         accessoryId: entry.accessoryId,
         equipmentId: entry.equipmentId,
         repeatRequests: entry.repeatRequests,
+        copyQueries: entry.copyQueries,
+        cqQuality: entry.cqQuality,
+        copyScore: entry.copyScore,
+        copyOutcome: entry.copyOutcome,
+        operatorProfileId: entry.operatorProfileId,
+        operatorProfileRevision: entry.operatorProfileRevision,
+        remoteWpm: entry.remoteWpm,
         transmitAccuracy: entry.transmitAccuracy,
         guidanceLevel: entry.guidanceLevel,
         visualAssistUsed: entry.visualAssistUsed,
@@ -1546,9 +1573,13 @@ async function runQaCapture(window) {
   const expectedWeakSignalReward = Number(savedEquipmentSnapshot.finalPropagationLevel) <= 2 ? 75 : 0;
   const expectedNewRegionReward = ["AS-JA", "EU-W"].includes(savedEquipmentSnapshot.location) ? 0 : 20;
   const expectedDistanceReward = Number(savedEquipmentSnapshot.distanceKm) > 9568.2 ? 25 : 0;
-  if (savedEquipmentSnapshot.version !== 4
+  if (savedEquipmentSnapshot.version !== 5
     || savedEquipmentSnapshot.accessoryId !== "cw-filter-500" || savedEquipmentSnapshot.equipmentId !== "usdr-8"
-    || savedEquipmentSnapshot.repeatRequests !== 1 || !Number.isFinite(savedEquipmentSnapshot.transmitAccuracy)
+    || savedEquipmentSnapshot.repeatRequests !== 1 || savedEquipmentSnapshot.copyQueries !== 1
+    || !Number.isFinite(savedEquipmentSnapshot.cqQuality) || !Number.isFinite(savedEquipmentSnapshot.copyScore)
+    || savedEquipmentSnapshot.copyOutcome !== "copied" || !savedEquipmentSnapshot.operatorProfileId
+    || savedEquipmentSnapshot.operatorProfileRevision !== 1 || !Number.isFinite(savedEquipmentSnapshot.remoteWpm)
+    || !Number.isFinite(savedEquipmentSnapshot.transmitAccuracy)
     || savedEquipmentSnapshot.guidanceLevel !== "full" || savedEquipmentSnapshot.visualAssistUsed !== true
     || savedEquipmentSnapshot.independentWatch !== false || savedReward.version !== 1
     || savedReward.base !== 100 || savedReward.independentWatch !== 0
@@ -1557,10 +1588,11 @@ async function runQaCapture(window) {
     || savedReward.newDistanceRecord !== expectedDistanceReward
     || savedRewardTotal !== savedReward.total || savedEquipmentSnapshot.creditsAwarded !== savedReward.total
     || savedEquipmentSnapshot.saveCredits !== 900 + savedReward.total
-    || !savedAttemptResults.has("accepted") || !savedAttemptResults.has("rejected") || !savedAttemptResults.has("repeat")
+    || !savedAttemptResults.has("accepted") || !savedAttemptResults.has("transmitted")
+    || !savedAttemptResults.has("rejected") || !savedAttemptResults.has("repeat")
     || !savedEquipmentSnapshot.attemptMetricsComplete
     || savedEquipmentSnapshot.firstWatchCompleted !== true || savedEquipmentSnapshot.totalQsos !== 5) {
-    throw new Error(`QSO log v4 lost its review, eligibility, reward, or equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
+    throw new Error(`QSO log v5 lost its review, operator, copy, reward, or equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
   }
   await capture(window, outputDir, shot("qso-result-saved"));
   await click(window, ".qso-result-modal.success header .icon-button");
@@ -1572,6 +1604,7 @@ async function runQaCapture(window) {
   await waitFor(window, ".qso-log-records button:nth-of-type(3)", 10000);
   await waitFor(window, ".qso-log-review");
   await waitFor(window, ".qso-log-review li.accepted");
+  await waitFor(window, ".qso-log-review li.transmitted");
   await waitFor(window, ".qso-log-review li.error");
   await waitFor(window, ".qso-log-review li.repeat");
   await waitFor(window, '.qso-log-detail .qso-reward-breakdown[data-reward-version="1"]');
@@ -1579,12 +1612,13 @@ async function runQaCapture(window) {
   await capture(window, outputDir, shot("home-log-after-qso"));
   const homeReviewState = await window.webContents.executeJavaScript(`(() => ({
     accepted: document.querySelectorAll(".qso-log-review li.accepted").length,
+    transmitted: document.querySelectorAll(".qso-log-review li.transmitted").length,
     errors: document.querySelectorAll(".qso-log-review li.error").length,
     repeats: document.querySelectorAll(".qso-log-review li.repeat").length,
     rewardTotal: Number((document.querySelector('.qso-log-detail [data-reward="total"] dd')?.textContent ?? "").replace(/[^0-9.-]/g, "")),
     loggedCredits: Number((document.querySelector(".qso-log-credit-fact dd")?.textContent ?? "").replace(/[^0-9.-]/g, "")),
   }))()`, true);
-  if (homeReviewState.accepted < 2 || homeReviewState.errors < 1 || homeReviewState.repeats < 1
+  if (homeReviewState.accepted < 2 || homeReviewState.transmitted < 1 || homeReviewState.errors < 1 || homeReviewState.repeats < 1
     || homeReviewState.rewardTotal !== homeReviewState.loggedCredits
     || homeReviewState.rewardTotal !== savedReward.total) {
     throw new Error(`Home log operation review is incomplete: ${JSON.stringify(homeReviewState)}`);
@@ -1658,7 +1692,7 @@ async function runQaCapture(window) {
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "practice-session-only", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "practice-callsign-region-selected", "practice-callsign-region-locked", "practice-callsign-region-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "qso-leave-active", "station-input-cleared", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-leave-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
+      "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "practice-callsign-region-selected", "practice-callsign-region-locked", "practice-callsign-region-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "qso-leave-active", "station-input-cleared", "qso-npc-query", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-leave-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
     ].map(shot), ...languageCaptures, ...manualCaptures],
   };
 }

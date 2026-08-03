@@ -4,7 +4,7 @@ import {
   normalizeQsoRewardBreakdown,
 } from "../game/qsoRewards.js";
 
-export const QSO_LOG_VERSION = 4;
+export const QSO_LOG_VERSION = 5;
 export const MAX_QSO_LOGS = 200;
 export const MAX_QSO_ATTEMPT_HISTORY = 50;
 
@@ -63,7 +63,7 @@ function normalizeAttemptMetric(value, maximum = 100) {
 
 function normalizeAttempt(candidate) {
   if (!candidate || typeof candidate !== "object") return null;
-  const result = ["accepted", "rejected", "repeat"].includes(candidate.result)
+  const result = ["accepted", "rejected", "repeat", "transmitted"].includes(candidate.result)
     ? candidate.result
     : null;
   if (!result) return null;
@@ -85,6 +85,14 @@ function normalizeAttempt(candidate) {
     wpm: normalizeAttemptMetric(candidate.wpm, 120),
     accuracy: normalizeAttemptMetric(candidate.accuracy),
     rhythm: normalizeAttemptMetric(candidate.rhythm),
+    cqQuality: normalizeAttemptMetric(candidate.cqQuality),
+    copyScore: normalizeAttemptMetric(candidate.copyScore),
+    remoteOutcome: ["copied", "query", "unreadable", "no-response"].includes(candidate.remoteOutcome)
+      ? candidate.remoteOutcome
+      : null,
+    operatorProfileId: candidate.operatorProfileId
+      ? String(candidate.operatorProfileId).trim().slice(0, 48) || null
+      : null,
   };
 }
 
@@ -139,6 +147,17 @@ export function normalizeQsoLogEntry(entry) {
     transmitAccuracy: normalizeScore(entry.transmitAccuracy ?? entry.copyAccuracy ?? entry.accuracy),
     keyingScore: normalizeScore(entry.keyingScore),
     repeatRequests: normalizeRepeatRequests(entry.repeatRequests),
+    copyQueries: normalizeRepeatRequests(entry.copyQueries),
+    cqQuality: normalizeScore(entry.cqQuality),
+    copyScore: normalizeScore(entry.copyScore),
+    copyOutcome: ["copied", "query", "unreadable", "no-response"].includes(entry.copyOutcome)
+      ? entry.copyOutcome
+      : null,
+    operatorProfileId: String(entry.operatorProfileId ?? "legacy-standard").trim().slice(0, 48) || "legacy-standard",
+    operatorProfileRevision: Math.max(0, Math.floor(finiteNumber(entry.operatorProfileRevision))),
+    remoteWpm: entry.remoteWpm === null || entry.remoteWpm === undefined || entry.remoteWpm === ""
+      ? null
+      : Number(clamp(finiteNumber(entry.remoteWpm), 0, 60).toFixed(1)),
     guidanceLevel,
     visualAssistUsed,
     independentWatch: entry.independentWatch === true && guidanceLevel === "off" && !visualAssistUsed,

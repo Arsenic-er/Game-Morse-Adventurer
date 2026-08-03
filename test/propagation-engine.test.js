@@ -4,7 +4,7 @@ import {
   DEFAULT_PLAYER_LOCATION, GRID_HEIGHT, GRID_WIDTH, NPC_STATIONS, baseLevelAt,
   channelProfileForLevel, evaluatedNpcStations, finalPropagationLevel,
   cqResponseProbabilityForLevel, generatePropagationMap, locationFromNormalizedPoint,
-  normalizedPointFromLocation, selectNpcForQso, selectNpcResponseForCq,
+  normalizedPointFromLocation, selectNpcForQso, selectNpcListenerForCq, selectNpcResponseForCq,
 } from "../src/propagation/propagationEngine.js";
 
 test("generates a deterministic 72x36 offline propagation map", () => {
@@ -93,11 +93,11 @@ test("station coordinates use the equirectangular map projection", () => {
   assert.deepEqual(normalizedPointFromLocation({ latitude: 120, longitude: 220 }), { x: 1, y: 0 });
 });
 
-test("CQ response probability rises with the propagation level", () => {
-  assert.deepEqual([0, 1, 2, 3, 4].map(cqResponseProbabilityForLevel), [0, .15, .45, .75, .95]);
+test("the legacy CQ response helper is now an eligibility gate without random loss", () => {
+  assert.deepEqual([0, 1, 2, 3, 4].map(cqResponseProbabilityForLevel), [0, 1, 1, 1, 1]);
 });
 
-test("CQ responder selection can return silence and is deterministic", () => {
+test("CQ responder selection uses current eligibility without a second silence roll", () => {
   const station = {
     callsign: "SIMTEST", latitude: 0, longitude: 0, stationBonus: 0,
     isStrongStation: false, isFictional: true,
@@ -116,5 +116,18 @@ test("CQ responder selection can return silence and is deterministic", () => {
   const responses = Array.from({ length: 100 }, (_, index) => (
     selectNpcResponseForCq(strongMap, { stations: [station], seed: `sample-${index}` })
   )).filter(Boolean);
-  assert.ok(responses.length >= 85 && responses.length <= 100);
+  assert.equal(responses.length, 100);
+});
+
+test("live CQ listeners require current eligibility but do not receive a second random silence penalty", () => {
+  const station = {
+    callsign: "SIMTEST", latitude: 0, longitude: 0, stationBonus: 0,
+    isStrongStation: false, isFictional: true,
+  };
+  const base = generatePropagationMap({ utc: "2026-07-15T09:00:00Z" });
+  const silentMap = { ...base, cells: new Array(GRID_WIDTH * GRID_HEIGHT).fill(0) };
+  const strongMap = { ...base, cells: new Array(GRID_WIDTH * GRID_HEIGHT).fill(4) };
+  assert.equal(selectNpcListenerForCq(silentMap, { stations: [station], seed: "listener" }), null);
+  assert.equal(selectNpcListenerForCq(strongMap, { stations: [station], seed: "listener", rfEnabled: false }), null);
+  assert.equal(selectNpcListenerForCq(strongMap, { stations: [station], seed: "listener" }).callsign, "SIMTEST");
 });

@@ -29,8 +29,12 @@ test("completes the minimum QSO state machine", () => {
     result: "accepted",
     reason: null,
     wpm: 19,
-    accuracy: 94.4,
+    accuracy: 100,
     rhythm: 88.9,
+    cqQuality: 99,
+    copyScore: null,
+    remoteOutcome: null,
+    operatorProfileId: null,
   });
   qso = resolveCqResponse(qso, npc);
   assert.equal(qso.phase, QSO_PHASES.NPC_REPLY);
@@ -71,11 +75,18 @@ test("completes the minimum QSO state machine", () => {
   assert.equal(log.equipmentId, "squid-01");
   assert.equal(log.antennaId, "dipole");
   assert.equal(log.accessoryId, "cw-filter-500");
-  assert.equal(log.wpm, 18);
+  assert.equal(log.wpm, 10);
   assert.equal(log.transmitAccuracy, 96.4);
   assert.equal("copyAccuracy" in log, false);
   assert.equal(log.keyingScore, 91.2);
   assert.equal(log.repeatRequests, 0);
+  assert.equal(log.copyQueries, 0);
+  assert.equal(log.cqQuality, 99);
+  assert.ok(log.copyScore >= 75);
+  assert.equal(log.copyOutcome, "copied");
+  assert.equal(log.operatorProfileId, "careful-beginner");
+  assert.equal(log.operatorProfileRevision, 1);
+  assert.ok(log.remoteWpm >= 5 && log.remoteWpm <= 60);
   assert.equal(log.guidanceLevel, "full");
   assert.equal(log.visualAssistUsed, true);
   assert.equal(log.independentWatch, false);
@@ -132,14 +143,18 @@ test("only completed QSOs with chronological timestamps can be logged", () => {
   assert.throws(() => createQsoLogEntry(invalid), /chronological timestamps/);
 });
 
-test("malformed replies accumulate attempts without forcing failure and a correction clears them", () => {
+test("malformed CQ is transmitted on air and resolved by the remote copy model", () => {
   let qso = createQso({ npc });
   assert.equal(validatePlayerMessage(qso, "SIM-K7QX DE CQ K").reason, "wrongCqOrder");
   qso = submitPlayerMessage(qso, "BAD");
+  assert.equal(qso.phase, QSO_PHASES.WAITING_RESPONSE);
+  assert.ok(qso.cqAssessment.quality < 20);
+  assert.equal(qso.attemptHistory.at(-1).result, "transmitted");
+  assert.equal(qso.attemptHistory.at(-1).reason, "missingCq");
+  qso = resolveCqResponse(qso, { ...npc, callsign: "SIM6JP", finalLevel: 2 }, { seed: "bad-cq" });
   assert.equal(qso.phase, QSO_PHASES.PLAYER_CQ);
-  qso = submitPlayerMessage(qso, "BAD");
-  assert.equal(qso.phase, QSO_PHASES.PLAYER_CQ);
-  assert.equal(qso.attempts, 2);
+  assert.equal(qso.lastCopyOutcome, "unreadable");
+  assert.equal(qso.channelNotice, "unreadableCq");
   qso = submitPlayerMessage(qso, "CQ CQ DE SIM-K7QX K");
   assert.equal(qso.phase, QSO_PHASES.WAITING_RESPONSE);
   assert.equal(qso.attempts, 0);
@@ -183,13 +198,15 @@ test("attempt history records every submission and retains only the newest bound
       accuracy: index + 0.24,
       rhythm: 200,
     });
+    qso = resolveCqResponse(qso, null);
   }
   assert.equal(qso.attemptHistory.length, MAX_QSO_ATTEMPT_HISTORY);
   assert.equal(qso.attemptHistory[0].message, "BAD 5");
   assert.equal(qso.attemptHistory.at(-1).message, `BAD ${MAX_QSO_ATTEMPT_HISTORY + 4}`);
-  assert.equal(qso.attemptHistory.at(-1).result, "rejected");
+  assert.equal(qso.attemptHistory.at(-1).result, "transmitted");
   assert.equal(qso.attemptHistory.at(-1).reason, "missingCq");
   assert.equal(qso.attemptHistory.at(-1).rhythm, 100);
+  assert.equal(qso.attemptHistory.at(-1).remoteOutcome, "no-response");
 });
 
 test("a strict AGN K request replays the same incoming message without consuming an attempt", () => {
@@ -249,6 +266,74 @@ test("an unanswered CQ returns to calling without counting as a failed attempt",
   assert.equal(qso.contactRevealed, false);
   assert.equal(qsoCanAcceptPlayer(qso), true);
   assert.equal(qsoNeedsNpcPlayback(qso), false);
+});
+
+test("a partially copied CQ receives a personality-specific query and can be resent immediately", () => {
+  const beginner = { ...npc, callsign: "SIM7QX", finalLevel: 2 };
+  let qso = submitPlayerMessage(
+    createQso({ npc: beginner }),
+    "CQ CQ SIM-K7QX K",
+    { wpm: 18, rhythm: 80 },
+  );
+  qso = resolveCqResponse(qso, beginner, { seed: "demo" });
+  assert.equal(qso.phase, QSO_PHASES.NPC_REPLY);
+  assert.equal(qso.npcReplyDisposition, "query");
+  assert.match(qso.npcMessage, /AGN|QRZ|QRS|\?/);
+  assert.equal(qso.hasContact, false);
+  assert.equal(qso.contactRevealed, false);
+  assert.equal(qso.copyQueries, 1);
+  assert.equal(qso.lastCopyOutcome, "query");
+  qso = onNpcPlaybackFinished(qso);
+  assert.equal(qso.phase, QSO_PHASES.PLAYER_CQ);
+  assert.equal(qso.channelNotice, "npcQuery");
+  assert.equal(qsoCanAcceptPlayer(qso), true);
+  assert.equal(qso.pendingResponder.callsign, "SIM7QX");
+  assert.equal(qso.pendingResponderQueryCount, 1);
+});
+
+test("a new responder starts with fresh patience while total queries stay cumulative", () => {
+  const beginner = { ...npc, callsign: "SIM7QX", finalLevel: 2 };
+  let qso = submitPlayerMessage(
+    { ...createQso({ npc: beginner }), copyQueries: 9, pendingResponderQueryCount: 0 },
+    "CQ CQ SIM-K7QX K",
+    { wpm: 18, rhythm: 80 },
+  );
+  qso = resolveCqResponse(qso, beginner, { seed: "demo" });
+  assert.equal(qso.npcReplyDisposition, "query");
+  assert.equal(qso.copyQueries, 10);
+  assert.equal(qso.pendingResponderQueryCount, 1);
+});
+
+test("a responder stops querying at its own patience limit", () => {
+  const impatient = { ...npc, callsign: "SIM9AK", finalLevel: 4 };
+  let qso = submitPlayerMessage(createQso({ npc: impatient }), "CQ DE SIM-K7Q K", { wpm: 18, rhythm: 80 });
+  qso = resolveCqResponse(qso, impatient, { seed: "patience" });
+  assert.equal(qso.npcReplyDisposition, "query");
+  qso = onNpcPlaybackFinished(qso);
+  qso = submitPlayerMessage(qso, "CQ DE SIM-K7Q K", { wpm: 18, rhythm: 80 });
+  qso = resolveCqResponse(qso, impatient, { seed: "patience" });
+  assert.notEqual(qso.npcReplyDisposition, "query");
+  assert.equal(qso.copyQueries, 1);
+  assert.equal(qso.pendingResponder, null);
+  assert.equal(qso.pendingResponderQueryCount, 0);
+});
+
+test("a recognizable but unreadable call can turn into an undirected general CQ", () => {
+  const clubStation = { ...npc, callsign: "SIM6JP", finalLevel: 2 };
+  let qso = submitPlayerMessage(
+    createQso({ npc: clubStation }),
+    "CQ T T K",
+    { wpm: 18, rhythm: 70 },
+  );
+  qso = resolveCqResponse(qso, clubStation, { seed: "demo" });
+  assert.equal(qso.phase, QSO_PHASES.NPC_REPLY);
+  assert.equal(qso.npcReplyDisposition, "general");
+  assert.equal(qso.npcMessage, "CQ CQ DE SIM6JP SIM6JP K");
+  assert.equal(qso.hasContact, false);
+  qso = onNpcPlaybackFinished(qso);
+  assert.equal(qso.phase, QSO_PHASES.PLAYER_CQ);
+  assert.equal(qso.channelNotice, "generalCall");
+  assert.equal(qso.unansweredCalls, 1);
 });
 
 test("only actual incoming phases request automatic playback", () => {

@@ -7,7 +7,7 @@ function median(values) {
   return ordered.length % 2 ? ordered[middle] : (ordered[middle - 1] + ordered[middle]) / 2;
 }
 
-function editDistance(left, right) {
+export function editDistance(left, right) {
   const rows = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
   for (let row = 0; row <= left.length; row += 1) rows[row][0] = row;
   for (let column = 0; column <= right.length; column += 1) rows[0][column] = column;
@@ -121,4 +121,3 @@ export function analyzeKeying(pulses, { fallbackWpm = 18, targetText = "" } = {}
     pulseCount: ordered.length,
   };
 }
-

@@ -91,43 +91,43 @@ const QSO_REVIEW_TEXT = {
   "zh-CN": {
     title: "操作复盘", empty: "旧版日志没有逐次操作记录", guidance: "引导", visual: "视觉辅助", independent: "独立值守",
     full: "完整引导", hints: "仅提示", off: "关闭", used: "已使用", unused: "未使用", yes: "达成", no: "未达成",
-    accepted: "接受", error: "错误", repeat: "重发", unknown: "未记录", reason: "原因", accuracy: "准确率", rhythm: "节奏",
+    accepted: "接受", transmitted: "已发射", error: "错误", repeat: "重发", unknown: "未记录", reason: "原因", accuracy: "准确率", rhythm: "节奏",
     PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交换 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼号", wrongCqOrder: "CQ 电文顺序错误", missingK: "结尾缺少 K", invalidAgn: "重发请求必须为 AGN K", missingCallsign: "缺少双方呼号", invalidRst: "RST 格式无效", missing73: "缺少 73", wrongReplyOrder: "回复电文顺序错误", notWaitingForPlayer: "当前阶段不接受发报",
   },
   "zh-TW": {
     title: "操作複盤", empty: "舊版日誌沒有逐次操作記錄", guidance: "引導", visual: "視覺輔助", independent: "獨立值守",
     full: "完整引導", hints: "僅提示", off: "關閉", used: "已使用", unused: "未使用", yes: "達成", no: "未達成",
-    accepted: "接受", error: "錯誤", repeat: "重發", unknown: "未記錄", reason: "原因", accuracy: "準確率", rhythm: "節奏",
+    accepted: "接受", transmitted: "已發射", error: "錯誤", repeat: "重發", unknown: "未記錄", reason: "原因", accuracy: "準確率", rhythm: "節奏",
     PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交換 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼號", wrongCqOrder: "CQ 電文順序錯誤", missingK: "結尾缺少 K", invalidAgn: "重發請求必須為 AGN K", missingCallsign: "缺少雙方呼號", invalidRst: "RST 格式無效", missing73: "缺少 73", wrongReplyOrder: "回覆電文順序錯誤", notWaitingForPlayer: "目前階段不接受發報",
   },
   ja: {
     title: "運用レビュー", empty: "旧形式のログには操作履歴がありません", guidance: "ガイド", visual: "視覚補助", independent: "単独運用",
     full: "フルガイド", hints: "ヒントのみ", off: "オフ", used: "使用", unused: "未使用", yes: "達成", no: "未達成",
-    accepted: "受付", error: "エラー", repeat: "再送", unknown: "記録なし", reason: "理由", accuracy: "正確度", rhythm: "リズム",
+    accepted: "受付", transmitted: "送信済み", error: "エラー", repeat: "再送", unknown: "記録なし", reason: "理由", accuracy: "正確度", rhythm: "リズム",
     PLAYER_CQ: "CQ 呼出", PLAYER_RST_AND_73: "RST / 73 交換", missingCq: "CQ がありません", missingDe: "DE がありません", missingPlayerCallsign: "自局コールサインがありません", wrongCqOrder: "CQ 電文の順序が違います", missingK: "末尾の K がありません", invalidAgn: "再送要求は AGN K にしてください", missingCallsign: "両局のコールサインが必要です", invalidRst: "RST 形式が無効です", missing73: "73 がありません", wrongReplyOrder: "応答電文の順序が違います", notWaitingForPlayer: "現在は送信を受け付けていません",
   },
   en: {
     title: "Operating Review", empty: "No attempt history is available in this legacy log", guidance: "Guidance", visual: "Visual assist", independent: "Independent watch",
     full: "Full", hints: "Hints only", off: "Off", used: "Used", unused: "Not used", yes: "Qualified", no: "Not qualified",
-    accepted: "Accepted", error: "Error", repeat: "Repeat", unknown: "Not recorded", reason: "Reason", accuracy: "Accuracy", rhythm: "Rhythm",
+    accepted: "Accepted", transmitted: "Transmitted", error: "Error", repeat: "Repeat", unknown: "Not recorded", reason: "Reason", accuracy: "Accuracy", rhythm: "Rhythm",
     PLAYER_CQ: "Call CQ", PLAYER_RST_AND_73: "Exchange RST / 73", missingCq: "CQ is missing", missingDe: "DE is missing", missingPlayerCallsign: "Your callsign is missing", wrongCqOrder: "CQ message is out of order", missingK: "Final K is missing", invalidAgn: "A repeat request must be AGN K", missingCallsign: "Both callsigns are required", invalidRst: "RST format is invalid", missing73: "73 is missing", wrongReplyOrder: "Reply message is out of order", notWaitingForPlayer: "This stage is not accepting a transmission",
   },
   es: {
     title: "Revisión de operación", empty: "Este registro antiguo no contiene historial de intentos", guidance: "Guía", visual: "Ayuda visual", independent: "Guardia independiente",
     full: "Completa", hints: "Solo pistas", off: "Desactivada", used: "Usada", unused: "No usada", yes: "Apto", no: "No apto",
-    accepted: "Aceptado", error: "Error", repeat: "Repetición", unknown: "Sin registro", reason: "Motivo", accuracy: "Precisión", rhythm: "Ritmo",
+    accepted: "Aceptado", transmitted: "Transmitido", error: "Error", repeat: "Repetición", unknown: "Sin registro", reason: "Motivo", accuracy: "Precisión", rhythm: "Ritmo",
     PLAYER_CQ: "Llamar CQ", PLAYER_RST_AND_73: "Intercambiar RST / 73", missingCq: "Falta CQ", missingDe: "Falta DE", missingPlayerCallsign: "Falta tu indicativo", wrongCqOrder: "El mensaje CQ está desordenado", missingK: "Falta la K final", invalidAgn: "La petición de repetición debe ser AGN K", missingCallsign: "Se requieren ambos indicativos", invalidRst: "El formato RST no es válido", missing73: "Falta 73", wrongReplyOrder: "El mensaje de respuesta está desordenado", notWaitingForPlayer: "Esta etapa no acepta una transmisión",
   },
   de: {
     title: "Betriebsauswertung", empty: "Dieses ältere Log enthält keinen Versuchsverlauf", guidance: "Führung", visual: "Visuelle Hilfe", independent: "Selbstständige Wache",
     full: "Vollständig", hints: "Nur Hinweise", off: "Aus", used: "Benutzt", unused: "Nicht benutzt", yes: "Bestanden", no: "Nicht bestanden",
-    accepted: "Akzeptiert", error: "Fehler", repeat: "Wiederholung", unknown: "Nicht erfasst", reason: "Grund", accuracy: "Genauigkeit", rhythm: "Rhythmus",
+    accepted: "Akzeptiert", transmitted: "Gesendet", error: "Fehler", repeat: "Wiederholung", unknown: "Nicht erfasst", reason: "Grund", accuracy: "Genauigkeit", rhythm: "Rhythmus",
     PLAYER_CQ: "CQ rufen", PLAYER_RST_AND_73: "RST / 73 austauschen", missingCq: "CQ fehlt", missingDe: "DE fehlt", missingPlayerCallsign: "Dein Rufzeichen fehlt", wrongCqOrder: "CQ-Nachricht hat die falsche Reihenfolge", missingK: "Abschließendes K fehlt", invalidAgn: "Eine Wiederholungsanfrage muss AGN K sein", missingCallsign: "Beide Rufzeichen sind erforderlich", invalidRst: "RST-Format ist ungültig", missing73: "73 fehlt", wrongReplyOrder: "Antwort hat die falsche Reihenfolge", notWaitingForPlayer: "Diese Phase nimmt keine Sendung an",
   },
   ru: {
     title: "Разбор работы", empty: "В старой записи нет истории попыток", guidance: "Подсказки", visual: "Визуальная помощь", independent: "Самостоятельная вахта",
     full: "Полные", hints: "Только намёки", off: "Выкл.", used: "Использована", unused: "Не использована", yes: "Зачёт", no: "Нет зачёта",
-    accepted: "Принято", error: "Ошибка", repeat: "Повтор", unknown: "Не записано", reason: "Причина", accuracy: "Точность", rhythm: "Ритм",
+    accepted: "Принято", transmitted: "Передано", error: "Ошибка", repeat: "Повтор", unknown: "Не записано", reason: "Причина", accuracy: "Точность", rhythm: "Ритм",
     PLAYER_CQ: "Вызвать CQ", PLAYER_RST_AND_73: "Обменяться RST / 73", missingCq: "Отсутствует CQ", missingDe: "Отсутствует DE", missingPlayerCallsign: "Отсутствует ваш позывной", wrongCqOrder: "Неверный порядок сообщения CQ", missingK: "Нет завершающего K", invalidAgn: "Запрос повтора должен быть AGN K", missingCallsign: "Нужны оба позывных", invalidRst: "Неверный формат RST", missing73: "Отсутствует 73", wrongReplyOrder: "Неверный порядок ответа", notWaitingForPlayer: "На этом этапе передача не принимается",
   },
 };
@@ -135,6 +135,7 @@ const QSO_REVIEW_TEXT = {
 function logReviewResult(result, t) {
   const normalized = String(result ?? "").toLowerCase();
   if (["accepted", "accept", "correct", "success", "ok"].includes(normalized)) return { label: t.accepted, className: "accepted" };
+  if (normalized === "transmitted") return { label: t.transmitted, className: "transmitted" };
   if (["repeat", "repeated", "agn", "retry"].includes(normalized)) return { label: t.repeat, className: "repeat" };
   if (["error", "incorrect", "rejected", "failed", "invalid"].includes(normalized)) return { label: t.error, className: "error" };
   return { label: result || t.unknown, className: "unknown" };

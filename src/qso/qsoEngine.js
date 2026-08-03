@@ -1,5 +1,9 @@
 import { normalizeCwText } from "../cw/morse.js";
 import { greatCircleDistanceDegrees } from "../propagation/propagationEngine.js";
+import { assessCqTransmission } from "./cqAssessment.js";
+import {
+  buildRemoteReply, resolveRemoteCopy, withOperatorProfile,
+} from "./operatorProfiles.js";
 import { MAX_QSO_ATTEMPT_HISTORY, normalizeQsoLogEntry } from "./qsoLog.js";
 
 export const QSO_PHASES = Object.freeze({
@@ -41,9 +45,9 @@ function normalizeMetric(value, maximum = 100) {
     : null;
 }
 
-function appendAttempt(qso, message, validation, metrics = {}) {
+function appendAttempt(qso, message, validation, metrics = {}, assessment = null) {
   const result = validation.valid
-    ? (validation.action === "repeat" ? "repeat" : "accepted")
+    ? (validation.action === "repeat" ? "repeat" : validation.action === "transmit" ? "transmitted" : "accepted")
     : "rejected";
   const previous = Array.isArray(qso.attemptHistory) ? qso.attemptHistory : [];
   return [...previous, {
@@ -54,7 +58,23 @@ function appendAttempt(qso, message, validation, metrics = {}) {
     wpm: normalizeMetric(metrics.wpm, 120),
     accuracy: normalizeMetric(metrics.accuracy),
     rhythm: normalizeMetric(metrics.rhythm),
+    cqQuality: normalizeMetric(assessment?.quality),
+    copyScore: null,
+    remoteOutcome: null,
+    operatorProfileId: null,
   }].slice(-MAX_QSO_ATTEMPT_HISTORY);
+}
+
+function annotateLatestCqAttempt(attemptHistory, decision) {
+  if (!Array.isArray(attemptHistory) || !attemptHistory.length) return [];
+  const next = [...attemptHistory];
+  next[next.length - 1] = {
+    ...next.at(-1),
+    copyScore: normalizeMetric(decision?.copyScore),
+    remoteOutcome: decision?.outcome ?? "no-response",
+    operatorProfileId: decision?.operatorProfileId ?? null,
+  };
+  return next;
 }
 
 export function createQso({
@@ -66,20 +86,30 @@ export function createQso({
 }) {
   if (!npc?.callsign) throw new Error("NPC callsign is required.");
   const frozenGuidanceLevel = normalizeGuidanceLevel(guidanceLevel);
+  const profiledNpc = withOperatorProfile(npc);
   return {
     phase: QSO_PHASES.PLAYER_CQ,
-    npc,
+    npc: profiledNpc,
     playerCallsign,
     npcMessage: null,
+    npcReplyDisposition: null,
+    replyWpm: null,
     expectedPlayer: expectedCq(playerCallsign),
     hasContact: false,
     contactRevealed: false,
     repeatRequests: 0,
+    copyQueries: 0,
+    pendingResponderQueryCount: 0,
     unansweredCalls: 0,
     sentRst: null,
     receivedRst: null,
     attempts: 0,
     attemptHistory: [],
+    cqAssessment: null,
+    lastCopyOutcome: null,
+    lastCopyScore: null,
+    channelNotice: null,
+    pendingResponder: null,
     lastError: null,
     guidanceLevel: frozenGuidanceLevel,
     visualAssistUsed: typeof visualAssistUsed === "boolean" ? visualAssistUsed : frozenGuidanceLevel !== "off",
@@ -101,6 +131,36 @@ export function markQsoAssisted(qso) {
 
 export function onNpcPlaybackFinished(qso, completedAt = new Date().toISOString()) {
   if (qso.phase === QSO_PHASES.NPC_REPLY) {
+    if (qso.npcReplyDisposition === "query") {
+      return {
+        ...qso,
+        phase: QSO_PHASES.PLAYER_CQ,
+        npcMessage: null,
+        npcReplyDisposition: null,
+        replyWpm: null,
+        expectedPlayer: expectedCq(qso.playerCallsign),
+        hasContact: false,
+        contactRevealed: false,
+        lastError: null,
+        channelNotice: "npcQuery",
+      };
+    }
+    if (qso.npcReplyDisposition === "general") {
+      return {
+        ...qso,
+        phase: QSO_PHASES.PLAYER_CQ,
+        npcMessage: null,
+        npcReplyDisposition: null,
+        replyWpm: null,
+        expectedPlayer: expectedCq(qso.playerCallsign),
+        hasContact: false,
+        contactRevealed: false,
+        pendingResponder: null,
+        unansweredCalls: qso.unansweredCalls + 1,
+        lastError: null,
+        channelNotice: "generalCall",
+      };
+    }
     return { ...qso, phase: QSO_PHASES.PLAYER_RST_AND_73, lastError: null };
   }
   if (qso.phase === QSO_PHASES.NPC_73_AND_SK) {
@@ -163,6 +223,43 @@ export function submitPlayerMessage(qso, message, {
   rhythm = null,
 } = {}) {
   const validation = validatePlayerMessage(qso, message);
+  if (qso.phase === QSO_PHASES.PLAYER_CQ) {
+    const cqAssessment = assessCqTransmission({
+      message,
+      playerCallsign: qso.playerCallsign,
+      wpm,
+      rhythm,
+    });
+    const transmittedValidation = {
+      ...validation,
+      valid: true,
+      action: validation.valid ? validation.action : "transmit",
+      reason: validation.valid ? null : validation.reason,
+    };
+    const attemptHistory = appendAttempt(
+      qso,
+      message,
+      transmittedValidation,
+      { wpm, accuracy: cqAssessment.editScore, rhythm },
+      cqAssessment,
+    );
+    return {
+      ...qso,
+      phase: QSO_PHASES.WAITING_RESPONSE,
+      attempts: 0,
+      attemptHistory,
+      cqAssessment,
+      lastCopyOutcome: null,
+      lastCopyScore: null,
+      channelNotice: null,
+      lastError: null,
+      npcMessage: null,
+      npcReplyDisposition: null,
+      replyWpm: null,
+      expectedPlayer: null,
+      pendingResponderQueryCount: qso.pendingResponder ? qso.pendingResponderQueryCount : 0,
+    };
+  }
   const attemptHistory = appendAttempt(qso, message, validation, { wpm, accuracy, rhythm });
   if (!validation.valid) {
     const attempts = Math.min(
@@ -170,17 +267,6 @@ export function submitPlayerMessage(qso, message, {
       (Number.isSafeInteger(qso.attempts) && qso.attempts >= 0 ? qso.attempts : 0) + 1,
     );
     return { ...qso, attempts, attemptHistory, lastError: validation.reason };
-  }
-  if (qso.phase === QSO_PHASES.PLAYER_CQ) {
-    return {
-      ...qso,
-      phase: QSO_PHASES.WAITING_RESPONSE,
-      attempts: 0,
-      attemptHistory,
-      lastError: null,
-      npcMessage: null,
-      expectedPlayer: null,
-    };
   }
   if (validation.action === "repeat") {
     return {
@@ -193,6 +279,7 @@ export function submitPlayerMessage(qso, message, {
         (Number.isSafeInteger(qso.repeatRequests) && qso.repeatRequests >= 0 ? qso.repeatRequests : 0) + 1,
       ),
       contactRevealed: false,
+      npcReplyDisposition: "copy",
     };
   }
   return {
@@ -204,34 +291,126 @@ export function submitPlayerMessage(qso, message, {
     sentRst: validation.rst,
     receivedRst: npcRst,
     npcMessage: `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} 73 SK`,
+    npcReplyDisposition: "copy",
+    replyWpm: qso.replyWpm ?? qso.npc.wpm,
     expectedPlayer: null,
     contactRevealed: true,
   };
 }
 
-export function resolveCqResponse(qso, npc) {
+export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
   if (qso.phase !== QSO_PHASES.WAITING_RESPONSE) return qso;
+  const pendingResponderQueryCount = Number.isSafeInteger(qso.pendingResponderQueryCount)
+    && qso.pendingResponderQueryCount >= 0
+    ? qso.pendingResponderQueryCount
+    : 0;
   if (!npc?.callsign) {
     return {
       ...qso,
       phase: QSO_PHASES.PLAYER_CQ,
       unansweredCalls: qso.unansweredCalls + 1,
       lastError: "noResponse",
+      channelNotice: "noResponse",
       npcMessage: null,
+      npcReplyDisposition: null,
+      replyWpm: null,
       expectedPlayer: expectedCq(qso.playerCallsign),
       hasContact: false,
       contactRevealed: false,
+      pendingResponder: null,
+      pendingResponderQueryCount: 0,
+      lastCopyOutcome: "no-response",
+      lastCopyScore: null,
+      attemptHistory: annotateLatestCqAttempt(qso.attemptHistory, null),
+    };
+  }
+  const decision = resolveRemoteCopy({
+    assessment: qso.cqAssessment,
+    npc,
+    playerCallsign: qso.playerCallsign,
+    seed,
+    queryCount: pendingResponderQueryCount,
+  });
+  const attemptHistory = annotateLatestCqAttempt(qso.attemptHistory, decision);
+  if (decision.disposition === "silence") {
+    return {
+      ...qso,
+      phase: QSO_PHASES.PLAYER_CQ,
+      npc: decision.npc,
+      unansweredCalls: qso.unansweredCalls + 1,
+      lastError: null,
+      channelNotice: "unreadableCq",
+      npcMessage: null,
+      npcReplyDisposition: null,
+      replyWpm: null,
+      expectedPlayer: expectedCq(qso.playerCallsign),
+      hasContact: false,
+      contactRevealed: false,
+      pendingResponder: null,
+      pendingResponderQueryCount: 0,
+      lastCopyOutcome: decision.outcome,
+      lastCopyScore: decision.copyScore,
+      attemptHistory,
+    };
+  }
+  if (decision.disposition === "query") {
+    return {
+      ...qso,
+      phase: QSO_PHASES.NPC_REPLY,
+      npc: decision.npc,
+      lastError: null,
+      channelNotice: null,
+      npcMessage: buildRemoteReply(decision, qso.playerCallsign),
+      npcReplyDisposition: "query",
+      replyWpm: decision.replyWpm,
+      expectedPlayer: null,
+      hasContact: false,
+      contactRevealed: false,
+      pendingResponder: decision.npc,
+      copyQueries: qso.copyQueries + 1,
+      pendingResponderQueryCount: pendingResponderQueryCount + 1,
+      lastCopyOutcome: decision.outcome,
+      lastCopyScore: decision.copyScore,
+      attemptHistory,
+    };
+  }
+  if (decision.disposition === "general") {
+    return {
+      ...qso,
+      phase: QSO_PHASES.NPC_REPLY,
+      npc: decision.npc,
+      lastError: null,
+      channelNotice: null,
+      npcMessage: buildRemoteReply(decision, qso.playerCallsign),
+      npcReplyDisposition: "general",
+      replyWpm: decision.replyWpm,
+      expectedPlayer: null,
+      hasContact: false,
+      contactRevealed: false,
+      pendingResponder: null,
+      pendingResponderQueryCount: 0,
+      lastCopyOutcome: decision.outcome,
+      lastCopyScore: decision.copyScore,
+      attemptHistory,
     };
   }
   return {
     ...qso,
     phase: QSO_PHASES.NPC_REPLY,
-    npc,
+    npc: decision.npc,
     lastError: null,
-    npcMessage: `${qso.playerCallsign} DE ${npc.callsign} ${npc.callsign} K`,
-    expectedPlayer: `${npc.callsign} DE ${qso.playerCallsign} RST 559 73 K`,
+    channelNotice: null,
+    npcMessage: buildRemoteReply(decision, qso.playerCallsign),
+    npcReplyDisposition: "copy",
+    replyWpm: decision.replyWpm,
+    expectedPlayer: `${decision.npc.callsign} DE ${qso.playerCallsign} RST 559 73 K`,
     hasContact: true,
     contactRevealed: false,
+    pendingResponder: null,
+    pendingResponderQueryCount: 0,
+    lastCopyOutcome: decision.outcome,
+    lastCopyScore: decision.copyScore,
+    attemptHistory,
   };
 }
 
@@ -303,6 +482,13 @@ export function createQsoLogEntry(qso, {
     transmitAccuracy: transmitAccuracy ?? copyAccuracy,
     keyingScore,
     repeatRequests: qso.repeatRequests,
+    copyQueries: qso.copyQueries,
+    cqQuality: qso.cqAssessment?.quality,
+    copyScore: qso.lastCopyScore,
+    copyOutcome: qso.lastCopyOutcome,
+    operatorProfileId: qso.npc.operatorProfileId,
+    operatorProfileRevision: qso.npc.operatorProfileRevision,
+    remoteWpm: qso.replyWpm ?? qso.npc.wpm,
     guidanceLevel: qso.guidanceLevel,
     visualAssistUsed: qso.visualAssistUsed,
     independentWatch: qso.independentWatch,

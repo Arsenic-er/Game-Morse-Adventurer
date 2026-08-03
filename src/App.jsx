@@ -32,12 +32,13 @@ import { PracticeScreen } from "./practice/PracticeScreen.jsx";
 import { practiceStatsByMode, recordPracticeAttempt, updatePracticePreference } from "./practice/practiceRecords.js";
 import { PropagationMap } from "./propagation/PropagationMap.jsx";
 import {
-  channelProfileForLevel, generatePropagationMap, selectNpcForQso, selectNpcResponseForCq,
+  channelProfileForLevel, generatePropagationMap, selectNpcForQso, selectNpcListenerForCq,
 } from "./propagation/propagationEngine.js";
 import {
   QSO_PHASES, createQso, createQsoLogEntry, markQsoAssisted, onNpcPlaybackFinished,
   qsoCanAcceptPlayer, qsoNeedsNpcPlayback, resolveCqResponse, restartQso, submitPlayerMessage,
 } from "./qso/qsoEngine.js";
+import { responseDelayForNpc } from "./qso/operatorProfiles.js";
 import { recordCompletedQso } from "./qso/qsoLog.js";
 import { QSO_EXIT_RISKS, qsoExitRisk } from "./qso/qsoExitGuard.js";
 import { HomeScreen } from "./screens/HomeScreen.jsx";
@@ -58,7 +59,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.25.0";
+const BUILD_VERSION = "0.26.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -202,45 +203,45 @@ const STATION_FLOW_COPY = {
   "zh-CN": {
     sendCq: "发送 CQ", sendMessage: "发送电文", receiverLive: "接收机已开启 · 背景噪声", receiverRecovering: "接收中断，正在自动恢复…",
     phaseCq: "请发送 CQ 呼叫", phaseWaitingResponse: "CQ 已发出，正在守听…",
-    phaseNpcReply: "收到回应，正在自动接收对方呼号…", phasePlayerRst: "请发送双方呼号、RST 与 73",
-    phaseFinal: "正在自动接收对方 73 / SK", noResponse: "本轮无人回应，可再次呼叫 CQ",
+    phaseNpcReply: "收到回应，正在自动接收对方呼号…", phaseNpcQuery: "有电台未抄清，正在接收回问…", phaseGeneralCall: "有电台未识别本台，正在进行一般呼叫…", phasePlayerRst: "请发送双方呼号、RST 与 73",
+    phaseFinal: "正在自动接收对方 73 / SK", noResponse: "本轮无人回应，可再次呼叫 CQ", npcQuery: "对方回问，请重新完整发送 CQ", generalCall: "对方未抄出本台呼号，已转为一般呼叫", unreadableCq: "发报质量过低，对方无法抄收",
     invalidCq: "CQ 格式不正确", noContact: "尚无回应", blindContact: "盲听中 · 请从音频抄收呼号", blindIncomingLine: "REMOTE // CW 接收中", listeningLine: "LISTENING // 21.060 MHz",
   },
   "zh-TW": {
     sendCq: "發送 CQ", sendMessage: "發送電文", receiverLive: "接收機已開啟 · 背景雜訊", receiverRecovering: "接收中斷，正在自動恢復…",
     phaseCq: "請發送 CQ 呼叫", phaseWaitingResponse: "CQ 已發出，正在守聽…",
-    phaseNpcReply: "收到回應，正在自動接收對方呼號…", phasePlayerRst: "請發送雙方呼號、RST 與 73",
-    phaseFinal: "正在自動接收對方 73 / SK", noResponse: "本輪無人回應，可再次呼叫 CQ",
+    phaseNpcReply: "收到回應，正在自動接收對方呼號…", phaseNpcQuery: "有電臺未抄清，正在接收回問…", phaseGeneralCall: "有電臺未識別本臺，正在進行一般呼叫…", phasePlayerRst: "請發送雙方呼號、RST 與 73",
+    phaseFinal: "正在自動接收對方 73 / SK", noResponse: "本輪無人回應，可再次呼叫 CQ", npcQuery: "對方回問，請重新完整發送 CQ", generalCall: "對方未抄出本臺呼號，已轉為一般呼叫", unreadableCq: "發報品質過低，對方無法抄收",
     invalidCq: "CQ 格式不正確", noContact: "尚無回應", blindContact: "盲聽中 · 請從音訊抄收呼號", blindIncomingLine: "REMOTE // CW 接收中", listeningLine: "LISTENING // 21.060 MHz",
   },
   ja: {
     sendCq: "CQ を送信", sendMessage: "電文を送信", receiverLive: "受信機動作中・バックグラウンドノイズ", receiverRecovering: "受信が中断しました。自動復帰中…",
     phaseCq: "CQ 呼出を送信してください", phaseWaitingResponse: "CQ を送信しました。応答を待っています…",
-    phaseNpcReply: "応答局のコールサインを自動受信中…", phasePlayerRst: "両局のコール、RST、73 を送信",
-    phaseFinal: "相手局の 73 / SK を自動受信中", noResponse: "今回は応答がありません。もう一度 CQ を出せます",
+    phaseNpcReply: "応答局のコールサインを自動受信中…", phaseNpcQuery: "相手局の聞き返しを受信中…", phaseGeneralCall: "こちらを識別できなかった局の一般呼出を受信中…", phasePlayerRst: "両局のコール、RST、73 を送信",
+    phaseFinal: "相手局の 73 / SK を自動受信中", noResponse: "今回は応答がありません。もう一度 CQ を出せます", npcQuery: "相手局が再送を求めています。CQ をもう一度完全に送信してください", generalCall: "相手局はこちらのコールをコピーできず、一般呼出に戻りました", unreadableCq: "送信品質が低く、相手局はコピーできませんでした",
     invalidCq: "CQ の形式が正しくありません", noContact: "応答局なし", blindContact: "ブラインド受信中・音からコールをコピー", blindIncomingLine: "REMOTE // CW 受信中", listeningLine: "LISTENING // 21.060 MHz",
   },
   en: {
     sendCq: "Send CQ", sendMessage: "Send message", receiverLive: "Receiver open · background noise", receiverRecovering: "Reception interrupted · recovering automatically…",
     phaseCq: "Send a CQ call", phaseWaitingResponse: "CQ sent. Listening for replies…",
-    phaseNpcReply: "Automatically receiving a responding station…", phasePlayerRst: "Send both callsigns, RST, and 73",
-    phaseFinal: "Automatically receiving 73 / SK", noResponse: "No reply this time. You may call CQ again.",
+    phaseNpcReply: "Automatically receiving a responding station…", phaseNpcQuery: "Receiving a station asking for a repeat…", phaseGeneralCall: "Receiving a general call from a station that could not identify you…", phasePlayerRst: "Send both callsigns, RST, and 73",
+    phaseFinal: "Automatically receiving 73 / SK", noResponse: "No reply this time. You may call CQ again.", npcQuery: "The station asked again. Send the complete CQ once more.", generalCall: "The station could not copy your call and returned to a general CQ.", unreadableCq: "Your transmission was too unclear for the station to copy.",
     invalidCq: "CQ format is not valid", noContact: "No response yet", blindContact: "Blind copy · identify the call from audio", blindIncomingLine: "REMOTE // CW RX", listeningLine: "LISTENING // 21.060 MHz",
   },
   es: {
     sendCq: "Enviar CQ", sendMessage: "Enviar mensaje", receiverLive: "Receptor abierto · ruido de fondo", receiverRecovering: "Recepción interrumpida · recuperación automática…",
-    phaseCq: "Envía una llamada CQ", phaseWaitingResponse: "CQ enviado. Escuchando respuestas…", phaseNpcReply: "Recibiendo automáticamente una estación que responde…", phasePlayerRst: "Envía ambos indicativos, RST y 73",
-    phaseFinal: "Recibiendo automáticamente 73 / SK", noResponse: "No hubo respuesta. Puedes volver a llamar CQ.", invalidCq: "El formato de CQ no es válido", noContact: "Aún no hay respuesta", blindContact: "Copia a oído · identifica el indicativo por el audio", blindIncomingLine: "REMOTE // RX CW", listeningLine: "ESCUCHANDO // 21.060 MHz",
+    phaseCq: "Envía una llamada CQ", phaseWaitingResponse: "CQ enviado. Escuchando respuestas…", phaseNpcReply: "Recibiendo automáticamente una estación que responde…", phaseNpcQuery: "Recibiendo una petición de repetición…", phaseGeneralCall: "Recibiendo una llamada general de una estación que no pudo identificarte…", phasePlayerRst: "Envía ambos indicativos, RST y 73",
+    phaseFinal: "Recibiendo automáticamente 73 / SK", noResponse: "No hubo respuesta. Puedes volver a llamar CQ.", npcQuery: "La estación pide repetir. Envía de nuevo el CQ completo.", generalCall: "La estación no pudo copiar tu indicativo y volvió a una llamada general.", unreadableCq: "La transmisión fue demasiado confusa para poder copiarla.", invalidCq: "El formato de CQ no es válido", noContact: "Aún no hay respuesta", blindContact: "Copia a oído · identifica el indicativo por el audio", blindIncomingLine: "REMOTE // RX CW", listeningLine: "ESCUCHANDO // 21.060 MHz",
   },
   de: {
     sendCq: "CQ senden", sendMessage: "Nachricht senden", receiverLive: "Empfänger offen · Hintergrundrauschen", receiverRecovering: "Empfang unterbrochen · automatische Wiederherstellung…",
-    phaseCq: "CQ-Ruf senden", phaseWaitingResponse: "CQ gesendet. Warte auf Antworten…", phaseNpcReply: "Antwortende Station wird automatisch empfangen…", phasePlayerRst: "Beide Rufzeichen, RST und 73 senden",
-    phaseFinal: "73 / SK wird automatisch empfangen", noResponse: "Diesmal keine Antwort. Du kannst erneut CQ rufen.", invalidCq: "CQ-Format ist ungültig", noContact: "Noch keine Antwort", blindContact: "Blindmitschrift · Rufzeichen aus dem Ton erkennen", blindIncomingLine: "REMOTE // CW RX", listeningLine: "EMPFANG // 21.060 MHz",
+    phaseCq: "CQ-Ruf senden", phaseWaitingResponse: "CQ gesendet. Warte auf Antworten…", phaseNpcReply: "Antwortende Station wird automatisch empfangen…", phaseNpcQuery: "Eine Rückfrage der Station wird empfangen…", phaseGeneralCall: "Allgemeiner Ruf einer Station, die dich nicht identifizieren konnte…", phasePlayerRst: "Beide Rufzeichen, RST und 73 senden",
+    phaseFinal: "73 / SK wird automatisch empfangen", noResponse: "Diesmal keine Antwort. Du kannst erneut CQ rufen.", npcQuery: "Die Station bittet um Wiederholung. Sende den vollständigen CQ-Ruf erneut.", generalCall: "Die Station konnte dein Rufzeichen nicht aufnehmen und ruft wieder allgemein CQ.", unreadableCq: "Deine Sendung war für die Gegenstation nicht lesbar.", invalidCq: "CQ-Format ist ungültig", noContact: "Noch keine Antwort", blindContact: "Blindmitschrift · Rufzeichen aus dem Ton erkennen", blindIncomingLine: "REMOTE // CW RX", listeningLine: "EMPFANG // 21.060 MHz",
   },
   ru: {
     sendCq: "Передать CQ", sendMessage: "Передать сообщение", receiverLive: "Приёмник открыт · фоновый шум", receiverRecovering: "Приём прерван · автоматическое восстановление…",
-    phaseCq: "Передайте вызов CQ", phaseWaitingResponse: "CQ передан. Слушаем ответы…", phaseNpcReply: "Автоматический приём ответившей станции…", phasePlayerRst: "Передайте оба позывных, RST и 73",
-    phaseFinal: "Автоматический приём 73 / SK", noResponse: "В этот раз ответа нет. Можно снова вызвать CQ.", invalidCq: "Неверный формат CQ", noContact: "Ответа пока нет", blindContact: "Слепой приём · определите позывной по звуку", blindIncomingLine: "REMOTE // ПРИЁМ CW", listeningLine: "ПРИЁМ // 21.060 MHz",
+    phaseCq: "Передайте вызов CQ", phaseWaitingResponse: "CQ передан. Слушаем ответы…", phaseNpcReply: "Автоматический приём ответившей станции…", phaseNpcQuery: "Принимается запрос станции на повтор…", phaseGeneralCall: "Принимается общий вызов станции, которая не смогла вас опознать…", phasePlayerRst: "Передайте оба позывных, RST и 73",
+    phaseFinal: "Автоматический приём 73 / SK", noResponse: "В этот раз ответа нет. Можно снова вызвать CQ.", npcQuery: "Станция просит повторить. Передайте полный CQ ещё раз.", generalCall: "Станция не разобрала ваш позывной и вернулась к общему вызову CQ.", unreadableCq: "Передача оказалась слишком неразборчивой для приёма.", invalidCq: "Неверный формат CQ", noContact: "Ответа пока нет", blindContact: "Слепой приём · определите позывной по звуку", blindIncomingLine: "REMOTE // ПРИЁМ CW", listeningLine: "ПРИЁМ // 21.060 MHz",
   },
 };
 
@@ -490,20 +491,25 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
 
   useEffect(() => {
     if (briefingOpen || exitRequest || qso.phase !== QSO_PHASES.WAITING_RESPONSE || !powered || !antennaReady) return undefined;
-    const delay = window.cwgameSystem?.qaCapture ? 60 : 1800;
+    const seed = `${propagationKey}:${qsoSerial}:${qso.unansweredCalls}:${save.callsign}`;
+    const responder = selectNpcListenerForCq(propagationMap, {
+      playerEquipmentBonus,
+      stations: qso.pendingResponder ? [qso.pendingResponder] : undefined,
+      seed,
+      rfEnabled: antennaReady,
+    });
+    const delay = window.cwgameSystem?.qaCapture
+      ? 60
+      : responder ? responseDelayForNpc(responder, seed) : 1800;
     const timer = window.setTimeout(() => {
-      const seed = `${propagationKey}:${qsoSerial}:${qso.unansweredCalls}:${save.callsign}`;
-      const responder = window.cwgameSystem?.qaCapture
-        ? selectNpcForQso(propagationMap, { playerEquipmentBonus, seed })
-        : selectNpcResponseForCq(propagationMap, { playerEquipmentBonus, seed, rfEnabled: antennaReady });
       setQso((current) => (
-        current.phase === QSO_PHASES.WAITING_RESPONSE ? resolveCqResponse(current, responder) : current
+        current.phase === QSO_PHASES.WAITING_RESPONSE ? resolveCqResponse(current, responder, { seed }) : current
       ));
     }, delay);
     return () => window.clearTimeout(timer);
   }, [
     antennaReady, briefingOpen, exitRequest, playerEquipmentBonus, powered, propagationKey, propagationMap,
-    qso.phase, qso.unansweredCalls, qsoSerial, save.callsign,
+    qso.npc, qso.pendingResponder, qso.phase, qso.unansweredCalls, qsoSerial, save.callsign,
   ]);
 
   useEffect(() => {
@@ -519,11 +525,12 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       if (focusHandler) window.removeEventListener("focus", focusHandler);
       setNpcPlaybackRetry((current) => current + 1);
     };
+    const qaPlaybackDelay = qso.npcReplyDisposition === "query" ? 1600 : 60;
     const timer = window.setTimeout(async () => {
       const forcedQaFailure = window.cwgameSystem?.consumeQaIncomingFailure?.(activePhase) ?? false;
       const played = forcedQaFailure ? false : window.cwgameSystem?.qaCapture
         ? true
-        : await cw.playIncoming(qso.npcMessage, qso.npc.wpm, npcChannel);
+        : await cw.playIncoming(qso.npcMessage, qso.replyWpm ?? qso.npc.wpm, npcChannel);
       if (cancelled) return;
       if (!played) {
         setNpcPlaybackRecovering(true);
@@ -537,7 +544,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
         current.phase === activePhase ? onNpcPlaybackFinished(current) : current
       ));
       cw.clearInput();
-    }, window.cwgameSystem?.qaCapture ? 60 : 350);
+    }, window.cwgameSystem?.qaCapture ? qaPlaybackDelay : 350);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
@@ -546,7 +553,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     };
   }, [
     antennaReady, briefingOpen, cw.clearInput, cw.playIncoming, exitRequest, npcChannel, powered,
-    npcPlaybackRetry, qso.npc.wpm, qso.npcMessage, qso.phase,
+    npcPlaybackRetry, qso.npc.wpm, qso.npcMessage, qso.npcReplyDisposition, qso.phase, qso.replyWpm,
   ]);
 
   useEffect(() => {
@@ -591,12 +598,18 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
     const decoded = cw.analysis.decoded;
     const normalizedDecoded = decoded.trim().replace(/\s+/g, " ").toUpperCase();
-    const sample = {
+    const rawSample = {
       wpm: cw.analysis.wpm,
       accuracy: normalizedDecoded === "AGN K" ? scoreDecodedText(decoded, "AGN K") : cw.analysis.accuracy,
       rhythm: cw.analysis.rhythm,
     };
-    const nextQso = submitPlayerMessage(qso, decoded, sample);
+    const nextQso = submitPlayerMessage(qso, decoded, rawSample);
+    const sample = {
+      ...rawSample,
+      accuracy: qso.phase === QSO_PHASES.PLAYER_CQ
+        ? (nextQso.cqAssessment?.editScore ?? rawSample.accuracy)
+        : rawSample.accuracy,
+    };
     setQso(nextQso);
     setQsoMetrics((current) => ({
       samples: current.samples + 1,
@@ -786,15 +799,23 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     setPowered((current) => !current);
   }
 
+  const npcReplyPhaseText = qso.npcReplyDisposition === "query"
+    ? flow.phaseNpcQuery
+    : qso.npcReplyDisposition === "general" ? flow.phaseGeneralCall : flow.phaseNpcReply;
   const phaseText = {
     [QSO_PHASES.PLAYER_CQ]: flow.phaseCq,
     [QSO_PHASES.WAITING_RESPONSE]: flow.phaseWaitingResponse,
-    [QSO_PHASES.NPC_REPLY]: flow.phaseNpcReply,
+    [QSO_PHASES.NPC_REPLY]: npcReplyPhaseText,
     [QSO_PHASES.PLAYER_RST_AND_73]: flow.phasePlayerRst,
     [QSO_PHASES.NPC_73_AND_SK]: flow.phaseFinal,
     [QSO_PHASES.QSO_COMPLETE]: t.phaseComplete,
     [QSO_PHASES.QSO_FAILED]: t.phaseFailed,
   }[qso.phase];
+  const channelNotice = {
+    npcQuery: flow.npcQuery,
+    generalCall: flow.generalCall,
+    unreadableCq: flow.unreadableCq,
+  }[qso.channelNotice] ?? "";
   const decodedText = cw.analysis.decoded || "---";
   const utc = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
   const local = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: location.timeZone });
@@ -831,7 +852,13 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     <main
       className={`screen station-screen ${isTx ? "transmitting" : ""} ${powered ? "station-powered" : "station-off"} ${antennaReady ? "" : "antenna-missing"}`}
       data-qso-phase={qso.phase}
+      data-cq-quality={qso.cqAssessment?.quality ?? ""}
+      data-copy-outcome={qso.lastCopyOutcome ?? ""}
+      data-reply-disposition={qso.npcReplyDisposition ?? ""}
+      data-channel-notice={qso.channelNotice ?? ""}
+      data-operator-profile={window.cwgameSystem?.qaCapture ? (qso.npc.operatorProfileId ?? "") : undefined}
       data-contact-revealed={qso.contactRevealed}
+      data-qa-has-contact={window.cwgameSystem?.qaCapture ? qso.hasContact : undefined}
       data-repeat-requests={qso.repeatRequests}
       data-guidance-level={qso.guidanceLevel}
       data-visual-assist-used={qso.visualAssistUsed}
@@ -895,9 +922,15 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       <footer className="qso-console metal-panel">
         <div className="qso-console-stack">
           <QsoDutyCoach language={language} guidance={qso.guidanceLevel} qso={qso} playerCallsign={save.callsign} powered={powered} antennaReady={antennaReady} saved={saved} onClearRetry={clearCurrentInput} />
-          <div className="morse-display" aria-live="polite">
+          <div
+            className="morse-display"
+            aria-live="polite"
+            data-cq-quality={qso.cqAssessment?.quality ?? ""}
+            data-copy-outcome={qso.lastCopyOutcome ?? ""}
+            data-operator-profile={window.cwgameSystem?.qaCapture ? (qso.npc.operatorProfileId ?? "") : undefined}
+          >
             <span>{displayLine}</span>
-            <small>{phaseText}{qso.lastError === "noResponse" ? ` // ${flow.noResponse}` : qso.lastError ? ` // ${qsoErrorMessage(language, qso.lastError) || t.invalidReply} (${qso.attempts})` : ""} // {t.decoded}: {decodedPreview} // {t.accuracy}: {cw.analysis.accuracy}% // {t.rhythm}: {cw.analysis.rhythm}%</small>
+            <small>{phaseText}{channelNotice ? ` // ${channelNotice}` : qso.lastError === "noResponse" ? ` // ${flow.noResponse}` : qso.lastError ? ` // ${qsoErrorMessage(language, qso.lastError) || t.invalidReply} (${qso.attempts})` : ""} // {t.decoded}: {decodedPreview} // {t.accuracy}: {cw.analysis.accuracy}% // {t.rhythm}: {cw.analysis.rhythm}%</small>
           </div>
         </div>
         <div className={`receiver-live ${powered && cw.isListening ? "active" : ""} ${npcPlaybackRecovering ? "recovering" : ""}`} data-action="receiver-status"><Broadcast size={21} weight="fill" /><span>{!powered ? t.powerOff : npcPlaybackRecovering ? flow.receiverRecovering : flow.receiverLive}</span></div>

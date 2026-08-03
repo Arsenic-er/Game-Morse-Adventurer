@@ -31,12 +31,21 @@ function entry(overrides = {}) {
     transmitAccuracy: 92.34,
     keyingScore: 88.88,
     repeatRequests: 2,
+    copyQueries: 1,
+    cqQuality: 91.24,
+    copyScore: 82.44,
+    copyOutcome: "copied",
+    operatorProfileId: "careful-beginner",
+    operatorProfileRevision: 1,
+    remoteWpm: 10,
     guidanceLevel: "off",
     visualAssistUsed: false,
     independentWatch: true,
     attemptHistory: [{
       stage: "PLAYER_RST_AND_73", message: "sim7qx de bh1abc rst 559 73 k",
       result: "accepted", reason: null, wpm: 18.04, accuracy: 92.34, rhythm: 88.88,
+      cqQuality: 91.24, copyScore: 82.44, remoteOutcome: "copied",
+      operatorProfileId: "careful-beginner",
     }],
     credits: 150,
     isFictional: true,
@@ -44,7 +53,7 @@ function entry(overrides = {}) {
   };
 }
 
-test("normalizes the complete QSO log v4 schema", () => {
+test("normalizes the complete QSO log v5 schema", () => {
   const normalized = normalizeQsoLogEntry(entry());
   assert.equal(normalized.version, QSO_LOG_VERSION);
   assert.equal(normalized.startedAt, "2026-07-15T00:00:00.000Z");
@@ -61,6 +70,13 @@ test("normalizes the complete QSO log v4 schema", () => {
   assert.equal(normalized.playerLocationId, "japan-tokyo-kanto");
   assert.equal(normalized.accessoryId, "cw-filter-500");
   assert.equal(normalized.repeatRequests, 2);
+  assert.equal(normalized.copyQueries, 1);
+  assert.equal(normalized.cqQuality, 91.2);
+  assert.equal(normalized.copyScore, 82.4);
+  assert.equal(normalized.copyOutcome, "copied");
+  assert.equal(normalized.operatorProfileId, "careful-beginner");
+  assert.equal(normalized.operatorProfileRevision, 1);
+  assert.equal(normalized.remoteWpm, 10);
   assert.equal(normalized.guidanceLevel, "off");
   assert.equal(normalized.visualAssistUsed, false);
   assert.equal(normalized.independentWatch, true);
@@ -73,16 +89,28 @@ test("normalizes the complete QSO log v4 schema", () => {
     wpm: 18,
     accuracy: 92.3,
     rhythm: 88.9,
+    cqQuality: 91.2,
+    copyScore: 82.4,
+    remoteOutcome: "copied",
+    operatorProfileId: "careful-beginner",
   }]);
 });
 
-test("legacy QSO logs safely migrate to v4 defaults without retroactive rewards", () => {
-  const normalized = normalizeQsoLogEntry(entry({
-    version: 1,
+test("legacy v1-v4 QSO logs safely migrate to v5 defaults without retroactive rewards", () => {
+  for (const version of [1, 2, 3, 4]) {
+    const normalized = normalizeQsoLogEntry(entry({
+    version,
     accessoryId: undefined,
     transmitAccuracy: undefined,
     copyAccuracy: 87.65,
     repeatRequests: undefined,
+    copyQueries: undefined,
+    cqQuality: undefined,
+    copyScore: undefined,
+    copyOutcome: undefined,
+    operatorProfileId: undefined,
+    operatorProfileRevision: undefined,
+    remoteWpm: undefined,
     guidanceLevel: undefined,
     visualAssistUsed: undefined,
     independentWatch: undefined,
@@ -91,6 +119,13 @@ test("legacy QSO logs safely migrate to v4 defaults without retroactive rewards"
   assert.equal(normalized.accessoryId, "none");
   assert.equal(normalized.version, QSO_LOG_VERSION);
   assert.equal(normalized.repeatRequests, 0);
+  assert.equal(normalized.copyQueries, 0);
+  assert.equal(normalized.cqQuality, null);
+  assert.equal(normalized.copyScore, null);
+  assert.equal(normalized.copyOutcome, null);
+  assert.equal(normalized.operatorProfileId, "legacy-standard");
+  assert.equal(normalized.operatorProfileRevision, 0);
+  assert.equal(normalized.remoteWpm, null);
   assert.equal(normalized.transmitAccuracy, 87.7);
   assert.equal("copyAccuracy" in normalized, false);
   assert.equal(normalized.guidanceLevel, "full");
@@ -99,6 +134,13 @@ test("legacy QSO logs safely migrate to v4 defaults without retroactive rewards"
   assert.equal(normalized.rewardBreakdown, null);
   assert.equal(normalized.credits, 150);
   assert.deepEqual(normalized.attemptHistory, []);
+  }
+});
+
+test("v5 remote speed is nullable and clamps malformed values", () => {
+  assert.equal(normalizeQsoLogEntry(entry({ version: 5, remoteWpm: null })).remoteWpm, null);
+  assert.equal(normalizeQsoLogEntry(entry({ version: 5, remoteWpm: 999 })).remoteWpm, 60);
+  assert.equal(normalizeQsoLogEntry(entry({ version: 5, remoteWpm: -4 })).remoteWpm, 0);
 });
 
 test("v3 assistance fields enforce independent-watch integrity", () => {

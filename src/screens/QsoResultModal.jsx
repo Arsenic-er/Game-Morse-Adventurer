@@ -70,7 +70,7 @@ function value(value, suffix = "") {
 const REVIEW_TEXT = {
   "zh-CN": {
     title: "操作复盘", empty: "旧版日志没有逐次操作记录", stage: "阶段", message: "电文", reason: "原因",
-    accepted: "接受", error: "错误", repeat: "重发", unknown: "未记录", wpm: "WPM", accuracy: "准确率", rhythm: "节奏",
+    accepted: "接受", transmitted: "已发射", error: "错误", repeat: "重发", unknown: "未记录", wpm: "WPM", accuracy: "准确率", rhythm: "节奏", cqQuality: "CQ 质量", copyScore: "抄收分", copyOutcome: "远台判定", operator: "操作员档案", remoteWpm: "对方速度", copyQueries: "回问次数", copied: "已抄收", query: "回问", unreadable: "无法抄收", noResponse: "无台回应",
     guidance: "引导级别", full: "完整引导", hints: "仅提示", off: "关闭", visualAssist: "视觉辅助", used: "已使用", unused: "未使用",
     independent: "独立值守", qualified: "达成", notQualified: "未达成", unavailable: "旧日志未记录", rewardBreakdown: "奖励拆分",
     baseReward: "基础奖励", independentBonus: "独立值守奖励", totalReward: "合计",
@@ -78,7 +78,7 @@ const REVIEW_TEXT = {
   },
   "zh-TW": {
     title: "操作複盤", empty: "舊版日誌沒有逐次操作記錄", stage: "階段", message: "電文", reason: "原因",
-    accepted: "接受", error: "錯誤", repeat: "重發", unknown: "未記錄", wpm: "WPM", accuracy: "準確率", rhythm: "節奏",
+    accepted: "接受", transmitted: "已發射", error: "錯誤", repeat: "重發", unknown: "未記錄", wpm: "WPM", accuracy: "準確率", rhythm: "節奏", cqQuality: "CQ 品質", copyScore: "抄收分", copyOutcome: "遠臺判定", operator: "操作員檔案", remoteWpm: "對方速度", copyQueries: "回問次數", copied: "已抄收", query: "回問", unreadable: "無法抄收", noResponse: "無臺回應",
     guidance: "引導級別", full: "完整引導", hints: "僅提示", off: "關閉", visualAssist: "視覺輔助", used: "已使用", unused: "未使用",
     independent: "獨立值守", qualified: "達成", notQualified: "未達成", unavailable: "舊日誌未記錄", rewardBreakdown: "獎勵拆分",
     baseReward: "基礎獎勵", independentBonus: "獨立值守獎勵", totalReward: "合計",
@@ -86,7 +86,7 @@ const REVIEW_TEXT = {
   },
   ja: {
     title: "運用レビュー", empty: "旧形式のログには操作履歴がありません", stage: "段階", message: "電文", reason: "理由",
-    accepted: "受付", error: "エラー", repeat: "再送", unknown: "記録なし", wpm: "WPM", accuracy: "正確度", rhythm: "リズム",
+    accepted: "受付", transmitted: "送信済み", error: "エラー", repeat: "再送", unknown: "記録なし", wpm: "WPM", accuracy: "正確度", rhythm: "リズム", cqQuality: "CQ 品質", copyScore: "コピー得点", copyOutcome: "相手局判定", operator: "オペレータープロファイル", remoteWpm: "相手局速度", copyQueries: "聞き返し回数", copied: "コピー成功", query: "聞き返し", unreadable: "コピー不能", noResponse: "応答なし",
     guidance: "ガイド", full: "フルガイド", hints: "ヒントのみ", off: "オフ", visualAssist: "視覚補助", used: "使用", unused: "未使用",
     independent: "単独運用", qualified: "達成", notQualified: "未達成", unavailable: "旧ログは未記録", rewardBreakdown: "報酬内訳",
     baseReward: "基本報酬", independentBonus: "単独運用ボーナス", totalReward: "合計",
@@ -94,7 +94,7 @@ const REVIEW_TEXT = {
   },
   en: {
     title: "Operating Review", empty: "No attempt history is available in this legacy log", stage: "Stage", message: "Message", reason: "Reason",
-    accepted: "Accepted", error: "Error", repeat: "Repeat", unknown: "Not recorded", wpm: "WPM", accuracy: "Accuracy", rhythm: "Rhythm",
+    accepted: "Accepted", transmitted: "Transmitted", error: "Error", repeat: "Repeat", unknown: "Not recorded", wpm: "WPM", accuracy: "Accuracy", rhythm: "Rhythm", cqQuality: "CQ quality", copyScore: "Copy score", copyOutcome: "Remote verdict", operator: "Operator profile", remoteWpm: "Remote speed", copyQueries: "Copy queries", copied: "Copied", query: "Query", unreadable: "Unreadable", noResponse: "No response",
     guidance: "Guidance", full: "Full", hints: "Hints only", off: "Off", visualAssist: "Visual assist", used: "Used", unused: "Not used",
     independent: "Independent watch", qualified: "Qualified", notQualified: "Not qualified", unavailable: "Not recorded in legacy log", rewardBreakdown: "Reward breakdown",
     baseReward: "Base reward", independentBonus: "Independent-watch bonus", totalReward: "Total",
@@ -102,7 +102,7 @@ const REVIEW_TEXT = {
   },
   es: {
     title: "Revisión de operación", empty: "Este registro antiguo no contiene historial de intentos", stage: "Etapa", message: "Mensaje", reason: "Motivo",
-    accepted: "Aceptado", error: "Error", repeat: "Repetición", unknown: "Sin registro", wpm: "WPM", accuracy: "Precisión", rhythm: "Ritmo",
+    accepted: "Aceptado", transmitted: "Transmitido", error: "Error", repeat: "Repetición", unknown: "Sin registro", wpm: "WPM", accuracy: "Precisión", rhythm: "Ritmo", cqQuality: "Calidad de CQ", copyScore: "Puntuación de copia", copyOutcome: "Veredicto remoto", operator: "Perfil de operador", remoteWpm: "Velocidad remota", copyQueries: "Peticiones de repetición", copied: "Copiado", query: "Consulta", unreadable: "Ilegible", noResponse: "Sin respuesta",
     guidance: "Guía", full: "Completa", hints: "Solo pistas", off: "Desactivada", visualAssist: "Ayuda visual", used: "Usada", unused: "No usada",
     independent: "Guardia independiente", qualified: "Apto", notQualified: "No apto", unavailable: "No consta en el registro antiguo", rewardBreakdown: "Desglose de recompensa",
     baseReward: "Recompensa base", independentBonus: "Bono de guardia independiente", totalReward: "Total",
@@ -110,7 +110,7 @@ const REVIEW_TEXT = {
   },
   de: {
     title: "Betriebsauswertung", empty: "Dieses ältere Log enthält keinen Versuchsverlauf", stage: "Phase", message: "Nachricht", reason: "Grund",
-    accepted: "Akzeptiert", error: "Fehler", repeat: "Wiederholung", unknown: "Nicht erfasst", wpm: "WPM", accuracy: "Genauigkeit", rhythm: "Rhythmus",
+    accepted: "Akzeptiert", transmitted: "Gesendet", error: "Fehler", repeat: "Wiederholung", unknown: "Nicht erfasst", wpm: "WPM", accuracy: "Genauigkeit", rhythm: "Rhythmus", cqQuality: "CQ-Qualität", copyScore: "Mitschriftwert", copyOutcome: "Gegenstationsurteil", operator: "Operatorprofil", remoteWpm: "Gegenstationstempo", copyQueries: "Rückfragen", copied: "Aufgenommen", query: "Rückfrage", unreadable: "Unlesbar", noResponse: "Keine Antwort",
     guidance: "Führung", full: "Vollständig", hints: "Nur Hinweise", off: "Aus", visualAssist: "Visuelle Hilfe", used: "Benutzt", unused: "Nicht benutzt",
     independent: "Selbstständige Wache", qualified: "Bestanden", notQualified: "Nicht bestanden", unavailable: "Im älteren Log nicht erfasst", rewardBreakdown: "Belohnungsaufschlüsselung",
     baseReward: "Grundbelohnung", independentBonus: "Bonus für selbstständige Wache", totalReward: "Gesamt",
@@ -118,7 +118,7 @@ const REVIEW_TEXT = {
   },
   ru: {
     title: "Разбор работы", empty: "В старой записи нет истории попыток", stage: "Этап", message: "Сообщение", reason: "Причина",
-    accepted: "Принято", error: "Ошибка", repeat: "Повтор", unknown: "Не записано", wpm: "WPM", accuracy: "Точность", rhythm: "Ритм",
+    accepted: "Принято", transmitted: "Передано", error: "Ошибка", repeat: "Повтор", unknown: "Не записано", wpm: "WPM", accuracy: "Точность", rhythm: "Ритм", cqQuality: "Качество CQ", copyScore: "Оценка приёма", copyOutcome: "Решение станции", operator: "Профиль оператора", remoteWpm: "Скорость станции", copyQueries: "Запросы повтора", copied: "Принято", query: "Запрос", unreadable: "Неразборчиво", noResponse: "Нет ответа",
     guidance: "Подсказки", full: "Полные", hints: "Только намёки", off: "Выкл.", visualAssist: "Визуальная помощь", used: "Использована", unused: "Не использована",
     independent: "Самостоятельная вахта", qualified: "Зачёт", notQualified: "Нет зачёта", unavailable: "Нет в старой записи", rewardBreakdown: "Состав награды",
     baseReward: "Базовая награда", independentBonus: "Бонус самостоятельной вахты", totalReward: "Итого",
@@ -129,6 +129,7 @@ const REVIEW_TEXT = {
 function historyResult(result, t) {
   const normalized = String(result ?? "").toLowerCase();
   if (["accepted", "accept", "correct", "success", "ok"].includes(normalized)) return { label: t.accepted, className: "accepted" };
+  if (normalized === "transmitted") return { label: t.transmitted, className: "transmitted" };
   if (["repeat", "repeated", "agn", "retry"].includes(normalized)) return { label: t.repeat, className: "repeat" };
   if (["error", "incorrect", "rejected", "failed", "invalid"].includes(normalized)) return { label: t.error, className: "error" };
   return { label: result || t.unknown, className: "unknown" };
@@ -160,7 +161,7 @@ function QsoAttemptHistory({ entry, language }) {
               <li className={result.className} data-review-result={result.className} key={`${attempt.stage ?? "stage"}-${index}`}>
                 <div><b>#{String(index + 1).padStart(2, "0")} · {t[attempt.stage] ?? attempt.stage ?? t.stage}</b><em>{result.label}</em></div>
                 <code>{attempt.message || "---"}</code>
-                <small>{t.wpm} {reviewMetric(attempt.wpm)} · {t.accuracy} {reviewMetric(attempt.accuracy, "%")} · {t.rhythm} {reviewMetric(attempt.rhythm, "%")}</small>
+                <small>{t.wpm} {reviewMetric(attempt.wpm)} · {t.accuracy} {reviewMetric(attempt.accuracy, "%")} · {t.rhythm} {reviewMetric(attempt.rhythm, "%")}{attempt.cqQuality !== null && attempt.cqQuality !== undefined ? ` · ${t.cqQuality} ${reviewMetric(attempt.cqQuality, "%")} · ${t.copyScore} ${reviewMetric(attempt.copyScore, "%")}` : ""}</small>
                 <p><span>{t.reason}</span>{attempt.reason ? (t[attempt.reason] ?? attempt.reason) : "---"}</p>
               </li>
             );
@@ -176,6 +177,7 @@ export function QsoResultModal({
   rewardBreakdown = null, onSave, onRestart, onNext, onLeave, onClose,
 }) {
   const t = TEXT[language] ?? TEXT.en;
+  const reviewT = REVIEW_TEXT[language] ?? REVIEW_TEXT.en;
   return (
     <div className="qso-result-backdrop">
       <section className={`qso-result-modal ${failed ? "failed" : "success"}`} role="dialog" aria-modal="true" aria-labelledby="qso-result-title">
@@ -207,6 +209,12 @@ export function QsoResultModal({
               <div><dt>{t.accuracy}</dt><dd>{value(entry?.transmitAccuracy, "%")}</dd></div>
               <div><dt>{t.rhythm}</dt><dd>{value(entry?.keyingScore, "%")}</dd></div>
               <div><dt>{t.repeats}</dt><dd>{value(entry?.repeatRequests ?? 0)}</dd></div>
+              <div><dt>{reviewT.cqQuality}</dt><dd>{value(entry?.cqQuality, "%")}</dd></div>
+              <div><dt>{reviewT.copyScore}</dt><dd>{value(entry?.copyScore, "%")}</dd></div>
+              <div><dt>{reviewT.copyOutcome}</dt><dd>{reviewT[entry?.copyOutcome] ?? value(entry?.copyOutcome)}</dd></div>
+              <div><dt>{reviewT.operator}</dt><dd>{value(entry?.operatorProfileId)}</dd></div>
+              <div><dt>{reviewT.remoteWpm}</dt><dd>{value(entry?.remoteWpm, " WPM")}</dd></div>
+              <div><dt>{reviewT.copyQueries}</dt><dd>{value(entry?.copyQueries ?? 0)}</dd></div>
             </dl>
             <QsoAttemptHistory entry={entry} language={language} />
             <div className="qso-result-rewards">
