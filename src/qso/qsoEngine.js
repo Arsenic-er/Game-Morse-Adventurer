@@ -2,7 +2,7 @@ import { normalizeCwText } from "../cw/morse.js";
 import { greatCircleDistanceDegrees } from "../propagation/propagationEngine.js";
 import { assessCqTransmission } from "./cqAssessment.js";
 import {
-  buildRemoteReply, resolveRemoteCopy, withOperatorProfile,
+  buildRemoteReply, resolveRemoteCopy, resolveRemoteReportCopy, withOperatorProfile,
 } from "./operatorProfiles.js";
 import { MAX_QSO_ATTEMPT_HISTORY, normalizeQsoLogEntry } from "./qsoLog.js";
 
@@ -31,6 +31,10 @@ function hasCallsign(tokens, callsign) {
 
 function expectedCq(playerCallsign) {
   return `CQ CQ DE ${playerCallsign} ${playerCallsign} K`;
+}
+
+function expectedReport(npcCallsign, playerCallsign) {
+  return `${npcCallsign} DE ${playerCallsign} RST 559 73 K`;
 }
 
 function normalizeGuidanceLevel(value) {
@@ -65,13 +69,13 @@ function appendAttempt(qso, message, validation, metrics = {}, assessment = null
   }].slice(-MAX_QSO_ATTEMPT_HISTORY);
 }
 
-function annotateLatestCqAttempt(attemptHistory, decision) {
+function annotateLatestRemoteAttempt(attemptHistory, decision, fallbackOutcome = null) {
   if (!Array.isArray(attemptHistory) || !attemptHistory.length) return [];
   const next = [...attemptHistory];
   next[next.length - 1] = {
     ...next.at(-1),
     copyScore: normalizeMetric(decision?.copyScore),
-    remoteOutcome: decision?.outcome ?? "no-response",
+    remoteOutcome: decision?.outcome ?? fallbackOutcome,
     operatorProfileId: decision?.operatorProfileId ?? null,
   };
   return next;
@@ -92,6 +96,7 @@ export function createQso({
     npc: profiledNpc,
     playerCallsign,
     npcMessage: null,
+    contactMessage: null,
     npcReplyDisposition: null,
     replyWpm: null,
     expectedPlayer: expectedCq(playerCallsign),
@@ -99,6 +104,7 @@ export function createQso({
     contactRevealed: false,
     repeatRequests: 0,
     copyQueries: 0,
+    reportCopyQueries: 0,
     pendingResponderQueryCount: 0,
     unansweredCalls: 0,
     sentRst: null,
@@ -108,6 +114,8 @@ export function createQso({
     cqAssessment: null,
     lastCopyOutcome: null,
     lastCopyScore: null,
+    lastReportCopyOutcome: null,
+    lastReportCopyScore: null,
     channelNotice: null,
     pendingResponder: null,
     lastError: null,
@@ -131,6 +139,19 @@ export function markQsoAssisted(qso) {
 
 export function onNpcPlaybackFinished(qso, completedAt = new Date().toISOString()) {
   if (qso.phase === QSO_PHASES.NPC_REPLY) {
+    if (qso.npcReplyDisposition === "report-query") {
+      return {
+        ...qso,
+        phase: QSO_PHASES.PLAYER_RST_AND_73,
+        npcMessage: qso.contactMessage,
+        npcReplyDisposition: null,
+        expectedPlayer: expectedReport(qso.npc.callsign, qso.playerCallsign),
+        hasContact: true,
+        contactRevealed: true,
+        lastError: null,
+        channelNotice: "reportQuery",
+      };
+    }
     if (qso.npcReplyDisposition === "query") {
       return {
         ...qso,
@@ -221,6 +242,7 @@ export function submitPlayerMessage(qso, message, {
   wpm = null,
   accuracy = null,
   rhythm = null,
+  seed = "report-copy",
 } = {}) {
   const validation = validatePlayerMessage(qso, message);
   if (qso.phase === QSO_PHASES.PLAYER_CQ) {
@@ -278,15 +300,66 @@ export function submitPlayerMessage(qso, message, {
         Number.MAX_SAFE_INTEGER,
         (Number.isSafeInteger(qso.repeatRequests) && qso.repeatRequests >= 0 ? qso.repeatRequests : 0) + 1,
       ),
-      contactRevealed: false,
+      npcMessage: qso.contactMessage ?? qso.npcMessage,
+      contactRevealed: qso.contactRevealed,
       npcReplyDisposition: "copy",
+    };
+  }
+  const reportCopyQueries = Number.isSafeInteger(qso.reportCopyQueries) && qso.reportCopyQueries >= 0
+    ? qso.reportCopyQueries
+    : 0;
+  const decision = resolveRemoteReportCopy({
+    npc: qso.npc,
+    wpm,
+    accuracy,
+    rhythm,
+    seed,
+    queryCount: reportCopyQueries,
+  });
+  const resolvedAttemptHistory = annotateLatestRemoteAttempt(attemptHistory, decision);
+  if (decision.outcome === "query") {
+    return {
+      ...qso,
+      phase: QSO_PHASES.NPC_REPLY,
+      npc: decision.npc,
+      attempts: 0,
+      attemptHistory: resolvedAttemptHistory,
+      lastError: null,
+      npcMessage: decision.replyMessage,
+      npcReplyDisposition: "report-query",
+      expectedPlayer: null,
+      hasContact: true,
+      contactRevealed: true,
+      channelNotice: null,
+      reportCopyQueries: reportCopyQueries + 1,
+      lastReportCopyOutcome: decision.outcome,
+      lastReportCopyScore: decision.copyScore,
+    };
+  }
+  if (decision.outcome === "unreadable") {
+    return {
+      ...qso,
+      phase: QSO_PHASES.PLAYER_RST_AND_73,
+      npc: decision.npc,
+      attempts: 0,
+      attemptHistory: resolvedAttemptHistory,
+      lastError: null,
+      npcMessage: qso.contactMessage ?? qso.npcMessage,
+      npcReplyDisposition: null,
+      expectedPlayer: expectedReport(qso.npc.callsign, qso.playerCallsign),
+      hasContact: true,
+      contactRevealed: true,
+      channelNotice: "unreadableReport",
+      lastReportCopyOutcome: decision.outcome,
+      lastReportCopyScore: decision.copyScore,
     };
   }
   return {
     ...qso,
     phase: QSO_PHASES.NPC_73_AND_SK,
+    npc: decision.npc,
     attempts: 0,
-    attemptHistory,
+    attemptHistory: resolvedAttemptHistory,
     lastError: null,
     sentRst: validation.rst,
     receivedRst: npcRst,
@@ -295,6 +368,9 @@ export function submitPlayerMessage(qso, message, {
     replyWpm: qso.replyWpm ?? qso.npc.wpm,
     expectedPlayer: null,
     contactRevealed: true,
+    channelNotice: null,
+    lastReportCopyOutcome: decision.outcome,
+    lastReportCopyScore: decision.copyScore,
   };
 }
 
@@ -321,7 +397,7 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
       pendingResponderQueryCount: 0,
       lastCopyOutcome: "no-response",
       lastCopyScore: null,
-      attemptHistory: annotateLatestCqAttempt(qso.attemptHistory, null),
+      attemptHistory: annotateLatestRemoteAttempt(qso.attemptHistory, null, "no-response"),
     };
   }
   const decision = resolveRemoteCopy({
@@ -331,7 +407,7 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
     seed,
     queryCount: pendingResponderQueryCount,
   });
-  const attemptHistory = annotateLatestCqAttempt(qso.attemptHistory, decision);
+  const attemptHistory = annotateLatestRemoteAttempt(qso.attemptHistory, decision);
   if (decision.disposition === "silence") {
     return {
       ...qso,
@@ -394,13 +470,15 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
       attemptHistory,
     };
   }
+  const npcMessage = buildRemoteReply(decision, qso.playerCallsign);
   return {
     ...qso,
     phase: QSO_PHASES.NPC_REPLY,
     npc: decision.npc,
     lastError: null,
     channelNotice: null,
-    npcMessage: buildRemoteReply(decision, qso.playerCallsign),
+    npcMessage,
+    contactMessage: npcMessage,
     npcReplyDisposition: "copy",
     replyWpm: decision.replyWpm,
     expectedPlayer: `${decision.npc.callsign} DE ${qso.playerCallsign} RST 559 73 K`,

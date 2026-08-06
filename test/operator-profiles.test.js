@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { assessCqTransmission } from "../src/qso/cqAssessment.js";
 import {
   DEFAULT_OPERATOR_PROFILE_ID, NPC_OPERATOR_ASSIGNMENTS, OPERATOR_PROFILES,
-  OPERATOR_PROFILE_SCHEMA_VERSION, resolveOperatorProfile, resolveRemoteCopy,
+  OPERATOR_PROFILE_SCHEMA_VERSION, resolveOperatorProfile, resolveRemoteCopy, resolveRemoteReportCopy,
   responseDelayForNpc, withOperatorProfile,
 } from "../src/qso/operatorProfiles.js";
 import { NPC_STATIONS } from "../src/propagation/propagationEngine.js";
@@ -88,6 +88,42 @@ test("operator decisions, WPM and delays are deterministic for a stable seed", (
   assert.equal(responseDelayForNpc(npc, "stable"), responseDelayForNpc(npc, "stable"));
   assert.ok(first.replyWpm >= 5 && first.replyWpm <= 60);
   assert.ok(first.responseDelayMs >= 700);
+});
+
+test("report copy is deterministic and uses the locked operator and propagation level", () => {
+  const args = {
+    npc: { callsign: "SIM7QX", finalLevel: 2 },
+    wpm: 18,
+    accuracy: 45,
+    rhythm: 60,
+    seed: "stable-report",
+  };
+  const first = resolveRemoteReportCopy(args);
+  const second = resolveRemoteReportCopy(args);
+  assert.deepEqual(first, second);
+  assert.equal(first.outcome, "query");
+  assert.equal(first.replyMessage, "AGN? K");
+  assert.equal(first.operatorProfileId, "careful-beginner");
+
+  const weakBeginner = resolveRemoteReportCopy({
+    ...args,
+    npc: { callsign: "SIM7QX", finalLevel: 1 },
+  });
+  const strongVeteran = resolveRemoteReportCopy({
+    ...args,
+    npc: { callsign: "SIM3RA", finalLevel: 4 },
+  });
+  assert.ok(strongVeteran.copyScore > weakBeginner.copyScore);
+
+  const tooFast = resolveRemoteReportCopy({
+    npc: { callsign: "SIM7QX", finalLevel: 4 },
+    wpm: 60,
+    accuracy: 100,
+    rhythm: 100,
+    seed: "fast-report",
+  });
+  assert.equal(tooFast.outcome, "query");
+  assert.equal(tooFast.replyMessage, "QRS? K");
 });
 
 test("speed, CQ intent and exact callsign identity materially affect copy", () => {

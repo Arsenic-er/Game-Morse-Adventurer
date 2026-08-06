@@ -59,7 +59,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.26.0";
+const BUILD_VERSION = "0.27.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -202,6 +202,8 @@ const COPY = {
 const STATION_FLOW_COPY = {
   "zh-CN": {
     sendCq: "发送 CQ", sendMessage: "发送电文", receiverLive: "接收机已开启 · 背景噪声", receiverRecovering: "接收中断，正在自动恢复…",
+    phaseNpcReportQuery: "对方未抄清回报，正在接收重发请求…",
+    reportQuery: "对方请求重发，请重新完整发送双方呼号、RST 与 73", unreadableReport: "对方未能抄收本次回报，请重新发送",
     phaseCq: "请发送 CQ 呼叫", phaseWaitingResponse: "CQ 已发出，正在守听…",
     phaseNpcReply: "收到回应，正在自动接收对方呼号…", phaseNpcQuery: "有电台未抄清，正在接收回问…", phaseGeneralCall: "有电台未识别本台，正在进行一般呼叫…", phasePlayerRst: "请发送双方呼号、RST 与 73",
     phaseFinal: "正在自动接收对方 73 / SK", noResponse: "本轮无人回应，可再次呼叫 CQ", npcQuery: "对方回问，请重新完整发送 CQ", generalCall: "对方未抄出本台呼号，已转为一般呼叫", unreadableCq: "发报质量过低，对方无法抄收",
@@ -209,6 +211,8 @@ const STATION_FLOW_COPY = {
   },
   "zh-TW": {
     sendCq: "發送 CQ", sendMessage: "發送電文", receiverLive: "接收機已開啟 · 背景雜訊", receiverRecovering: "接收中斷，正在自動恢復…",
+    phaseNpcReportQuery: "對方未抄清回報，正在接收重發請求…",
+    reportQuery: "對方要求重發，請重新完整發送雙方呼號、RST 與 73", unreadableReport: "對方未能抄收本次回報，請重新發送",
     phaseCq: "請發送 CQ 呼叫", phaseWaitingResponse: "CQ 已發出，正在守聽…",
     phaseNpcReply: "收到回應，正在自動接收對方呼號…", phaseNpcQuery: "有電臺未抄清，正在接收回問…", phaseGeneralCall: "有電臺未識別本臺，正在進行一般呼叫…", phasePlayerRst: "請發送雙方呼號、RST 與 73",
     phaseFinal: "正在自動接收對方 73 / SK", noResponse: "本輪無人回應，可再次呼叫 CQ", npcQuery: "對方回問，請重新完整發送 CQ", generalCall: "對方未抄出本臺呼號，已轉為一般呼叫", unreadableCq: "發報品質過低，對方無法抄收",
@@ -216,6 +220,8 @@ const STATION_FLOW_COPY = {
   },
   ja: {
     sendCq: "CQ を送信", sendMessage: "電文を送信", receiverLive: "受信機動作中・バックグラウンドノイズ", receiverRecovering: "受信が中断しました。自動復帰中…",
+    phaseNpcReportQuery: "相手局がレポートを取り切れず、再送要求を受信中…",
+    reportQuery: "相手局が再送を求めています。両局のコール、RST、73 をもう一度完全に送信してください", unreadableReport: "相手局は今回のレポートをコピーできませんでした。もう一度送信してください",
     phaseCq: "CQ 呼出を送信してください", phaseWaitingResponse: "CQ を送信しました。応答を待っています…",
     phaseNpcReply: "応答局のコールサインを自動受信中…", phaseNpcQuery: "相手局の聞き返しを受信中…", phaseGeneralCall: "こちらを識別できなかった局の一般呼出を受信中…", phasePlayerRst: "両局のコール、RST、73 を送信",
     phaseFinal: "相手局の 73 / SK を自動受信中", noResponse: "今回は応答がありません。もう一度 CQ を出せます", npcQuery: "相手局が再送を求めています。CQ をもう一度完全に送信してください", generalCall: "相手局はこちらのコールをコピーできず、一般呼出に戻りました", unreadableCq: "送信品質が低く、相手局はコピーできませんでした",
@@ -223,6 +229,8 @@ const STATION_FLOW_COPY = {
   },
   en: {
     sendCq: "Send CQ", sendMessage: "Send message", receiverLive: "Receiver open · background noise", receiverRecovering: "Reception interrupted · recovering automatically…",
+    phaseNpcReportQuery: "The station missed your report. Receiving its repeat request…",
+    reportQuery: "The station asked for a repeat. Send both callsigns, RST, and 73 again.", unreadableReport: "The station could not copy your report. Send it again.",
     phaseCq: "Send a CQ call", phaseWaitingResponse: "CQ sent. Listening for replies…",
     phaseNpcReply: "Automatically receiving a responding station…", phaseNpcQuery: "Receiving a station asking for a repeat…", phaseGeneralCall: "Receiving a general call from a station that could not identify you…", phasePlayerRst: "Send both callsigns, RST, and 73",
     phaseFinal: "Automatically receiving 73 / SK", noResponse: "No reply this time. You may call CQ again.", npcQuery: "The station asked again. Send the complete CQ once more.", generalCall: "The station could not copy your call and returned to a general CQ.", unreadableCq: "Your transmission was too unclear for the station to copy.",
@@ -230,16 +238,22 @@ const STATION_FLOW_COPY = {
   },
   es: {
     sendCq: "Enviar CQ", sendMessage: "Enviar mensaje", receiverLive: "Receptor abierto · ruido de fondo", receiverRecovering: "Recepción interrumpida · recuperación automática…",
+    phaseNpcReportQuery: "La estación no copió todo el reporte. Recibiendo su petición de repetición…",
+    reportQuery: "La estación pide repetir. Envía de nuevo ambos indicativos, RST y 73.", unreadableReport: "La estación no pudo copiar el reporte. Envíalo de nuevo.",
     phaseCq: "Envía una llamada CQ", phaseWaitingResponse: "CQ enviado. Escuchando respuestas…", phaseNpcReply: "Recibiendo automáticamente una estación que responde…", phaseNpcQuery: "Recibiendo una petición de repetición…", phaseGeneralCall: "Recibiendo una llamada general de una estación que no pudo identificarte…", phasePlayerRst: "Envía ambos indicativos, RST y 73",
     phaseFinal: "Recibiendo automáticamente 73 / SK", noResponse: "No hubo respuesta. Puedes volver a llamar CQ.", npcQuery: "La estación pide repetir. Envía de nuevo el CQ completo.", generalCall: "La estación no pudo copiar tu indicativo y volvió a una llamada general.", unreadableCq: "La transmisión fue demasiado confusa para poder copiarla.", invalidCq: "El formato de CQ no es válido", noContact: "Aún no hay respuesta", blindContact: "Copia a oído · identifica el indicativo por el audio", blindIncomingLine: "REMOTE // RX CW", listeningLine: "ESCUCHANDO // 21.060 MHz",
   },
   de: {
     sendCq: "CQ senden", sendMessage: "Nachricht senden", receiverLive: "Empfänger offen · Hintergrundrauschen", receiverRecovering: "Empfang unterbrochen · automatische Wiederherstellung…",
+    phaseNpcReportQuery: "Die Gegenstation hat den Rapport nicht vollständig aufgenommen. Wiederholungsanfrage wird empfangen…",
+    reportQuery: "Die Station bittet um Wiederholung. Sende beide Rufzeichen, RST und 73 erneut.", unreadableReport: "Die Gegenstation konnte deinen Rapport nicht aufnehmen. Sende ihn erneut.",
     phaseCq: "CQ-Ruf senden", phaseWaitingResponse: "CQ gesendet. Warte auf Antworten…", phaseNpcReply: "Antwortende Station wird automatisch empfangen…", phaseNpcQuery: "Eine Rückfrage der Station wird empfangen…", phaseGeneralCall: "Allgemeiner Ruf einer Station, die dich nicht identifizieren konnte…", phasePlayerRst: "Beide Rufzeichen, RST und 73 senden",
     phaseFinal: "73 / SK wird automatisch empfangen", noResponse: "Diesmal keine Antwort. Du kannst erneut CQ rufen.", npcQuery: "Die Station bittet um Wiederholung. Sende den vollständigen CQ-Ruf erneut.", generalCall: "Die Station konnte dein Rufzeichen nicht aufnehmen und ruft wieder allgemein CQ.", unreadableCq: "Deine Sendung war für die Gegenstation nicht lesbar.", invalidCq: "CQ-Format ist ungültig", noContact: "Noch keine Antwort", blindContact: "Blindmitschrift · Rufzeichen aus dem Ton erkennen", blindIncomingLine: "REMOTE // CW RX", listeningLine: "EMPFANG // 21.060 MHz",
   },
   ru: {
     sendCq: "Передать CQ", sendMessage: "Передать сообщение", receiverLive: "Приёмник открыт · фоновый шум", receiverRecovering: "Приём прерван · автоматическое восстановление…",
+    phaseNpcReportQuery: "Станция не полностью приняла рапорт. Принимается запрос на повтор…",
+    reportQuery: "Станция просит повторить. Снова передайте оба позывных, RST и 73.", unreadableReport: "Станция не смогла принять рапорт. Передайте его снова.",
     phaseCq: "Передайте вызов CQ", phaseWaitingResponse: "CQ передан. Слушаем ответы…", phaseNpcReply: "Автоматический приём ответившей станции…", phaseNpcQuery: "Принимается запрос станции на повтор…", phaseGeneralCall: "Принимается общий вызов станции, которая не смогла вас опознать…", phasePlayerRst: "Передайте оба позывных, RST и 73",
     phaseFinal: "Автоматический приём 73 / SK", noResponse: "В этот раз ответа нет. Можно снова вызвать CQ.", npcQuery: "Станция просит повторить. Передайте полный CQ ещё раз.", generalCall: "Станция не разобрала ваш позывной и вернулась к общему вызову CQ.", unreadableCq: "Передача оказалась слишком неразборчивой для приёма.", invalidCq: "Неверный формат CQ", noContact: "Ответа пока нет", blindContact: "Слепой приём · определите позывной по звуку", blindIncomingLine: "REMOTE // ПРИЁМ CW", listeningLine: "ПРИЁМ // 21.060 MHz",
   },
@@ -799,9 +813,11 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     setPowered((current) => !current);
   }
 
-  const npcReplyPhaseText = qso.npcReplyDisposition === "query"
-    ? flow.phaseNpcQuery
-    : qso.npcReplyDisposition === "general" ? flow.phaseGeneralCall : flow.phaseNpcReply;
+  const npcReplyPhaseText = qso.npcReplyDisposition === "report-query"
+    ? flow.phaseNpcReportQuery
+    : qso.npcReplyDisposition === "query"
+      ? flow.phaseNpcQuery
+      : qso.npcReplyDisposition === "general" ? flow.phaseGeneralCall : flow.phaseNpcReply;
   const phaseText = {
     [QSO_PHASES.PLAYER_CQ]: flow.phaseCq,
     [QSO_PHASES.WAITING_RESPONSE]: flow.phaseWaitingResponse,
@@ -813,8 +829,10 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   }[qso.phase];
   const channelNotice = {
     npcQuery: flow.npcQuery,
+    reportQuery: flow.reportQuery,
     generalCall: flow.generalCall,
     unreadableCq: flow.unreadableCq,
+    unreadableReport: flow.unreadableReport,
   }[qso.channelNotice] ?? "";
   const decodedText = cw.analysis.decoded || "---";
   const utc = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
@@ -854,6 +872,9 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       data-qso-phase={qso.phase}
       data-cq-quality={qso.cqAssessment?.quality ?? ""}
       data-copy-outcome={qso.lastCopyOutcome ?? ""}
+      data-report-copy-outcome={qso.lastReportCopyOutcome ?? ""}
+      data-report-copy-score={qso.lastReportCopyScore ?? ""}
+      data-report-copy-queries={qso.reportCopyQueries ?? 0}
       data-reply-disposition={qso.npcReplyDisposition ?? ""}
       data-channel-notice={qso.channelNotice ?? ""}
       data-operator-profile={window.cwgameSystem?.qaCapture ? (qso.npc.operatorProfileId ?? "") : undefined}

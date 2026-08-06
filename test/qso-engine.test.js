@@ -12,6 +12,13 @@ const npc = {
   baseLevel: 2, finalLevel: 3, wpm: 18, isFictional: true,
 };
 
+function reachReportPhase(candidate = npc) {
+  let qso = submitPlayerMessage(createQso({ npc: candidate }), "CQ CQ DE SIM-K7QX K");
+  qso = resolveCqResponse(qso, candidate, { seed: "reach-report" });
+  assert.equal(qso.npcReplyDisposition, "copy");
+  return onNpcPlaybackFinished(qso);
+}
+
 test("completes the minimum QSO state machine", () => {
   let qso = createQso({ npc, playerCallsign: "SIM-K7QX", startedAt: "2026-07-15T00:00:00.000Z" });
   assert.equal(qso.phase, QSO_PHASES.PLAYER_CQ);
@@ -45,6 +52,9 @@ test("completes the minimum QSO state machine", () => {
   qso = submitPlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 73 K");
   assert.equal(qso.phase, QSO_PHASES.NPC_73_AND_SK);
   assert.equal(qso.contactRevealed, true);
+  assert.equal(qso.attemptHistory.at(-1).remoteOutcome, "copied");
+  assert.equal(qso.attemptHistory.at(-1).operatorProfileId, "careful-beginner");
+  assert.ok(qso.attemptHistory.at(-1).copyScore >= 68);
   qso = onNpcPlaybackFinished(qso, "2026-07-15T00:05:00.000Z");
   assert.equal(qso.phase, QSO_PHASES.QSO_COMPLETE);
   assert.equal(qso.creditsAwarded, 100);
@@ -162,6 +172,85 @@ test("malformed CQ is transmitted on air and resolved by the remote copy model",
   const restarted = restartQso({ ...qso, phase: QSO_PHASES.QSO_FAILED });
   assert.equal(restarted.phase, QSO_PHASES.PLAYER_CQ);
   assert.equal(restarted.attempts, 0);
+});
+
+test("a partial report copy asks for a full repeat without changing the contact", () => {
+  let qso = reachReportPhase();
+  const originalNpc = qso.npc;
+  const lockedContact = {
+    callsign: qso.npc.callsign,
+    baseLevel: qso.npc.baseLevel,
+    finalLevel: qso.npc.finalLevel,
+    operatorProfileId: qso.npc.operatorProfileId,
+  };
+  const originalContactMessage = qso.npcMessage;
+
+  qso = submitPlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 73 K", {
+    wpm: 18, accuracy: 45, rhythm: 60, seed: "partial-report",
+  });
+  assert.equal(qso.phase, QSO_PHASES.NPC_REPLY);
+  assert.equal(qso.npcReplyDisposition, "report-query");
+  assert.equal(qso.npcMessage, "AGN? K");
+  assert.equal(qso.reportCopyQueries, 1);
+  assert.equal(qso.creditsAwarded, 0);
+  assert.equal(qso.sentRst, null);
+  assert.strictEqual(qso.npc, originalNpc);
+  assert.deepEqual({
+    callsign: qso.npc.callsign,
+    baseLevel: qso.npc.baseLevel,
+    finalLevel: qso.npc.finalLevel,
+    operatorProfileId: qso.npc.operatorProfileId,
+  }, lockedContact);
+  assert.equal(qso.attemptHistory.at(-1).remoteOutcome, "query");
+  assert.ok(qso.attemptHistory.at(-1).copyScore >= 42);
+  assert.equal(qso.attemptHistory.at(-1).operatorProfileId, "careful-beginner");
+
+  qso = onNpcPlaybackFinished(qso);
+  assert.equal(qso.phase, QSO_PHASES.PLAYER_RST_AND_73);
+  assert.equal(qso.channelNotice, "reportQuery");
+  assert.equal(qso.npcMessage, originalContactMessage);
+  assert.equal(qso.contactRevealed, true);
+
+  qso = submitPlayerMessage(qso, "AGN K");
+  assert.equal(qso.phase, QSO_PHASES.NPC_REPLY);
+  assert.equal(qso.npcMessage, originalContactMessage);
+  assert.equal(qso.contactRevealed, true);
+});
+
+test("an unreadable report remains recoverable and only a copied retry can complete", () => {
+  let qso = reachReportPhase();
+  qso = submitPlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 73 K", {
+    wpm: 18, accuracy: 0, rhythm: 0, seed: "unreadable-report",
+  });
+  assert.equal(qso.phase, QSO_PHASES.PLAYER_RST_AND_73);
+  assert.equal(qso.lastReportCopyOutcome, "unreadable");
+  assert.equal(qso.channelNotice, "unreadableReport");
+  assert.equal(qso.creditsAwarded, 0);
+  assert.equal(qso.sentRst, null);
+  assert.equal(qsoCanAcceptPlayer(qso), true);
+  assert.equal(qso.attemptHistory.at(-1).remoteOutcome, "unreadable");
+  assert.ok(qso.attemptHistory.at(-1).copyScore < 42);
+
+  qso = submitPlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 73 K", {
+    wpm: 18, accuracy: 100, rhythm: 100, seed: "clear-report",
+  });
+  assert.equal(qso.phase, QSO_PHASES.NPC_73_AND_SK);
+  assert.equal(qso.lastReportCopyOutcome, "copied");
+  assert.deepEqual(qso.attemptHistory.slice(-2).map((attempt) => attempt.remoteOutcome), ["unreadable", "copied"]);
+
+  const completedAt = new Date(Date.parse(qso.startedAt) + 1000).toISOString();
+  const duplicateCallbackAt = new Date(Date.parse(qso.startedAt) + 2000).toISOString();
+  qso = onNpcPlaybackFinished(qso, completedAt);
+  assert.equal(qso.phase, QSO_PHASES.QSO_COMPLETE);
+  assert.equal(qso.creditsAwarded, 100);
+  const completed = qso;
+  qso = onNpcPlaybackFinished(qso, duplicateCallbackAt);
+  assert.strictEqual(qso, completed);
+  assert.equal(qso.completedAt, completedAt);
+  assert.equal(qso.creditsAwarded, 100);
+  const firstLog = createQsoLogEntry(qso);
+  const secondLog = createQsoLogEntry(qso);
+  assert.equal(firstLog.id, secondLog.id);
 });
 
 test("requires a valid RST and 73", () => {

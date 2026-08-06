@@ -216,6 +216,63 @@ export function resolveRemoteCopy({
   };
 }
 
+function transmissionMetric(value, fallback = 100) {
+  if (value === null || value === undefined || value === "") return fallback;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? clamp(numeric, 0, 100) : fallback;
+}
+
+export function resolveRemoteReportCopy({
+  npc,
+  wpm = null,
+  accuracy = null,
+  rhythm = null,
+  seed = "report-copy",
+  queryCount = 0,
+} = {}) {
+  const enrichedNpc = npc?.operatorStyle ? npc : withOperatorProfile(npc);
+  const style = enrichedNpc.operatorStyle;
+  const channelQuality = [8, 30, 55, 78, 95][Math.round(clamp(Number(enrichedNpc.finalLevel) || 0, 0, 4))];
+  const playerWpm = wpm === null || wpm === undefined || wpm === "" ? null : Number(wpm);
+  const comfortableBand = 3 + .08 * style.speedTolerance;
+  const excessWpm = Number.isFinite(playerWpm)
+    ? Math.max(0, Math.abs(playerWpm - style.preferredWpm) - comfortableBand)
+    : 0;
+  const speedMatch = clamp(100 - excessWpm * 8, 0, 100);
+  const speedPenalty = (100 - speedMatch) * (.1 + .0015 * (100 - style.rxSkill));
+  const accuracyScore = transmissionMetric(accuracy);
+  const rhythmScore = transmissionMetric(rhythm);
+  const safeQueryCount = Number.isSafeInteger(queryCount) && queryCount >= 0 ? queryCount : 0;
+  const jitter = (stableUnit(`${seed}:${enrichedNpc.callsign}:${safeQueryCount}:report`) - .5) * 6;
+  let copyScore = (
+    .5 * accuracyScore
+    + .16 * rhythmScore
+    + .2 * style.rxSkill
+    + .14 * channelQuality
+    - speedPenalty
+    + jitter
+  );
+  copyScore = clamp(copyScore, 0, 100);
+
+  let outcome = copyScore >= 68 ? "copied" : copyScore >= 42 ? "query" : "unreadable";
+  if (speedMatch < 35 && style.rxSkill < 85 && outcome === "copied") outcome = "query";
+  const replyMessage = outcome === "query"
+    ? (speedMatch < 55 ? "QRS? K" : "AGN? K")
+    : null;
+
+  return {
+    outcome,
+    disposition: outcome === "query" ? "report-query" : outcome,
+    copyScore: Number(copyScore.toFixed(1)),
+    speedMatch: Math.round(speedMatch),
+    speedPenalty: Number(speedPenalty.toFixed(1)),
+    replyMessage,
+    operatorProfileId: style.profileId,
+    operatorProfileRevision: style.revision,
+    npc: enrichedNpc,
+  };
+}
+
 export function buildRemoteReply(decision, playerCallsign) {
   if (!decision || decision.disposition === "silence") return null;
   return responseMessage(

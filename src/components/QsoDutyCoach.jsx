@@ -170,6 +170,7 @@ function coachState(qso, powered, antennaReady, saved, t) {
   if (!antennaReady) return { step: 0, title: t.preflight, body: t.antenna, hint: "ANTENNA → READY" };
   if (!powered) return { step: 0, title: t.preflight, body: t.power, hint: "POWER → ON" };
   if (qso.phase === "PLAYER_CQ") return { step: 1, title: t.cqTitle, body: t.cqBody, hint: t.cqHint };
+  if (qso.phase === "NPC_REPLY" && qso.npcReplyDisposition === "report-query") return { step: 3, title: t.replyTitle, body: t.replyBody, hint: t.replyHint };
   if (["WAITING_RESPONSE", "NPC_REPLY"].includes(qso.phase)) return { step: 2, title: t.listenTitle, body: t.listenBody, hint: t.listenHint };
   if (["PLAYER_RST_AND_73", "NPC_73_AND_SK"].includes(qso.phase)) return { step: 3, title: t.replyTitle, body: t.replyBody, hint: t.replyHint };
   if (qso.phase === "QSO_FAILED") return { step: 4, title: t.failedTitle, body: t.failedBody, hint: "F3 → RESTART" };
