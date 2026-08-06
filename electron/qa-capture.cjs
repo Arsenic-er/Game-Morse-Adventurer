@@ -1435,6 +1435,42 @@ async function runQaCapture(window) {
     await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
     await click(window, '[data-action="submit-reply"]');
   }
+  await waitFor(window, '[data-qso-phase="PLAYER_OPTIONAL_ANSWER"], .qso-result-modal.success', 30000);
+  const optionalExchangeQa = await window.webContents.executeJavaScript(`(() => {
+    const station = document.querySelector(".station-screen");
+    return {
+      phase: station?.dataset.qsoPhase ?? null,
+      question: station?.dataset.optionalExchangeQuestion ?? null,
+      outcome: station?.dataset.optionalExchangeOutcome ?? null,
+      repeats: Number(station?.dataset.optionalExchangeRepeats),
+    };
+  })()`, true);
+  if (optionalExchangeQa.phase !== "PLAYER_OPTIONAL_ANSWER"
+    || !["power", "location", "weather", "name", "age"].includes(optionalExchangeQa.question)
+    || optionalExchangeQa.outcome !== "pending" || optionalExchangeQa.repeats !== 0) {
+    throw new Error(`QA responder did not enter a valid optional exchange: ${JSON.stringify(optionalExchangeQa)}`);
+  }
+  await capture(window, outputDir, shot("qso-optional-query"));
+  await sendAutomaticText(window, "AGN K");
+  await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
+  await click(window, '[data-action="submit-reply"]');
+  await waitFor(window, '[data-qso-phase="PLAYER_OPTIONAL_ANSWER"][data-optional-exchange-repeats="1"]', 10000);
+  const replayedOptionalQuestion = await window.webContents.executeJavaScript(
+    'document.querySelector(".station-screen")?.dataset.optionalExchangeQuestion ?? null', true,
+  );
+  if (replayedOptionalQuestion !== optionalExchangeQa.question) {
+    throw new Error(`Optional AGN K changed the question: ${JSON.stringify({ optionalExchangeQa, replayedOptionalQuestion })}`);
+  }
+  const optionalAnswerText = ({
+    power: "PWR 4321 W K",
+    location: "QTH PRIVATE RIDGE K",
+    weather: "WX PRIVATE K",
+    name: "NAME PRIVATE K",
+    age: "AGE 117 K",
+  })[optionalExchangeQa.question];
+  await sendAutomaticText(window, optionalAnswerText);
+  await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
+  await click(window, '[data-action="submit-reply"]');
   await waitFor(window, ".qso-result-modal.success", 30000);
   await waitFor(window, ".qso-operation-review");
   await waitFor(window, ".qso-attempt-history > li.accepted");
@@ -1446,7 +1482,7 @@ async function runQaCapture(window) {
     recovering: document.querySelector(".station-screen")?.dataset.npcPlaybackRecovering ?? null,
     phase: document.querySelector(".station-screen")?.dataset.qsoPhase ?? null,
   }))()`, true);
-  if (recoveredIncomingState.failures !== 2 || recoveredIncomingState.recovering !== "false"
+  if (recoveredIncomingState.failures !== 3 || recoveredIncomingState.recovering !== "false"
     || recoveredIncomingState.phase !== "QSO_COMPLETE") {
     throw new Error(`Expected both incoming phases to recover cleanly: ${JSON.stringify(recoveredIncomingState)}`);
   }
@@ -1547,6 +1583,10 @@ async function runQaCapture(window) {
         operatorProfileId: entry.operatorProfileId,
         operatorProfileRevision: entry.operatorProfileRevision,
         remoteWpm: entry.remoteWpm,
+        optionalExchangeQuestion: entry.optionalExchangeQuestion,
+        optionalExchangeOutcome: entry.optionalExchangeOutcome,
+        optionalExchangeRepeatRequests: entry.optionalExchangeRepeatRequests,
+        attemptMessages: (entry.attemptHistory ?? []).map((attempt) => attempt.message),
         transmitAccuracy: entry.transmitAccuracy,
         guidanceLevel: entry.guidanceLevel,
         visualAssistUsed: entry.visualAssistUsed,
@@ -1567,6 +1607,12 @@ async function runQaCapture(window) {
     true,
   );
   const savedAttemptResults = new Set(savedEquipmentSnapshot.attemptResults);
+  const savedAttemptMessages = savedEquipmentSnapshot.attemptMessages ?? [];
+  const optionalPrivacyValid = savedEquipmentSnapshot.optionalExchangeQuestion === optionalExchangeQa.question
+    && savedEquipmentSnapshot.optionalExchangeOutcome === "answered"
+    && savedEquipmentSnapshot.optionalExchangeRepeatRequests === 1
+    && savedAttemptMessages.includes("OPTIONAL RESPONSE REDACTED")
+    && !savedAttemptMessages.some((message) => String(message).includes(optionalAnswerText));
   const savedReward = savedEquipmentSnapshot.rewardBreakdown ?? {};
   const savedRewardTotal = ["base", "independentWatch", "weakSignal", "newRegion", "newDistanceRecord"]
     .reduce((total, key) => total + Number(savedReward[key] ?? 0), 0);
@@ -1575,7 +1621,8 @@ async function runQaCapture(window) {
   const expectedDistanceReward = Number(savedEquipmentSnapshot.distanceKm) > 9568.2 ? 25 : 0;
   if (savedEquipmentSnapshot.version !== 6
     || savedEquipmentSnapshot.accessoryId !== "cw-filter-500" || savedEquipmentSnapshot.equipmentId !== "usdr-8"
-    || savedEquipmentSnapshot.repeatRequests !== 1 || savedEquipmentSnapshot.copyQueries !== 1
+    || savedEquipmentSnapshot.repeatRequests !== 2 || savedEquipmentSnapshot.copyQueries !== 1
+    || !optionalPrivacyValid
     || !Number.isFinite(savedEquipmentSnapshot.cqQuality) || !Number.isFinite(savedEquipmentSnapshot.copyScore)
     || savedEquipmentSnapshot.copyOutcome !== "copied" || !savedEquipmentSnapshot.operatorProfileId
     || savedEquipmentSnapshot.operatorProfileRevision !== 2 || !Number.isFinite(savedEquipmentSnapshot.remoteWpm)
@@ -1692,7 +1739,7 @@ async function runQaCapture(window) {
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "practice-session-only", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
-      "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "practice-callsign-region-selected", "practice-callsign-region-locked", "practice-callsign-region-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "qso-leave-active", "station-input-cleared", "qso-npc-query", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-result-unsaved", "qso-leave-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
+      "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "practice-callsign-region-selected", "practice-callsign-region-locked", "practice-callsign-region-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "qso-leave-active", "station-input-cleared", "qso-npc-query", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-optional-query", "qso-result-unsaved", "qso-leave-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
     ].map(shot), ...languageCaptures, ...manualCaptures],
   };
 }

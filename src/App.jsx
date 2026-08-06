@@ -32,7 +32,7 @@ import { PracticeScreen } from "./practice/PracticeScreen.jsx";
 import { practiceStatsByMode, recordPracticeAttempt, updatePracticePreference } from "./practice/practiceRecords.js";
 import { PropagationMap } from "./propagation/PropagationMap.jsx";
 import {
-  channelProfileForLevel, generatePropagationMap, selectNpcForQso, selectNpcListenerForCq,
+  channelProfileForLevel, generatePropagationMap, NPC_STATIONS, selectNpcForQso, selectNpcListenerForCq,
 } from "./propagation/propagationEngine.js";
 import {
   QSO_PHASES, createQso, createQsoLogEntry, markQsoAssisted, onNpcPlaybackFinished,
@@ -58,6 +58,8 @@ const ASSETS = {
   world: "./assets/world-map.png",
   propagation: "./assets/propagation-map.png",
 };
+
+const QA_OPTIONAL_NPC_CALLSIGNS = new Set(["SIM3RA", "SIM5TU", "SIM2DX", "SIM8CW", "SIM6JP"]);
 
 const BUILD_VERSION = "0.28.0";
 const ANTENNA_STATUS = {
@@ -538,9 +540,12 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   useEffect(() => {
     if (briefingOpen || exitRequest || qso.phase !== QSO_PHASES.WAITING_RESPONSE || !powered || !antennaReady) return undefined;
     const seed = `${propagationKey}:${qsoSerial}:${qso.unansweredCalls}:${save.callsign}`;
+    const qaStations = window.cwgameSystem?.qaCapture
+      ? NPC_STATIONS.filter(({ callsign }) => QA_OPTIONAL_NPC_CALLSIGNS.has(callsign))
+      : undefined;
     const responder = selectNpcListenerForCq(propagationMap, {
       playerEquipmentBonus,
-      stations: qso.pendingResponder ? [qso.pendingResponder] : undefined,
+      stations: qso.pendingResponder ? [qso.pendingResponder] : qaStations,
       seed,
       rfEnabled: antennaReady,
     });
