@@ -38,6 +38,9 @@ function entry(overrides = {}) {
     operatorProfileId: "careful-beginner",
     operatorProfileRevision: 1,
     remoteWpm: 10,
+    optionalExchangeQuestion: "location",
+    optionalExchangeOutcome: "answered",
+    optionalExchangeRepeatRequests: 1,
     guidanceLevel: "off",
     visualAssistUsed: false,
     independentWatch: true,
@@ -53,7 +56,7 @@ function entry(overrides = {}) {
   };
 }
 
-test("normalizes the complete QSO log v5 schema", () => {
+test("normalizes the complete QSO log v6 schema", () => {
   const normalized = normalizeQsoLogEntry(entry());
   assert.equal(normalized.version, QSO_LOG_VERSION);
   assert.equal(normalized.startedAt, "2026-07-15T00:00:00.000Z");
@@ -77,6 +80,9 @@ test("normalizes the complete QSO log v5 schema", () => {
   assert.equal(normalized.operatorProfileId, "careful-beginner");
   assert.equal(normalized.operatorProfileRevision, 1);
   assert.equal(normalized.remoteWpm, 10);
+  assert.equal(normalized.optionalExchangeQuestion, "location");
+  assert.equal(normalized.optionalExchangeOutcome, "answered");
+  assert.equal(normalized.optionalExchangeRepeatRequests, 1);
   assert.equal(normalized.guidanceLevel, "off");
   assert.equal(normalized.visualAssistUsed, false);
   assert.equal(normalized.independentWatch, true);
@@ -96,8 +102,8 @@ test("normalizes the complete QSO log v5 schema", () => {
   }]);
 });
 
-test("legacy v1-v4 QSO logs safely migrate to v5 defaults without retroactive rewards", () => {
-  for (const version of [1, 2, 3, 4]) {
+test("legacy v1-v5 QSO logs safely migrate to v6 defaults without retroactive rewards", () => {
+  for (const version of [1, 2, 3, 4, 5]) {
     const normalized = normalizeQsoLogEntry(entry({
     version,
     accessoryId: undefined,
@@ -111,6 +117,9 @@ test("legacy v1-v4 QSO logs safely migrate to v5 defaults without retroactive re
     operatorProfileId: undefined,
     operatorProfileRevision: undefined,
     remoteWpm: undefined,
+    optionalExchangeQuestion: undefined,
+    optionalExchangeOutcome: undefined,
+    optionalExchangeRepeatRequests: undefined,
     guidanceLevel: undefined,
     visualAssistUsed: undefined,
     independentWatch: undefined,
@@ -126,6 +135,9 @@ test("legacy v1-v4 QSO logs safely migrate to v5 defaults without retroactive re
   assert.equal(normalized.operatorProfileId, "legacy-standard");
   assert.equal(normalized.operatorProfileRevision, 0);
   assert.equal(normalized.remoteWpm, null);
+  assert.equal(normalized.optionalExchangeQuestion, null);
+  assert.equal(normalized.optionalExchangeOutcome, "not-offered");
+  assert.equal(normalized.optionalExchangeRepeatRequests, 0);
   assert.equal(normalized.transmitAccuracy, 87.7);
   assert.equal("copyAccuracy" in normalized, false);
   assert.equal(normalized.guidanceLevel, "full");
@@ -209,6 +221,10 @@ test("repeat request counts normalize to safe non-negative integers", () => {
   assert.equal(normalizeQsoLogEntry(entry({ repeatRequests: "4.9" })).repeatRequests, 4);
   assert.equal(normalizeQsoLogEntry(entry({ repeatRequests: "invalid" })).repeatRequests, 0);
   assert.equal(normalizeQsoLogEntry(entry({ repeatRequests: 1e30 })).repeatRequests, Number.MAX_SAFE_INTEGER);
+  assert.equal(normalizeQsoLogEntry(entry({ optionalExchangeRepeatRequests: -3 })).optionalExchangeRepeatRequests, 0);
+  assert.equal(normalizeQsoLogEntry(entry({ optionalExchangeRepeatRequests: "4.9" })).optionalExchangeRepeatRequests, 4);
+  assert.equal(normalizeQsoLogEntry(entry({ optionalExchangeQuestion: "unknown" })).optionalExchangeQuestion, null);
+  assert.equal(normalizeQsoLogEntry(entry({ optionalExchangeQuestion: "unknown" })).optionalExchangeOutcome, "not-offered");
 });
 
 test("rejects invalid chronology and required identity fields", () => {

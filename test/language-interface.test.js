@@ -145,6 +145,7 @@ test("every interface dictionary has the same non-empty shape in all seven langu
     ["src/App.jsx", "ANTENNA_STATUS"],
     ["src/App.jsx", "COPY"],
     ["src/App.jsx", "STATION_FLOW_COPY"],
+    ["src/App.jsx", "OPTIONAL_EXCHANGE_COPY"],
     ["src/components/NetworkIndicator.jsx", "LABELS"],
     ["src/components/QsoDutyCoach.jsx", "TEXT"],
     ["src/components/QsoRewardBreakdown.jsx", "TEXT"],

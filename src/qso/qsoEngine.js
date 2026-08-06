@@ -11,6 +11,8 @@ export const QSO_PHASES = Object.freeze({
   WAITING_RESPONSE: "WAITING_RESPONSE",
   NPC_REPLY: "NPC_REPLY",
   PLAYER_RST_AND_73: "PLAYER_RST_AND_73",
+  NPC_OPTIONAL_QUERY: "NPC_OPTIONAL_QUERY",
+  PLAYER_OPTIONAL_ANSWER: "PLAYER_OPTIONAL_ANSWER",
   NPC_73_AND_SK: "NPC_73_AND_SK",
   QSO_COMPLETE: "QSO_COMPLETE",
   QSO_FAILED: "QSO_FAILED",
@@ -35,6 +37,30 @@ function expectedCq(playerCallsign) {
 
 function expectedReport(npcCallsign, playerCallsign) {
   return `${npcCallsign} DE ${playerCallsign} RST 559 73 K`;
+}
+
+const OPTIONAL_EXCHANGE_SPECS = Object.freeze({
+  power: Object.freeze({ keyword: "PWR", prompt: "PWR? K", example: "PWR 50 W K" }),
+  location: Object.freeze({ keyword: "QTH", prompt: "QTH? K", example: "QTH PIXEL CITY K" }),
+  weather: Object.freeze({ keyword: "WX", prompt: "WX? K", example: "WX SUNNY K" }),
+  name: Object.freeze({ keyword: "NAME", prompt: "NAME? K", example: "NAME SPARK K" }),
+  age: Object.freeze({ keyword: "AGE", prompt: "AGE? K", example: "AGE 25 K" }),
+});
+
+function optionalExchangeSpec(questionId) {
+  return OPTIONAL_EXCHANGE_SPECS[questionId] ?? null;
+}
+
+function finalNpcMessage(qso, outcome = null) {
+  const style = qso.npc?.operatorStyle ?? {};
+  if (outcome === "answered" && qso.optionalExchangeQuestion === "name") {
+    return `${qso.playerCallsign} DE ${qso.npc.callsign} TNX MY NAME ${style.personaName ?? "OP"} 73 SK`;
+  }
+  if (outcome === "answered" && qso.optionalExchangeQuestion === "age") {
+    return `${qso.playerCallsign} DE ${qso.npc.callsign} TNX AGE ${style.personaAge ?? 40} 73 SK`;
+  }
+  const acknowledgement = outcome === "answered" ? "TNX " : outcome === "skipped" ? "OK " : "";
+  return `${qso.playerCallsign} DE ${qso.npc.callsign} ${acknowledgement}R RST ${qso.receivedRst ?? "579"} 73 SK`;
 }
 
 function normalizeGuidanceLevel(value) {
@@ -105,6 +131,10 @@ export function createQso({
     repeatRequests: 0,
     copyQueries: 0,
     reportCopyQueries: 0,
+    optionalExchangeQuestion: null,
+    optionalExchangeOutcome: "not-offered",
+    optionalExchangeRepeatRequests: 0,
+    optionalExchangeMessage: null,
     pendingResponderQueryCount: 0,
     unansweredCalls: 0,
     sentRst: null,
@@ -195,6 +225,17 @@ export function onNpcPlaybackFinished(qso, completedAt = new Date().toISOString(
       lastError: null,
     };
   }
+  if (qso.phase === QSO_PHASES.NPC_OPTIONAL_QUERY) {
+    const spec = optionalExchangeSpec(qso.optionalExchangeQuestion);
+    return {
+      ...qso,
+      phase: QSO_PHASES.PLAYER_OPTIONAL_ANSWER,
+      npcReplyDisposition: null,
+      expectedPlayer: spec?.example ?? "SKIP K",
+      lastError: null,
+      channelNotice: "optionalExchange",
+    };
+  }
   return qso;
 }
 
@@ -233,6 +274,33 @@ export function validatePlayerMessage(qso, message) {
       && tokens[6] === "K";
     if (!inStrictOrder) return { valid: false, reason: "wrongReplyOrder" };
     return { valid: true, reason: null, action: "complete", rst };
+  }
+  if (qso.phase === QSO_PHASES.PLAYER_OPTIONAL_ANSWER) {
+    if (tokens.length === 2 && tokens[0] === "AGN" && tokens[1] === "K") {
+      return { valid: true, reason: null, action: "repeat-optional" };
+    }
+    if (tokens.length === 2 && ((tokens[0] === "SKIP" && tokens[1] === "K") || (tokens[0] === "73" && tokens[1] === "K"))) {
+      return { valid: true, reason: null, action: "skip-optional" };
+    }
+    if (tokens.includes("AGN")) return { valid: false, reason: "invalidAgn" };
+    if (tokens.includes("SKIP") || tokens.includes("73")) return { valid: false, reason: "invalidOptionalSkip" };
+    if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
+    const spec = optionalExchangeSpec(qso.optionalExchangeQuestion);
+    const payload = tokens.slice(1, -1);
+    if (!spec || tokens[0] !== spec.keyword || payload.length === 0) {
+      return { valid: false, reason: "invalidOptionalAnswer" };
+    }
+    if (qso.optionalExchangeQuestion === "power") {
+      if (payload.length !== 2 || !/^\d{1,4}$/.test(payload[0]) || payload[1] !== "W" || Number(payload[0]) < 1) {
+        return { valid: false, reason: "invalidOptionalAnswer" };
+      }
+    }
+    if (qso.optionalExchangeQuestion === "age") {
+      if (payload.length !== 1 || !/^\d{1,3}$/.test(payload[0]) || Number(payload[0]) < 1 || Number(payload[0]) > 120) {
+        return { valid: false, reason: "invalidOptionalAnswer" };
+      }
+    }
+    return { valid: true, reason: null, action: "answer-optional" };
   }
   return { valid: false, reason: "notWaitingForPlayer" };
 }
@@ -282,7 +350,11 @@ export function submitPlayerMessage(qso, message, {
       pendingResponderQueryCount: qso.pendingResponder ? qso.pendingResponderQueryCount : 0,
     };
   }
-  const attemptHistory = appendAttempt(qso, message, validation, { wpm, accuracy, rhythm });
+  const recordedMessage = qso.phase === QSO_PHASES.PLAYER_OPTIONAL_ANSWER
+    && !["repeat-optional", "skip-optional"].includes(validation.action)
+    ? "OPTIONAL RESPONSE REDACTED"
+    : message;
+  const attemptHistory = appendAttempt(qso, recordedMessage, validation, { wpm, accuracy, rhythm });
   if (!validation.valid) {
     const attempts = Math.min(
       Number.MAX_SAFE_INTEGER,
@@ -303,6 +375,43 @@ export function submitPlayerMessage(qso, message, {
       npcMessage: qso.contactMessage ?? qso.npcMessage,
       contactRevealed: qso.contactRevealed,
       npcReplyDisposition: "copy",
+    };
+  }
+  if (validation.action === "repeat-optional") {
+    return {
+      ...qso,
+      phase: QSO_PHASES.NPC_OPTIONAL_QUERY,
+      attemptHistory,
+      lastError: null,
+      repeatRequests: Math.min(
+        Number.MAX_SAFE_INTEGER,
+        (Number.isSafeInteger(qso.repeatRequests) && qso.repeatRequests >= 0 ? qso.repeatRequests : 0) + 1,
+      ),
+      optionalExchangeRepeatRequests: Math.min(
+        Number.MAX_SAFE_INTEGER,
+        (Number.isSafeInteger(qso.optionalExchangeRepeatRequests) && qso.optionalExchangeRepeatRequests >= 0
+          ? qso.optionalExchangeRepeatRequests
+          : 0) + 1,
+      ),
+      npcMessage: qso.optionalExchangeMessage ?? qso.npcMessage,
+      npcReplyDisposition: "optional-query",
+      expectedPlayer: null,
+      channelNotice: null,
+    };
+  }
+  if (["skip-optional", "answer-optional"].includes(validation.action)) {
+    const outcome = validation.action === "answer-optional" ? "answered" : "skipped";
+    return {
+      ...qso,
+      phase: QSO_PHASES.NPC_73_AND_SK,
+      attempts: 0,
+      attemptHistory,
+      lastError: null,
+      optionalExchangeOutcome: outcome,
+      npcMessage: finalNpcMessage(qso, outcome),
+      npcReplyDisposition: "copy",
+      expectedPlayer: null,
+      channelNotice: null,
     };
   }
   const reportCopyQueries = Number.isSafeInteger(qso.reportCopyQueries) && qso.reportCopyQueries >= 0
@@ -354,17 +463,27 @@ export function submitPlayerMessage(qso, message, {
       lastReportCopyScore: decision.copyScore,
     };
   }
+  const optionalQuestion = optionalExchangeSpec(decision.npc.operatorStyle?.optionalQuestion)
+    ? decision.npc.operatorStyle.optionalQuestion
+    : null;
   return {
     ...qso,
-    phase: QSO_PHASES.NPC_73_AND_SK,
+    phase: optionalQuestion ? QSO_PHASES.NPC_OPTIONAL_QUERY : QSO_PHASES.NPC_73_AND_SK,
     npc: decision.npc,
     attempts: 0,
     attemptHistory: resolvedAttemptHistory,
     lastError: null,
     sentRst: validation.rst,
     receivedRst: npcRst,
-    npcMessage: `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} 73 SK`,
-    npcReplyDisposition: "copy",
+    optionalExchangeQuestion: optionalQuestion,
+    optionalExchangeOutcome: optionalQuestion ? "pending" : "not-offered",
+    optionalExchangeMessage: optionalQuestion
+      ? `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} ${optionalExchangeSpec(optionalQuestion).prompt}`
+      : null,
+    npcMessage: optionalQuestion
+      ? `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} ${optionalExchangeSpec(optionalQuestion).prompt}`
+      : `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} 73 SK`,
+    npcReplyDisposition: optionalQuestion ? "optional-query" : "copy",
     replyWpm: qso.replyWpm ?? qso.npc.wpm,
     expectedPlayer: null,
     contactRevealed: true,
@@ -502,11 +621,12 @@ export function restartQso(qso, startedAt = new Date().toISOString()) {
 }
 
 export function qsoCanAcceptPlayer(qso) {
-  return qso.phase === QSO_PHASES.PLAYER_CQ || qso.phase === QSO_PHASES.PLAYER_RST_AND_73;
+  return [QSO_PHASES.PLAYER_CQ, QSO_PHASES.PLAYER_RST_AND_73, QSO_PHASES.PLAYER_OPTIONAL_ANSWER]
+    .includes(qso.phase);
 }
 
 export function qsoNeedsNpcPlayback(qso) {
-  return [QSO_PHASES.NPC_REPLY, QSO_PHASES.NPC_73_AND_SK].includes(qso.phase);
+  return [QSO_PHASES.NPC_REPLY, QSO_PHASES.NPC_OPTIONAL_QUERY, QSO_PHASES.NPC_73_AND_SK].includes(qso.phase);
 }
 
 export function createQsoLogEntry(qso, {
@@ -560,6 +680,9 @@ export function createQsoLogEntry(qso, {
     transmitAccuracy: transmitAccuracy ?? copyAccuracy,
     keyingScore,
     repeatRequests: qso.repeatRequests,
+    optionalExchangeQuestion: qso.optionalExchangeQuestion,
+    optionalExchangeOutcome: qso.optionalExchangeOutcome,
+    optionalExchangeRepeatRequests: qso.optionalExchangeRepeatRequests,
     copyQueries: qso.copyQueries,
     cqQuality: qso.cqAssessment?.quality,
     copyScore: qso.lastCopyScore,

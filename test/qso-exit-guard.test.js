@@ -26,6 +26,8 @@ test("every live on-air phase is protected", () => {
     QSO_PHASES.WAITING_RESPONSE,
     QSO_PHASES.NPC_REPLY,
     QSO_PHASES.PLAYER_RST_AND_73,
+    QSO_PHASES.NPC_OPTIONAL_QUERY,
+    QSO_PHASES.PLAYER_OPTIONAL_ANSWER,
     QSO_PHASES.NPC_73_AND_SK,
   ]) {
     assert.equal(qsoExitRisk({ ...createQso({ npc }), phase }), QSO_EXIT_RISKS.ACTIVE, phase);

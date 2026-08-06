@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import { assessCqTransmission } from "../src/qso/cqAssessment.js";
 import {
   DEFAULT_OPERATOR_PROFILE_ID, NPC_OPERATOR_ASSIGNMENTS, OPERATOR_PROFILES,
-  OPERATOR_PROFILE_SCHEMA_VERSION, resolveOperatorProfile, resolveRemoteCopy, resolveRemoteReportCopy,
+  OPTIONAL_EXCHANGE_QUESTION_IDS, OPERATOR_PROFILE_SCHEMA_VERSION,
+  resolveOperatorProfile, resolveRemoteCopy, resolveRemoteReportCopy,
   responseDelayForNpc, withOperatorProfile,
 } from "../src/qso/operatorProfiles.js";
 import { NPC_STATIONS } from "../src/propagation/propagationEngine.js";
 
 test("the versioned operator table covers every fictional station with bounded traits", () => {
-  assert.equal(OPERATOR_PROFILE_SCHEMA_VERSION, 1);
+  assert.equal(OPERATOR_PROFILE_SCHEMA_VERSION, 2);
   assert.ok(Object.keys(OPERATOR_PROFILES).length >= 7);
   for (const station of NPC_STATIONS) {
     assert.ok(NPC_OPERATOR_ASSIGNMENTS[station.callsign], station.callsign);
@@ -25,6 +26,25 @@ test("the versioned operator table covers every fictional station with bounded t
       assert.ok(candidate[key] >= 0 && candidate[key] <= 100, `${id}:${key}`);
     }
     assert.ok(candidate.preferredWpm >= 5 && candidate.preferredWpm <= 40, id);
+  }
+});
+
+test("optional exchanges are deterministic profile data and only some stations ask", () => {
+  const profileQuestions = Object.values(OPERATOR_PROFILES)
+    .map((candidate) => candidate.optionalQuestion)
+    .filter(Boolean)
+    .sort();
+  assert.deepEqual(profileQuestions, [...OPTIONAL_EXCHANGE_QUESTION_IDS].sort());
+  assert.ok(Object.values(OPERATOR_PROFILES).some((candidate) => candidate.optionalQuestion === null));
+
+  const stationQuestions = NPC_STATIONS.map((station) => resolveOperatorProfile(station).optionalQuestion);
+  assert.deepEqual(new Set(stationQuestions.filter(Boolean)), new Set(OPTIONAL_EXCHANGE_QUESTION_IDS));
+  assert.ok(stationQuestions.some(Boolean));
+  assert.ok(stationQuestions.some((question) => question === null));
+  for (const station of NPC_STATIONS) {
+    const style = resolveOperatorProfile(station);
+    assert.match(style.personaName, /^[A-Z0-9]{1,12}$/);
+    assert.ok(style.personaAge >= 1 && style.personaAge <= 120);
   }
 });
 

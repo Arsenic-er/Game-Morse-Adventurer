@@ -263,7 +263,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.27.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.28.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
   const languageStorageKey = "game-morse-adventurer.language.v1";
@@ -1573,12 +1573,12 @@ async function runQaCapture(window) {
   const expectedWeakSignalReward = Number(savedEquipmentSnapshot.finalPropagationLevel) <= 2 ? 75 : 0;
   const expectedNewRegionReward = ["AS-JA", "EU-W"].includes(savedEquipmentSnapshot.location) ? 0 : 20;
   const expectedDistanceReward = Number(savedEquipmentSnapshot.distanceKm) > 9568.2 ? 25 : 0;
-  if (savedEquipmentSnapshot.version !== 5
+  if (savedEquipmentSnapshot.version !== 6
     || savedEquipmentSnapshot.accessoryId !== "cw-filter-500" || savedEquipmentSnapshot.equipmentId !== "usdr-8"
     || savedEquipmentSnapshot.repeatRequests !== 1 || savedEquipmentSnapshot.copyQueries !== 1
     || !Number.isFinite(savedEquipmentSnapshot.cqQuality) || !Number.isFinite(savedEquipmentSnapshot.copyScore)
     || savedEquipmentSnapshot.copyOutcome !== "copied" || !savedEquipmentSnapshot.operatorProfileId
-    || savedEquipmentSnapshot.operatorProfileRevision !== 1 || !Number.isFinite(savedEquipmentSnapshot.remoteWpm)
+    || savedEquipmentSnapshot.operatorProfileRevision !== 2 || !Number.isFinite(savedEquipmentSnapshot.remoteWpm)
     || !Number.isFinite(savedEquipmentSnapshot.transmitAccuracy)
     || savedEquipmentSnapshot.guidanceLevel !== "full" || savedEquipmentSnapshot.visualAssistUsed !== true
     || savedEquipmentSnapshot.independentWatch !== false || savedReward.version !== 1
@@ -1592,7 +1592,7 @@ async function runQaCapture(window) {
     || !savedAttemptResults.has("rejected") || !savedAttemptResults.has("repeat")
     || !savedEquipmentSnapshot.attemptMetricsComplete
     || savedEquipmentSnapshot.firstWatchCompleted !== true || savedEquipmentSnapshot.totalQsos !== 5) {
-    throw new Error(`QSO log v5 lost its review, operator, copy, reward, or equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
+    throw new Error(`QSO log v6 lost its review, operator, copy, reward, or equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
   }
   await capture(window, outputDir, shot("qso-result-saved"));
   await click(window, ".qso-result-modal.success header .icon-button");

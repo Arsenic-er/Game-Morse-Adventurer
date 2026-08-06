@@ -1,6 +1,9 @@
 import { clamp } from "../cw/morse.js";
 
-export const OPERATOR_PROFILE_SCHEMA_VERSION = 1;
+export const OPERATOR_PROFILE_SCHEMA_VERSION = 2;
+export const OPTIONAL_EXCHANGE_QUESTION_IDS = Object.freeze([
+  "power", "location", "weather", "name", "age",
+]);
 
 function profile(candidate) {
   return Object.freeze(candidate);
@@ -11,57 +14,58 @@ export const OPERATOR_PROFILES = Object.freeze({
     archetype: "careful-beginner", rxSkill: 58, txAccuracy: 72, preferredWpm: 10,
     speedTolerance: 48, patience: 90, procedureStrictness: 25, responseTempo: 35,
     fistStability: 55, verbosity: 78, initiative: 45, queryStyle: "AGN",
-    replyStyle: "REPEAT", lowCopyAction: "GENERAL_CQ",
+    replyStyle: "REPEAT", lowCopyAction: "GENERAL_CQ", optionalQuestion: null,
   }),
   "patient-veteran": profile({
     archetype: "patient-veteran", rxSkill: 94, txAccuracy: 97, preferredWpm: 17,
     speedTolerance: 88, patience: 96, procedureStrictness: 40, responseTempo: 55,
     fistStability: 92, verbosity: 70, initiative: 55, queryStyle: "AGN",
-    replyStyle: "REPEAT", lowCopyAction: "GENERAL_CQ",
+    replyStyle: "REPEAT", lowCopyAction: "GENERAL_CQ", optionalQuestion: "location",
   }),
   "contest-sprinter": profile({
     archetype: "contest-sprinter", rxSkill: 98, txAccuracy: 99, preferredWpm: 28,
     speedTolerance: 72, patience: 28, procedureStrictness: 82, responseTempo: 96,
     fistStability: 98, verbosity: 10, initiative: 75, queryStyle: "QUESTION",
-    replyStyle: "TERSE", lowCopyAction: "SILENCE",
+    replyStyle: "TERSE", lowCopyAction: "SILENCE", optionalQuestion: null,
   }),
   "youth-club": profile({
     archetype: "youth-club", rxSkill: 74, txAccuracy: 86, preferredWpm: 15,
     speedTolerance: 70, patience: 84, procedureStrictness: 35, responseTempo: 75,
     fistStability: 76, verbosity: 65, initiative: 88, queryStyle: "AGN",
-    replyStyle: "FRIENDLY", lowCopyAction: "GENERAL_CQ",
+    replyStyle: "FRIENDLY", lowCopyAction: "GENERAL_CQ", optionalQuestion: "age",
   }),
   "traditional-fist": profile({
     archetype: "traditional-fist", rxSkill: 90, txAccuracy: 88, preferredWpm: 13,
     speedTolerance: 82, patience: 78, procedureStrictness: 70, responseTempo: 45,
     fistStability: 62, verbosity: 55, initiative: 62, queryStyle: "QRS",
-    replyStyle: "STANDARD", lowCopyAction: "GENERAL_CQ",
+    replyStyle: "STANDARD", lowCopyAction: "GENERAL_CQ", optionalQuestion: "power",
   }),
   "weak-signal-listener": profile({
     archetype: "weak-signal-listener", rxSkill: 96, txAccuracy: 95, preferredWpm: 16,
     speedTolerance: 90, patience: 88, procedureStrictness: 55, responseTempo: 25,
     fistStability: 90, verbosity: 40, initiative: 35, queryStyle: "QRZ",
-    replyStyle: "STANDARD", lowCopyAction: "SILENCE",
+    replyStyle: "STANDARD", lowCopyAction: "SILENCE", optionalQuestion: "weather",
   }),
   "friendly-ragchewer": profile({
     archetype: "friendly-ragchewer", rxSkill: 80, txAccuracy: 90, preferredWpm: 18,
     speedTolerance: 65, patience: 74, procedureStrictness: 20, responseTempo: 58,
     fistStability: 85, verbosity: 95, initiative: 70, queryStyle: "AGN",
-    replyStyle: "FRIENDLY", lowCopyAction: "GENERAL_CQ",
+    replyStyle: "FRIENDLY", lowCopyAction: "GENERAL_CQ", optionalQuestion: "name",
   }),
 });
 
+// Explicit fictional personas only; no value is read from the OS, browser, or user account.
 export const NPC_OPERATOR_ASSIGNMENTS = Object.freeze({
-  SIM7QX: Object.freeze({ profileId: "careful-beginner" }),
-  SIM3RA: Object.freeze({ profileId: "patient-veteran" }),
-  SIM9AK: Object.freeze({ profileId: "contest-sprinter" }),
-  SIM5TU: Object.freeze({ profileId: "traditional-fist" }),
-  SIM2DX: Object.freeze({ profileId: "weak-signal-listener" }),
-  SIM8CW: Object.freeze({ profileId: "friendly-ragchewer" }),
-  SIM6JP: Object.freeze({ profileId: "youth-club" }),
-  SIM4NZ: Object.freeze({ profileId: "patient-veteran", preferredWpm: 17 }),
-  SIM1IN: Object.freeze({ profileId: "careful-beginner", preferredWpm: 12 }),
-  SIM0BR: Object.freeze({ profileId: "friendly-ragchewer", preferredWpm: 19 }),
+  SIM7QX: Object.freeze({ profileId: "careful-beginner", personaName: "RIN", personaAge: 24 }),
+  SIM3RA: Object.freeze({ profileId: "patient-veteran", personaName: "MORSE", personaAge: 68 }),
+  SIM9AK: Object.freeze({ profileId: "contest-sprinter", personaName: "MAX", personaAge: 31 }),
+  SIM5TU: Object.freeze({ profileId: "traditional-fist", personaName: "SORA", personaAge: 52 }),
+  SIM2DX: Object.freeze({ profileId: "weak-signal-listener", personaName: "NOVA", personaAge: 44 }),
+  SIM8CW: Object.freeze({ profileId: "friendly-ragchewer", personaName: "AKI", personaAge: 37 }),
+  SIM6JP: Object.freeze({ profileId: "youth-club", personaName: "MIO", personaAge: 19 }),
+  SIM4NZ: Object.freeze({ profileId: "patient-veteran", preferredWpm: 17, optionalQuestion: null, personaName: "LEE", personaAge: 63 }),
+  SIM1IN: Object.freeze({ profileId: "careful-beginner", preferredWpm: 12, personaName: "KAI", personaAge: 27 }),
+  SIM0BR: Object.freeze({ profileId: "friendly-ragchewer", preferredWpm: 19, optionalQuestion: null, personaName: "LUNA", personaAge: 41 }),
 });
 
 export const DEFAULT_OPERATOR_PROFILE_ID = "patient-veteran";
@@ -84,12 +88,20 @@ export function resolveOperatorProfile(npc = {}) {
   const assignment = NPC_OPERATOR_ASSIGNMENTS[callsign] ?? {};
   const profileId = npc.operatorProfileId ?? assignment.profileId ?? DEFAULT_OPERATOR_PROFILE_ID;
   const base = OPERATOR_PROFILES[profileId] ?? OPERATOR_PROFILES[DEFAULT_OPERATOR_PROFILE_ID];
-  return {
+  const resolved = {
     ...base,
     ...assignment,
     ...(npc.operatorOverrides ?? {}),
     profileId: OPERATOR_PROFILES[profileId] ? profileId : DEFAULT_OPERATOR_PROFILE_ID,
     revision: OPERATOR_PROFILE_SCHEMA_VERSION,
+  };
+  return {
+    ...resolved,
+    optionalQuestion: OPTIONAL_EXCHANGE_QUESTION_IDS.includes(resolved.optionalQuestion)
+      ? resolved.optionalQuestion
+      : null,
+    personaName: String(resolved.personaName ?? "OP").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) || "OP",
+    personaAge: Math.min(120, Math.max(1, Math.floor(Number(resolved.personaAge) || 40))),
   };
 }
 

@@ -4,7 +4,10 @@ import {
   normalizeQsoRewardBreakdown,
 } from "../game/qsoRewards.js";
 
-export const QSO_LOG_VERSION = 5;
+export const QSO_LOG_VERSION = 6;
+const OPTIONAL_EXCHANGE_QUESTION_IDS = Object.freeze([
+  "power", "location", "weather", "name", "age",
+]);
 export const MAX_QSO_LOGS = 200;
 export const MAX_QSO_ATTEMPT_HISTORY = 50;
 
@@ -121,6 +124,12 @@ export function normalizeQsoLogEntry(entry) {
   const guidanceLevel = normalizeGuidanceLevel(entry.guidanceLevel);
   const visualAssistUsed = entry.visualAssistUsed === true;
   const rewardBreakdown = normalizeQsoRewardBreakdown(entry.rewardBreakdown);
+  const candidateQuestion = OPTIONAL_EXCHANGE_QUESTION_IDS.includes(entry.optionalExchangeQuestion)
+    ? entry.optionalExchangeQuestion
+    : null;
+  const optionalExchangeOutcome = candidateQuestion && ["answered", "skipped"].includes(entry.optionalExchangeOutcome)
+    ? entry.optionalExchangeOutcome : "not-offered";
+  const optionalExchangeQuestion = optionalExchangeOutcome === "not-offered" ? null : candidateQuestion;
   return {
     version: QSO_LOG_VERSION,
     id: normalizeId(entry.id, callsign, completedAt),
@@ -158,6 +167,9 @@ export function normalizeQsoLogEntry(entry) {
     remoteWpm: entry.remoteWpm === null || entry.remoteWpm === undefined || entry.remoteWpm === ""
       ? null
       : Number(clamp(finiteNumber(entry.remoteWpm), 0, 60).toFixed(1)),
+    optionalExchangeQuestion,
+    optionalExchangeOutcome,
+    optionalExchangeRepeatRequests: optionalExchangeQuestion ? normalizeRepeatRequests(entry.optionalExchangeRepeatRequests) : 0,
     guidanceLevel,
     visualAssistUsed,
     independentWatch: entry.independentWatch === true && guidanceLevel === "off" && !visualAssistUsed,

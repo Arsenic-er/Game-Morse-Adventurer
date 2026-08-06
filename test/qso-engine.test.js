@@ -95,7 +95,7 @@ test("completes the minimum QSO state machine", () => {
   assert.ok(log.copyScore >= 75);
   assert.equal(log.copyOutcome, "copied");
   assert.equal(log.operatorProfileId, "careful-beginner");
-  assert.equal(log.operatorProfileRevision, 1);
+  assert.equal(log.operatorProfileRevision, 2);
   assert.ok(log.remoteWpm >= 5 && log.remoteWpm <= 60);
   assert.equal(log.guidanceLevel, "full");
   assert.equal(log.visualAssistUsed, true);
@@ -104,6 +104,74 @@ test("completes the minimum QSO state machine", () => {
   assert.equal(log.version, QSO_LOG_VERSION);
   assert.equal(log.credits, 100);
   assert.equal(log.isFictional, true);
+});
+
+test("a profile-selected optional question accepts an explicit answer without persisting it", () => {
+  const chattyNpc = { ...npc, callsign: "SIM3RA" };
+  let qso = reachReportPhase(chattyNpc);
+  qso = submitPlayerMessage(qso, "SIM3RA DE SIM-K7QX RST 559 73 K");
+  assert.equal(qso.phase, QSO_PHASES.NPC_OPTIONAL_QUERY);
+  assert.equal(qso.optionalExchangeQuestion, "location");
+  assert.equal(qso.optionalExchangeOutcome, "pending");
+  assert.equal(qso.npcMessage, "SIM-K7QX DE SIM3RA R RST 579 QTH? K");
+  assert.equal(qsoNeedsNpcPlayback(qso), true);
+
+  qso = onNpcPlaybackFinished(qso);
+  assert.equal(qso.phase, QSO_PHASES.PLAYER_OPTIONAL_ANSWER);
+  assert.equal(qso.expectedPlayer, "QTH PIXEL CITY K");
+  assert.equal(qsoCanAcceptPlayer(qso), true);
+
+  qso = submitPlayerMessage(qso, "MY PRIVATE ADDRESS K");
+  assert.equal(qso.lastError, "invalidOptionalAnswer");
+  assert.equal(qso.attemptHistory.at(-1).message, "OPTIONAL RESPONSE REDACTED");
+  assert.doesNotMatch(JSON.stringify(qso), /PRIVATE ADDRESS/);
+
+  qso = submitPlayerMessage(qso, "QTH SECRET HARBOR K");
+  assert.equal(qso.phase, QSO_PHASES.NPC_73_AND_SK);
+  assert.equal(qso.optionalExchangeOutcome, "answered");
+  assert.equal(qso.attemptHistory.at(-1).message, "OPTIONAL RESPONSE REDACTED");
+  assert.doesNotMatch(JSON.stringify(qso), /SECRET HARBOR/);
+
+  qso = onNpcPlaybackFinished(qso, new Date(Date.parse(qso.startedAt) + 1000).toISOString());
+  const log = createQsoLogEntry(qso);
+  assert.equal(log.optionalExchangeQuestion, "location");
+  assert.equal(log.optionalExchangeOutcome, "answered");
+  assert.equal(log.optionalExchangeRepeatRequests, 0);
+  assert.doesNotMatch(JSON.stringify(log), /SECRET|PRIVATE/);
+});
+
+test("an optional question can be replayed or politely skipped with no extra reward", () => {
+  const chattyNpc = { ...npc, callsign: "SIM5TU" };
+  let qso = reachReportPhase(chattyNpc);
+  qso = submitPlayerMessage(qso, "SIM5TU DE SIM-K7QX RST 559 73 K");
+  assert.equal(qso.phase, QSO_PHASES.NPC_OPTIONAL_QUERY);
+  assert.equal(qso.optionalExchangeQuestion, "power");
+  const question = qso.npcMessage;
+  qso = onNpcPlaybackFinished(qso);
+  assert.deepEqual(validatePlayerMessage(qso, "AGN K"), {
+    valid: true, reason: null, action: "repeat-optional",
+  });
+  assert.deepEqual(validatePlayerMessage(qso, "SKIP K"), {
+    valid: true, reason: null, action: "skip-optional",
+  });
+  assert.deepEqual(validatePlayerMessage(qso, "73 K"), {
+    valid: true, reason: null, action: "skip-optional",
+  });
+
+  qso = submitPlayerMessage(qso, "AGN K");
+  assert.equal(qso.phase, QSO_PHASES.NPC_OPTIONAL_QUERY);
+  assert.equal(qso.npcMessage, question);
+  assert.equal(qso.optionalExchangeRepeatRequests, 1);
+  assert.equal(qso.repeatRequests, 1);
+  assert.equal(qso.creditsAwarded, 0);
+  qso = onNpcPlaybackFinished(qso);
+  qso = submitPlayerMessage(qso, "73 K");
+  assert.equal(qso.phase, QSO_PHASES.NPC_73_AND_SK);
+  assert.equal(qso.optionalExchangeOutcome, "skipped");
+  assert.match(qso.npcMessage, / OK R RST 579 73 SK$/);
+  qso = onNpcPlaybackFinished(qso, new Date(Date.parse(qso.startedAt) + 1000).toISOString());
+  assert.equal(qso.phase, QSO_PHASES.QSO_COMPLETE);
+  assert.equal(qso.creditsAwarded, 100);
 });
 
 test("an unassisted guidance-off watch earns the independent bonus", () => {

@@ -59,7 +59,7 @@ const ASSETS = {
   propagation: "./assets/propagation-map.png",
 };
 
-const BUILD_VERSION = "0.27.0";
+const BUILD_VERSION = "0.28.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -259,6 +259,37 @@ const STATION_FLOW_COPY = {
   },
 };
 
+const OPTIONAL_EXCHANGE_COPY = {
+  "zh-CN": {
+    receiving: "正在接收对方的可选资料问题…", answer: "可选交流：可回答，也可发送 AGN K、SKIP K 或 73 K",
+    privacy: "仅使用游戏存档或虚构资料；不要输入真实姓名、年龄或住址。回答原文不会写入日志。",
+  },
+  "zh-TW": {
+    receiving: "正在接收對方的可選資料問題…", answer: "可選交流：可回答，也可發送 AGN K、SKIP K 或 73 K",
+    privacy: "僅使用遊戲存檔或虛構資料；不要輸入真實姓名、年齡或住址。回答原文不會寫入日誌。",
+  },
+  ja: {
+    receiving: "相手局から任意のプロフィール質問を受信中…", answer: "任意交換：回答するか、AGN K・SKIP K・73 K を送信",
+    privacy: "ゲーム内または架空の情報だけを使用し、実名・実年齢・実住所は入力しないでください。回答本文はログに保存されません。",
+  },
+  en: {
+    receiving: "Receiving an optional profile question…", answer: "Optional exchange: answer, or send AGN K, SKIP K, or 73 K",
+    privacy: "Use game-save or fictional details only; never enter a real name, age, or address. Answer text is not saved to the log.",
+  },
+  es: {
+    receiving: "Recibiendo una pregunta opcional de perfil…", answer: "Intercambio opcional: responde o envía AGN K, SKIP K o 73 K",
+    privacy: "Usa solo datos de la partida o ficticios; no introduzcas nombre, edad ni dirección reales. El texto de la respuesta no se guarda en el registro.",
+  },
+  de: {
+    receiving: "Optionale Profilfrage der Gegenstation wird empfangen…", answer: "Optionaler Austausch: antworten oder AGN K, SKIP K bzw. 73 K senden",
+    privacy: "Verwende nur Spielstand- oder erfundene Angaben; gib nie echten Namen, echtes Alter oder echte Adresse ein. Der Antworttext wird nicht im Log gespeichert.",
+  },
+  ru: {
+    receiving: "Принимается необязательный вопрос станции…", answer: "Необязательный обмен: ответьте или передайте AGN K, SKIP K либо 73 K",
+    privacy: "Используйте только игровые или вымышленные данные; не вводите настоящие имя, возраст или адрес. Текст ответа не сохраняется в журнале.",
+  },
+};
+
 function IconButton({ label, children, className = "", ...props }) {
   return <button className={`icon-button ${className}`} aria-label={label} title={label} {...props}>{children}</button>;
 }
@@ -405,6 +436,7 @@ function MapModal({ language, mapMode, setMapMode, propagationMap, onClose }) {
 function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBack, inputBlocked = false }) {
   const t = COPY[language];
   const flow = STATION_FLOW_COPY[language] ?? STATION_FLOW_COPY.en;
+  const optionalFlow = OPTIONAL_EXCHANGE_COPY[language] ?? OPTIONAL_EXCHANGE_COPY.en;
   const antennaStatus = ANTENNA_STATUS[language] ?? ANTENNA_STATUS.en;
   const location = getLocation(save.locationId);
   const transmitter = getTransmitter(save.equipmentId);
@@ -823,6 +855,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     [QSO_PHASES.WAITING_RESPONSE]: flow.phaseWaitingResponse,
     [QSO_PHASES.NPC_REPLY]: npcReplyPhaseText,
     [QSO_PHASES.PLAYER_RST_AND_73]: flow.phasePlayerRst,
+    [QSO_PHASES.NPC_OPTIONAL_QUERY]: optionalFlow.receiving,
+    [QSO_PHASES.PLAYER_OPTIONAL_ANSWER]: optionalFlow.answer,
     [QSO_PHASES.NPC_73_AND_SK]: flow.phaseFinal,
     [QSO_PHASES.QSO_COMPLETE]: t.phaseComplete,
     [QSO_PHASES.QSO_FAILED]: t.phaseFailed,
@@ -833,6 +867,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     generalCall: flow.generalCall,
     unreadableCq: flow.unreadableCq,
     unreadableReport: flow.unreadableReport,
+    optionalExchange: optionalFlow.privacy,
   }[qso.channelNotice] ?? "";
   const decodedText = cw.analysis.decoded || "---";
   const utc = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
@@ -875,6 +910,9 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       data-report-copy-outcome={qso.lastReportCopyOutcome ?? ""}
       data-report-copy-score={qso.lastReportCopyScore ?? ""}
       data-report-copy-queries={qso.reportCopyQueries ?? 0}
+      data-optional-exchange-question={qso.optionalExchangeQuestion ?? ""}
+      data-optional-exchange-outcome={qso.optionalExchangeOutcome ?? "not-offered"}
+      data-optional-exchange-repeats={qso.optionalExchangeRepeatRequests ?? 0}
       data-reply-disposition={qso.npcReplyDisposition ?? ""}
       data-channel-notice={qso.channelNotice ?? ""}
       data-operator-profile={window.cwgameSystem?.qaCapture ? (qso.npc.operatorProfileId ?? "") : undefined}
