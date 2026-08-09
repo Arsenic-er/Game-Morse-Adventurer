@@ -1,6 +1,6 @@
 {
   "name": "cwgame",
-  "version": "0.31.1",
+  "version": "0.32.1",
   "description": "Pixel-art amateur radio CW station simulator",
   "author": "Arsenic-er <302726993@qq.com>",
   "private": true,

@@ -306,7 +306,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.31.1")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.32.1")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
   const languageStorageKey = "game-morse-adventurer.language.v1";
@@ -576,14 +576,27 @@ async function runQaCapture(window) {
   await click(window, '[data-store-category="radio"]');
   await capture(window, outputDir, shot("store-radio"));
   await click(window, '[data-store-category="accessories"]');
-  await waitFor(window, '[data-store-item-id="cw-filter-500"][data-store-item-state="insufficient"]');
-  await capture(window, outputDir, shot("store-accessory-insufficient"));
+  await waitFor(window, '[data-store-item-id="cw-filter-500"][data-store-item-state="research"]');
+  await capture(window, outputDir, shot("store-accessory-research"));
   await click(window, '[data-action="close-store"]');
   await waitFor(window, ".home-screen");
   await clearHover(window);
   await hover(window, ".hotspot-warehouse");
   await capture(window, outputDir, shot("home-hover-warehouse"));
   await click(window, ".hotspot-warehouse");
+  await waitFor(window, ".warehouse-screen");
+  await click(window, '[data-action="open-technology-tree"]');
+  await waitFor(window, '[data-testid="technology-tree"]');
+  const initialTechnologyState = await window.webContents.executeJavaScript(`(() => ({
+    points: document.querySelector(".technology-point-balance strong")?.textContent.trim(),
+    projects: document.querySelectorAll(".research-project-list li").length,
+    nodes: document.querySelectorAll(".technology-node").length,
+  }))()`, true);
+  if (initialTechnologyState.points !== "0" || initialTechnologyState.projects !== 14 || initialTechnologyState.nodes !== 28) {
+    throw new Error(`Unexpected initial technology tree: ${JSON.stringify(initialTechnologyState)}`);
+  }
+  await capture(window, outputDir, shot("technology-tree-initial"));
+  await click(window, ".technology-tree-footer button");
   await waitFor(window, ".warehouse-screen");
   await click(window, ".warehouse-category-rail button:nth-of-type(2)");
   await click(window, ".warehouse-category-rail button:nth-of-type(1)");
@@ -631,6 +644,9 @@ async function runQaCapture(window) {
     const save = saves[0];
     save.keyType = "automatic";
     save.credits = 2000;
+    save.technologyPoints = 0;
+    save.unlockedTechnologies = ["station-basics", "rf-circuits", "frequency-synthesis", "multiband-qrp", "feedline-matching", "vertical-aerials", "directional-arrays", "receiver-audio", "narrowband-filtering"];
+    save.completedResearchProjects = ["first-contact", "reliable-operator"];
     save.qsoLogs = [
       { version: 1, id: "SIM9AK-qa-2", startedAt: "2026-07-15T03:06:00.000Z", completedAt: "2026-07-15T03:12:00.000Z", playerCallsign: save.callsign, callsign: "SIM9AK", frequencyMhz: 21.06, mode: "CW", sent: "559", received: "579", location: "EU-W", npcLatitude: 51.51, npcLongitude: -0.13, distanceKm: 9568.2, basePropagationLevel: 2, finalPropagationLevel: 3, propagationSource: "OFFLINE_DEFAULT", equipmentId: "squid-01", antennaId: save.antennaId, playerLocationId: save.locationId, wpm: 19, copyAccuracy: 94, keyingScore: 91, credits: 100, isFictional: true },
       { version: 1, id: "SIM6JP-qa-1", startedAt: "2026-07-14T22:00:00.000Z", completedAt: "2026-07-14T22:05:00.000Z", playerCallsign: save.callsign, callsign: "SIM6JP", frequencyMhz: 21.06, mode: "CW", sent: "579", received: "599", location: "AS-JA", npcLatitude: 35.68, npcLongitude: 139.76, distanceKm: 162.4, basePropagationLevel: 3, finalPropagationLevel: 4, propagationSource: "OFFLINE_DEFAULT", equipmentId: "squid-01", antennaId: "dipole", playerLocationId: save.locationId, wpm: 18, copyAccuracy: 98, keyingScore: 96, credits: 100, isFictional: true }
@@ -1809,8 +1825,8 @@ async function runQaCapture(window) {
     outputDir,
     captures: [...[
       "start", "save-create", "home", "home-motion-a", "home-motion-b",
-      "home-hover-store", "store-antenna", "store-radio", "store-accessory-insufficient",
-      "home-hover-warehouse", "warehouse-radio", "warehouse-accessories",
+      "home-hover-store", "store-antenna", "store-radio", "store-accessory-research",
+      "home-hover-warehouse", "technology-tree-initial", "warehouse-radio", "warehouse-accessories",
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "practice-session-only", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",

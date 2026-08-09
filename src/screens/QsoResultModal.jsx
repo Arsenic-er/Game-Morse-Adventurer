@@ -1,8 +1,9 @@
 import {
-  ArrowClockwise, ArrowLeft, Broadcast, CheckCircle, FloppyDisk, Gauge, MapPin, Radio,
+  ArrowClockwise, ArrowLeft, Broadcast, CheckCircle, Flask, FloppyDisk, Gauge, MapPin, Radio,
   Ruler, ShieldCheck, WarningCircle, X,
 } from "@phosphor-icons/react";
 import { QsoRewardBreakdown } from "../components/QsoRewardBreakdown.jsx";
+import { researchProjectName } from "../game/researchProjects.js";
 
 const TEXT = {
   "zh-CN": {
@@ -62,6 +63,16 @@ const TEXT = {
     failedHint: "Ответ не завершил минимальный порядок QSO. Кредиты не списываются, запись в журнал не создаётся.",
   },
 };
+
+const PROJECT_REWARD_TEXT = Object.freeze({
+  "zh-CN": "项目完成 · 获得技术点",
+  "zh-TW": "計畫完成 · 獲得技術點",
+  ja: "プロジェクト完了 · 技術ポイント獲得",
+  en: "Project Complete · Technology Points Earned",
+  es: "Proyecto completado · Puntos tecnológicos",
+  de: "Projekt abgeschlossen · Technologiepunkte",
+  ru: "Проект завершён · Получены очки технологий",
+});
 
 function value(value, suffix = "") {
   return value === null || value === undefined || value === "" ? "---" : `${value}${suffix}`;
@@ -174,6 +185,7 @@ function QsoAttemptHistory({ entry, language }) {
 
 export function QsoResultModal({
   language, failed = false, entry = null, creditsAwarded = 0, saved = false,
+  technologyPointsAwarded = 0, completedResearchProjects = [],
   rewardBreakdown = null, onSave, onRestart, onNext, onLeave, onClose,
 }) {
   const t = TEXT[language] ?? TEXT.en;
@@ -220,6 +232,12 @@ export function QsoResultModal({
             <div className="qso-result-rewards">
               <span>{saved ? t.saved : t.unsaved}</span>
               <strong>+{creditsAwarded} <small>{t.credits}</small></strong>
+              {technologyPointsAwarded > 0 && <div className="qso-technology-reward">
+                <Flask size={21} weight="fill" />
+                <span>{PROJECT_REWARD_TEXT[language] ?? PROJECT_REWARD_TEXT.en}</span>
+                <strong>+{technologyPointsAwarded} TP</strong>
+                <small>{completedResearchProjects.map((project) => researchProjectName(project, language)).join(" · ")}</small>
+              </div>}
               <QsoRewardBreakdown language={language} breakdown={rewardBreakdown} credits={creditsAwarded} compact />
             </div>
           </div>

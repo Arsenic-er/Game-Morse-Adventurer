@@ -25,6 +25,7 @@ import { equipmentName, getTransmitter } from "./game/equipmentCatalog.js";
 import { equipOwnedItem, purchaseItem } from "./game/economy.js";
 import { findNewlyUnlockedAchievements } from "./game/achievements.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
+import { unlockTechnology } from "./game/technologyTree.js";
 import {
   loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves,
 } from "./game/saveStore.js";
@@ -62,7 +63,7 @@ const ASSETS = {
 
 const QA_OPTIONAL_NPC_CALLSIGNS = new Set(["SIM3RA", "SIM5TU", "SIM2DX", "SIM8CW", "SIM6JP"]);
 
-const BUILD_VERSION = "0.31.1";
+const BUILD_VERSION = "0.32.1";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -822,12 +823,16 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
         credits: settlement.save.credits,
         qsoLogs: settlement.save.qsoLogs,
         qsoRecords: settlement.save.qsoRecords,
+        technologyPoints: settlement.save.technologyPoints,
+        completedResearchProjects: settlement.save.completedResearchProjects,
         firstWatchCompleted: true,
       } : { firstWatchCompleted: true }, { notifyAchievements: settlement.added });
     setSettlementMeta({
       newRegion: settlement.newRegion,
       newDistanceRecord: settlement.newDistanceRecord,
       creditsAwarded: settlement.creditsAwarded,
+      technologyPointsAwarded: settlement.technologyPointsAwarded,
+      completedResearchProjects: settlement.completedResearchProjects,
       rewardBreakdown: settlement.rewardBreakdown,
       settledEntry: settlement.settledEntry,
     });
@@ -906,6 +911,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     newRegion: pendingSettlement.newRegion,
     newDistanceRecord: pendingSettlement.newDistanceRecord,
     creditsAwarded: pendingSettlement.creditsAwarded,
+    technologyPointsAwarded: pendingSettlement.technologyPointsAwarded,
+    completedResearchProjects: pendingSettlement.completedResearchProjects,
     rewardBreakdown: pendingSettlement.rewardBreakdown,
     settledEntry: pendingSettlement.settledEntry,
   } : null);
@@ -1027,6 +1034,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       {!mapOpen && !briefingOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_COMPLETE && <QsoResultModal
         language={language} entry={displayedResultEntry} creditsAwarded={resultMeta?.creditsAwarded ?? 0} saved={saved}
         rewardBreakdown={resultMeta?.rewardBreakdown ?? null}
+        technologyPointsAwarded={resultMeta?.technologyPointsAwarded ?? 0}
+        completedResearchProjects={resultMeta?.completedResearchProjects ?? []}
         newRegion={resultMeta?.newRegion} newDistanceRecord={resultMeta?.newDistanceRecord}
         onSave={saveOrRestart} onNext={startNewQso} onLeave={(event) => requestExit("home", event.currentTarget)} onClose={() => saved && setResultDismissed(true)}
       />}
@@ -1147,6 +1156,17 @@ export function App() {
     return transaction;
   }
 
+  function unlockTechnologyForActiveSave(technologyId) {
+    if (!activeSaveId) return null;
+    let transaction = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      transaction = unlockTechnology(save, technologyId);
+      return transaction.save;
+    }));
+    return transaction;
+  }
+
   function applySettings(next) {
     const nextWpm = normalizeAutomaticKeyWpm(next.automaticKeyWpm);
     setLanguage(next.language);
@@ -1181,7 +1201,7 @@ export function App() {
   let currentScreen;
   if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => enterPractice("start")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") {
     const persistentStats = practiceStatsByMode(activeSave?.practiceRecords);
     if (activeSave?.practiceRecords) {

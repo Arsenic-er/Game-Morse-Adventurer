@@ -1,6 +1,7 @@
 import { ANTENNAS } from "./antennaCatalog.js";
 import { ACCESSORIES } from "./accessoryCatalog.js";
 import { TRANSMITTERS } from "./equipmentCatalog.js";
+import { isItemTechnologyUnlocked } from "./technologyTree.js";
 
 export const ECONOMY_RESULT = Object.freeze({
   PURCHASED: "PURCHASED",
@@ -10,6 +11,7 @@ export const ECONOMY_RESULT = Object.freeze({
   NOT_PURCHASABLE: "NOT_PURCHASABLE",
   ALREADY_OWNED: "ALREADY_OWNED",
   INSUFFICIENT_CREDITS: "INSUFFICIENT_CREDITS",
+  RESEARCH_REQUIRED: "RESEARCH_REQUIRED",
   NOT_OWNED: "NOT_OWNED",
   NO_CHANGE: "NO_CHANGE",
 });
@@ -51,6 +53,9 @@ export function purchaseItem(save, { category, itemId }) {
   if (!item.purchasable) return { save, purchased: false, reason: ECONOMY_RESULT.NOT_PURCHASABLE };
   if (ownsItem(save, { category, itemId })) {
     return { save, purchased: false, reason: ECONOMY_RESULT.ALREADY_OWNED };
+  }
+  if (!isItemTechnologyUnlocked(save, category, itemId)) {
+    return { save, purchased: false, reason: ECONOMY_RESULT.RESEARCH_REQUIRED };
   }
   const price = Number(item.price);
   if (!Number.isSafeInteger(price) || price < 0) {

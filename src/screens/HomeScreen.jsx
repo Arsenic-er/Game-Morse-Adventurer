@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ArrowLeft, Books, Broadcast, Check, Coins, GearSix, Laptop, MapPin, Notebook,
-  Package, Radio, Storefront, Trophy, Warehouse, Wrench, X,
+  Package, Radio, Storefront, TreeStructure, Trophy, Warehouse, Wrench, X,
 } from "@phosphor-icons/react";
 import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";
 import { ACCESSORIES, accessoryName, getAccessory } from "../game/accessoryCatalog.js";
@@ -12,6 +12,7 @@ import { QsoRewardBreakdown } from "../components/QsoRewardBreakdown.jsx";
 import { summarizePracticeProgress } from "../practice/practiceRecords.js";
 import { AchievementsModal } from "./AchievementsModal.jsx";
 import { StoreModal } from "./StoreModal.jsx";
+import { TechnologyTreeModal } from "./TechnologyTreeModal.jsx";
 
 const TEXT = {
   "zh-CN": { title: "管理中心", station: "进入发射台", practice: "CW 练习与教学", practiceProgress: "课程进度", warehouse: "仓库", store: "商店", log: "通联日志", achievements: "成就", placeholder: "功能占位", later: "该功能将在后续版本开放。", back: "返回存档", settings: "设置", local: "当地时间", close: "关闭" },
@@ -32,6 +33,16 @@ const WAREHOUSE_TEXT = {
   de: { title: "Ausrüstungslager", rack: "Ausrüstungsregal", radio: "Funkgerät", antenna: "Antenne", accessories: "Zubehör", antennaDrawer: "Antennenschublade", accessoryBar: "Zubehörregal", later: "Später verfügbar", current: "Aktuelle Ausrüstung", fixed: "Fest", replaceable: "Austauschbar", reserved: "Reserviert", equip: "Ausrüsten", equipped: "Ausgerüstet", noAntenna: "Leerer Antennenplatz", noAccessory: "Leerer Zubehörplatz", locked: "Gesperrt", back: "Zurück zum Verwaltungszentrum", propagation: "Ausbreitungsmodifikator", noise: "Rauschmodifikator" },
   ru: { title: "Склад оборудования", rack: "Стеллаж оборудования", radio: "Радиостанция", antenna: "Антенна", accessories: "Аксессуары", antennaDrawer: "Ящик антенн", accessoryBar: "Полка аксессуаров", later: "Позже", current: "Текущая комплектация", fixed: "Фиксировано", replaceable: "Заменяемо", reserved: "Зарезервировано", equip: "Установить", equipped: "Установлено", noAntenna: "Пустое место антенны", noAccessory: "Пустое место аксессуара", locked: "Заблокировано", back: "Назад в Центр управления", propagation: "Модификатор прохождения", noise: "Модификатор шума" },
 };
+
+const TECHNOLOGY_LABELS = Object.freeze({
+  "zh-CN": "科技树",
+  "zh-TW": "科技樹",
+  ja: "技術ツリー",
+  en: "Technology Tree",
+  es: "Árbol tecnológico",
+  de: "Technologiebaum",
+  ru: "Дерево технологий",
+});
 
 const PANEL_ICONS = { store: Storefront, log: Notebook, achievements: Trophy };
 
@@ -363,7 +374,7 @@ function EmptyAccessory({ size = 64 }) {
   return <span className="warehouse-empty-asset" aria-hidden="true"><Package size={size} /><X size={Math.round(size * .42)} weight="bold" /></span>;
 }
 
-function WarehouseModal({ language, save, onEquipItem, onClose }) {
+function WarehouseModal({ language, save, onEquipItem, onUnlockTechnology, onClose }) {
   const t = WAREHOUSE_TEXT[language] ?? WAREHOUSE_TEXT.en;
   const transmitter = getTransmitter(save.equipmentId);
   const equippedAntenna = getAntenna(save.antennaId);
@@ -372,6 +383,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
   const [draftRadioId, setDraftRadioId] = useState(save.equipmentId);
   const [draftAntennaId, setDraftAntennaId] = useState(save.antennaId);
   const [draftAccessoryId, setDraftAccessoryId] = useState(save.accessoryId ?? "none");
+  const [technologyOpen, setTechnologyOpen] = useState(false);
   const draftRadio = getTransmitter(draftRadioId);
   const draftAntenna = getAntenna(draftAntennaId);
   const draftAccessory = getAccessory(draftAccessoryId);
@@ -416,11 +428,13 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
 
   useEffect(() => {
     function onKeyDown(event) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !technologyOpen) onClose();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [onClose, technologyOpen]);
+
+  if (technologyOpen) return <div className="warehouse-backdrop"><TechnologyTreeModal language={language} save={save} onUnlock={onUnlockTechnology} onClose={() => setTechnologyOpen(false)} /></div>;
 
   return (
     <div className="warehouse-backdrop">
@@ -489,6 +503,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
 
         <aside className="warehouse-current-loadout">
           <button className="warehouse-return" onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.back}</button>
+          <button className="warehouse-technology-button" data-action="open-technology-tree" onClick={() => setTechnologyOpen(true)}><TreeStructure size={19} weight="fill" />{TECHNOLOGY_LABELS[language] ?? TECHNOLOGY_LABELS.en}</button>
           <header><span />{t.current}<span /></header>
           <b>{save.callsign}</b>
           <ol>
@@ -502,7 +517,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
   );
 }
 
-export function HomeScreen({ language, save, onPurchase, onEquipItem, onEnterStation, onEnterPractice, onBack, onSettings }) {
+export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onEnterStation, onEnterPractice, onBack, onSettings }) {
   const t = TEXT[language] ?? TEXT.en;
   const location = getLocation(save.locationId);
   const practiceProgress = summarizePracticeProgress(save.practiceRecords);
@@ -549,7 +564,7 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onEnterSta
       <button className="home-hotspot hotspot-achievements" aria-label={t.achievements} onClick={() => setPanel("achievements")}><span><Trophy size={22} weight="fill" />{t.achievements}</span></button>
       <span className="home-newspaper-callsign" aria-hidden="true">{save.callsign}</span>
       <span className="home-location-label"><Radio size={15} />{locationName(location, language)}</span>
-      {panel === "warehouse" && <WarehouseModal language={language} save={save} onEquipItem={onEquipItem} onClose={() => setPanel(null)} />}
+      {panel === "warehouse" && <WarehouseModal language={language} save={save} onEquipItem={onEquipItem} onUnlockTechnology={onUnlockTechnology} onClose={() => setPanel(null)} />}
       {panel === "store" && <StoreModal language={language} save={save} onPurchase={onPurchase} onClose={() => setPanel(null)} />}
       {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
       {panel === "achievements" && <AchievementsModal language={language} save={save} onClose={() => setPanel(null)} />}
