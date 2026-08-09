@@ -4,7 +4,7 @@ import { assessCqTransmission } from "../src/qso/cqAssessment.js";
 import {
   DEFAULT_OPERATOR_PROFILE_ID, NPC_OPERATOR_ASSIGNMENTS, OPERATOR_PROFILES,
   OPTIONAL_EXCHANGE_QUESTION_IDS, OPERATOR_PROFILE_SCHEMA_VERSION,
-  resolveOperatorProfile, resolveRemoteCopy, resolveRemoteReportCopy,
+  qrsStepForNpc, resolveOperatorProfile, resolveRemoteCopy, resolveRemoteReportCopy,
   responseDelayForNpc, withOperatorProfile,
 } from "../src/qso/operatorProfiles.js";
 import { NPC_STATIONS } from "../src/propagation/propagationEngine.js";
@@ -48,6 +48,17 @@ test("optional exchanges are deterministic profile data and only some stations a
   }
 });
 
+test("QRS slowdown steps are deterministic personality traits without mutating profiles", () => {
+  assert.equal(qrsStepForNpc({ callsign: "SIM3RA" }), 4);
+  assert.equal(qrsStepForNpc({ callsign: "SIM5TU" }), 3);
+  assert.equal(qrsStepForNpc({ callsign: "SIM9AK" }), 2);
+  assert.equal(qrsStepForNpc({ operatorStyle: { patience: Number.NaN } }), 2);
+  const veteran = withOperatorProfile({ callsign: "SIM3RA" });
+  const before = veteran.operatorStyle.preferredWpm;
+  qrsStepForNpc(veteran);
+  assert.equal(veteran.operatorStyle.preferredWpm, before);
+});
+
 test("unknown callsigns use an explicit safe fallback profile", () => {
   const unknown = withOperatorProfile({ callsign: "SIMZZZ", finalLevel: 3, wpm: 44 });
   assert.equal(unknown.operatorProfileId, DEFAULT_OPERATOR_PROFILE_ID);
@@ -77,6 +88,21 @@ test("the same imperfect CQ is copied by a veteran but queried by a beginner", (
   assert.equal(veteran.outcome, "copied");
   assert.equal(beginner.outcome, "query");
   assert.match(beginner.replyMessage, /AGN|QRZ|QRS|\?/);
+});
+
+test("spacing and PSE style variants remain copyable by every operator", () => {
+  for (const message of ["CQCQDEBH1ABCBH1ABCK", "CQ CQ DE BH1 ABC BH1 ABC PSE K"]) {
+    const assessment = assessCqTransmission({ message, playerCallsign: "BH1ABC", wpm: 18, rhythm: 90 });
+    for (const station of NPC_STATIONS) {
+      const decision = resolveRemoteCopy({
+        assessment,
+        npc: { ...station, finalLevel: 4 },
+        playerCallsign: "BH1ABC",
+        seed: `style:${message}:${station.callsign}`,
+      });
+      assert.equal(decision.outcome, "copied", `${message}:${station.callsign}:${decision.copyScore}`);
+    }
+  }
 });
 
 test("recognizable low-quality traffic can produce a general CQ without creating a copy", () => {

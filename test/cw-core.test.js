@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { analyzeKeying, estimateDotDuration, scoreDecodedText } from "../src/cw/inputAnalyzer.js";
+import {
+  CLEAR_INPUT_GESTURE_LENGTH, analyzeKeying, detectClearInputGesture, estimateDotDuration, scoreDecodedText,
+} from "../src/cw/inputAnalyzer.js";
 import { automaticSymbolDuration, dotDurationFromWpm, encodeTextToEvents, normalizeCwText, pulsesToPlaybackEvents } from "../src/cw/morse.js";
 import { tailPreview } from "../src/cw/display.js";
 
@@ -74,4 +76,34 @@ test("replay events preserve captured pulse durations and gaps", () => {
     { type: "silence", durationMs: 60 },
     { type: "tone", durationMs: 180 },
   ]);
+});
+
+function repeatedElementPulses(symbol, count, dotMs = 60, startAt = 0) {
+  const durationMs = symbol === "." ? dotMs : dotMs * 3;
+  return Array.from({ length: count }, (_, index) => {
+    const downAt = startAt + index * (durationMs + dotMs);
+    return { downAt, upAt: downAt + durationMs, symbol, source: "automatic" };
+  });
+}
+
+test("clear gesture activates only after seven continuous identical elements", () => {
+  const sixDots = repeatedElementPulses(".", CLEAR_INPUT_GESTURE_LENGTH - 1);
+  const sevenDots = repeatedElementPulses(".", CLEAR_INPUT_GESTURE_LENGTH);
+  assert.equal(detectClearInputGesture(sixDots, { fallbackWpm: 20 }), null);
+  assert.deepEqual(detectClearInputGesture(sevenDots, { fallbackWpm: 20 }), { symbol: ".", count: 7 });
+
+  const sevenDashes = repeatedElementPulses("-", CLEAR_INPUT_GESTURE_LENGTH);
+  assert.deepEqual(detectClearInputGesture(sevenDashes, { fallbackWpm: 20 }), { symbol: "-", count: 7 });
+});
+
+test("clear gesture resets across a changed element or character-length gap", () => {
+  const mixed = [
+    ...repeatedElementPulses(".", 6),
+    { downAt: 720, upAt: 900, symbol: "-", source: "automatic" },
+  ];
+  assert.equal(detectClearInputGesture(mixed, { fallbackWpm: 20 }), null);
+
+  const separated = repeatedElementPulses(".", 7);
+  separated[6] = { ...separated[6], downAt: separated[5].upAt + 180, upAt: separated[5].upAt + 240 };
+  assert.equal(detectClearInputGesture(separated, { fallbackWpm: 20 }), null);
 });

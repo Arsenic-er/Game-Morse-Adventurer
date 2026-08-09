@@ -1,6 +1,6 @@
 {
   "name": "cwgame",
-  "version": "0.28.0",
+  "version": "0.32.1",
   "description": "Pixel-art amateur radio CW station simulator",
   "author": "Arsenic-er <302726993@qq.com>",
   "private": true,
@@ -15,6 +15,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test",
+    "npc:generate": "node scripts/generate-npc-roster.mjs",
     "desktop:dev": "vite build && electron .",
     "desktop:build": "vite build && electron-builder --win portable"
   },

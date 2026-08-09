@@ -2,7 +2,7 @@ import { normalizeCwText } from "../cw/morse.js";
 import { greatCircleDistanceDegrees } from "../propagation/propagationEngine.js";
 import { assessCqTransmission } from "./cqAssessment.js";
 import {
-  buildRemoteReply, resolveRemoteCopy, resolveRemoteReportCopy, withOperatorProfile,
+  buildRemoteReply, qrsStepForNpc, resolveRemoteCopy, resolveRemoteReportCopy, withOperatorProfile,
 } from "./operatorProfiles.js";
 import { MAX_QSO_ATTEMPT_HISTORY, normalizeQsoLogEntry } from "./qsoLog.js";
 
@@ -77,7 +77,7 @@ function normalizeMetric(value, maximum = 100) {
 
 function appendAttempt(qso, message, validation, metrics = {}, assessment = null) {
   const result = validation.valid
-    ? (validation.action === "repeat" ? "repeat" : validation.action === "transmit" ? "transmitted" : "accepted")
+    ? (validation.action?.startsWith("repeat") ? "repeat" : validation.action === "transmit" ? "transmitted" : "accepted")
     : "rejected";
   const previous = Array.isArray(qso.attemptHistory) ? qso.attemptHistory : [];
   return [...previous, {
@@ -242,20 +242,22 @@ export function onNpcPlaybackFinished(qso, completedAt = new Date().toISOString(
 export function validatePlayerMessage(qso, message) {
   const tokens = tokenized(message);
   if (qso.phase === QSO_PHASES.PLAYER_CQ) {
-    const cqIndex = tokens.indexOf("CQ");
-    if (cqIndex < 0) return { valid: false, reason: "missingCq" };
-    if (!tokens.includes("DE")) return { valid: false, reason: "missingDe" };
-    if (!hasCallsign(tokens, qso.playerCallsign)) return { valid: false, reason: "missingPlayerCallsign" };
-    const deIndex = tokens.indexOf("DE");
-    const playerIndex = tokens.findIndex((token) => normalizeCallsign(token) === normalizeCallsign(qso.playerCallsign));
-    if (!(cqIndex < deIndex && deIndex < playerIndex)) return { valid: false, reason: "wrongCqOrder" };
-    if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
+    const assessment = assessCqTransmission({ message, playerCallsign: qso.playerCallsign });
+    if (assessment.intentScore < 55) return { valid: false, reason: "missingCq" };
+    if (assessment.deScore < 55) return { valid: false, reason: "missingDe" };
+    if (assessment.identityScore < 70) return { valid: false, reason: "missingPlayerCallsign" };
+    if (assessment.terminalScore < 100) return { valid: false, reason: "missingK" };
+    if (assessment.orderScore < 75) return { valid: false, reason: "wrongCqOrder" };
     return { valid: true, reason: null };
   }
   if (qso.phase === QSO_PHASES.PLAYER_RST_AND_73) {
+    if (["QRS K", "QRS PSE K", "PSE QRS K"].includes(tokens.join(" "))) {
+      return { valid: true, reason: null, action: "repeat-slower" };
+    }
     if (tokens.length === 2 && tokens[0] === "AGN" && tokens[1] === "K") {
       return { valid: true, reason: null, action: "repeat" };
     }
+    if (tokens.includes("QRS")) return { valid: false, reason: "invalidQrs" };
     if (tokens.includes("AGN")) return { valid: false, reason: "invalidAgn" };
     if (!tokens.includes("DE")) return { valid: false, reason: "missingDe" };
     if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
@@ -276,12 +278,16 @@ export function validatePlayerMessage(qso, message) {
     return { valid: true, reason: null, action: "complete", rst };
   }
   if (qso.phase === QSO_PHASES.PLAYER_OPTIONAL_ANSWER) {
+    if (["QRS K", "QRS PSE K", "PSE QRS K"].includes(tokens.join(" "))) {
+      return { valid: true, reason: null, action: "repeat-optional-slower" };
+    }
     if (tokens.length === 2 && tokens[0] === "AGN" && tokens[1] === "K") {
       return { valid: true, reason: null, action: "repeat-optional" };
     }
     if (tokens.length === 2 && ((tokens[0] === "SKIP" && tokens[1] === "K") || (tokens[0] === "73" && tokens[1] === "K"))) {
       return { valid: true, reason: null, action: "skip-optional" };
     }
+    if (tokens.includes("QRS")) return { valid: false, reason: "invalidQrs" };
     if (tokens.includes("AGN")) return { valid: false, reason: "invalidAgn" };
     if (tokens.includes("SKIP") || tokens.includes("73")) return { valid: false, reason: "invalidOptionalSkip" };
     if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
@@ -351,7 +357,7 @@ export function submitPlayerMessage(qso, message, {
     };
   }
   const recordedMessage = qso.phase === QSO_PHASES.PLAYER_OPTIONAL_ANSWER
-    && !["repeat-optional", "skip-optional"].includes(validation.action)
+    && !["repeat-optional", "repeat-optional-slower", "skip-optional"].includes(validation.action)
     ? "OPTIONAL RESPONSE REDACTED"
     : message;
   const attemptHistory = appendAttempt(qso, recordedMessage, validation, { wpm, accuracy, rhythm });
@@ -362,7 +368,11 @@ export function submitPlayerMessage(qso, message, {
     );
     return { ...qso, attempts, attemptHistory, lastError: validation.reason };
   }
-  if (validation.action === "repeat") {
+  if (["repeat", "repeat-slower"].includes(validation.action)) {
+    const currentReplyWpm = Math.round(Math.min(60, Math.max(5, Number(qso.replyWpm ?? qso.npc.wpm) || 18)));
+    const nextReplyWpm = validation.action === "repeat-slower"
+      ? Math.max(5, currentReplyWpm - qrsStepForNpc(qso.npc))
+      : currentReplyWpm;
     return {
       ...qso,
       phase: QSO_PHASES.NPC_REPLY,
@@ -375,9 +385,17 @@ export function submitPlayerMessage(qso, message, {
       npcMessage: qso.contactMessage ?? qso.npcMessage,
       contactRevealed: qso.contactRevealed,
       npcReplyDisposition: "copy",
+      replyWpm: nextReplyWpm,
+      channelNotice: validation.action === "repeat-slower"
+        ? (nextReplyWpm === currentReplyWpm ? "qrsMinimum" : "qrsRepeat")
+        : null,
     };
   }
-  if (validation.action === "repeat-optional") {
+  if (["repeat-optional", "repeat-optional-slower"].includes(validation.action)) {
+    const currentReplyWpm = Math.round(Math.min(60, Math.max(5, Number(qso.replyWpm ?? qso.npc.wpm) || 18)));
+    const nextReplyWpm = validation.action === "repeat-optional-slower"
+      ? Math.max(5, currentReplyWpm - qrsStepForNpc(qso.npc))
+      : currentReplyWpm;
     return {
       ...qso,
       phase: QSO_PHASES.NPC_OPTIONAL_QUERY,
@@ -396,7 +414,10 @@ export function submitPlayerMessage(qso, message, {
       npcMessage: qso.optionalExchangeMessage ?? qso.npcMessage,
       npcReplyDisposition: "optional-query",
       expectedPlayer: null,
-      channelNotice: null,
+      replyWpm: nextReplyWpm,
+      channelNotice: validation.action === "repeat-optional-slower"
+        ? (nextReplyWpm === currentReplyWpm ? "qrsMinimum" : "qrsRepeat")
+        : null,
     };
   }
   if (["skip-optional", "answer-optional"].includes(validation.action)) {

@@ -19,6 +19,16 @@ function reachReportPhase(candidate = npc) {
   return onNpcPlaybackFinished(qso);
 }
 
+test("guided CQ validation accepts compact spacing and PSE K style", () => {
+  const qso = createQso({ npc, playerCallsign: "BH1ABC" });
+  for (const message of [
+    "CQCQDEBH1ABCBH1ABCK",
+    "CQ CQ DE BH1 ABC BH1 ABC PSE K",
+  ]) {
+    assert.deepEqual(validatePlayerMessage(qso, message), { valid: true, reason: null }, message);
+  }
+});
+
 test("completes the minimum QSO state machine", () => {
   let qso = createQso({ npc, playerCallsign: "SIM-K7QX", startedAt: "2026-07-15T00:00:00.000Z" });
   assert.equal(qso.phase, QSO_PHASES.PLAYER_CQ);
@@ -400,6 +410,84 @@ test("a strict AGN K request replays the same incoming message without consuming
   assert.equal(qso.phase, QSO_PHASES.NPC_73_AND_SK);
   assert.equal(qso.contactRevealed, true);
   assert.equal(qso.repeatRequests, 2);
+});
+
+test("QRS accepts three strict forms and rejects malformed slowdown requests", () => {
+  const qso = reachReportPhase({ ...npc, callsign: "SIM3RA" });
+  for (const message of ["QRS K", "qrs   pse k", "PSE QRS K"]) {
+    assert.deepEqual(validatePlayerMessage(qso, message), {
+      valid: true, reason: null, action: "repeat-slower",
+    });
+  }
+  for (const message of ["QRS", "QRS PSE", "PSE QRS", "PLEASE QRS K", "QRS K K", "QRS AGN K"]) {
+    assert.deepEqual(validatePlayerMessage(qso, message), {
+      valid: false, reason: "invalidQrs",
+    });
+  }
+  assert.equal(validatePlayerMessage(createQso({ npc }), "QRS K").valid, false);
+});
+
+test("QRS replays the same contact more slowly, floors at 5 WPM, and AGN keeps that speed", () => {
+  let qso = reachReportPhase({ ...npc, callsign: "SIM3RA" });
+  const originalNpc = qso.npc;
+  const originalMessage = qso.npcMessage;
+  const originalLevels = [qso.npc.baseLevel, qso.npc.finalLevel];
+  const initialWpm = qso.replyWpm;
+
+  qso = submitPlayerMessage(qso, "QRS PSE K");
+  assert.equal(qso.phase, QSO_PHASES.NPC_REPLY);
+  assert.strictEqual(qso.npc, originalNpc);
+  assert.equal(qso.npcMessage, originalMessage);
+  assert.deepEqual([qso.npc.baseLevel, qso.npc.finalLevel], originalLevels);
+  assert.equal(qso.replyWpm, Math.max(5, initialWpm - 4));
+  assert.equal(qso.channelNotice, "qrsRepeat");
+  assert.equal(qso.repeatRequests, 1);
+  assert.equal(qso.attempts, 0);
+  assert.equal(qso.attemptHistory.at(-1).result, "repeat");
+  assert.equal(qso.creditsAwarded, 0);
+
+  qso = onNpcPlaybackFinished(qso);
+  const slowedWpm = qso.replyWpm;
+  qso = submitPlayerMessage(qso, "AGN K");
+  assert.equal(qso.replyWpm, slowedWpm);
+  assert.equal(qso.channelNotice, null);
+
+  for (let index = 0; index < 8; index += 1) {
+    qso = onNpcPlaybackFinished(qso);
+    qso = submitPlayerMessage(qso, "QRS K");
+  }
+  assert.equal(qso.replyWpm, 5);
+  assert.equal(qso.channelNotice, "qrsMinimum");
+});
+
+test("QRS slows and repeats the same optional question without rerolling or rewarding it", () => {
+  const chattyNpc = { ...npc, callsign: "SIM5TU" };
+  let qso = reachReportPhase(chattyNpc);
+  qso = submitPlayerMessage(qso, "SIM5TU DE SIM-K7QX RST 559 73 K");
+  const originalQuestion = qso.optionalExchangeQuestion;
+  const originalMessage = qso.npcMessage;
+  const originalWpm = qso.replyWpm;
+  qso = onNpcPlaybackFinished(qso);
+
+  assert.deepEqual(validatePlayerMessage(qso, "PSE QRS K"), {
+    valid: true, reason: null, action: "repeat-optional-slower",
+  });
+  qso = submitPlayerMessage(qso, "PSE QRS K");
+  assert.equal(qso.phase, QSO_PHASES.NPC_OPTIONAL_QUERY);
+  assert.equal(qso.optionalExchangeQuestion, originalQuestion);
+  assert.equal(qso.npcMessage, originalMessage);
+  assert.equal(qso.replyWpm, Math.max(5, originalWpm - 3));
+  assert.equal(qso.channelNotice, "qrsRepeat");
+  assert.equal(qso.optionalExchangeRepeatRequests, 1);
+  assert.equal(qso.repeatRequests, 1);
+  assert.equal(qso.creditsAwarded, 0);
+
+  qso = onNpcPlaybackFinished(qso);
+  const slowedWpm = qso.replyWpm;
+  qso = submitPlayerMessage(qso, "AGN K");
+  assert.equal(qso.replyWpm, slowedWpm);
+  assert.equal(qso.optionalExchangeQuestion, originalQuestion);
+  assert.equal(qso.npcMessage, originalMessage);
 });
 
 test("repeat requests must be exactly AGN K and only work while awaiting the report", () => {

@@ -35,7 +35,7 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   assert.equal(save.keyType, "automatic");
   assert.equal(save.automaticKeyWpm, DEFAULT_AUTOMATIC_KEY_WPM);
   assert.equal(save.equipmentId, "squid-01");
-  assert.equal(save.inventoryVersion, 2);
+  assert.equal(save.inventoryVersion, 3);
   assert.deepEqual(save.ownedEquipment, ["squid-01"]);
   assert.deepEqual(save.ownedAntennas, ["dipole"]);
   assert.deepEqual(save.accessories, []);
@@ -149,7 +149,7 @@ test("legacy saves keep their valid equipped antenna during inventory migration"
     antennaId: "yagi-3el",
   }]));
   const [save] = loadSaves(storage);
-  assert.equal(save.inventoryVersion, 2);
+  assert.equal(save.inventoryVersion, 3);
   assert.equal(save.antennaId, "yagi-3el");
   assert.deepEqual(save.ownedAntennas, ["dipole", "yagi-3el"]);
 });
@@ -238,7 +238,7 @@ test("version one saves migrate to an empty accessory slot", () => {
   }]));
 
   const [save] = loadSaves(storage);
-  assert.equal(save.inventoryVersion, 2);
+  assert.equal(save.inventoryVersion, 3);
   assert.equal(save.accessoryId, "none");
   assert.deepEqual(save.accessories, []);
 });

@@ -17,7 +17,7 @@ import {
 } from "./cw/automaticKeyer.js";
 import { useCwCore } from "./cw/useCwCore.js";
 import { tailPreview } from "./cw/display.js";
-import { scoreDecodedText } from "./cw/inputAnalyzer.js";
+import { CLEAR_INPUT_GESTURE_LENGTH, scoreDecodedText } from "./cw/inputAnalyzer.js";
 import { LocationArtwork } from "./game/LocationArtwork.jsx";
 import { getAccessory } from "./game/accessoryCatalog.js";
 import { getAntenna } from "./game/antennaCatalog.js";
@@ -25,6 +25,7 @@ import { equipmentName, getTransmitter } from "./game/equipmentCatalog.js";
 import { equipOwnedItem, purchaseItem } from "./game/economy.js";
 import { findNewlyUnlockedAchievements } from "./game/achievements.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
+import { unlockTechnology } from "./game/technologyTree.js";
 import {
   loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves,
 } from "./game/saveStore.js";
@@ -39,6 +40,7 @@ import {
   qsoCanAcceptPlayer, qsoNeedsNpcPlayback, resolveCqResponse, restartQso, submitPlayerMessage,
 } from "./qso/qsoEngine.js";
 import { responseDelayForNpc } from "./qso/operatorProfiles.js";
+
 import { recordCompletedQso } from "./qso/qsoLog.js";
 import { QSO_EXIT_RISKS, qsoExitRisk } from "./qso/qsoExitGuard.js";
 import { HomeScreen } from "./screens/HomeScreen.jsx";
@@ -61,7 +63,7 @@ const ASSETS = {
 
 const QA_OPTIONAL_NPC_CALLSIGNS = new Set(["SIM3RA", "SIM5TU", "SIM2DX", "SIM8CW", "SIM6JP"]);
 
-const BUILD_VERSION = "0.28.0";
+const BUILD_VERSION = "0.32.1";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -76,8 +78,8 @@ const COPY = {
   "zh-CN": {
     subtitle: "业余无线电台站模拟", newGame: "开始值守", continue: "继续值守", practice: "CW 练习台", fieldGuide: "台站手册", callsignDisclaimer: "本游戏内所有呼号均与现实生活中的真实呼号无关，如有雷同，纯属巧合。",
     prototype: "M5 完整原型", language: "语言", settings: "设置", close: "关闭", interface: "界面语言",
-    keyType: "电键类型", manual: "手键", automatic: "自动键", manualHint: "按住空格键发射",
-    automaticHint: "Z 短音 / X 长音；长按连续发报", automaticSpeed: "自动键速度", automaticSpeedHint: "仅影响自动键；手键速度仍由系统检测", configuredSpeed: "自动键速度", apply: "应用设置", station: "值守台", log: "通联日志", time: "时间",
+    keyType: "电键类型", manual: "手键", automatic: "自动键", manualHint: "按住空格键发射；连续 7 个点或划清空输入",
+    automaticHint: "Z 短音 / X 长音；长按连续发报；连续 7 个同类点划清空输入", automaticSpeed: "自动键速度", automaticSpeedHint: "仅影响自动键；手键速度仍由系统检测", configuredSpeed: "自动键速度", apply: "应用设置", station: "值守台", log: "通联日志", time: "时间",
     call: "呼号", frequency: "频率", mode: "模式", contact: "当前通联", sent: "发送", received: "接收",
     location: "位置", notes: "备注", newContact: "新建通联", clearInput: "清空输入", propagation: "传播预览",
     openMap: "打开传播大图", detected: "系统自动识别", detectedSpeed: "识别速度", tx: "发射", idle: "接收中",
@@ -94,8 +96,8 @@ const COPY = {
   "zh-TW": {
     subtitle: "業餘無線電臺站模擬", newGame: "開始值守", continue: "繼續值守", practice: "CW 練習臺", fieldGuide: "臺站手冊", callsignDisclaimer: "本遊戲內所有呼號均與現實生活中的真實呼號無關，如有雷同，純屬巧合。",
     prototype: "M5 完整原型", language: "語言", settings: "設定", close: "關閉", interface: "介面語言",
-    keyType: "電鍵類型", manual: "手鍵", automatic: "自動鍵", manualHint: "按住空白鍵發射",
-    automaticHint: "Z 短音 / X 長音；長按連續發報", automaticSpeed: "自動鍵速度", automaticSpeedHint: "僅影響自動鍵；手鍵速度仍由系統偵測", configuredSpeed: "自動鍵速度", apply: "套用設定", station: "值守臺", log: "通聯日誌", time: "時間",
+    keyType: "電鍵類型", manual: "手鍵", automatic: "自動鍵", manualHint: "按住空白鍵發射；連續 7 個點或劃清除輸入",
+    automaticHint: "Z 短音 / X 長音；長按連續發報；連續 7 個同類點劃清除輸入", automaticSpeed: "自動鍵速度", automaticSpeedHint: "僅影響自動鍵；手鍵速度仍由系統偵測", configuredSpeed: "自動鍵速度", apply: "套用設定", station: "值守臺", log: "通聯日誌", time: "時間",
     call: "呼號", frequency: "頻率", mode: "模式", contact: "目前通聯", sent: "發送", received: "接收",
     location: "位置", notes: "備註", newContact: "新建通聯", clearInput: "清除輸入", propagation: "傳播預覽",
     openMap: "開啟傳播大圖", detected: "系統自動識別", detectedSpeed: "識別速度", tx: "發射", idle: "接收中",
@@ -112,8 +114,8 @@ const COPY = {
   ja: {
     subtitle: "アマチュア無線局シミュレーター", newGame: "運用を開始", continue: "運用を続ける", practice: "CW 練習台", fieldGuide: "局運用ガイド", callsignDisclaimer: "ゲーム内のコールサインは実在するコールサインとは無関係です。類似があってもすべて偶然です。",
     prototype: "M5 完成プロトタイプ", language: "言語", settings: "設定", close: "閉じる", interface: "表示言語",
-    keyType: "電鍵タイプ", manual: "縦振り電鍵", automatic: "オートキー", manualHint: "スペースを押して送信",
-    automaticHint: "Z 短点 / X 長点・長押しで連続送信", automaticSpeed: "オートキー速度", automaticSpeedHint: "オートキーにのみ適用。縦振り電鍵の速度は自動検出されます", configuredSpeed: "設定速度", apply: "設定を適用", station: "運用卓", log: "交信ログ", time: "時刻",
+    keyType: "電鍵タイプ", manual: "縦振り電鍵", automatic: "オートキー", manualHint: "スペースを押して送信・同じ短点または長点を7回連続送信すると入力消去",
+    automaticHint: "Z 短点 / X 長点・長押しで連続送信・同じ点を7回連続で入力消去", automaticSpeed: "オートキー速度", automaticSpeedHint: "オートキーにのみ適用。縦振り電鍵の速度は自動検出されます", configuredSpeed: "設定速度", apply: "設定を適用", station: "運用卓", log: "交信ログ", time: "時刻",
     call: "コール", frequency: "周波数", mode: "モード", contact: "現在の交信", sent: "送信", received: "受信",
     location: "位置", notes: "メモ", newContact: "新規交信", clearInput: "入力をクリア", propagation: "伝搬プレビュー",
     openMap: "伝搬マップを開く", detected: "システム自動認識", detectedSpeed: "認識速度", tx: "送信", idle: "受信中",
@@ -130,8 +132,8 @@ const COPY = {
   en: {
     subtitle: "Amateur Radio Station Simulator", newGame: "Begin Watch", continue: "Continue Watch", practice: "CW Practice", fieldGuide: "Station Manual", callsignDisclaimer: "All callsigns in this game are unrelated to real-world callsigns. Any resemblance is purely coincidental.",
     prototype: "M5 Complete Prototype", language: "Language", settings: "Settings", close: "Close", interface: "Interface language",
-    keyType: "Key type", manual: "Straight key", automatic: "Automatic paddle", manualHint: "Hold Space to transmit",
-    automaticHint: "Z sends dots / X sends dashes; hold to repeat", automaticSpeed: "Automatic key speed", automaticSpeedHint: "Affects the automatic key only; straight-key speed remains auto-detected", configuredSpeed: "Keyer speed", apply: "Apply settings", station: "Station watch", log: "QSO log", time: "Time",
+    keyType: "Key type", manual: "Straight key", automatic: "Automatic paddle", manualHint: "Hold Space to transmit; 7 consecutive dots or dashes clear the input",
+    automaticHint: "Z sends dots / X sends dashes; hold to repeat; 7 identical elements clear the input", automaticSpeed: "Automatic key speed", automaticSpeedHint: "Affects the automatic key only; straight-key speed remains auto-detected", configuredSpeed: "Keyer speed", apply: "Apply settings", station: "Station watch", log: "QSO log", time: "Time",
     call: "Callsign", frequency: "Frequency", mode: "Mode", contact: "Current QSO", sent: "Sent", received: "Received",
     location: "Location", notes: "Notes", newContact: "New QSO", clearInput: "Clear input", propagation: "Propagation",
     openMap: "Open propagation map", detected: "System auto detect", detectedSpeed: "Detected speed", tx: "Transmit", idle: "Receiving",
@@ -148,8 +150,8 @@ const COPY = {
   es: {
     subtitle: "Simulador de estación de radioaficionado", newGame: "Iniciar guardia", continue: "Continuar guardia", practice: "Práctica de CW", fieldGuide: "Manual de estación", callsignDisclaimer: "Todos los indicativos de este juego son ajenos a los indicativos reales. Cualquier parecido es pura coincidencia.",
     prototype: "Prototipo completo M5", language: "Idioma", settings: "Ajustes", close: "Cerrar", interface: "Idioma de la interfaz",
-    keyType: "Tipo de manipulador", manual: "Manipulador vertical", automatic: "Pala automática", manualHint: "Mantén Espacio para transmitir",
-    automaticHint: "Z envía puntos / X envía rayas; mantén para repetir", automaticSpeed: "Velocidad de la pala automática", automaticSpeedHint: "Solo afecta a la pala automática; la velocidad del manipulador vertical se detecta automáticamente", configuredSpeed: "Velocidad del manipulador", apply: "Aplicar ajustes", station: "Guardia de estación", log: "Registro QSO", time: "Hora",
+    keyType: "Tipo de manipulador", manual: "Manipulador vertical", automatic: "Pala automática", manualHint: "Mantén Espacio para transmitir; 7 puntos o rayas seguidos borran la entrada",
+    automaticHint: "Z envía puntos / X envía rayas; mantén para repetir; 7 elementos iguales borran la entrada", automaticSpeed: "Velocidad de la pala automática", automaticSpeedHint: "Solo afecta a la pala automática; la velocidad del manipulador vertical se detecta automáticamente", configuredSpeed: "Velocidad del manipulador", apply: "Aplicar ajustes", station: "Guardia de estación", log: "Registro QSO", time: "Hora",
     call: "Indicativo", frequency: "Frecuencia", mode: "Modo", contact: "QSO actual", sent: "Enviado", received: "Recibido",
     location: "Ubicación", notes: "Notas", newContact: "Nuevo QSO", clearInput: "Borrar entrada", propagation: "Propagación",
     openMap: "Abrir mapa de propagación", detected: "Detección automática", detectedSpeed: "Velocidad detectada", tx: "Transmitir", idle: "Recibiendo",
@@ -166,8 +168,8 @@ const COPY = {
   de: {
     subtitle: "Amateurfunk-Stationssimulator", newGame: "Funkwache beginnen", continue: "Funkwache fortsetzen", practice: "CW-Training", fieldGuide: "Stationshandbuch", callsignDisclaimer: "Alle Rufzeichen in diesem Spiel stehen in keinem Zusammenhang mit realen Rufzeichen. Ähnlichkeiten sind rein zufällig.",
     prototype: "Vollständiger M5-Prototyp", language: "Sprache", settings: "Einstellungen", close: "Schließen", interface: "Oberflächensprache",
-    keyType: "Tastentyp", manual: "Handtaste", automatic: "Automatische Taste", manualHint: "Leertaste zum Senden halten",
-    automaticHint: "Z sendet Punkte / X Striche; halten zum Wiederholen", automaticSpeed: "Tempo der automatischen Taste", automaticSpeedHint: "Wirkt nur auf die automatische Taste; das Tempo der Handtaste wird automatisch erkannt", configuredSpeed: "Tasttempo", apply: "Einstellungen anwenden", station: "Funkwache", log: "QSO-Log", time: "Zeit",
+    keyType: "Tastentyp", manual: "Handtaste", automatic: "Automatische Taste", manualHint: "Leertaste zum Senden halten; 7 gleiche Punkte oder Striche löschen die Eingabe",
+    automaticHint: "Z sendet Punkte / X Striche; halten zum Wiederholen; 7 gleiche Elemente löschen die Eingabe", automaticSpeed: "Tempo der automatischen Taste", automaticSpeedHint: "Wirkt nur auf die automatische Taste; das Tempo der Handtaste wird automatisch erkannt", configuredSpeed: "Tasttempo", apply: "Einstellungen anwenden", station: "Funkwache", log: "QSO-Log", time: "Zeit",
     call: "Rufzeichen", frequency: "Frequenz", mode: "Betriebsart", contact: "Aktuelles QSO", sent: "Gesendet", received: "Empfangen",
     location: "Standort", notes: "Notizen", newContact: "Neues QSO", clearInput: "Eingabe löschen", propagation: "Ausbreitung",
     openMap: "Ausbreitungskarte öffnen", detected: "Automatisch erkannt", detectedSpeed: "Erkanntes Tempo", tx: "Senden", idle: "Empfang",
@@ -184,8 +186,8 @@ const COPY = {
   ru: {
     subtitle: "Симулятор любительской радиостанции", newGame: "Начать дежурство", continue: "Продолжить дежурство", practice: "Практика CW", fieldGuide: "Руководство станции", callsignDisclaimer: "Все позывные в этой игре не связаны с реальными позывными. Любые совпадения случайны.",
     prototype: "Полный прототип M5", language: "Язык", settings: "Настройки", close: "Закрыть", interface: "Язык интерфейса",
-    keyType: "Тип ключа", manual: "Ручной ключ", automatic: "Автоматический ключ", manualHint: "Удерживайте Пробел для передачи",
-    automaticHint: "Z передаёт точки / X тире; удерживайте для повтора", automaticSpeed: "Скорость автоматического ключа", automaticSpeedHint: "Влияет только на автоматический ключ; скорость ручного ключа определяется автоматически", configuredSpeed: "Скорость ключа", apply: "Применить настройки", station: "Дежурство", log: "Журнал QSO", time: "Время",
+    keyType: "Тип ключа", manual: "Ручной ключ", automatic: "Автоматический ключ", manualHint: "Удерживайте Пробел для передачи; 7 одинаковых точек или тире очищают ввод",
+    automaticHint: "Z передаёт точки / X тире; удерживайте для повтора; 7 одинаковых элементов очищают ввод", automaticSpeed: "Скорость автоматического ключа", automaticSpeedHint: "Влияет только на автоматический ключ; скорость ручного ключа определяется автоматически", configuredSpeed: "Скорость ключа", apply: "Применить настройки", station: "Дежурство", log: "Журнал QSO", time: "Время",
     call: "Позывной", frequency: "Частота", mode: "Режим", contact: "Текущее QSO", sent: "Передано", received: "Принято",
     location: "Место", notes: "Заметки", newContact: "Новое QSO", clearInput: "Очистить ввод", propagation: "Прохождение",
     openMap: "Открыть карту прохождения", detected: "Автоопределение", detectedSpeed: "Определённая скорость", tx: "Передача", idle: "Приём",
@@ -263,33 +265,43 @@ const STATION_FLOW_COPY = {
 
 const OPTIONAL_EXCHANGE_COPY = {
   "zh-CN": {
-    receiving: "正在接收对方的可选资料问题…", answer: "可选交流：可回答，也可发送 AGN K、SKIP K 或 73 K",
+    receiving: "正在接收对方的可选资料问题…", answer: "可选交流：可回答，也可发送 AGN K、QRS K、SKIP K 或 73 K",
     privacy: "仅使用游戏存档或虚构资料；不要输入真实姓名、年龄或住址。回答原文不会写入日志。",
   },
   "zh-TW": {
-    receiving: "正在接收對方的可選資料問題…", answer: "可選交流：可回答，也可發送 AGN K、SKIP K 或 73 K",
+    receiving: "正在接收對方的可選資料問題…", answer: "可選交流：可回答，也可發送 AGN K、QRS K、SKIP K 或 73 K",
     privacy: "僅使用遊戲存檔或虛構資料；不要輸入真實姓名、年齡或住址。回答原文不會寫入日誌。",
   },
   ja: {
-    receiving: "相手局から任意のプロフィール質問を受信中…", answer: "任意交換：回答するか、AGN K・SKIP K・73 K を送信",
+    receiving: "相手局から任意のプロフィール質問を受信中…", answer: "任意交換：回答するか、AGN K・QRS K・SKIP K・73 K を送信",
     privacy: "ゲーム内または架空の情報だけを使用し、実名・実年齢・実住所は入力しないでください。回答本文はログに保存されません。",
   },
   en: {
-    receiving: "Receiving an optional profile question…", answer: "Optional exchange: answer, or send AGN K, SKIP K, or 73 K",
+    receiving: "Receiving an optional profile question…", answer: "Optional exchange: answer, or send AGN K, QRS K, SKIP K, or 73 K",
     privacy: "Use game-save or fictional details only; never enter a real name, age, or address. Answer text is not saved to the log.",
   },
   es: {
-    receiving: "Recibiendo una pregunta opcional de perfil…", answer: "Intercambio opcional: responde o envía AGN K, SKIP K o 73 K",
+    receiving: "Recibiendo una pregunta opcional de perfil…", answer: "Intercambio opcional: responde o envía AGN K, QRS K, SKIP K o 73 K",
     privacy: "Usa solo datos de la partida o ficticios; no introduzcas nombre, edad ni dirección reales. El texto de la respuesta no se guarda en el registro.",
   },
   de: {
-    receiving: "Optionale Profilfrage der Gegenstation wird empfangen…", answer: "Optionaler Austausch: antworten oder AGN K, SKIP K bzw. 73 K senden",
+    receiving: "Optionale Profilfrage der Gegenstation wird empfangen…", answer: "Optionaler Austausch: antworten oder AGN K, QRS K, SKIP K bzw. 73 K senden",
     privacy: "Verwende nur Spielstand- oder erfundene Angaben; gib nie echten Namen, echtes Alter oder echte Adresse ein. Der Antworttext wird nicht im Log gespeichert.",
   },
   ru: {
-    receiving: "Принимается необязательный вопрос станции…", answer: "Необязательный обмен: ответьте или передайте AGN K, SKIP K либо 73 K",
+    receiving: "Принимается необязательный вопрос станции…", answer: "Необязательный обмен: ответьте или передайте AGN K, QRS K, SKIP K либо 73 K",
     privacy: "Используйте только игровые или вымышленные данные; не вводите настоящие имя, возраст или адрес. Текст ответа не сохраняется в журнале.",
   },
+};
+
+const QRS_NOTICE_COPY = {
+  "zh-CN": { qrsRepeat: "对方已减速重发。", qrsMinimum: "对方已以最低 5 WPM 重发。" },
+  "zh-TW": { qrsRepeat: "對方已減速重發。", qrsMinimum: "對方已以最低 5 WPM 重發。" },
+  ja: { qrsRepeat: "相手局が速度を落として再送しました。", qrsMinimum: "相手局が最低速度 5 WPM で再送しました。" },
+  en: { qrsRepeat: "The station repeated more slowly.", qrsMinimum: "The station repeated at the minimum 5 WPM." },
+  es: { qrsRepeat: "La estación repitió más despacio.", qrsMinimum: "La estación repitió a la velocidad mínima de 5 WPM." },
+  de: { qrsRepeat: "Die Gegenstation hat langsamer wiederholt.", qrsMinimum: "Die Gegenstation hat mit der Mindestgeschwindigkeit von 5 WPM wiederholt." },
+  ru: { qrsRepeat: "Станция повторила медленнее.", qrsMinimum: "Станция повторила на минимальной скорости 5 WPM." },
 };
 
 function IconButton({ label, children, className = "", ...props }) {
@@ -439,6 +451,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const t = COPY[language];
   const flow = STATION_FLOW_COPY[language] ?? STATION_FLOW_COPY.en;
   const optionalFlow = OPTIONAL_EXCHANGE_COPY[language] ?? OPTIONAL_EXCHANGE_COPY.en;
+  const qrsNotice = QRS_NOTICE_COPY[language] ?? QRS_NOTICE_COPY.en;
   const antennaStatus = ANTENNA_STATUS[language] ?? ANTENNA_STATUS.en;
   const location = getLocation(save.locationId);
   const transmitter = getTransmitter(save.equipmentId);
@@ -483,6 +496,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const cw = useCwCore({
     targetText: qso.expectedPlayer ?? "",
     automaticWpm: save.automaticKeyWpm,
+    clearGestureLength: CLEAR_INPUT_GESTURE_LENGTH,
   });
   const isTx = cw.isTransmitting;
   const exitRisk = qsoExitRisk(qso, {
@@ -809,12 +823,16 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
         credits: settlement.save.credits,
         qsoLogs: settlement.save.qsoLogs,
         qsoRecords: settlement.save.qsoRecords,
+        technologyPoints: settlement.save.technologyPoints,
+        completedResearchProjects: settlement.save.completedResearchProjects,
         firstWatchCompleted: true,
       } : { firstWatchCompleted: true }, { notifyAchievements: settlement.added });
     setSettlementMeta({
       newRegion: settlement.newRegion,
       newDistanceRecord: settlement.newDistanceRecord,
       creditsAwarded: settlement.creditsAwarded,
+      technologyPointsAwarded: settlement.technologyPointsAwarded,
+      completedResearchProjects: settlement.completedResearchProjects,
       rewardBreakdown: settlement.rewardBreakdown,
       settledEntry: settlement.settledEntry,
     });
@@ -873,6 +891,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     unreadableCq: flow.unreadableCq,
     unreadableReport: flow.unreadableReport,
     optionalExchange: optionalFlow.privacy,
+    qrsRepeat: qrsNotice.qrsRepeat,
+    qrsMinimum: qrsNotice.qrsMinimum,
   }[qso.channelNotice] ?? "";
   const decodedText = cw.analysis.decoded || "---";
   const utc = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
@@ -891,6 +911,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     newRegion: pendingSettlement.newRegion,
     newDistanceRecord: pendingSettlement.newDistanceRecord,
     creditsAwarded: pendingSettlement.creditsAwarded,
+    technologyPointsAwarded: pendingSettlement.technologyPointsAwarded,
+    completedResearchProjects: pendingSettlement.completedResearchProjects,
     rewardBreakdown: pendingSettlement.rewardBreakdown,
     settledEntry: pendingSettlement.settledEntry,
   } : null);
@@ -898,6 +920,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const liveContactRevealed = qso.contactRevealed === true;
   const blindContact = !selectedLog && qso.hasContact && !liveContactRevealed;
   const contactVisible = Boolean(selectedLog || liveContactRevealed);
+
   const contactCallsign = selectedLog?.callsign ?? (liveContactRevealed ? qso.npc.callsign : blindContact ? "REMOTE" : "---");
   const contactSent = selectedLog?.sent ?? qso.sentRst ?? "---";
   const contactReceived = selectedLog?.received ?? qso.receivedRst ?? "---";
@@ -919,6 +942,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       data-optional-exchange-outcome={qso.optionalExchangeOutcome ?? "not-offered"}
       data-optional-exchange-repeats={qso.optionalExchangeRepeatRequests ?? 0}
       data-reply-disposition={qso.npcReplyDisposition ?? ""}
+      data-reply-wpm={qso.replyWpm ?? qso.npc.wpm}
       data-channel-notice={qso.channelNotice ?? ""}
       data-operator-profile={window.cwgameSystem?.qaCapture ? (qso.npc.operatorProfileId ?? "") : undefined}
       data-contact-revealed={qso.contactRevealed}
@@ -956,7 +980,9 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
           <div className="panel-title"><span>{t.log}</span><b>LOG // {String(logRows.length).padStart(3, "0")}</b></div>
           <div className="log-head"><span>{t.time}</span><span>{t.call}</span><span>{t.frequency}</span><span>{t.mode}</span></div>
           <div className="log-list">{recentLogRows.map((row) => <button key={row.id} className={row.id === selectedLogId ? "active" : ""} onClick={() => setSelectedLogId(row.id)}><span>{new Date(row.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" })}</span><span>{row.callsign}</span><span>{Number(row.frequencyMhz).toFixed(3)}</span><span>{row.mode}</span></button>)}</div>
-          <div className="contact-card"><span className="panel-kicker">{t.contact} · SIM</span><h2>{contactCallsign}</h2>{!contactVisible && <small>{blindContact ? flow.blindContact : flow.noContact}</small>}<dl>
+          <div className="contact-card"><div className="contact-card-main">
+            <div><span className="panel-kicker">{t.contact} · SIM</span><h2>{contactCallsign}</h2>{!contactVisible && <small>{blindContact ? flow.blindContact : flow.noContact}</small>}</div>
+          </div><dl>
             <div><dt>{t.time}</dt><dd>{contactTime} UTC</dd></div><div><dt>{t.frequency}</dt><dd>{selectedLog ? Number(selectedLog.frequencyMhz).toFixed(3) : "21.060"} MHz</dd></div>
             <div><dt>{t.mode}</dt><dd>CW</dd></div><div><dt>{t.sent}</dt><dd>{contactSent}</dd></div><div><dt>{t.received}</dt><dd>{contactReceived}</dd></div>
             <div><dt>{t.location}</dt><dd>{contactLocation}</dd></div><div><dt>{t.notes}</dt><dd>SIM / P{contactLevel}</dd></div>
@@ -1008,6 +1034,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       {!mapOpen && !briefingOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_COMPLETE && <QsoResultModal
         language={language} entry={displayedResultEntry} creditsAwarded={resultMeta?.creditsAwarded ?? 0} saved={saved}
         rewardBreakdown={resultMeta?.rewardBreakdown ?? null}
+        technologyPointsAwarded={resultMeta?.technologyPointsAwarded ?? 0}
+        completedResearchProjects={resultMeta?.completedResearchProjects ?? []}
         newRegion={resultMeta?.newRegion} newDistanceRecord={resultMeta?.newDistanceRecord}
         onSave={saveOrRestart} onNext={startNewQso} onLeave={(event) => requestExit("home", event.currentTarget)} onClose={() => saved && setResultDismissed(true)}
       />}
@@ -1128,6 +1156,17 @@ export function App() {
     return transaction;
   }
 
+  function unlockTechnologyForActiveSave(technologyId) {
+    if (!activeSaveId) return null;
+    let transaction = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      transaction = unlockTechnology(save, technologyId);
+      return transaction.save;
+    }));
+    return transaction;
+  }
+
   function applySettings(next) {
     const nextWpm = normalizeAutomaticKeyWpm(next.automaticKeyWpm);
     setLanguage(next.language);
@@ -1162,7 +1201,7 @@ export function App() {
   let currentScreen;
   if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => enterPractice("start")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") {
     const persistentStats = practiceStatsByMode(activeSave?.practiceRecords);
     if (activeSave?.practiceRecords) {

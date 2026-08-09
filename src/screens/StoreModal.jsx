@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft, Broadcast, Check, Coins, Package, Radio, ShoppingCart, Storefront, Wrench, X,
+  ArrowLeft, Broadcast, Check, Coins, LockKey, Package, Radio, ShoppingCart, Storefront, Wrench, X,
 } from "@phosphor-icons/react";
 import { ACCESSORIES, accessoryName } from "../game/accessoryCatalog.js";
 import { ANTENNAS, antennaName } from "../game/antennaCatalog.js";
 import { ECONOMY_RESULT, STORE_CATEGORIES, ownsItem } from "../game/economy.js";
 import { TRANSMITTERS, equipmentName } from "../game/equipmentCatalog.js";
+import {
+  isItemTechnologyUnlocked, technologyForItem, technologyName,
+} from "../game/technologyTree.js";
 
 const TEXT = {
   "zh-CN": {
@@ -87,6 +90,16 @@ const TEXT = {
   },
 };
 
+const RESEARCH_TEXT = Object.freeze({
+  "zh-CN": { required: "需要先研究", hint: "请在设备仓库的科技树中解锁此技术。" },
+  "zh-TW": { required: "需要先研究", hint: "請在設備倉庫的科技樹中解鎖此技術。" },
+  ja: { required: "研究が必要", hint: "装備倉庫の技術ツリーで研究してください。" },
+  en: { required: "Research Required", hint: "Unlock this technology in the Equipment Warehouse technology tree." },
+  es: { required: "Investigación necesaria", hint: "Desbloquea esta tecnología en el árbol del almacén." },
+  de: { required: "Forschung erforderlich", hint: "Schalte diese Technologie im Technologiebaum des Lagers frei." },
+  ru: { required: "Требуется исследование", hint: "Откройте технологию в дереве на складе оборудования." },
+});
+
 const CATEGORY_ICONS = { radio: Radio, antenna: Broadcast, accessories: Wrench };
 
 function itemsForCategory(category) {
@@ -120,12 +133,14 @@ function itemState(save, category, item) {
   if (equipped) return "equipped";
   if (ownsItem(save, { category, itemId: item.id })) return "owned";
   if (!item.purchasable) return "unavailable";
+  if (!isItemTechnologyUnlocked(save, category, item.id)) return "research";
   if (save.credits < item.price) return "insufficient";
   return "available";
 }
 
 export function StoreModal({ language, save, onPurchase, onClose }) {
   const t = TEXT[language] ?? TEXT.en;
+  const researchText = RESEARCH_TEXT[language] ?? RESEARCH_TEXT.en;
   const [category, setCategory] = useState("antenna");
   const [selectedId, setSelectedId] = useState("vertical");
   const [notice, setNotice] = useState("");
@@ -156,11 +171,14 @@ export function StoreModal({ language, save, onPurchase, onClose }) {
     if (result?.reason === ECONOMY_RESULT.PURCHASED) setNotice(t.success);
     else if (result?.reason === ECONOMY_RESULT.INSUFFICIENT_CREDITS) setNotice(t.insufficient);
     else if (result?.reason === ECONOMY_RESULT.ALREADY_OWNED) setNotice(t.owned);
+    else if (result?.reason === ECONOMY_RESULT.RESEARCH_REQUIRED) setNotice(researchText.hint);
   }
 
   const selectedState = selected ? itemState(save, category, selected) : "unavailable";
+  const selectedTechnology = selected ? technologyForItem(category, selected.id) : null;
   const purchaseLabel = selectedState === "equipped" ? t.equipped
     : selectedState === "owned" ? t.owned
+      : selectedState === "research" ? researchText.required
       : selectedState === "insufficient" ? t.insufficient
         : selectedState === "unavailable" ? (selected?.starter ? t.starter : t.unavailable)
           : t.buy;
@@ -205,6 +223,7 @@ export function StoreModal({ language, save, onPurchase, onClose }) {
               <small>{t[category]}</small>
               <h3>{itemName(selected, category, language)}</h3>
               <p>{itemDescription(selected, t)}</p>
+              {selectedState === "research" && selectedTechnology && <div className="store-research-required"><LockKey size={18} /><span>{researchText.required}</span><strong>{technologyName(selectedTechnology, language)}</strong></div>}
               {category === "antenna" && <dl>
                 <div><dt>{t.propagation}</dt><dd>{selected.propagationBonus > 0 ? `+${selected.propagationBonus}` : selected.propagationBonus}</dd></div>
                 <div><dt>{t.qsb}</dt><dd>{selected.qsbDepthMultiplier < 1 ? `-${Math.round((1 - selected.qsbDepthMultiplier) * 100)}%` : "—"}</dd></div>

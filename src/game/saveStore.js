@@ -5,6 +5,10 @@ import { getLocation } from "./locations.js";
 import { normalizeQsoLogEntries, normalizeQsoRecords } from "../qso/qsoLog.js";
 import { DEFAULT_AUTOMATIC_KEY_WPM, normalizeAutomaticKeyWpm } from "../cw/automaticKeyer.js";
 import { PRACTICE_RECORDS_VERSION, emptyPracticeRecords, normalizePracticeRecords } from "../practice/practiceRecords.js";
+import {
+  TECHNOLOGY_TREE_VERSION, normalizeTechnologyPoints, normalizeUnlockedTechnologies,
+} from "./technologyTree.js";
+import { RESEARCH_PROJECTS_VERSION, normalizeCompletedResearchProjects } from "./researchProjects.js";
 
 export const SAVE_STORAGE_KEY = "game-morse-adventurer.saves.v1";
 export const ACTIVE_SAVE_KEY = "game-morse-adventurer.active-save.v1";
@@ -48,7 +52,7 @@ export function createSave({
   if (!isValidCallsign(cleanCallsign)) throw new Error("INVALID_CALLSIGN");
   const now = new Date().toISOString();
   return {
-    inventoryVersion: 2,
+    inventoryVersion: 3,
     id: globalThis.crypto?.randomUUID?.() ?? `save-${Date.now()}`,
     callsign: cleanCallsign,
     locationId: getLocation(locationId).id,
@@ -61,6 +65,11 @@ export function createSave({
     ownedAntennas: ["dipole"],
     accessories: [],
     credits: 0,
+    technologyTreeVersion: TECHNOLOGY_TREE_VERSION,
+    technologyPoints: 0,
+    unlockedTechnologies: normalizeUnlockedTechnologies([]),
+    researchProjectsVersion: RESEARCH_PROJECTS_VERSION,
+    completedResearchProjects: [],
     qsoLogs: [],
     qsoRecords: normalizeQsoRecords(null, []),
     practiceRecordsVersion: PRACTICE_RECORDS_VERSION,
@@ -112,8 +121,16 @@ export function normalizeSave(save) {
     : "none";
   const qsoLogSource = Array.isArray(save?.qsoLogs) ? save.qsoLogs : save?.qsoLogEntries;
   const qsoLogs = normalizeQsoLogEntries(qsoLogSource);
+  const hasTechnologyProgress = Number(save?.technologyTreeVersion) >= 1
+    || hasOwn("technologyPoints")
+    || hasOwn("unlockedTechnologies");
+  const ownedTechnologyItems = [
+    ...ownedEquipment.map((itemId) => ({ category: "radio", itemId })),
+    ...ownedAntennas.map((itemId) => ({ category: "antenna", itemId })),
+    ...ownedAccessories.map((itemId) => ({ category: "accessories", itemId })),
+  ];
   return {
-    inventoryVersion: 2,
+    inventoryVersion: 3,
     id: String(save.id || `save-${Date.now()}`),
     callsign,
     locationId: getLocation(save.locationId).id,
@@ -126,6 +143,15 @@ export function normalizeSave(save) {
     ownedAntennas,
     accessories: ownedAccessories,
     credits: normalizeCredits(save.credits),
+    technologyTreeVersion: TECHNOLOGY_TREE_VERSION,
+    technologyPoints: normalizeTechnologyPoints(save?.technologyPoints),
+    unlockedTechnologies: normalizeUnlockedTechnologies(save?.unlockedTechnologies, {
+      // Equipment released before the research system remains available to old saves.
+      unlockAllCurrent: !hasTechnologyProgress,
+      ownedItems: ownedTechnologyItems,
+    }),
+    researchProjectsVersion: RESEARCH_PROJECTS_VERSION,
+    completedResearchProjects: normalizeCompletedResearchProjects(save?.completedResearchProjects),
     qsoLogs,
     qsoRecords: normalizeQsoRecords(save?.qsoRecords, qsoLogSource),
     practiceRecordsVersion: PRACTICE_RECORDS_VERSION,

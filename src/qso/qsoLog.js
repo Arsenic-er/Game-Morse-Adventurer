@@ -3,6 +3,7 @@ import {
   isWeakSignalLevel,
   normalizeQsoRewardBreakdown,
 } from "../game/qsoRewards.js";
+import { settleResearchProjects } from "../game/researchProjects.js";
 
 export const QSO_LOG_VERSION = 6;
 const OPTIONAL_EXCHANGE_QUESTION_IDS = Object.freeze([
@@ -292,14 +293,17 @@ export function recordCompletedQso(save, candidate) {
     settledQsoIds: [...previousRecords.settledQsoIds, entry.id].sort(),
   };
   const credits = Math.max(0, finiteNumber(save.credits)) + rewardBreakdown.total;
+  const researchSettlement = settleResearchProjects({ ...save, credits, qsoLogs, qsoRecords });
 
   return {
-    save: { ...save, credits, qsoLogs, qsoRecords },
+    save: researchSettlement.save,
     added: true,
     newRegion,
     newDistanceRecord,
     settledEntry: persistedEntry,
     rewardBreakdown,
     creditsAwarded: rewardBreakdown.total,
+    technologyPointsAwarded: researchSettlement.technologyPointsAwarded,
+    completedResearchProjects: researchSettlement.newlyCompleted,
   };
 }

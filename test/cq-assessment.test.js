@@ -53,6 +53,23 @@ test("one callsign error is measurable and cannot masquerade as an exact identit
   assert.equal(assessment.wpm, 19);
 });
 
+test("word gaps, callsign segmentation, and PSE K are accepted CQ style choices", () => {
+  for (const message of [
+    "CQCQDEBH1ABCBH1ABCK",
+    "CQ CQ DE BH1 ABC BH1 ABC K",
+    "CQ CQ DE BH1ABC BH1ABC PSE K",
+    "CQCQDEBH1ABCBH1ABCPSEK",
+  ]) {
+    const assessment = assessCqTransmission({ message, playerCallsign, wpm: 18, rhythm: 100 });
+    assert.equal(assessment.quality, 100, message);
+    assert.equal(assessment.editScore, 100, message);
+    assert.equal(assessment.intentScore, 100, message);
+    assert.equal(assessment.identityScore, 100, message);
+    assert.equal(assessment.identityEditDistance, 0, message);
+    assert.equal(assessment.orderScore, 100, message);
+  }
+});
+
 test("missing timing metrics remain neutral and unknown", () => {
   for (const metrics of [
     { wpm: null, rhythm: null },

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ArrowLeft, Books, Broadcast, Check, Coins, GearSix, Laptop, MapPin, Notebook,
-  Package, Radio, Storefront, Trophy, Warehouse, Wrench, X,
+  Package, Radio, Storefront, TreeStructure, Trophy, Warehouse, Wrench, X,
 } from "@phosphor-icons/react";
 import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";
 import { ACCESSORIES, accessoryName, getAccessory } from "../game/accessoryCatalog.js";
@@ -12,6 +12,7 @@ import { QsoRewardBreakdown } from "../components/QsoRewardBreakdown.jsx";
 import { summarizePracticeProgress } from "../practice/practiceRecords.js";
 import { AchievementsModal } from "./AchievementsModal.jsx";
 import { StoreModal } from "./StoreModal.jsx";
+import { TechnologyTreeModal } from "./TechnologyTreeModal.jsx";
 
 const TEXT = {
   "zh-CN": { title: "管理中心", station: "进入发射台", practice: "CW 练习与教学", practiceProgress: "课程进度", warehouse: "仓库", store: "商店", log: "通联日志", achievements: "成就", placeholder: "功能占位", later: "该功能将在后续版本开放。", back: "返回存档", settings: "设置", local: "当地时间", close: "关闭" },
@@ -32,6 +33,16 @@ const WAREHOUSE_TEXT = {
   de: { title: "Ausrüstungslager", rack: "Ausrüstungsregal", radio: "Funkgerät", antenna: "Antenne", accessories: "Zubehör", antennaDrawer: "Antennenschublade", accessoryBar: "Zubehörregal", later: "Später verfügbar", current: "Aktuelle Ausrüstung", fixed: "Fest", replaceable: "Austauschbar", reserved: "Reserviert", equip: "Ausrüsten", equipped: "Ausgerüstet", noAntenna: "Leerer Antennenplatz", noAccessory: "Leerer Zubehörplatz", locked: "Gesperrt", back: "Zurück zum Verwaltungszentrum", propagation: "Ausbreitungsmodifikator", noise: "Rauschmodifikator" },
   ru: { title: "Склад оборудования", rack: "Стеллаж оборудования", radio: "Радиостанция", antenna: "Антенна", accessories: "Аксессуары", antennaDrawer: "Ящик антенн", accessoryBar: "Полка аксессуаров", later: "Позже", current: "Текущая комплектация", fixed: "Фиксировано", replaceable: "Заменяемо", reserved: "Зарезервировано", equip: "Установить", equipped: "Установлено", noAntenna: "Пустое место антенны", noAccessory: "Пустое место аксессуара", locked: "Заблокировано", back: "Назад в Центр управления", propagation: "Модификатор прохождения", noise: "Модификатор шума" },
 };
+
+const TECHNOLOGY_LABELS = Object.freeze({
+  "zh-CN": "科技树",
+  "zh-TW": "科技樹",
+  ja: "技術ツリー",
+  en: "Technology Tree",
+  es: "Árbol tecnológico",
+  de: "Technologiebaum",
+  ru: "Дерево технологий",
+});
 
 const PANEL_ICONS = { store: Storefront, log: Notebook, achievements: Trophy };
 
@@ -92,43 +103,43 @@ const QSO_REVIEW_TEXT = {
     title: "操作复盘", empty: "旧版日志没有逐次操作记录", guidance: "引导", visual: "视觉辅助", independent: "独立值守",
     full: "完整引导", hints: "仅提示", off: "关闭", used: "已使用", unused: "未使用", yes: "达成", no: "未达成",
     accepted: "接受", transmitted: "已发射", error: "错误", repeat: "重发", unknown: "未记录", reason: "原因", accuracy: "准确率", rhythm: "节奏",
-    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交换 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼号", wrongCqOrder: "CQ 电文顺序错误", missingK: "结尾缺少 K", invalidAgn: "重发请求必须为 AGN K", missingCallsign: "缺少双方呼号", invalidRst: "RST 格式无效", missing73: "缺少 73", wrongReplyOrder: "回复电文顺序错误", notWaitingForPlayer: "当前阶段不接受发报",
+    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交换 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼号", wrongCqOrder: "CQ 电文顺序错误", missingK: "结尾缺少 K", invalidAgn: "重发请求必须为 AGN K", invalidQrs: "减速请求须为 QRS K / QRS PSE K / PSE QRS K", missingCallsign: "缺少双方呼号", invalidRst: "RST 格式无效", missing73: "缺少 73", wrongReplyOrder: "回复电文顺序错误", notWaitingForPlayer: "当前阶段不接受发报",
   },
   "zh-TW": {
     title: "操作複盤", empty: "舊版日誌沒有逐次操作記錄", guidance: "引導", visual: "視覺輔助", independent: "獨立值守",
     full: "完整引導", hints: "僅提示", off: "關閉", used: "已使用", unused: "未使用", yes: "達成", no: "未達成",
     accepted: "接受", transmitted: "已發射", error: "錯誤", repeat: "重發", unknown: "未記錄", reason: "原因", accuracy: "準確率", rhythm: "節奏",
-    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交換 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼號", wrongCqOrder: "CQ 電文順序錯誤", missingK: "結尾缺少 K", invalidAgn: "重發請求必須為 AGN K", missingCallsign: "缺少雙方呼號", invalidRst: "RST 格式無效", missing73: "缺少 73", wrongReplyOrder: "回覆電文順序錯誤", notWaitingForPlayer: "目前階段不接受發報",
+    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交換 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼號", wrongCqOrder: "CQ 電文順序錯誤", missingK: "結尾缺少 K", invalidAgn: "重發請求必須為 AGN K", invalidQrs: "減速請求須為 QRS K / QRS PSE K / PSE QRS K", missingCallsign: "缺少雙方呼號", invalidRst: "RST 格式無效", missing73: "缺少 73", wrongReplyOrder: "回覆電文順序錯誤", notWaitingForPlayer: "目前階段不接受發報",
   },
   ja: {
     title: "運用レビュー", empty: "旧形式のログには操作履歴がありません", guidance: "ガイド", visual: "視覚補助", independent: "単独運用",
     full: "フルガイド", hints: "ヒントのみ", off: "オフ", used: "使用", unused: "未使用", yes: "達成", no: "未達成",
     accepted: "受付", transmitted: "送信済み", error: "エラー", repeat: "再送", unknown: "記録なし", reason: "理由", accuracy: "正確度", rhythm: "リズム",
-    PLAYER_CQ: "CQ 呼出", PLAYER_RST_AND_73: "RST / 73 交換", missingCq: "CQ がありません", missingDe: "DE がありません", missingPlayerCallsign: "自局コールサインがありません", wrongCqOrder: "CQ 電文の順序が違います", missingK: "末尾の K がありません", invalidAgn: "再送要求は AGN K にしてください", missingCallsign: "両局のコールサインが必要です", invalidRst: "RST 形式が無効です", missing73: "73 がありません", wrongReplyOrder: "応答電文の順序が違います", notWaitingForPlayer: "現在は送信を受け付けていません",
+    PLAYER_CQ: "CQ 呼出", PLAYER_RST_AND_73: "RST / 73 交換", missingCq: "CQ がありません", missingDe: "DE がありません", missingPlayerCallsign: "自局コールサインがありません", wrongCqOrder: "CQ 電文の順序が違います", missingK: "末尾の K がありません", invalidAgn: "再送要求は AGN K にしてください", invalidQrs: "減速要求は QRS K / QRS PSE K / PSE QRS K にしてください", missingCallsign: "両局のコールサインが必要です", invalidRst: "RST 形式が無効です", missing73: "73 がありません", wrongReplyOrder: "応答電文の順序が違います", notWaitingForPlayer: "現在は送信を受け付けていません",
   },
   en: {
     title: "Operating Review", empty: "No attempt history is available in this legacy log", guidance: "Guidance", visual: "Visual assist", independent: "Independent watch",
     full: "Full", hints: "Hints only", off: "Off", used: "Used", unused: "Not used", yes: "Qualified", no: "Not qualified",
     accepted: "Accepted", transmitted: "Transmitted", error: "Error", repeat: "Repeat", unknown: "Not recorded", reason: "Reason", accuracy: "Accuracy", rhythm: "Rhythm",
-    PLAYER_CQ: "Call CQ", PLAYER_RST_AND_73: "Exchange RST / 73", missingCq: "CQ is missing", missingDe: "DE is missing", missingPlayerCallsign: "Your callsign is missing", wrongCqOrder: "CQ message is out of order", missingK: "Final K is missing", invalidAgn: "A repeat request must be AGN K", missingCallsign: "Both callsigns are required", invalidRst: "RST format is invalid", missing73: "73 is missing", wrongReplyOrder: "Reply message is out of order", notWaitingForPlayer: "This stage is not accepting a transmission",
+    PLAYER_CQ: "Call CQ", PLAYER_RST_AND_73: "Exchange RST / 73", missingCq: "CQ is missing", missingDe: "DE is missing", missingPlayerCallsign: "Your callsign is missing", wrongCqOrder: "CQ message is out of order", missingK: "Final K is missing", invalidAgn: "A repeat request must be AGN K", invalidQrs: "A slowdown request must be QRS K / QRS PSE K / PSE QRS K", missingCallsign: "Both callsigns are required", invalidRst: "RST format is invalid", missing73: "73 is missing", wrongReplyOrder: "Reply message is out of order", notWaitingForPlayer: "This stage is not accepting a transmission",
   },
   es: {
     title: "Revisión de operación", empty: "Este registro antiguo no contiene historial de intentos", guidance: "Guía", visual: "Ayuda visual", independent: "Guardia independiente",
     full: "Completa", hints: "Solo pistas", off: "Desactivada", used: "Usada", unused: "No usada", yes: "Apto", no: "No apto",
     accepted: "Aceptado", transmitted: "Transmitido", error: "Error", repeat: "Repetición", unknown: "Sin registro", reason: "Motivo", accuracy: "Precisión", rhythm: "Ritmo",
-    PLAYER_CQ: "Llamar CQ", PLAYER_RST_AND_73: "Intercambiar RST / 73", missingCq: "Falta CQ", missingDe: "Falta DE", missingPlayerCallsign: "Falta tu indicativo", wrongCqOrder: "El mensaje CQ está desordenado", missingK: "Falta la K final", invalidAgn: "La petición de repetición debe ser AGN K", missingCallsign: "Se requieren ambos indicativos", invalidRst: "El formato RST no es válido", missing73: "Falta 73", wrongReplyOrder: "El mensaje de respuesta está desordenado", notWaitingForPlayer: "Esta etapa no acepta una transmisión",
+    PLAYER_CQ: "Llamar CQ", PLAYER_RST_AND_73: "Intercambiar RST / 73", missingCq: "Falta CQ", missingDe: "Falta DE", missingPlayerCallsign: "Falta tu indicativo", wrongCqOrder: "El mensaje CQ está desordenado", missingK: "Falta la K final", invalidAgn: "La petición de repetición debe ser AGN K", invalidQrs: "La petición de reducción debe ser QRS K / QRS PSE K / PSE QRS K", missingCallsign: "Se requieren ambos indicativos", invalidRst: "El formato RST no es válido", missing73: "Falta 73", wrongReplyOrder: "El mensaje de respuesta está desordenado", notWaitingForPlayer: "Esta etapa no acepta una transmisión",
   },
   de: {
     title: "Betriebsauswertung", empty: "Dieses ältere Log enthält keinen Versuchsverlauf", guidance: "Führung", visual: "Visuelle Hilfe", independent: "Selbstständige Wache",
     full: "Vollständig", hints: "Nur Hinweise", off: "Aus", used: "Benutzt", unused: "Nicht benutzt", yes: "Bestanden", no: "Nicht bestanden",
     accepted: "Akzeptiert", transmitted: "Gesendet", error: "Fehler", repeat: "Wiederholung", unknown: "Nicht erfasst", reason: "Grund", accuracy: "Genauigkeit", rhythm: "Rhythmus",
-    PLAYER_CQ: "CQ rufen", PLAYER_RST_AND_73: "RST / 73 austauschen", missingCq: "CQ fehlt", missingDe: "DE fehlt", missingPlayerCallsign: "Dein Rufzeichen fehlt", wrongCqOrder: "CQ-Nachricht hat die falsche Reihenfolge", missingK: "Abschließendes K fehlt", invalidAgn: "Eine Wiederholungsanfrage muss AGN K sein", missingCallsign: "Beide Rufzeichen sind erforderlich", invalidRst: "RST-Format ist ungültig", missing73: "73 fehlt", wrongReplyOrder: "Antwort hat die falsche Reihenfolge", notWaitingForPlayer: "Diese Phase nimmt keine Sendung an",
+    PLAYER_CQ: "CQ rufen", PLAYER_RST_AND_73: "RST / 73 austauschen", missingCq: "CQ fehlt", missingDe: "DE fehlt", missingPlayerCallsign: "Dein Rufzeichen fehlt", wrongCqOrder: "CQ-Nachricht hat die falsche Reihenfolge", missingK: "Abschließendes K fehlt", invalidAgn: "Eine Wiederholungsanfrage muss AGN K sein", invalidQrs: "Eine Tempoanfrage muss QRS K / QRS PSE K / PSE QRS K sein", missingCallsign: "Beide Rufzeichen sind erforderlich", invalidRst: "RST-Format ist ungültig", missing73: "73 fehlt", wrongReplyOrder: "Antwort hat die falsche Reihenfolge", notWaitingForPlayer: "Diese Phase nimmt keine Sendung an",
   },
   ru: {
     title: "Разбор работы", empty: "В старой записи нет истории попыток", guidance: "Подсказки", visual: "Визуальная помощь", independent: "Самостоятельная вахта",
     full: "Полные", hints: "Только намёки", off: "Выкл.", used: "Использована", unused: "Не использована", yes: "Зачёт", no: "Нет зачёта",
     accepted: "Принято", transmitted: "Передано", error: "Ошибка", repeat: "Повтор", unknown: "Не записано", reason: "Причина", accuracy: "Точность", rhythm: "Ритм",
-    PLAYER_CQ: "Вызвать CQ", PLAYER_RST_AND_73: "Обменяться RST / 73", missingCq: "Отсутствует CQ", missingDe: "Отсутствует DE", missingPlayerCallsign: "Отсутствует ваш позывной", wrongCqOrder: "Неверный порядок сообщения CQ", missingK: "Нет завершающего K", invalidAgn: "Запрос повтора должен быть AGN K", missingCallsign: "Нужны оба позывных", invalidRst: "Неверный формат RST", missing73: "Отсутствует 73", wrongReplyOrder: "Неверный порядок ответа", notWaitingForPlayer: "На этом этапе передача не принимается",
+    PLAYER_CQ: "Вызвать CQ", PLAYER_RST_AND_73: "Обменяться RST / 73", missingCq: "Отсутствует CQ", missingDe: "Отсутствует DE", missingPlayerCallsign: "Отсутствует ваш позывной", wrongCqOrder: "Неверный порядок сообщения CQ", missingK: "Нет завершающего K", invalidAgn: "Запрос повтора должен быть AGN K", invalidQrs: "Запрос снижения скорости: QRS K / QRS PSE K / PSE QRS K", missingCallsign: "Нужны оба позывных", invalidRst: "Неверный формат RST", missing73: "Отсутствует 73", wrongReplyOrder: "Неверный порядок ответа", notWaitingForPlayer: "На этом этапе передача не принимается",
   },
 };
 
@@ -363,7 +374,7 @@ function EmptyAccessory({ size = 64 }) {
   return <span className="warehouse-empty-asset" aria-hidden="true"><Package size={size} /><X size={Math.round(size * .42)} weight="bold" /></span>;
 }
 
-function WarehouseModal({ language, save, onEquipItem, onClose }) {
+function WarehouseModal({ language, save, onEquipItem, onUnlockTechnology, onClose }) {
   const t = WAREHOUSE_TEXT[language] ?? WAREHOUSE_TEXT.en;
   const transmitter = getTransmitter(save.equipmentId);
   const equippedAntenna = getAntenna(save.antennaId);
@@ -372,6 +383,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
   const [draftRadioId, setDraftRadioId] = useState(save.equipmentId);
   const [draftAntennaId, setDraftAntennaId] = useState(save.antennaId);
   const [draftAccessoryId, setDraftAccessoryId] = useState(save.accessoryId ?? "none");
+  const [technologyOpen, setTechnologyOpen] = useState(false);
   const draftRadio = getTransmitter(draftRadioId);
   const draftAntenna = getAntenna(draftAntennaId);
   const draftAccessory = getAccessory(draftAccessoryId);
@@ -416,11 +428,13 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
 
   useEffect(() => {
     function onKeyDown(event) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !technologyOpen) onClose();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [onClose, technologyOpen]);
+
+  if (technologyOpen) return <div className="warehouse-backdrop"><TechnologyTreeModal language={language} save={save} onUnlock={onUnlockTechnology} onClose={() => setTechnologyOpen(false)} /></div>;
 
   return (
     <div className="warehouse-backdrop">
@@ -489,6 +503,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
 
         <aside className="warehouse-current-loadout">
           <button className="warehouse-return" onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.back}</button>
+          <button className="warehouse-technology-button" data-action="open-technology-tree" onClick={() => setTechnologyOpen(true)}><TreeStructure size={19} weight="fill" />{TECHNOLOGY_LABELS[language] ?? TECHNOLOGY_LABELS.en}</button>
           <header><span />{t.current}<span /></header>
           <b>{save.callsign}</b>
           <ol>
@@ -502,7 +517,7 @@ function WarehouseModal({ language, save, onEquipItem, onClose }) {
   );
 }
 
-export function HomeScreen({ language, save, onPurchase, onEquipItem, onEnterStation, onEnterPractice, onBack, onSettings }) {
+export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onEnterStation, onEnterPractice, onBack, onSettings }) {
   const t = TEXT[language] ?? TEXT.en;
   const location = getLocation(save.locationId);
   const practiceProgress = summarizePracticeProgress(save.practiceRecords);
@@ -549,7 +564,7 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onEnterSta
       <button className="home-hotspot hotspot-achievements" aria-label={t.achievements} onClick={() => setPanel("achievements")}><span><Trophy size={22} weight="fill" />{t.achievements}</span></button>
       <span className="home-newspaper-callsign" aria-hidden="true">{save.callsign}</span>
       <span className="home-location-label"><Radio size={15} />{locationName(location, language)}</span>
-      {panel === "warehouse" && <WarehouseModal language={language} save={save} onEquipItem={onEquipItem} onClose={() => setPanel(null)} />}
+      {panel === "warehouse" && <WarehouseModal language={language} save={save} onEquipItem={onEquipItem} onUnlockTechnology={onUnlockTechnology} onClose={() => setPanel(null)} />}
       {panel === "store" && <StoreModal language={language} save={save} onPurchase={onPurchase} onClose={() => setPanel(null)} />}
       {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
       {panel === "achievements" && <AchievementsModal language={language} save={save} onClose={() => setPanel(null)} />}

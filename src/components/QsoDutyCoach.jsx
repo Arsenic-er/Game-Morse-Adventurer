@@ -24,8 +24,8 @@ const TEXT = {
     optionalTitle: "可选资料交流", optionalBody: "只发送游戏存档或你自愿编造的资料；不要输入真实姓名、年龄或住址。回答原文不会写入日志。", optionalHint: "AGN K 重发 · SKIP K / 73 K 跳过",
     logTitle: "保存通联日志", logBody: "通联已完成。按 F3 保存日志并结算信用点。", logHint: "F3 → 日志 → 信用点",
     failedTitle: "重新开始本次通联", failedBody: "本次交换未完成。按 F3 重新开始。", complete: "第一次值守已完成",
-    remote: "REMOTE", repeat: "请求重发：AGN K", clearRetry: "清空并重试", attempts: "尝试次数",
-    errors: { missingCq: "缺少 CQ。", missingDe: "缺少 DE。", missingPlayerCallsign: "缺少你的呼号。", wrongCqOrder: "顺序应为 CQ、DE、本台呼号、K。", wrongReplyOrder: "顺序应为：远方台呼号、DE、本台呼号、RST、报告、73、K。", missingK: "结尾缺少 K。", missingCallsign: "必须包含双方呼号。", invalidRst: "RST 必须是三位有效报告，例如 559。", missing73: "结束电文缺少 73。", invalidAgn: "请求重发请发送 AGN K。", invalidOptionalSkip: "跳过请发送 SKIP K 或 73 K。", invalidOptionalAnswer: "请按问题前缀回答，或发送 SKIP K / 73 K。" },
+    remote: "REMOTE", repeat: "请求原速重发：AGN K", slowRepeat: "请求慢速重发：QRS K / QRS PSE K / PSE QRS K", clearRetry: "清空并重试", attempts: "尝试次数",
+    errors: { missingCq: "缺少 CQ。", missingDe: "缺少 DE。", missingPlayerCallsign: "缺少你的呼号。", wrongCqOrder: "顺序应为 CQ、DE、本台呼号、K。", wrongReplyOrder: "顺序应为：远方台呼号、DE、本台呼号、RST、报告、73、K。", missingK: "结尾缺少 K。", missingCallsign: "必须包含双方呼号。", invalidRst: "RST 必须是三位有效报告，例如 559。", missing73: "结束电文缺少 73。", invalidAgn: "请求重发请发送 AGN K。", invalidQrs: "请求减速请发送 QRS K、QRS PSE K 或 PSE QRS K。", invalidOptionalSkip: "跳过请发送 SKIP K 或 73 K。", invalidOptionalAnswer: "请按问题前缀回答，或发送 SKIP K / 73 K。" },
   },
   "zh-TW": {
     briefingKicker: "FIRST WATCH // 值守簡報", briefingTitle: "完成你的第一次通聯",
@@ -41,8 +41,8 @@ const TEXT = {
     optionalTitle: "可選資料交流", optionalBody: "只發送遊戲存檔或你自願編造的資料；不要輸入真實姓名、年齡或住址。回答原文不會寫入日誌。", optionalHint: "AGN K 重發 · SKIP K / 73 K 跳過",
     logTitle: "儲存通聯日誌", logBody: "通聯已完成。按 F3 儲存日誌並結算信用點。", logHint: "F3 → 日誌 → 信用點",
     failedTitle: "重新開始本次通聯", failedBody: "本次交換未完成。按 F3 重新開始。", complete: "第一次值守已完成",
-    remote: "REMOTE", repeat: "請求重發：AGN K", clearRetry: "清空並重試", attempts: "嘗試次數",
-    errors: { missingCq: "缺少 CQ。", missingDe: "缺少 DE。", missingPlayerCallsign: "缺少你的呼號。", wrongCqOrder: "順序應為 CQ、DE、本臺呼號、K。", wrongReplyOrder: "順序應為：遠方臺呼號、DE、本臺呼號、RST、報告、73、K。", missingK: "結尾缺少 K。", missingCallsign: "必須包含雙方呼號。", invalidRst: "RST 必須是三位有效報告，例如 559。", missing73: "結束電文缺少 73。", invalidAgn: "請以 AGN K 請求重發。", invalidOptionalSkip: "略過請發送 SKIP K 或 73 K。", invalidOptionalAnswer: "請依問題前綴回答，或發送 SKIP K / 73 K。" },
+    remote: "REMOTE", repeat: "請求原速重發：AGN K", slowRepeat: "請求慢速重發：QRS K / QRS PSE K / PSE QRS K", clearRetry: "清空並重試", attempts: "嘗試次數",
+    errors: { missingCq: "缺少 CQ。", missingDe: "缺少 DE。", missingPlayerCallsign: "缺少你的呼號。", wrongCqOrder: "順序應為 CQ、DE、本臺呼號、K。", wrongReplyOrder: "順序應為：遠方臺呼號、DE、本臺呼號、RST、報告、73、K。", missingK: "結尾缺少 K。", missingCallsign: "必須包含雙方呼號。", invalidRst: "RST 必須是三位有效報告，例如 559。", missing73: "結束電文缺少 73。", invalidAgn: "請以 AGN K 請求重發。", invalidQrs: "請求減速請發送 QRS K、QRS PSE K 或 PSE QRS K。", invalidOptionalSkip: "略過請發送 SKIP K 或 73 K。", invalidOptionalAnswer: "請依問題前綴回答，或發送 SKIP K / 73 K。" },
   },
   ja: {
     briefingKicker: "FIRST WATCH // 運用ブリーフィング", briefingTitle: "最初の交信を完了する",
@@ -58,8 +58,8 @@ const TEXT = {
     optionalTitle: "任意のプロフィール交換", optionalBody: "ゲーム内または自分で作った架空の情報だけを送信し、実名・実年齢・実住所は入力しないでください。回答本文はログに保存されません。", optionalHint: "AGN K で再送 · SKIP K / 73 K で省略",
     logTitle: "交信ログを保存", logBody: "交信完了。F3 でログを保存しクレジットを精算します。", logHint: "F3 → ログ → クレジット",
     failedTitle: "交信を再開", failedBody: "交換を完了できませんでした。F3 で再開します。", complete: "最初の運用を完了",
-    remote: "REMOTE", repeat: "再送要求：AGN K", clearRetry: "消去して再試行", attempts: "試行回数",
-    errors: { missingCq: "CQ がありません。", missingDe: "DE がありません。", missingPlayerCallsign: "自局コールがありません。", wrongCqOrder: "CQ、DE、自局コール、K の順に送信します。", wrongReplyOrder: "相手局コール、DE、自局コール、RST、レポート、73、K の順に送信します。", missingK: "末尾に K が必要です。", missingCallsign: "両局のコールが必要です。", invalidRst: "RST は 559 など有効な3桁で送信します。", missing73: "終了電文に 73 がありません。", invalidAgn: "再送要求は AGN K で送信します。", invalidOptionalSkip: "省略するには SKIP K または 73 K を送信します。", invalidOptionalAnswer: "質問の接頭語で回答するか、SKIP K / 73 K を送信してください。" },
+    remote: "REMOTE", repeat: "同じ速度で再送：AGN K", slowRepeat: "低速で再送を依頼：QRS K / QRS PSE K / PSE QRS K", clearRetry: "消去して再試行", attempts: "試行回数",
+    errors: { missingCq: "CQ がありません。", missingDe: "DE がありません。", missingPlayerCallsign: "自局コールがありません。", wrongCqOrder: "CQ、DE、自局コール、K の順に送信します。", wrongReplyOrder: "相手局コール、DE、自局コール、RST、レポート、73、K の順に送信します。", missingK: "末尾に K が必要です。", missingCallsign: "両局のコールが必要です。", invalidRst: "RST は 559 など有効な3桁で送信します。", missing73: "終了電文に 73 がありません。", invalidAgn: "再送要求は AGN K で送信します。", invalidQrs: "低速送信の依頼は QRS K、QRS PSE K、PSE QRS K のいずれかで送信します。", invalidOptionalSkip: "省略するには SKIP K または 73 K を送信します。", invalidOptionalAnswer: "質問の接頭語で回答するか、SKIP K / 73 K を送信してください。" },
   },
   en: {
     briefingKicker: "FIRST WATCH // DUTY BRIEFING", briefingTitle: "Complete your first contact",
@@ -75,8 +75,8 @@ const TEXT = {
     optionalTitle: "Optional profile exchange", optionalBody: "Send only game-save details or fiction you choose; never enter a real name, age, or address. Answer text is not saved to the log.", optionalHint: "AGN K repeats · SKIP K / 73 K skips",
     logTitle: "Save the QSO log", logBody: "The contact is complete. Press F3 to save the log and settle credits.", logHint: "F3 → LOG → CREDITS",
     failedTitle: "Restart this contact", failedBody: "The exchange was not completed. Press F3 to restart.", complete: "First watch complete",
-    remote: "REMOTE", repeat: "Request repeat: AGN K", clearRetry: "Clear & retry", attempts: "Attempts",
-    errors: { missingCq: "CQ is missing.", missingDe: "DE is missing.", missingPlayerCallsign: "Your callsign is missing.", wrongCqOrder: "Send CQ, DE, your callsign, then K.", wrongReplyOrder: "Send the remote call, DE, your call, RST, report, 73, then K.", missingK: "The message must end with K.", missingCallsign: "Both callsigns are required.", invalidRst: "RST must be a valid three-digit report such as 559.", missing73: "73 is missing from the closing message.", invalidAgn: "Use AGN K to request a repeat.", invalidOptionalSkip: "Use SKIP K or 73 K to skip.", invalidOptionalAnswer: "Answer with the requested prefix, or send SKIP K / 73 K." },
+    remote: "REMOTE", repeat: "Repeat at current speed: AGN K", slowRepeat: "Request a slower repeat: QRS K / QRS PSE K / PSE QRS K", clearRetry: "Clear & retry", attempts: "Attempts",
+    errors: { missingCq: "CQ is missing.", missingDe: "DE is missing.", missingPlayerCallsign: "Your callsign is missing.", wrongCqOrder: "Send CQ, DE, your callsign, then K.", wrongReplyOrder: "Send the remote call, DE, your call, RST, report, 73, then K.", missingK: "The message must end with K.", missingCallsign: "Both callsigns are required.", invalidRst: "RST must be a valid three-digit report such as 559.", missing73: "73 is missing from the closing message.", invalidAgn: "Use AGN K to request a repeat.", invalidQrs: "Use QRS K, QRS PSE K, or PSE QRS K to request slower sending.", invalidOptionalSkip: "Use SKIP K or 73 K to skip.", invalidOptionalAnswer: "Answer with the requested prefix, or send SKIP K / 73 K." },
   },
   es: {
     briefingKicker: "PRIMERA GUARDIA // INSTRUCCIONES", briefingTitle: "Completa tu primer contacto",
@@ -92,8 +92,8 @@ const TEXT = {
     optionalTitle: "Intercambio de perfil opcional", optionalBody: "Envía solo datos de la partida o ficción que elijas; no introduzcas nombre, edad ni dirección reales. El texto de la respuesta no se guarda en el registro.", optionalHint: "AGN K repite · SKIP K / 73 K omite",
     logTitle: "Guarda el registro QSO", logBody: "El contacto ha terminado. Pulsa F3 para guardar el registro y liquidar créditos.", logHint: "F3 → REGISTRO → CRÉDITOS",
     failedTitle: "Reinicia este contacto", failedBody: "El intercambio no se completó. Pulsa F3 para reiniciar.", complete: "Primera guardia completada",
-    remote: "REMOTE", repeat: "Solicitar repetición: AGN K", clearRetry: "Borrar y reintentar", attempts: "Intentos",
-    errors: { missingCq: "Falta CQ.", missingDe: "Falta DE.", missingPlayerCallsign: "Falta tu indicativo.", wrongCqOrder: "Envía CQ, DE, tu indicativo y después K.", wrongReplyOrder: "Envía el indicativo remoto, DE, tu indicativo, RST, reporte, 73 y después K.", missingK: "El mensaje debe terminar en K.", missingCallsign: "Se necesitan ambos indicativos.", invalidRst: "RST debe ser un reporte válido de tres cifras, como 559.", missing73: "Falta 73 en el mensaje de cierre.", invalidAgn: "Usa AGN K para solicitar una repetición.", invalidOptionalSkip: "Usa SKIP K o 73 K para omitir.", invalidOptionalAnswer: "Responde con el prefijo pedido o envía SKIP K / 73 K." },
+    remote: "REMOTE", repeat: "Repetir a la velocidad actual: AGN K", slowRepeat: "Pedir una repetición más lenta: QRS K / QRS PSE K / PSE QRS K", clearRetry: "Borrar y reintentar", attempts: "Intentos",
+    errors: { missingCq: "Falta CQ.", missingDe: "Falta DE.", missingPlayerCallsign: "Falta tu indicativo.", wrongCqOrder: "Envía CQ, DE, tu indicativo y después K.", wrongReplyOrder: "Envía el indicativo remoto, DE, tu indicativo, RST, reporte, 73 y después K.", missingK: "El mensaje debe terminar en K.", missingCallsign: "Se necesitan ambos indicativos.", invalidRst: "RST debe ser un reporte válido de tres cifras, como 559.", missing73: "Falta 73 en el mensaje de cierre.", invalidAgn: "Usa AGN K para solicitar una repetición.", invalidQrs: "Usa QRS K, QRS PSE K o PSE QRS K para pedir una transmisión más lenta.", invalidOptionalSkip: "Usa SKIP K o 73 K para omitir.", invalidOptionalAnswer: "Responde con el prefijo pedido o envía SKIP K / 73 K." },
   },
   de: {
     briefingKicker: "ERSTE FUNKWACHE // EINWEISUNG", briefingTitle: "Schließe deinen ersten Kontakt ab",
@@ -109,8 +109,8 @@ const TEXT = {
     optionalTitle: "Optionaler Profilaustausch", optionalBody: "Sende nur Spielstand-Angaben oder frei erfundene Daten; gib nie echten Namen, echtes Alter oder echte Adresse ein. Der Antworttext wird nicht im Log gespeichert.", optionalHint: "AGN K wiederholt · SKIP K / 73 K überspringt",
     logTitle: "QSO-Log speichern", logBody: "Der Kontakt ist abgeschlossen. Drücke F3, um das Log zu speichern und Kredite abzurechnen.", logHint: "F3 → LOG → KREDITE",
     failedTitle: "Kontakt neu starten", failedBody: "Der Austausch wurde nicht abgeschlossen. Drücke F3 zum Neustart.", complete: "Erste Funkwache abgeschlossen",
-    remote: "REMOTE", repeat: "Wiederholung anfordern: AGN K", clearRetry: "Löschen und erneut versuchen", attempts: "Versuche",
-    errors: { missingCq: "CQ fehlt.", missingDe: "DE fehlt.", missingPlayerCallsign: "Dein Rufzeichen fehlt.", wrongCqOrder: "Sende CQ, DE, dein Rufzeichen und dann K.", wrongReplyOrder: "Sende Gegenruf, DE, dein Rufzeichen, RST, Rapport, 73 und dann K.", missingK: "Die Nachricht muss mit K enden.", missingCallsign: "Beide Rufzeichen sind erforderlich.", invalidRst: "RST muss ein gültiger dreistelliger Rapport wie 559 sein.", missing73: "73 fehlt in der Abschlussnachricht.", invalidAgn: "Fordere eine Wiederholung mit AGN K an.", invalidOptionalSkip: "Überspringe mit SKIP K oder 73 K.", invalidOptionalAnswer: "Antworte mit dem verlangten Präfix oder sende SKIP K / 73 K." },
+    remote: "REMOTE", repeat: "Mit aktuellem Tempo wiederholen: AGN K", slowRepeat: "Langsamere Wiederholung anfordern: QRS K / QRS PSE K / PSE QRS K", clearRetry: "Löschen und erneut versuchen", attempts: "Versuche",
+    errors: { missingCq: "CQ fehlt.", missingDe: "DE fehlt.", missingPlayerCallsign: "Dein Rufzeichen fehlt.", wrongCqOrder: "Sende CQ, DE, dein Rufzeichen und dann K.", wrongReplyOrder: "Sende Gegenruf, DE, dein Rufzeichen, RST, Rapport, 73 und dann K.", missingK: "Die Nachricht muss mit K enden.", missingCallsign: "Beide Rufzeichen sind erforderlich.", invalidRst: "RST muss ein gültiger dreistelliger Rapport wie 559 sein.", missing73: "73 fehlt in der Abschlussnachricht.", invalidAgn: "Fordere eine Wiederholung mit AGN K an.", invalidQrs: "Fordere langsameres Geben mit QRS K, QRS PSE K oder PSE QRS K an.", invalidOptionalSkip: "Überspringe mit SKIP K oder 73 K.", invalidOptionalAnswer: "Antworte mit dem verlangten Präfix oder sende SKIP K / 73 K." },
   },
   ru: {
     briefingKicker: "ПЕРВОЕ ДЕЖУРСТВО // ИНСТРУКТАЖ", briefingTitle: "Завершите первую связь",
@@ -126,8 +126,8 @@ const TEXT = {
     optionalTitle: "Необязательный обмен данными", optionalBody: "Передавайте только игровые или придуманные вами сведения; не вводите настоящие имя, возраст или адрес. Текст ответа не сохраняется в журнал.", optionalHint: "AGN K — повтор · SKIP K / 73 K — пропуск",
     logTitle: "Сохраните журнал QSO", logBody: "Связь завершена. Нажмите F3, чтобы сохранить журнал и начислить кредиты.", logHint: "F3 → ЖУРНАЛ → КРЕДИТЫ",
     failedTitle: "Повторить эту связь", failedBody: "Обмен не завершён. Нажмите F3, чтобы начать заново.", complete: "Первое дежурство завершено",
-    remote: "REMOTE", repeat: "Запрос повтора: AGN K", clearRetry: "Очистить и повторить", attempts: "Попытки",
-    errors: { missingCq: "Нет CQ.", missingDe: "Нет DE.", missingPlayerCallsign: "Нет вашего позывного.", wrongCqOrder: "Передайте CQ, DE, свой позывной, затем K.", wrongReplyOrder: "Передайте позывной корреспондента, DE, свой позывной, RST, рапорт, 73, затем K.", missingK: "Сообщение должно заканчиваться K.", missingCallsign: "Нужны оба позывных.", invalidRst: "RST должен быть допустимым трёхзначным рапортом, например 559.", missing73: "В завершающем сообщении нет 73.", invalidAgn: "Для запроса повтора используйте AGN K.", invalidOptionalSkip: "Для пропуска передайте SKIP K или 73 K.", invalidOptionalAnswer: "Ответьте с нужным префиксом или передайте SKIP K / 73 K." },
+    remote: "REMOTE", repeat: "Повтор с текущей скоростью: AGN K", slowRepeat: "Запросить более медленный повтор: QRS K / QRS PSE K / PSE QRS K", clearRetry: "Очистить и повторить", attempts: "Попытки",
+    errors: { missingCq: "Нет CQ.", missingDe: "Нет DE.", missingPlayerCallsign: "Нет вашего позывного.", wrongCqOrder: "Передайте CQ, DE, свой позывной, затем K.", wrongReplyOrder: "Передайте позывной корреспондента, DE, свой позывной, RST, рапорт, 73, затем K.", missingK: "Сообщение должно заканчиваться K.", missingCallsign: "Нужны оба позывных.", invalidRst: "RST должен быть допустимым трёхзначным рапортом, например 559.", missing73: "В завершающем сообщении нет 73.", invalidAgn: "Для запроса повтора используйте AGN K.", invalidQrs: "Чтобы попросить передавать медленнее, используйте QRS K, QRS PSE K или PSE QRS K.", invalidOptionalSkip: "Для пропуска передайте SKIP K или 73 K.", invalidOptionalAnswer: "Ответьте с нужным префиксом или передайте SKIP K / 73 K." },
   },
 };
 
@@ -200,12 +200,13 @@ export function QsoDutyCoach({ language, guidance, qso, playerCallsign, powered,
         : null;
   const error = level === "full" && qso.lastError && qso.lastError !== "noResponse" ? qsoErrorMessage(language, qso.lastError) : "";
   const attempts = Math.max(0, Number(qso.attempts || 0));
+  const canRequestRepeat = ["PLAYER_RST_AND_73", "PLAYER_OPTIONAL_ANSWER"].includes(qso.phase);
   return <section className={`qso-duty-coach ${expanded ? "expanded" : "collapsed"} ${error ? "has-error" : ""}`} data-testid="qso-duty-coach" data-guidance={level} data-duty-step={state.step}>
     <button className="qso-duty-toggle" type="button" onClick={() => setExpanded((current) => !current)} aria-expanded={expanded} aria-label={expanded ? t.collapse : t.expand}>
       <span>{state.step ? `${t.step} ${state.step}/4` : "CHECK"}</span><strong>{state.title}</strong>{expanded ? <CaretDown size={16} /> : <CaretUp size={16} />}
     </button>
     {expanded && <div className="qso-duty-popover" aria-live="polite">
-      <div>{level === "full" && <p>{state.body}</p>}{level === "full" && template ? <code data-testid="qso-duty-template">{template}</code> : <code>{state.hint}</code>}{state.step === 3 && !qso.contactRevealed && <small><Question size={14} />{t.repeat}</small>}{qso.phase === "PLAYER_OPTIONAL_ANSWER" && <small><Question size={14} />{t.optionalHint}</small>}</div>
+      <div>{level === "full" && <p>{state.body}</p>}{level === "full" && template ? <code data-testid="qso-duty-template">{template}</code> : <code>{state.hint}</code>}{canRequestRepeat && <><small><Question size={14} />{t.repeat}</small><small><Question size={14} />{t.slowRepeat}</small></>}{qso.phase === "PLAYER_OPTIONAL_ANSWER" && <small><Question size={14} />{t.optionalHint}</small>}</div>
       {error && <aside role="alert"><WarningCircle size={19} weight="fill" /><span>{error}<small>{t.attempts}: {attempts}</small></span><button type="button" data-action="clear-and-retry" onClick={onClearRetry}>{t.clearRetry}</button></aside>}
     </div>}
   </section>;

@@ -59,10 +59,10 @@ export const NPC_OPERATOR_ASSIGNMENTS = Object.freeze({
   SIM7QX: Object.freeze({ profileId: "careful-beginner", personaName: "RIN", personaAge: 24 }),
   SIM3RA: Object.freeze({ profileId: "patient-veteran", personaName: "MORSE", personaAge: 68 }),
   SIM9AK: Object.freeze({ profileId: "contest-sprinter", personaName: "MAX", personaAge: 31 }),
-  SIM5TU: Object.freeze({ profileId: "traditional-fist", personaName: "SORA", personaAge: 52 }),
+  SIM5TU: Object.freeze({ profileId: "traditional-fist", personaName: "WANG", personaAge: 52 }),
   SIM2DX: Object.freeze({ profileId: "weak-signal-listener", personaName: "NOVA", personaAge: 44 }),
-  SIM8CW: Object.freeze({ profileId: "friendly-ragchewer", personaName: "AKI", personaAge: 37 }),
-  SIM6JP: Object.freeze({ profileId: "youth-club", personaName: "MIO", personaAge: 19 }),
+  SIM8CW: Object.freeze({ profileId: "friendly-ragchewer", personaName: "DIEGO", personaAge: 37 }),
+  SIM6JP: Object.freeze({ profileId: "youth-club", personaName: "SORA", personaAge: 19 }),
   SIM4NZ: Object.freeze({ profileId: "patient-veteran", preferredWpm: 17, optionalQuestion: null, personaName: "LEE", personaAge: 63 }),
   SIM1IN: Object.freeze({ profileId: "careful-beginner", preferredWpm: 12, personaName: "KAI", personaAge: 27 }),
   SIM0BR: Object.freeze({ profileId: "friendly-ragchewer", preferredWpm: 19, optionalQuestion: null, personaName: "LUNA", personaAge: 41 }),
@@ -103,6 +103,14 @@ export function resolveOperatorProfile(npc = {}) {
     personaName: String(resolved.personaName ?? "OP").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) || "OP",
     personaAge: Math.min(120, Math.max(1, Math.floor(Number(resolved.personaAge) || 40))),
   };
+}
+
+export function qrsStepForNpc(npc = {}) {
+  const style = npc?.operatorStyle ?? resolveOperatorProfile(npc);
+  const patience = Number(style?.patience);
+  if (Number.isFinite(patience) && patience >= 85) return 4;
+  if (Number.isFinite(patience) && patience >= 60) return 3;
+  return 2;
 }
 
 export function withOperatorProfile(npc) {
