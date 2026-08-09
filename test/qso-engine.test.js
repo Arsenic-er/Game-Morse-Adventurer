@@ -19,6 +19,16 @@ function reachReportPhase(candidate = npc) {
   return onNpcPlaybackFinished(qso);
 }
 
+test("guided CQ validation accepts compact spacing and PSE K style", () => {
+  const qso = createQso({ npc, playerCallsign: "BH1ABC" });
+  for (const message of [
+    "CQCQDEBH1ABCBH1ABCK",
+    "CQ CQ DE BH1 ABC BH1 ABC PSE K",
+  ]) {
+    assert.deepEqual(validatePlayerMessage(qso, message), { valid: true, reason: null }, message);
+  }
+});
+
 test("completes the minimum QSO state machine", () => {
   let qso = createQso({ npc, playerCallsign: "SIM-K7QX", startedAt: "2026-07-15T00:00:00.000Z" });
   assert.equal(qso.phase, QSO_PHASES.PLAYER_CQ);

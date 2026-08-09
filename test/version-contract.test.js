@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const VERSION = "0.31.0";
+const VERSION = "0.31.1";
 
 function read(path) {
   return readFileSync(new URL(path, import.meta.url), "utf8");

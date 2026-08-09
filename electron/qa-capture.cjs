@@ -306,7 +306,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.31.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.31.1")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
   const languageStorageKey = "game-morse-adventurer.language.v1";
@@ -1386,7 +1386,7 @@ async function runQaCapture(window) {
   await capture(window, outputDir, shot("qso-npc-query"));
   await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-channel-notice="npcQuery"]', 10000);
 
-  const cqMessage = `CQ CQ DE ${playerIdentity.player} ${playerIdentity.player} K`;
+  const cqMessage = `CQCQDE${playerIdentity.player}${playerIdentity.player}PSEK`;
   await sendAutomaticText(window, cqMessage);
   await markStep("cq-keyed");
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);

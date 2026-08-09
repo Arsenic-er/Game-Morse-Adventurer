@@ -90,6 +90,21 @@ test("the same imperfect CQ is copied by a veteran but queried by a beginner", (
   assert.match(beginner.replyMessage, /AGN|QRZ|QRS|\?/);
 });
 
+test("spacing and PSE style variants remain copyable by every operator", () => {
+  for (const message of ["CQCQDEBH1ABCBH1ABCK", "CQ CQ DE BH1 ABC BH1 ABC PSE K"]) {
+    const assessment = assessCqTransmission({ message, playerCallsign: "BH1ABC", wpm: 18, rhythm: 90 });
+    for (const station of NPC_STATIONS) {
+      const decision = resolveRemoteCopy({
+        assessment,
+        npc: { ...station, finalLevel: 4 },
+        playerCallsign: "BH1ABC",
+        seed: `style:${message}:${station.callsign}`,
+      });
+      assert.equal(decision.outcome, "copied", `${message}:${station.callsign}:${decision.copyScore}`);
+    }
+  }
+});
+
 test("recognizable low-quality traffic can produce a general CQ without creating a copy", () => {
   const assessment = assessCqTransmission({
     message: "CQ T T K",

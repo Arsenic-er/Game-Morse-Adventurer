@@ -242,14 +242,12 @@ export function onNpcPlaybackFinished(qso, completedAt = new Date().toISOString(
 export function validatePlayerMessage(qso, message) {
   const tokens = tokenized(message);
   if (qso.phase === QSO_PHASES.PLAYER_CQ) {
-    const cqIndex = tokens.indexOf("CQ");
-    if (cqIndex < 0) return { valid: false, reason: "missingCq" };
-    if (!tokens.includes("DE")) return { valid: false, reason: "missingDe" };
-    if (!hasCallsign(tokens, qso.playerCallsign)) return { valid: false, reason: "missingPlayerCallsign" };
-    const deIndex = tokens.indexOf("DE");
-    const playerIndex = tokens.findIndex((token) => normalizeCallsign(token) === normalizeCallsign(qso.playerCallsign));
-    if (!(cqIndex < deIndex && deIndex < playerIndex)) return { valid: false, reason: "wrongCqOrder" };
-    if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
+    const assessment = assessCqTransmission({ message, playerCallsign: qso.playerCallsign });
+    if (assessment.intentScore < 55) return { valid: false, reason: "missingCq" };
+    if (assessment.deScore < 55) return { valid: false, reason: "missingDe" };
+    if (assessment.identityScore < 70) return { valid: false, reason: "missingPlayerCallsign" };
+    if (assessment.terminalScore < 100) return { valid: false, reason: "missingK" };
+    if (assessment.orderScore < 75) return { valid: false, reason: "wrongCqOrder" };
     return { valid: true, reason: null };
   }
   if (qso.phase === QSO_PHASES.PLAYER_RST_AND_73) {
