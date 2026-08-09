@@ -220,9 +220,10 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   box-shadow: 3px 3px 0 rgba(0, 0, 0, .6), inset 0 0 0 2px #0a2830;
 }
 
+.contact-card-main { display: block; }
 .contact-card .panel-kicker { color: #72bfc1; font-size: 11px; }
 .contact-card h2 { margin: 7px 0 12px; color: #83e3df; font-size: 28px; text-shadow: 3px 3px 0 #01080b; }
-.contact-card > small { color: #5e9292; font-size: 10px; }
+.contact-card small { color: #5e9292; font-size: 10px; }
 .contact-card dl { gap: 7px; font-size: 12px; }
 .contact-card dt { color: #64a9ac; }
 .contact-card dd { color: #e0e7db; }

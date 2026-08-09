@@ -1,5 +1,7 @@
 import { MORSE_DECODE, clamp, normalizeCwText } from "./morse.js";
 
+export const CLEAR_INPUT_GESTURE_LENGTH = 7;
+
 function median(values) {
   if (!values.length) return 0;
   const ordered = [...values].sort((left, right) => left - right);
@@ -120,4 +122,28 @@ export function analyzeKeying(pulses, { fallbackWpm = 18, targetText = "" } = {}
     rhythm: Math.round(100 * (1 - (errors.length ? errors.reduce((total, error) => total + error, 0) / errors.length : 1))),
     pulseCount: ordered.length,
   };
+}
+
+export function detectClearInputGesture(
+  pulses,
+  { analysis = null, fallbackWpm = 18, threshold = CLEAR_INPUT_GESTURE_LENGTH } = {},
+) {
+  const requiredCount = Math.max(2, Math.trunc(Number(threshold) || CLEAR_INPUT_GESTURE_LENGTH));
+  const ordered = [...(pulses ?? [])]
+    .filter((pulse) => Number.isFinite(pulse.downAt) && Number.isFinite(pulse.upAt) && pulse.upAt > pulse.downAt)
+    .sort((left, right) => left.downAt - right.downAt);
+  if (ordered.length < requiredCount) return null;
+
+  const resolvedAnalysis = analysis ?? analyzeKeying(ordered, { fallbackWpm });
+  const recentMorse = resolvedAnalysis.morse.slice(-requiredCount);
+  const symbol = recentMorse[0];
+  if ((symbol !== "." && symbol !== "-") || recentMorse !== symbol.repeat(requiredCount)) return null;
+
+  const recentPulses = ordered.slice(-requiredCount);
+  const continuityLimit = 2.2 * resolvedAnalysis.dotMs;
+  for (let index = 1; index < recentPulses.length; index += 1) {
+    const gapMs = Math.max(0, recentPulses[index].downAt - recentPulses[index - 1].upAt);
+    if (gapMs >= continuityLimit) return null;
+  }
+  return { symbol, count: requiredCount };
 }

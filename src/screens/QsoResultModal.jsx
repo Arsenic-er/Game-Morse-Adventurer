@@ -74,7 +74,7 @@ const REVIEW_TEXT = {
     guidance: "引导级别", full: "完整引导", hints: "仅提示", off: "关闭", visualAssist: "视觉辅助", used: "已使用", unused: "未使用",
     independent: "独立值守", qualified: "达成", notQualified: "未达成", unavailable: "旧日志未记录", rewardBreakdown: "奖励拆分",
     baseReward: "基础奖励", independentBonus: "独立值守奖励", totalReward: "合计",
-    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交换 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼号", wrongCqOrder: "CQ 电文顺序错误", missingK: "结尾缺少 K", invalidAgn: "重发请求必须为 AGN K", missingCallsign: "缺少双方呼号", invalidRst: "RST 格式无效", missing73: "缺少 73", wrongReplyOrder: "回复电文顺序错误", notWaitingForPlayer: "当前阶段不接受发报",
+    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交换 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼号", wrongCqOrder: "CQ 电文顺序错误", missingK: "结尾缺少 K", invalidAgn: "重发请求必须为 AGN K", invalidQrs: "减速请求须为 QRS K / QRS PSE K / PSE QRS K", missingCallsign: "缺少双方呼号", invalidRst: "RST 格式无效", missing73: "缺少 73", wrongReplyOrder: "回复电文顺序错误", notWaitingForPlayer: "当前阶段不接受发报",
   },
   "zh-TW": {
     title: "操作複盤", empty: "舊版日誌沒有逐次操作記錄", stage: "階段", message: "電文", reason: "原因",
@@ -82,7 +82,7 @@ const REVIEW_TEXT = {
     guidance: "引導級別", full: "完整引導", hints: "僅提示", off: "關閉", visualAssist: "視覺輔助", used: "已使用", unused: "未使用",
     independent: "獨立值守", qualified: "達成", notQualified: "未達成", unavailable: "舊日誌未記錄", rewardBreakdown: "獎勵拆分",
     baseReward: "基礎獎勵", independentBonus: "獨立值守獎勵", totalReward: "合計",
-    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交換 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼號", wrongCqOrder: "CQ 電文順序錯誤", missingK: "結尾缺少 K", invalidAgn: "重發請求必須為 AGN K", missingCallsign: "缺少雙方呼號", invalidRst: "RST 格式無效", missing73: "缺少 73", wrongReplyOrder: "回覆電文順序錯誤", notWaitingForPlayer: "目前階段不接受發報",
+    PLAYER_CQ: "呼叫 CQ", PLAYER_RST_AND_73: "交換 RST / 73", missingCq: "缺少 CQ", missingDe: "缺少 DE", missingPlayerCallsign: "缺少自己的呼號", wrongCqOrder: "CQ 電文順序錯誤", missingK: "結尾缺少 K", invalidAgn: "重發請求必須為 AGN K", invalidQrs: "減速請求須為 QRS K / QRS PSE K / PSE QRS K", missingCallsign: "缺少雙方呼號", invalidRst: "RST 格式無效", missing73: "缺少 73", wrongReplyOrder: "回覆電文順序錯誤", notWaitingForPlayer: "目前階段不接受發報",
   },
   ja: {
     title: "運用レビュー", empty: "旧形式のログには操作履歴がありません", stage: "段階", message: "電文", reason: "理由",
@@ -90,7 +90,7 @@ const REVIEW_TEXT = {
     guidance: "ガイド", full: "フルガイド", hints: "ヒントのみ", off: "オフ", visualAssist: "視覚補助", used: "使用", unused: "未使用",
     independent: "単独運用", qualified: "達成", notQualified: "未達成", unavailable: "旧ログは未記録", rewardBreakdown: "報酬内訳",
     baseReward: "基本報酬", independentBonus: "単独運用ボーナス", totalReward: "合計",
-    PLAYER_CQ: "CQ 呼出", PLAYER_RST_AND_73: "RST / 73 交換", missingCq: "CQ がありません", missingDe: "DE がありません", missingPlayerCallsign: "自局コールサインがありません", wrongCqOrder: "CQ 電文の順序が違います", missingK: "末尾の K がありません", invalidAgn: "再送要求は AGN K にしてください", missingCallsign: "両局のコールサインが必要です", invalidRst: "RST 形式が無効です", missing73: "73 がありません", wrongReplyOrder: "応答電文の順序が違います", notWaitingForPlayer: "現在は送信を受け付けていません",
+    PLAYER_CQ: "CQ 呼出", PLAYER_RST_AND_73: "RST / 73 交換", missingCq: "CQ がありません", missingDe: "DE がありません", missingPlayerCallsign: "自局コールサインがありません", wrongCqOrder: "CQ 電文の順序が違います", missingK: "末尾の K がありません", invalidAgn: "再送要求は AGN K にしてください", invalidQrs: "減速要求は QRS K / QRS PSE K / PSE QRS K にしてください", missingCallsign: "両局のコールサインが必要です", invalidRst: "RST 形式が無効です", missing73: "73 がありません", wrongReplyOrder: "応答電文の順序が違います", notWaitingForPlayer: "現在は送信を受け付けていません",
   },
   en: {
     title: "Operating Review", empty: "No attempt history is available in this legacy log", stage: "Stage", message: "Message", reason: "Reason",
@@ -98,7 +98,7 @@ const REVIEW_TEXT = {
     guidance: "Guidance", full: "Full", hints: "Hints only", off: "Off", visualAssist: "Visual assist", used: "Used", unused: "Not used",
     independent: "Independent watch", qualified: "Qualified", notQualified: "Not qualified", unavailable: "Not recorded in legacy log", rewardBreakdown: "Reward breakdown",
     baseReward: "Base reward", independentBonus: "Independent-watch bonus", totalReward: "Total",
-    PLAYER_CQ: "Call CQ", PLAYER_RST_AND_73: "Exchange RST / 73", missingCq: "CQ is missing", missingDe: "DE is missing", missingPlayerCallsign: "Your callsign is missing", wrongCqOrder: "CQ message is out of order", missingK: "Final K is missing", invalidAgn: "A repeat request must be AGN K", missingCallsign: "Both callsigns are required", invalidRst: "RST format is invalid", missing73: "73 is missing", wrongReplyOrder: "Reply message is out of order", notWaitingForPlayer: "This stage is not accepting a transmission",
+    PLAYER_CQ: "Call CQ", PLAYER_RST_AND_73: "Exchange RST / 73", missingCq: "CQ is missing", missingDe: "DE is missing", missingPlayerCallsign: "Your callsign is missing", wrongCqOrder: "CQ message is out of order", missingK: "Final K is missing", invalidAgn: "A repeat request must be AGN K", invalidQrs: "A slowdown request must be QRS K / QRS PSE K / PSE QRS K", missingCallsign: "Both callsigns are required", invalidRst: "RST format is invalid", missing73: "73 is missing", wrongReplyOrder: "Reply message is out of order", notWaitingForPlayer: "This stage is not accepting a transmission",
   },
   es: {
     title: "Revisión de operación", empty: "Este registro antiguo no contiene historial de intentos", stage: "Etapa", message: "Mensaje", reason: "Motivo",
@@ -106,7 +106,7 @@ const REVIEW_TEXT = {
     guidance: "Guía", full: "Completa", hints: "Solo pistas", off: "Desactivada", visualAssist: "Ayuda visual", used: "Usada", unused: "No usada",
     independent: "Guardia independiente", qualified: "Apto", notQualified: "No apto", unavailable: "No consta en el registro antiguo", rewardBreakdown: "Desglose de recompensa",
     baseReward: "Recompensa base", independentBonus: "Bono de guardia independiente", totalReward: "Total",
-    PLAYER_CQ: "Llamar CQ", PLAYER_RST_AND_73: "Intercambiar RST / 73", missingCq: "Falta CQ", missingDe: "Falta DE", missingPlayerCallsign: "Falta tu indicativo", wrongCqOrder: "El mensaje CQ está desordenado", missingK: "Falta la K final", invalidAgn: "La petición de repetición debe ser AGN K", missingCallsign: "Se requieren ambos indicativos", invalidRst: "El formato RST no es válido", missing73: "Falta 73", wrongReplyOrder: "El mensaje de respuesta está desordenado", notWaitingForPlayer: "Esta etapa no acepta una transmisión",
+    PLAYER_CQ: "Llamar CQ", PLAYER_RST_AND_73: "Intercambiar RST / 73", missingCq: "Falta CQ", missingDe: "Falta DE", missingPlayerCallsign: "Falta tu indicativo", wrongCqOrder: "El mensaje CQ está desordenado", missingK: "Falta la K final", invalidAgn: "La petición de repetición debe ser AGN K", invalidQrs: "La petición de reducción debe ser QRS K / QRS PSE K / PSE QRS K", missingCallsign: "Se requieren ambos indicativos", invalidRst: "El formato RST no es válido", missing73: "Falta 73", wrongReplyOrder: "El mensaje de respuesta está desordenado", notWaitingForPlayer: "Esta etapa no acepta una transmisión",
   },
   de: {
     title: "Betriebsauswertung", empty: "Dieses ältere Log enthält keinen Versuchsverlauf", stage: "Phase", message: "Nachricht", reason: "Grund",
@@ -114,7 +114,7 @@ const REVIEW_TEXT = {
     guidance: "Führung", full: "Vollständig", hints: "Nur Hinweise", off: "Aus", visualAssist: "Visuelle Hilfe", used: "Benutzt", unused: "Nicht benutzt",
     independent: "Selbstständige Wache", qualified: "Bestanden", notQualified: "Nicht bestanden", unavailable: "Im älteren Log nicht erfasst", rewardBreakdown: "Belohnungsaufschlüsselung",
     baseReward: "Grundbelohnung", independentBonus: "Bonus für selbstständige Wache", totalReward: "Gesamt",
-    PLAYER_CQ: "CQ rufen", PLAYER_RST_AND_73: "RST / 73 austauschen", missingCq: "CQ fehlt", missingDe: "DE fehlt", missingPlayerCallsign: "Dein Rufzeichen fehlt", wrongCqOrder: "CQ-Nachricht hat die falsche Reihenfolge", missingK: "Abschließendes K fehlt", invalidAgn: "Eine Wiederholungsanfrage muss AGN K sein", missingCallsign: "Beide Rufzeichen sind erforderlich", invalidRst: "RST-Format ist ungültig", missing73: "73 fehlt", wrongReplyOrder: "Antwort hat die falsche Reihenfolge", notWaitingForPlayer: "Diese Phase nimmt keine Sendung an",
+    PLAYER_CQ: "CQ rufen", PLAYER_RST_AND_73: "RST / 73 austauschen", missingCq: "CQ fehlt", missingDe: "DE fehlt", missingPlayerCallsign: "Dein Rufzeichen fehlt", wrongCqOrder: "CQ-Nachricht hat die falsche Reihenfolge", missingK: "Abschließendes K fehlt", invalidAgn: "Eine Wiederholungsanfrage muss AGN K sein", invalidQrs: "Eine Tempoanfrage muss QRS K / QRS PSE K / PSE QRS K sein", missingCallsign: "Beide Rufzeichen sind erforderlich", invalidRst: "RST-Format ist ungültig", missing73: "73 fehlt", wrongReplyOrder: "Antwort hat die falsche Reihenfolge", notWaitingForPlayer: "Diese Phase nimmt keine Sendung an",
   },
   ru: {
     title: "Разбор работы", empty: "В старой записи нет истории попыток", stage: "Этап", message: "Сообщение", reason: "Причина",
@@ -122,7 +122,7 @@ const REVIEW_TEXT = {
     guidance: "Подсказки", full: "Полные", hints: "Только намёки", off: "Выкл.", visualAssist: "Визуальная помощь", used: "Использована", unused: "Не использована",
     independent: "Самостоятельная вахта", qualified: "Зачёт", notQualified: "Нет зачёта", unavailable: "Нет в старой записи", rewardBreakdown: "Состав награды",
     baseReward: "Базовая награда", independentBonus: "Бонус самостоятельной вахты", totalReward: "Итого",
-    PLAYER_CQ: "Вызвать CQ", PLAYER_RST_AND_73: "Обменяться RST / 73", missingCq: "Отсутствует CQ", missingDe: "Отсутствует DE", missingPlayerCallsign: "Отсутствует ваш позывной", wrongCqOrder: "Неверный порядок сообщения CQ", missingK: "Нет завершающего K", invalidAgn: "Запрос повтора должен быть AGN K", missingCallsign: "Нужны оба позывных", invalidRst: "Неверный формат RST", missing73: "Отсутствует 73", wrongReplyOrder: "Неверный порядок ответа", notWaitingForPlayer: "На этом этапе передача не принимается",
+    PLAYER_CQ: "Вызвать CQ", PLAYER_RST_AND_73: "Обменяться RST / 73", missingCq: "Отсутствует CQ", missingDe: "Отсутствует DE", missingPlayerCallsign: "Отсутствует ваш позывной", wrongCqOrder: "Неверный порядок сообщения CQ", missingK: "Нет завершающего K", invalidAgn: "Запрос повтора должен быть AGN K", invalidQrs: "Запрос снижения скорости: QRS K / QRS PSE K / PSE QRS K", missingCallsign: "Нужны оба позывных", invalidRst: "Неверный формат RST", missing73: "Отсутствует 73", wrongReplyOrder: "Неверный порядок ответа", notWaitingForPlayer: "На этом этапе передача не принимается",
   },
 };
 

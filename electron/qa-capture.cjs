@@ -126,6 +126,21 @@ async function waitForMissing(window, selector, timeout = 10000) {
   return window.webContents.executeJavaScript(source, true);
 }
 
+async function assertNoNpcPortraitRuntime(window, label) {
+  const evidence = await window.webContents.executeJavaScript(`(() => ({
+    elements: Array.from(document.querySelectorAll('.npc-portrait, [data-npc-expression], img[src*="assets/characters"]'), (node) => ({
+      tag: node.tagName,
+      className: node.className,
+      src: node.getAttribute?.("src") ?? null,
+    })),
+    resources: performance.getEntriesByType("resource")
+      .map((entry) => entry.name)
+      .filter((name) => /assets[\\/]characters|npc-portrait/i.test(name)),
+  }))()`, true);
+  if (evidence.elements.length || evidence.resources.length) {
+    throw new Error(`NPC portrait runtime leak at ${label}: ${JSON.stringify(evidence)}`);
+  }
+}
 const MORSE = Object.freeze({
   A: ".-", B: "-...", C: "-.-.", D: "-..", E: ".", F: "..-.", G: "--.", H: "....", I: "..", J: ".---",
   K: "-.-", L: ".-..", M: "--", N: "-.", O: "---", P: ".--.", Q: "--.-", R: ".-.", S: "...", T: "-",
@@ -188,6 +203,34 @@ async function sendAutomaticText(window, text, wpm = 18) {
     if (wordIndex < words.length - 1) await delay(dotMs * 7 + 25);
   }
   await delay(180);
+}
+
+async function sendAutomaticRun(window, symbol, count, { expectClear = false } = {}) {
+  if (symbol !== "." && symbol !== "-") throw new Error(`Unsupported QA automatic-key symbol: ${symbol}`);
+  const eventCode = symbol === "." ? "KeyZ" : "KeyX";
+  const key = symbol === "." ? "z" : "x";
+  for (let index = 0; index < count; index += 1) {
+    const previousPulseCount = await window.webContents.executeJavaScript(
+      'Number(document.querySelector(".station-screen")?.dataset.pulseCount || 0)',
+      true,
+    );
+    await window.webContents.executeJavaScript(`(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: ${JSON.stringify(eventCode)}, key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: ${JSON.stringify(eventCode)}, key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }));
+    })()`, true);
+    const shouldClear = expectClear && index === count - 1;
+    const accepted = await window.webContents.executeJavaScript(`new Promise((resolve) => {
+      const started = Date.now();
+      const timer = setInterval(() => {
+        const current = Number(document.querySelector(".station-screen")?.dataset.pulseCount || 0);
+        if (${shouldClear} ? current === 0 : current > ${previousPulseCount}) { clearInterval(timer); resolve(true); }
+        else if (Date.now() - started > 3000) { clearInterval(timer); resolve(false); }
+      }, 20);
+    })`, true);
+    if (!accepted) throw new Error(`Automatic ${symbol} clear-gesture pulse was dropped at ${index + 1}/${count}`);
+    await delay(12);
+  }
+  await delay(120);
 }
 
 async function assertHeldAutomaticKey(window, { code, key, holdMs, minimumPulses }) {
@@ -263,7 +306,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.28.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.31.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
   const languageStorageKey = "game-morse-adventurer.language.v1";
@@ -1187,6 +1230,7 @@ async function runQaCapture(window) {
   })()`, true);
   await click(window, ".hotspot-station");
   await waitFor(window, ".station-screen");
+  await assertNoNpcPortraitRuntime(window, "station-entry");
   await waitFor(window, '[data-testid="qso-briefing-modal"]');
   await capture(window, outputDir, shot("qso-duty-briefing"));
   await click(window, '[data-action="start-guided-watch"]');
@@ -1299,6 +1343,24 @@ async function runQaCapture(window) {
     throw new Error(`Clear input mutated logs or retained input: ${JSON.stringify({ beforeClearInput, afterClearInput })}`);
   }
   await capture(window, outputDir, shot("station-input-cleared"));
+
+  await sendAutomaticRun(window, ".", 7, { expectClear: true });
+  const dotClearState = await window.webContents.executeJavaScript(`(() => ({
+    pulseCount: Number(document.querySelector(".station-screen")?.dataset.pulseCount || 0),
+    decoded: document.querySelector(".station-screen")?.dataset.decoded ?? "",
+  }))()`, true);
+  if (dotClearState.pulseCount !== 0 || dotClearState.decoded) {
+    throw new Error(`Seven-dot clear gesture failed: ${JSON.stringify(dotClearState)}`);
+  }
+
+  await sendAutomaticRun(window, "-", 7, { expectClear: true });
+  const dashClearState = await window.webContents.executeJavaScript(`(() => ({
+    pulseCount: Number(document.querySelector(".station-screen")?.dataset.pulseCount || 0),
+    decoded: document.querySelector(".station-screen")?.dataset.decoded ?? "",
+  }))()`, true);
+  if (dashClearState.pulseCount !== 0 || dashClearState.decoded) {
+    throw new Error(`Seven-dash clear gesture failed: ${JSON.stringify(dashClearState)}`);
+  }
   const markStep = (step) => fs.writeFile(path.join(outputDir, "qa-step.txt"), `${step}\n`, "utf8");
   await markStep("station-listening");
 
@@ -1310,6 +1372,7 @@ async function runQaCapture(window) {
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
   await click(window, '[data-action="submit-reply"]');
   await waitFor(window, '[data-qso-phase="NPC_REPLY"][data-copy-outcome="query"][data-reply-disposition="query"]', 10000);
+  await assertNoNpcPortraitRuntime(window, "npc-query");
   const queryState = await window.webContents.executeJavaScript(`(() => ({
     quality: Number(document.querySelector(".station-screen")?.dataset.cqQuality),
     outcome: document.querySelector(".station-screen")?.dataset.copyOutcome ?? null,
@@ -1364,6 +1427,7 @@ async function runQaCapture(window) {
   await click(window, '[data-action="cancel-qso-leave"]');
   await waitForMissing(window, '[data-testid="qso-leave-dialog"]');
   await waitFor(window, '[data-qso-phase="PLAYER_RST_AND_73"]', 10000);
+  await assertNoNpcPortraitRuntime(window, "player-report");
   const firstRecoveryState = await window.webContents.executeJavaScript(`(() => ({
     failures: window.cwgameSystem?.getQaIncomingFailureCount?.() ?? 0,
     recovering: document.querySelector(".station-screen")?.dataset.npcPlaybackRecovering ?? null,
@@ -1436,6 +1500,7 @@ async function runQaCapture(window) {
     await click(window, '[data-action="submit-reply"]');
   }
   await waitFor(window, '[data-qso-phase="PLAYER_OPTIONAL_ANSWER"], .qso-result-modal.success', 30000);
+  await assertNoNpcPortraitRuntime(window, "optional-exchange");
   const optionalExchangeQa = await window.webContents.executeJavaScript(`(() => {
     const station = document.querySelector(".station-screen");
     return {
@@ -1443,6 +1508,7 @@ async function runQaCapture(window) {
       question: station?.dataset.optionalExchangeQuestion ?? null,
       outcome: station?.dataset.optionalExchangeOutcome ?? null,
       repeats: Number(station?.dataset.optionalExchangeRepeats),
+      replyWpm: Number(station?.dataset.replyWpm),
     };
   })()`, true);
   if (optionalExchangeQa.phase !== "PLAYER_OPTIONAL_ANSWER"
@@ -1451,15 +1517,23 @@ async function runQaCapture(window) {
     throw new Error(`QA responder did not enter a valid optional exchange: ${JSON.stringify(optionalExchangeQa)}`);
   }
   await capture(window, outputDir, shot("qso-optional-query"));
-  await sendAutomaticText(window, "AGN K");
+  await sendAutomaticText(window, "QRS K");
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
   await click(window, '[data-action="submit-reply"]');
-  await waitFor(window, '[data-qso-phase="PLAYER_OPTIONAL_ANSWER"][data-optional-exchange-repeats="1"]', 10000);
-  const replayedOptionalQuestion = await window.webContents.executeJavaScript(
-    'document.querySelector(".station-screen")?.dataset.optionalExchangeQuestion ?? null', true,
-  );
-  if (replayedOptionalQuestion !== optionalExchangeQa.question) {
-    throw new Error(`Optional AGN K changed the question: ${JSON.stringify({ optionalExchangeQa, replayedOptionalQuestion })}`);
+  await waitFor(window, '[data-qso-phase="PLAYER_OPTIONAL_ANSWER"][data-optional-exchange-repeats="1"]', 30000);
+  await assertNoNpcPortraitRuntime(window, "optional-qrs-replay");
+  const replayedOptionalQuestion = await window.webContents.executeJavaScript(`(() => {
+    const station = document.querySelector(".station-screen");
+    return {
+      question: station?.dataset.optionalExchangeQuestion ?? null,
+      replyWpm: Number(station?.dataset.replyWpm),
+    };
+  })()`, true);
+  const expectedSlowerWpm = optionalExchangeQa.replyWpm > 5
+    ? replayedOptionalQuestion.replyWpm < optionalExchangeQa.replyWpm
+    : replayedOptionalQuestion.replyWpm === 5;
+  if (replayedOptionalQuestion.question !== optionalExchangeQa.question || !expectedSlowerWpm) {
+    throw new Error(`Optional QRS K did not preserve and slow the question: ${JSON.stringify({ optionalExchangeQa, replayedOptionalQuestion })}`);
   }
   const optionalAnswerText = ({
     power: "PWR 4321 W K",
@@ -1472,6 +1546,7 @@ async function runQaCapture(window) {
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
   await click(window, '[data-action="submit-reply"]');
   await waitFor(window, ".qso-result-modal.success", 30000);
+  await assertNoNpcPortraitRuntime(window, "qso-complete");
   await waitFor(window, ".qso-operation-review");
   await waitFor(window, ".qso-attempt-history > li.accepted");
   await waitFor(window, ".qso-attempt-history > li.transmitted");

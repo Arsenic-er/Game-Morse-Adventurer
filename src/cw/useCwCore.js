@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CwAudioEngine } from "./audioEngine.js";
 import { AutomaticKeyer, normalizeAutomaticKeyWpm } from "./automaticKeyer.js";
-import { analyzeKeying } from "./inputAnalyzer.js";
+import { analyzeKeying, detectClearInputGesture } from "./inputAnalyzer.js";
 import { dotDurationFromWpm, encodeTextToEvents, pulsesToPlaybackEvents } from "./morse.js";
 
 const EMPTY_ANALYSIS = Object.freeze({ decoded: "", morse: "", wpm: 18, dotMs: dotDurationFromWpm(18), accuracy: 0, rhythm: 0, pulseCount: 0 });
@@ -10,7 +10,7 @@ function now() {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
-export function useCwCore({ targetText = "CQ", automaticWpm = 18 } = {}) {
+export function useCwCore({ targetText = "CQ", automaticWpm = 18, clearGestureLength = 0 } = {}) {
   const engineRef = useRef(null);
   const pulsesRef = useRef([]);
   const manualStartRef = useRef(null);
@@ -37,9 +37,21 @@ export function useCwCore({ targetText = "CQ", automaticWpm = 18 } = {}) {
     pulsesRef.current = nextPulses;
     const fallbackWpm = pulse.source === "automatic" ? automaticWpmRef.current : detectedWpmRef.current;
     const nextAnalysis = analyzeKeying(nextPulses, { fallbackWpm, targetText });
+    const clearGesture = clearGestureLength > 0
+      ? detectClearInputGesture(nextPulses, { analysis: nextAnalysis, threshold: clearGestureLength })
+      : null;
+    if (clearGesture) {
+      pulsesRef.current = [];
+      detectedWpmRef.current = 18;
+      setAnalysis(EMPTY_ANALYSIS);
+      if (pulse.source === "automatic") {
+        window.setTimeout(() => automaticKeyerRef.current?.stop(), 0);
+      }
+      return;
+    }
     if (pulse.source !== "automatic") detectedWpmRef.current = nextAnalysis.wpm;
     setAnalysis(nextAnalysis);
-  }, [targetText]);
+  }, [clearGestureLength, targetText]);
   appendPulseRef.current = appendPulse;
 
   useEffect(() => {
