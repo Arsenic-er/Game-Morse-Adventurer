@@ -11,43 +11,43 @@ import { MAX_SAVE_SLOTS, createSave, formatSaveTime, isValidCallsign, sanitizeCa
 const TEXT = {
   "zh-CN": {
     title: "读取存档", save: "存档", empty: "空存档·新建", lastSaved: "最后保存", callsign: "呼号", equipment: "设备",
-    antenna: "天线", credits: "信用点", location: "初始地点", load: "载入存档", create: "建立并载入", back: "返回",
+    antenna: "天线", money: "金钱", location: "初始地点", load: "载入存档", create: "建立并载入", back: "返回",
     enterCall: "输入电台呼号", callRule: "仅限 A–Z / 0–9，最多 7 位，自动转为大写", chooseRegion: "选择地区", chooseLocation: "选择地点",
     chooseAntenna: "初始天线", starterIncluded: "初始装备已包含半波偶极天线", noSave: "选择一个空存档开始新的值守记录", delete: "删除存档", deleteConfirm: "确定删除这个存档吗？",
   },
   "zh-TW": {
     title: "讀取存檔", save: "存檔", empty: "空存檔·新建", lastSaved: "最後儲存", callsign: "呼號", equipment: "設備",
-    antenna: "天線", credits: "信用點", location: "初始地點", load: "載入存檔", create: "建立並載入", back: "返回",
+    antenna: "天線", money: "金錢", location: "初始地點", load: "載入存檔", create: "建立並載入", back: "返回",
     enterCall: "輸入電臺呼號", callRule: "僅限 A–Z / 0–9，最多 7 位，自動轉為大寫", chooseRegion: "選擇地區", chooseLocation: "選擇地點",
     chooseAntenna: "初始天線", starterIncluded: "初始裝備已包含半波偶極天線", noSave: "選擇一個空存檔開始新的值守記錄", delete: "刪除存檔", deleteConfirm: "確定刪除這個存檔嗎？",
   },
   ja: {
     title: "セーブ選択", save: "セーブ", empty: "空き·新規", lastSaved: "最終保存", callsign: "コールサイン", equipment: "装置",
-    antenna: "アンテナ", credits: "クレジット", location: "開始地点", load: "ロード", create: "作成して開始", back: "戻る",
+    antenna: "アンテナ", money: "所持金", location: "開始地点", load: "ロード", create: "作成して開始", back: "戻る",
     enterCall: "コールサインを入力", callRule: "A–Z / 0–9 のみ、最大7文字、自動大文字", chooseRegion: "地域を選択", chooseLocation: "地点を選択",
     chooseAntenna: "初期アンテナ", starterIncluded: "初期装備に半波長ダイポールが含まれます", noSave: "空きスロットから新しい運用記録を作成", delete: "セーブ削除", deleteConfirm: "このセーブを削除しますか？",
   },
   en: {
     title: "Load Save", save: "Save", empty: "Empty · New", lastSaved: "Last saved", callsign: "Callsign", equipment: "Equipment",
-    antenna: "Antenna", credits: "Credits", location: "Starting location", load: "Load Save", create: "Create & Load", back: "Back",
+    antenna: "Antenna", money: "Money", location: "Starting location", load: "Load Save", create: "Create & Load", back: "Back",
     enterCall: "Enter station callsign", callRule: "A–Z / 0–9 only, maximum 7 characters, auto uppercase", chooseRegion: "Choose region", chooseLocation: "Choose location",
     chooseAntenna: "Starting antenna", starterIncluded: "A half-wave dipole is included with the starter station", noSave: "Choose an empty slot to begin a new station record", delete: "Delete save", deleteConfirm: "Delete this save?",
   },
   es: {
     title: "Cargar partida", save: "Partida", empty: "Vacía · Nueva", lastSaved: "Último guardado", callsign: "Indicativo", equipment: "Equipo",
-    antenna: "Antena", credits: "Créditos", location: "Ubicación inicial", load: "Cargar partida", create: "Crear y cargar", back: "Volver",
+    antenna: "Antena", money: "Dinero", location: "Ubicación inicial", load: "Cargar partida", create: "Crear y cargar", back: "Volver",
     enterCall: "Introduce el indicativo de la estación", callRule: "Solo A–Z / 0–9, máximo 7 caracteres, mayúsculas automáticas", chooseRegion: "Elegir región", chooseLocation: "Elegir ubicación",
     chooseAntenna: "Antena inicial", starterIncluded: "La estación inicial incluye un dipolo de media onda", noSave: "Elige una ranura vacía para crear un nuevo registro de estación", delete: "Borrar partida", deleteConfirm: "¿Borrar esta partida?",
   },
   de: {
     title: "Spielstand laden", save: "Spielstand", empty: "Leer · Neu", lastSaved: "Zuletzt gespeichert", callsign: "Rufzeichen", equipment: "Ausrüstung",
-    antenna: "Antenne", credits: "Kredite", location: "Startstandort", load: "Spielstand laden", create: "Erstellen und laden", back: "Zurück",
+    antenna: "Antenne", money: "Geld", location: "Startstandort", load: "Spielstand laden", create: "Erstellen und laden", back: "Zurück",
     enterCall: "Stationsrufzeichen eingeben", callRule: "Nur A–Z / 0–9, höchstens 7 Zeichen, automatisch großgeschrieben", chooseRegion: "Region wählen", chooseLocation: "Standort wählen",
     chooseAntenna: "Startantenne", starterIncluded: "Die Startstation enthält einen Halbwellendipol", noSave: "Wähle einen leeren Platz für einen neuen Stationsdatensatz", delete: "Spielstand löschen", deleteConfirm: "Diesen Spielstand löschen?",
   },
   ru: {
     title: "Загрузить сохранение", save: "Сохранение", empty: "Пусто · Новое", lastSaved: "Последнее сохранение", callsign: "Позывной", equipment: "Оборудование",
-    antenna: "Антенна", credits: "Кредиты", location: "Начальное место", load: "Загрузить", create: "Создать и загрузить", back: "Назад",
+    antenna: "Антенна", money: "Деньги", location: "Начальное место", load: "Загрузить", create: "Создать и загрузить", back: "Назад",
     enterCall: "Введите позывной станции", callRule: "Только A–Z / 0–9, не более 7 символов, автоматический верхний регистр", chooseRegion: "Выберите регион", chooseLocation: "Выберите место",
     chooseAntenna: "Начальная антенна", starterIncluded: "В начальную станцию входит полуволновой диполь", noSave: "Выберите пустую ячейку, чтобы создать запись станции", delete: "Удалить сохранение", deleteConfirm: "Удалить это сохранение?",
   },
@@ -142,7 +142,7 @@ export function SaveSelectScreen({
             <dl className="save-facts">
               <div><dt><Radio size={22} />{t.equipment}</dt><dd>{equipmentName(getTransmitter(selectedSave.equipmentId), language)} · {equipmentName(getKeyOption(selectedSave.keyType), language)}{selectedSave.keyType === "automatic" ? ` · ${selectedSave.automaticKeyWpm} WPM` : ""}</dd></div>
               <div><dt><Radio size={22} />{t.antenna}</dt><dd>{antennaName(selectedAntenna, language)}</dd></div>
-              <div><dt><Coins size={22} />{t.credits}</dt><dd>{selectedSave.credits.toLocaleString()}</dd></div>
+              <div><dt><Coins size={22} />{t.money}</dt><dd>{selectedSave.money.toLocaleString()}</dd></div>
             </dl>
           </> : <>
             <div className="save-page-heading"><span>{t.empty}</span><span>{t.noSave}</span></div>

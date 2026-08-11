@@ -40,8 +40,18 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   assert.deepEqual(save.ownedAntennas, ["dipole"]);
   assert.deepEqual(save.accessories, []);
   assert.equal(save.accessoryId, "none");
-  assert.equal(save.credits, 0);
+  assert.equal(save.money, 0);
   assert.deepEqual(save.qsoLogs, []);
+  assert.equal(save.achievementRewardsVersion, 1);
+  assert.deepEqual(save.claimedAchievementRewards, []);
+  assert.deepEqual(save.knownOperatorNames, []);
+  assert.equal(save.missionStateVersion, 1);
+  assert.deepEqual(save.missionState, {
+    version: 1,
+    activeMissions: [],
+    claimedMissionIds: [],
+    history: [],
+  });
   assert.deepEqual(save.qsoRecords, {
     total: 0,
     longestDistanceKm: 0,
@@ -80,9 +90,19 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
   assert.equal(save.keyType, "manual");
   assert.equal(save.automaticKeyWpm, DEFAULT_AUTOMATIC_KEY_WPM);
   assert.equal(save.equipmentId, "squid-01");
-  assert.equal(save.credits, 12);
+  assert.equal(save.money, 12);
   assert.equal(save.qsoLogs.length, 1);
+  assert.equal(save.achievementRewardsVersion, 1);
+  assert.deepEqual(save.claimedAchievementRewards, ["first-qso", "dx-5000"]);
+  assert.equal("credits" in save, false);
   assert.equal(save.qsoLogs[0].id, "legacy-qso");
+  assert.equal(save.missionStateVersion, 1);
+  assert.deepEqual(save.missionState, {
+    version: 1,
+    activeMissions: [],
+    claimedMissionIds: [],
+    history: [],
+  });
   assert.equal(save.qsoLogs[0].callsign, "SIM7QX");
   assert.equal(save.qsoLogs[0].version, QSO_LOG_VERSION);
   assert.equal(save.qsoLogs[0].rewardBreakdown, null);
@@ -287,7 +307,7 @@ test("falls back to legacy QSO entries when the current log field is malformed",
 test("preserves evicted settlement ids across a save round trip", () => {
   const storage = storageStub();
   const save = createSave({ callsign: "BH1ABC", locationId: "china-beijing-outskirts" });
-  save.credits = 100;
+  save.money = 100;
   save.qsoRecords = {
     total: 1,
     longestDistanceKm: 500,
@@ -312,28 +332,28 @@ test("preserves evicted settlement ids across a save round trip", () => {
     credits: 100,
   });
   assert.equal(retry.added, false);
-  assert.equal(retry.save.credits, 100);
+  assert.equal(retry.save.money, 100);
   assert.equal(retry.save.qsoRecords.total, 1);
 });
 
-test("invalid or negative legacy credits normalize to zero", () => {
+test("invalid or negative legacy credits migrate to zero money", () => {
   const storage = storageStub();
   storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([
     { id: "negative", callsign: "SIM1", locationId: "japan-tokyo-kanto", credits: -4.7 },
     { id: "invalid", callsign: "SIM2", locationId: "japan-tokyo-kanto", credits: "not-a-number" },
   ]));
   const saves = loadSaves(storage);
-  assert.deepEqual(saves.map((save) => save.credits), [0, 0]);
+  assert.deepEqual(saves.map((save) => save.money), [0, 0]);
 });
 
-test("credits are normalized to safe non-negative integers", () => {
+test("legacy credits migrate to safe non-negative money integers", () => {
   const storage = storageStub();
   storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([
     { id: "fraction", callsign: "SIM3", locationId: "japan-tokyo-kanto", credits: 12.9 },
     { id: "huge", callsign: "SIM4", locationId: "japan-tokyo-kanto", credits: 1e30 },
   ]));
   const saves = loadSaves(storage);
-  assert.deepEqual(saves.map((save) => save.credits), [12, Number.MAX_SAFE_INTEGER]);
+  assert.deepEqual(saves.map((save) => save.money), [12, Number.MAX_SAFE_INTEGER]);
 });
 
 test("automatic-key speed is normalized and persists across save round trips", () => {

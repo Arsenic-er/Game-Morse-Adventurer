@@ -259,9 +259,10 @@ export function recordCompletedQso(save, candidate) {
       added: false,
       newRegion: false,
       newDistanceRecord: false,
+      moneyAwarded: 0,
       settledEntry,
       rewardBreakdown: settledEntry?.rewardBreakdown ?? null,
-      creditsAwarded: 0,
+      creditsAwarded: 0, // Legacy API alias; remove after external consumers migrate.
     };
   }
 
@@ -292,8 +293,8 @@ export function recordCompletedQso(save, candidate) {
     weakSignalQsos: previousRecords.weakSignalQsos + (isWeakSignalLevel(settlementPropagationLevel) ? 1 : 0),
     settledQsoIds: [...previousRecords.settledQsoIds, entry.id].sort(),
   };
-  const credits = Math.max(0, finiteNumber(save.credits)) + rewardBreakdown.total;
-  const researchSettlement = settleResearchProjects({ ...save, credits, qsoLogs, qsoRecords });
+  const money = Math.max(0, finiteNumber(save.money ?? save.credits)) + rewardBreakdown.total;
+  const researchSettlement = settleResearchProjects({ ...save, money, qsoLogs, qsoRecords });
 
   return {
     save: researchSettlement.save,
@@ -302,8 +303,9 @@ export function recordCompletedQso(save, candidate) {
     newDistanceRecord,
     settledEntry: persistedEntry,
     rewardBreakdown,
-    creditsAwarded: rewardBreakdown.total,
+    creditsAwarded: rewardBreakdown.total, // Legacy API alias.
     technologyPointsAwarded: researchSettlement.technologyPointsAwarded,
+    moneyAwarded: rewardBreakdown.total,
     completedResearchProjects: researchSettlement.newlyCompleted,
   };
 }

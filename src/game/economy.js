@@ -10,7 +10,8 @@ export const ECONOMY_RESULT = Object.freeze({
   UNKNOWN_ITEM: "UNKNOWN_ITEM",
   NOT_PURCHASABLE: "NOT_PURCHASABLE",
   ALREADY_OWNED: "ALREADY_OWNED",
-  INSUFFICIENT_CREDITS: "INSUFFICIENT_CREDITS",
+  INSUFFICIENT_MONEY: "INSUFFICIENT_MONEY",
+  INSUFFICIENT_CREDITS: "INSUFFICIENT_MONEY",
   RESEARCH_REQUIRED: "RESEARCH_REQUIRED",
   NOT_OWNED: "NOT_OWNED",
   NO_CHANGE: "NO_CHANGE",
@@ -32,10 +33,10 @@ function exactItem(config, itemId) {
   return config.catalog.find((item) => item.id === itemId) ?? null;
 }
 
-function safeCredits(value) {
-  const credits = Number(value);
-  if (!Number.isFinite(credits)) return 0;
-  return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(credits)));
+function safeMoney(value) {
+  const money = Number(value);
+  if (!Number.isFinite(money)) return 0;
+  return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(money)));
 }
 
 export function ownsItem(save, { category, itemId }) {
@@ -61,14 +62,14 @@ export function purchaseItem(save, { category, itemId }) {
   if (!Number.isSafeInteger(price) || price < 0) {
     return { save, purchased: false, reason: ECONOMY_RESULT.NOT_PURCHASABLE };
   }
-  const credits = safeCredits(save?.credits);
-  if (credits < price) {
-    return { save, purchased: false, reason: ECONOMY_RESULT.INSUFFICIENT_CREDITS };
+  const money = safeMoney(save?.money ?? save?.credits);
+  if (money < price) {
+    return { save, purchased: false, reason: ECONOMY_RESULT.INSUFFICIENT_MONEY };
   }
   const owned = Array.isArray(save?.[config.ownedField]) ? save[config.ownedField] : [];
   const nextSave = {
     ...save,
-    credits: credits - price,
+    money: money - price,
     [config.ownedField]: [...owned, item.id],
     updatedAt: new Date().toISOString(),
   };

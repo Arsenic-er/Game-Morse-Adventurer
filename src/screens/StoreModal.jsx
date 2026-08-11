@@ -13,8 +13,8 @@ import {
 const TEXT = {
   "zh-CN": {
     title: "台站商店", kicker: "设备采购终端", radio: "电台", antenna: "天线", accessories: "配件",
-    balance: "信用点余额", price: "价格", buy: "购买", owned: "已拥有", equipped: "已装备",
-    insufficient: "信用点不足", success: "购买完成，设备已送入仓库", unavailable: "暂未上架",
+    balance: "金钱余额", price: "价格", buy: "购买", owned: "已拥有", equipped: "已装备",
+    insufficient: "金钱不足", success: "购买完成，设备已送入仓库", unavailable: "暂未上架",
     starter: "初始设备", propagation: "传播修正", qsb: "衰落深度", noise: "接收噪声", power: "发射功率", bands: "支持波段", close: "关闭商店",
     back: "返回管理中心", select: "选择一件商品查看详情", empty: "该分类的新设备正在准备中。",
     fixedKit: "简洁可靠的固定单频 CW 套件。", dipole: "均衡的初始天线，不额外修正传播。",
@@ -24,8 +24,8 @@ const TEXT = {
   },
   "zh-TW": {
     title: "臺站商店", kicker: "設備採購終端", radio: "電臺", antenna: "天線", accessories: "配件",
-    balance: "信用點餘額", price: "價格", buy: "購買", owned: "已擁有", equipped: "已裝備",
-    insufficient: "信用點不足", success: "購買完成，設備已送入倉庫", unavailable: "暫未上架",
+    balance: "金錢餘額", price: "價格", buy: "購買", owned: "已擁有", equipped: "已裝備",
+    insufficient: "金錢不足", success: "購買完成，設備已送入倉庫", unavailable: "暫未上架",
     starter: "初始設備", propagation: "傳播修正", qsb: "衰落深度", noise: "接收雜訊", power: "發射功率", bands: "支援波段", close: "關閉商店",
     back: "返回管理中心", select: "選擇一件商品查看詳情", empty: "此分類的新設備正在準備中。",
     fixedKit: "簡潔可靠的固定單頻 CW 套件。", dipole: "均衡的初始天線，不額外修正傳播。",
@@ -35,8 +35,8 @@ const TEXT = {
   },
   ja: {
     title: "ステーションショップ", kicker: "装備調達端末", radio: "無線機", antenna: "アンテナ", accessories: "アクセサリー",
-    balance: "クレジット残高", price: "価格", buy: "購入", owned: "所有済み", equipped: "装備中",
-    insufficient: "クレジット不足", success: "購入完了。倉庫に搬入しました", unavailable: "入荷準備中",
+    balance: "所持金", price: "価格", buy: "購入", owned: "所有済み", equipped: "装備中",
+    insufficient: "所持金が不足しています", success: "購入完了。倉庫に搬入しました", unavailable: "入荷準備中",
     starter: "初期装備", propagation: "伝搬補正", qsb: "フェージング深度", noise: "受信ノイズ", power: "送信出力", bands: "対応バンド", close: "ショップを閉じる",
     back: "管理センターへ戻る", select: "商品を選択して詳細を確認", empty: "この分類の新装備は準備中です。",
     fixedKit: "シンプルで信頼性の高い固定単周波 CW キット。", dipole: "バランスの取れた初期アンテナ。伝搬補正なし。",
@@ -46,8 +46,8 @@ const TEXT = {
   },
   en: {
     title: "Station Store", kicker: "Equipment Procurement Terminal", radio: "Radios", antenna: "Antennas", accessories: "Accessories",
-    balance: "Credit Balance", price: "Price", buy: "Purchase", owned: "Owned", equipped: "Equipped",
-    insufficient: "Insufficient Credits", success: "Purchase complete — delivered to the warehouse", unavailable: "Coming Soon",
+    balance: "Money Balance", price: "Price", buy: "Purchase", owned: "Owned", equipped: "Equipped",
+    insufficient: "Insufficient Money", success: "Purchase complete — delivered to the warehouse", unavailable: "Coming Soon",
     starter: "Starter Equipment", propagation: "Propagation Modifier", qsb: "QSB Depth", noise: "Receiver Noise", power: "Transmit Power", bands: "Supported Bands", close: "Close Store",
     back: "Back to Management Center", select: "Select an item to inspect it", empty: "New equipment for this category is being prepared.",
     fixedKit: "A simple, reliable fixed-frequency CW transceiver kit.", dipole: "A balanced starter antenna with no propagation modifier.",
@@ -57,8 +57,8 @@ const TEXT = {
   },
   es: {
     title: "Tienda de la estación", kicker: "Terminal de adquisición de equipos", radio: "Radios", antenna: "Antenas", accessories: "Accesorios",
-    balance: "Saldo de créditos", price: "Precio", buy: "Comprar", owned: "En propiedad", equipped: "Equipado",
-    insufficient: "Créditos insuficientes", success: "Compra completada · enviada al almacén", unavailable: "Próximamente",
+    balance: "Dinero disponible", price: "Precio", buy: "Comprar", owned: "En propiedad", equipped: "Equipado",
+    insufficient: "Dinero insuficiente", success: "Compra completada · enviada al almacén", unavailable: "Próximamente",
     starter: "Equipo inicial", propagation: "Modificador de propagación", qsb: "Profundidad QSB", noise: "Ruido del receptor", power: "Potencia de transmisión", bands: "Bandas compatibles", close: "Cerrar tienda",
     back: "Volver al Centro de Gestión", select: "Selecciona un artículo para verlo", empty: "Se están preparando nuevos equipos para esta categoría.",
     fixedKit: "Un sencillo y fiable kit transceptor CW de frecuencia fija.", dipole: "Una antena inicial equilibrada sin modificador de propagación.",
@@ -68,8 +68,8 @@ const TEXT = {
   },
   de: {
     title: "Stationsladen", kicker: "Terminal für Gerätebeschaffung", radio: "Funkgeräte", antenna: "Antennen", accessories: "Zubehör",
-    balance: "Kreditguthaben", price: "Preis", buy: "Kaufen", owned: "Im Besitz", equipped: "Ausgerüstet",
-    insufficient: "Nicht genügend Kredite", success: "Kauf abgeschlossen · ins Lager geliefert", unavailable: "Demnächst",
+    balance: "Geldbestand", price: "Preis", buy: "Kaufen", owned: "Im Besitz", equipped: "Ausgerüstet",
+    insufficient: "Nicht genügend Geld", success: "Kauf abgeschlossen · ins Lager geliefert", unavailable: "Demnächst",
     starter: "Startausrüstung", propagation: "Ausbreitungsmodifikator", qsb: "QSB-Tiefe", noise: "Empfängerrauschen", power: "Sendeleistung", bands: "Unterstützte Bänder", close: "Laden schließen",
     back: "Zurück zum Verwaltungszentrum", select: "Wähle einen Gegenstand für Details", empty: "Neue Geräte dieser Kategorie werden vorbereitet.",
     fixedKit: "Ein einfacher, zuverlässiger CW-Transceiverbausatz mit fester Frequenz.", dipole: "Eine ausgewogene Startantenne ohne Ausbreitungsmodifikator.",
@@ -79,8 +79,8 @@ const TEXT = {
   },
   ru: {
     title: "Магазин станции", kicker: "Терминал закупки оборудования", radio: "Радиостанции", antenna: "Антенны", accessories: "Аксессуары",
-    balance: "Баланс кредитов", price: "Цена", buy: "Купить", owned: "В собственности", equipped: "Установлено",
-    insufficient: "Недостаточно кредитов", success: "Покупка завершена · доставлено на склад", unavailable: "Скоро",
+    balance: "Деньги", price: "Цена", buy: "Купить", owned: "В собственности", equipped: "Установлено",
+    insufficient: "Недостаточно денег", success: "Покупка завершена · доставлено на склад", unavailable: "Скоро",
     starter: "Начальное оборудование", propagation: "Модификатор прохождения", qsb: "Глубина QSB", noise: "Шум приёмника", power: "Мощность передачи", bands: "Поддерживаемые диапазоны", close: "Закрыть магазин",
     back: "Назад в Центр управления", select: "Выберите предмет для просмотра", empty: "Новое оборудование этой категории готовится.",
     fixedKit: "Простой и надёжный CW-трансивер с фиксированной частотой.", dipole: "Сбалансированная начальная антенна без модификатора прохождения.",
@@ -134,7 +134,7 @@ function itemState(save, category, item) {
   if (ownsItem(save, { category, itemId: item.id })) return "owned";
   if (!item.purchasable) return "unavailable";
   if (!isItemTechnologyUnlocked(save, category, item.id)) return "research";
-  if (save.credits < item.price) return "insufficient";
+  if (save.money < item.price) return "insufficient";
   return "available";
 }
 
@@ -169,7 +169,7 @@ export function StoreModal({ language, save, onPurchase, onClose }) {
     const result = onPurchase({ category, itemId: selected.id });
     setPending(false);
     if (result?.reason === ECONOMY_RESULT.PURCHASED) setNotice(t.success);
-    else if (result?.reason === ECONOMY_RESULT.INSUFFICIENT_CREDITS) setNotice(t.insufficient);
+    else if (result?.reason === ECONOMY_RESULT.INSUFFICIENT_MONEY) setNotice(t.insufficient);
     else if (result?.reason === ECONOMY_RESULT.ALREADY_OWNED) setNotice(t.owned);
     else if (result?.reason === ECONOMY_RESULT.RESEARCH_REQUIRED) setNotice(researchText.hint);
   }
@@ -188,7 +188,7 @@ export function StoreModal({ language, save, onPurchase, onClose }) {
       <section className="store-modal" data-testid="store-modal" role="dialog" aria-modal="true" aria-labelledby="store-title">
         <header className="store-header">
           <div><span>{t.kicker}</span><h2 id="store-title"><Storefront size={25} weight="fill" />{t.title}</h2></div>
-          <div className="store-balance" data-store-balance><Coins size={24} weight="fill" /><span>{t.balance}</span><strong>{save.credits.toLocaleString()}</strong></div>
+          <div className="store-balance" data-store-balance><Coins size={24} weight="fill" /><span>{t.balance}</span><strong>{save.money.toLocaleString()}</strong></div>
           <button className="icon-button" data-action="close-store" onClick={onClose} aria-label={t.close}><X size={22} /></button>
         </header>
 
@@ -252,7 +252,7 @@ export function StoreModal({ language, save, onPurchase, onClose }) {
           </aside>
         </div>
 
-        <footer className="store-footer"><span>{save.callsign} // CREDIT {String(save.credits).padStart(6, "0")}</span><button onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.back}</button></footer>
+        <footer className="store-footer"><span>{save.callsign} // MONEY {String(save.money).padStart(6, "0")}</span><button onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.back}</button></footer>
       </section>
     </div>
   );

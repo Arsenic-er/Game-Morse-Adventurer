@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import {
   ArrowLeft,
   Broadcast,
+  Coins,
   CheckCircle,
   GlobeHemisphereEast,
   LockKey,
@@ -125,11 +126,82 @@ const TEXT = {
   },
 };
 
+const ACHIEVEMENT_EXTRA_TEXT = {
+  "zh-CN": {
+    "independent-watch": { title: "独立值守", description: "关闭引导且不使用视觉辅助完成一次通联。" },
+    "radio-upgrade": { title: "第二部电台", description: "拥有至少 2 部不同的电台。" },
+    "antenna-upgrade": { title: "天线试验场", description: "拥有至少 2 种不同的天线。" },
+    "first-accessory": { title: "工作台扩展", description: "获得第一件台站配件。" },
+    "first-name": { title: "记住你的名字", description: "在通联故事中得知第一位操作员的姓名。" },
+  },
+  "zh-TW": {
+    "independent-watch": { title: "獨立值守", description: "關閉引導且不使用視覺輔助完成一次通聯。" },
+    "radio-upgrade": { title: "第二部電臺", description: "擁有至少 2 部不同的電臺。" },
+    "antenna-upgrade": { title: "天線試驗場", description: "擁有至少 2 種不同的天線。" },
+    "first-accessory": { title: "工作臺擴充", description: "獲得第一件臺站配件。" },
+    "first-name": { title: "記住你的名字", description: "在通聯故事中得知第一位操作員的姓名。" },
+  },
+  ja: {
+    "independent-watch": { title: "単独運用", description: "ガイドと視覚補助を使わずに交信を完了する。" },
+    "radio-upgrade": { title: "2台目の無線機", description: "異なる無線機を 2 台以上所有する。" },
+    "antenna-upgrade": { title: "アンテナ実験場", description: "異なるアンテナを 2 種類以上所有する。" },
+    "first-accessory": { title: "作業台の拡張", description: "初めての局用アクセサリーを入手する。" },
+    "first-name": { title: "名前を覚えて", description: "交信の物語で最初のオペレーター名を知る。" },
+  },
+  en: {
+    "independent-watch": { title: "Independent Watch", description: "Complete a QSO with guidance off and no visual assistance." },
+    "radio-upgrade": { title: "A Second Radio", description: "Own at least 2 different radios." },
+    "antenna-upgrade": { title: "Antenna Test Range", description: "Own at least 2 different antennas." },
+    "first-accessory": { title: "Workbench Expansion", description: "Acquire your first station accessory." },
+    "first-name": { title: "Remember My Name", description: "Learn the first operator name through a contact story." },
+  },
+  es: {
+    "independent-watch": { title: "Guardia independiente", description: "Completa un QSO sin guía ni ayuda visual." },
+    "radio-upgrade": { title: "Una segunda radio", description: "Posee al menos 2 radios diferentes." },
+    "antenna-upgrade": { title: "Campo de antenas", description: "Posee al menos 2 antenas diferentes." },
+    "first-accessory": { title: "Ampliación del banco", description: "Consigue tu primer accesorio de estación." },
+    "first-name": { title: "Recuerda mi nombre", description: "Descubre el nombre del primer operador en una historia de contacto." },
+  },
+  de: {
+    "independent-watch": { title: "Selbstständige Wache", description: "Schließe ein QSO ohne Führung und visuelle Hilfe ab." },
+    "radio-upgrade": { title: "Ein zweites Funkgerät", description: "Besitze mindestens 2 verschiedene Funkgeräte." },
+    "antenna-upgrade": { title: "Antennen-Testfeld", description: "Besitze mindestens 2 verschiedene Antennen." },
+    "first-accessory": { title: "Werkbank-Erweiterung", description: "Erhalte dein erstes Stationszubehör." },
+    "first-name": { title: "Erinnere dich an meinen Namen", description: "Erfahre in einer Kontaktgeschichte den ersten Operatornamen." },
+  },
+  ru: {
+    "independent-watch": { title: "Самостоятельная вахта", description: "Завершите QSO без подсказок и визуальной помощи." },
+    "radio-upgrade": { title: "Вторая радиостанция", description: "Получите как минимум 2 разные радиостанции." },
+    "antenna-upgrade": { title: "Антенный полигон", description: "Получите как минимум 2 разные антенны." },
+    "first-accessory": { title: "Расширение верстака", description: "Получите первый аксессуар станции." },
+    "first-name": { title: "Запомни моё имя", description: "Узнайте имя первого оператора в истории связи." },
+  },
+};
+
+const REWARD_TEXT = {
+  "zh-CN": { reward: "奖励", money: "金钱", tp: "技术点", categories: { contact: "通联", expedition: "远征", operation: "操作", equipment: "设备", people: "人物" } },
+  "zh-TW": { reward: "獎勵", money: "金錢", tp: "技術點", categories: { contact: "通聯", expedition: "遠征", operation: "操作", equipment: "設備", people: "人物" } },
+  ja: { reward: "報酬", money: "所持金", tp: "技術ポイント", categories: { contact: "交信", expedition: "遠征", operation: "運用", equipment: "装備", people: "人物" } },
+  en: { reward: "Reward", money: "Money", tp: "Technology Point", categories: { contact: "Contact", expedition: "Expedition", operation: "Operation", equipment: "Equipment", people: "People" } },
+  es: { reward: "Recompensa", money: "Dinero", tp: "Punto tecnológico", categories: { contact: "Contacto", expedition: "Expedición", operation: "Operación", equipment: "Equipo", people: "Personas" } },
+  de: { reward: "Belohnung", money: "Geld", tp: "Technologiepunkt", categories: { contact: "Kontakt", expedition: "Expedition", operation: "Betrieb", equipment: "Ausrüstung", people: "Personen" } },
+  ru: { reward: "Награда", money: "Деньги", tp: "Очко технологий", categories: { contact: "Связь", expedition: "Экспедиция", operation: "Работа", equipment: "Оборудование", people: "Люди" } },
+};
+
+function achievementCopy(t, language, id) {
+  return t.achievements[id] ?? ACHIEVEMENT_EXTRA_TEXT[language]?.[id]
+    ?? ACHIEVEMENT_EXTRA_TEXT.en[id] ?? { title: id, description: "" };
+}
 const ACHIEVEMENT_ICONS = {
   "first-qso": Radio,
   "qso-5": Broadcast,
   "qso-10": Trophy,
   "dx-5000": Ruler,
+  "independent-watch": ShieldCheck,
+  "radio-upgrade": Radio,
+  "antenna-upgrade": Broadcast,
+  "first-accessory": Trophy,
+  "first-name": Trophy,
   "weak-signal": ShieldCheck,
   "regions-3": GlobeHemisphereEast,
 };
@@ -173,9 +245,8 @@ export function AchievementNotification({
   const achievementId = typeof activeAchievement === "string"
     ? activeAchievement
     : activeAchievement?.id;
-  const copy = achievementId
-    ? (t.achievements[achievementId] ?? { title: achievementId, description: "" })
-    : null;
+  const rewardText = REWARD_TEXT[language] ?? REWARD_TEXT.en;
+  const copy = achievementId ? achievementCopy(t, language, achievementId) : null;
   const Icon = ACHIEVEMENT_ICONS[achievementId] ?? Trophy;
   const numericQueueSize = Number(queueSize);
   const normalizedQueueSize = achievementId
@@ -205,6 +276,10 @@ export function AchievementNotification({
             <strong>{copy.title}</strong>
             <p>{copy.description}</p>
             {remainingCount > 0 && <small>{notification.remaining.replace("{count}", String(remainingCount))}</small>}
+            {Number(activeAchievement?.moneyReward) > 0 && (
+              <small className="achievement-notification-reward">+{activeAchievement.moneyReward} {rewardText.money}
+                {Number(activeAchievement?.technologyPointsReward) > 0 ? ` · +${activeAchievement.technologyPointsReward} TP` : ""}</small>
+            )}
           </div>
           <button
             type="button"
@@ -222,6 +297,7 @@ export function AchievementNotification({
 
 export function AchievementsModal({ language, save, onClose }) {
   const t = TEXT[language] ?? TEXT.en;
+  const rewardText = REWARD_TEXT[language] ?? REWARD_TEXT.en;
   const achievements = useMemo(() => evaluateAchievements(save), [save]);
   const unlockedCount = achievements.filter((achievement) => achievement.unlocked).length;
 
@@ -266,7 +342,7 @@ export function AchievementsModal({ language, save, onClose }) {
 
         <div className="achievements-grid">
           {achievements.map((achievement, index) => {
-            const copy = t.achievements[achievement.id] ?? { title: achievement.id, description: "" };
+            const copy = achievementCopy(t, language, achievement.id);
             const Icon = ACHIEVEMENT_ICONS[achievement.id] ?? Trophy;
             const percent = progressPercent(achievement);
             return (
@@ -276,7 +352,7 @@ export function AchievementsModal({ language, save, onClose }) {
                 data-achievement-id={achievement.id}
                 data-achievement-state={achievement.unlocked ? "unlocked" : "locked"}
               >
-                <div className="achievement-card-index">ACH-{String(index + 1).padStart(2, "0")}</div>
+                <div className="achievement-card-index">ACH-{String(index + 1).padStart(2, "0")} · {rewardText.categories[achievement.category]}</div>
                 <div className="achievement-icon" aria-hidden="true">
                   <Icon size={40} weight={achievement.unlocked ? "fill" : "duotone"} />
                 </div>
@@ -301,6 +377,10 @@ export function AchievementsModal({ language, save, onClose }) {
                   </div>
                 </div>
                 <div className="achievement-status">
+                <div className="achievement-reward"><Coins size={16} weight="fill" />
+                  <span>{rewardText.reward}</span><strong>+{achievement.moneyReward} {rewardText.money}</strong>
+                  {achievement.technologyPointsReward > 0 && <em>+{achievement.technologyPointsReward} TP</em>}
+                </div>
                   {achievement.unlocked
                     ? <><CheckCircle size={18} weight="fill" />{t.unlocked}</>
                     : <><LockKey size={18} weight="fill" />{t.locked}</>}

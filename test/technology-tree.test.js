@@ -24,12 +24,12 @@ test("a new station begins at the root of the technology tree", () => {
   assert.deepEqual(save.completedResearchProjects, []);
 });
 
-test("store equipment requires research before credits can be spent", () => {
+test("store equipment requires research before money can be spent", () => {
   const save = createSave({ callsign: "JA1LOCK", locationId: "japan-tokyo-kanto" });
-  save.credits = 1000;
+  save.money = 1000;
   const locked = purchaseItem(save, { category: "radio", itemId: "usdr-8" });
   assert.equal(locked.reason, ECONOMY_RESULT.RESEARCH_REQUIRED);
-  assert.equal(locked.save.credits, 1000);
+  assert.equal(locked.save.money, 1000);
 
   const missingPoints = unlockTechnology(save, "rf-circuits");
   assert.equal(missingPoints.reason, TECHNOLOGY_RESULT.INSUFFICIENT_POINTS);
@@ -47,7 +47,7 @@ test("store equipment requires research before credits can be spent", () => {
 
   const purchased = purchaseItem(multiband.save, { category: "radio", itemId: "usdr-8" });
   assert.equal(purchased.reason, ECONOMY_RESULT.PURCHASED);
-  assert.equal(purchased.save.credits, 200);
+  assert.equal(purchased.save.money, 200);
 });
 
 test("progressively harder projects award technology points once", () => {

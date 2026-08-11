@@ -14,7 +14,7 @@ function saveFixture(overrides = {}) {
     antennaId: "dipole",
     accessoryId: "none",
     keyType: "manual",
-    credits: 700,
+    money: 700,
     ownedEquipment: ["squid-01"],
     ownedAntennas: ["dipole"],
     accessories: [],
@@ -30,10 +30,10 @@ test("a successful purchase deducts the price once and adds the item to inventor
   assert.equal(result.purchased, true);
   assert.equal(result.reason, ECONOMY_RESULT.PURCHASED);
   assert.notStrictEqual(result.save, original);
-  assert.equal(result.save.credits, 200);
+  assert.equal(result.save.money, 200);
   assert.deepEqual(result.save.ownedAntennas, ["dipole", "yagi-3el"]);
 
-  assert.equal(original.credits, 700);
+  assert.equal(original.money, 700);
   assert.deepEqual(original.ownedAntennas, ["dipole"]);
 });
 
@@ -48,17 +48,17 @@ test("purchasing an item never equips it automatically", () => {
 });
 
 test("an unaffordable purchase fails without cloning or mutating the save", () => {
-  const original = saveFixture({ credits: 499 });
+  const original = saveFixture({ money: 499 });
   const result = purchaseItem(original, { category: "antenna", itemId: "yagi-3el" });
 
   assert.equal(result.purchased, false);
-  assert.equal(result.reason, ECONOMY_RESULT.INSUFFICIENT_CREDITS);
+  assert.equal(result.reason, ECONOMY_RESULT.INSUFFICIENT_MONEY);
   assert.strictEqual(result.save, original);
-  assert.equal(original.credits, 499);
+  assert.equal(original.money, 499);
   assert.deepEqual(original.ownedAntennas, ["dipole"]);
 });
 
-test("a repeated purchase is rejected and cannot deduct credits twice", () => {
+test("a repeated purchase is rejected and cannot deduct money twice", () => {
   const first = purchaseItem(saveFixture(), { category: "antenna", itemId: "yagi-3el" });
   const retry = purchaseItem(first.save, { category: "antenna", itemId: "yagi-3el" });
 
@@ -66,17 +66,17 @@ test("a repeated purchase is rejected and cannot deduct credits twice", () => {
   assert.equal(retry.purchased, false);
   assert.equal(retry.reason, ECONOMY_RESULT.ALREADY_OWNED);
   assert.strictEqual(retry.save, first.save);
-  assert.equal(retry.save.credits, 200);
+  assert.equal(retry.save.money, 200);
   assert.deepEqual(retry.save.ownedAntennas, ["dipole", "yagi-3el"]);
 });
 
 test("the MICA-8 is purchased once, delivered unequipped, and can then be equipped", () => {
-  const original = saveFixture({ credits: 900 });
+  const original = saveFixture({ money: 900 });
   const purchased = purchaseItem(original, { category: "radio", itemId: "usdr-8" });
 
   assert.equal(purchased.purchased, true);
   assert.equal(purchased.reason, ECONOMY_RESULT.PURCHASED);
-  assert.equal(purchased.save.credits, 100);
+  assert.equal(purchased.save.money, 100);
   assert.deepEqual(purchased.save.ownedEquipment, ["squid-01", "usdr-8"]);
   assert.equal(purchased.save.equipmentId, "squid-01");
 
@@ -84,22 +84,22 @@ test("the MICA-8 is purchased once, delivered unequipped, and can then be equipp
   assert.equal(retry.purchased, false);
   assert.equal(retry.reason, ECONOMY_RESULT.ALREADY_OWNED);
   assert.strictEqual(retry.save, purchased.save);
-  assert.equal(retry.save.credits, 100);
+  assert.equal(retry.save.money, 100);
 
   const equipped = equipOwnedItem(purchased.save, { category: "radio", itemId: "usdr-8" });
   assert.equal(equipped.equipped, true);
   assert.equal(equipped.reason, ECONOMY_RESULT.EQUIPPED);
   assert.equal(equipped.save.equipmentId, "usdr-8");
-  assert.equal(equipped.save.credits, 100);
+  assert.equal(equipped.save.money, 100);
 });
 
-test("the MICA-8 cannot be equipped before purchase or bought without 800 credits", () => {
-  const original = saveFixture({ credits: 799 });
+test("the MICA-8 cannot be equipped before purchase or bought without 800 money", () => {
+  const original = saveFixture({ money: 799 });
   const purchase = purchaseItem(original, { category: "radio", itemId: "usdr-8" });
   const equip = equipOwnedItem(original, { category: "radio", itemId: "usdr-8" });
 
   assert.equal(purchase.purchased, false);
-  assert.equal(purchase.reason, ECONOMY_RESULT.INSUFFICIENT_CREDITS);
+  assert.equal(purchase.reason, ECONOMY_RESULT.INSUFFICIENT_MONEY);
   assert.strictEqual(purchase.save, original);
   assert.equal(equip.equipped, false);
   assert.equal(equip.reason, ECONOMY_RESULT.NOT_OWNED);
@@ -145,7 +145,7 @@ test("accessories can be purchased without being equipped automatically", () => 
 
   assert.equal(result.purchased, true);
   assert.equal(result.reason, ECONOMY_RESULT.PURCHASED);
-  assert.equal(result.save.credits, 400);
+  assert.equal(result.save.money, 400);
   assert.deepEqual(result.save.accessories, ["cw-filter-500"]);
   assert.equal(result.save.accessoryId, "none");
 });

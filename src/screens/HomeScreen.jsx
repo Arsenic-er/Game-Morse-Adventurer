@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  ArrowLeft, Books, Broadcast, Check, Coins, GearSix, Laptop, MapPin, Notebook,
+  ArrowLeft, Books, Broadcast, Check, ClipboardText, Coins, GearSix, Laptop, MapPin, Notebook,
   Package, Radio, Storefront, TreeStructure, Trophy, Warehouse, Wrench, X,
 } from "@phosphor-icons/react";
 import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";
@@ -11,17 +11,18 @@ import { LocationArtwork } from "../game/LocationArtwork.jsx";
 import { QsoRewardBreakdown } from "../components/QsoRewardBreakdown.jsx";
 import { summarizePracticeProgress } from "../practice/practiceRecords.js";
 import { AchievementsModal } from "./AchievementsModal.jsx";
+import { MissionCenterModal } from "./MissionCenterModal.jsx";
 import { StoreModal } from "./StoreModal.jsx";
 import { TechnologyTreeModal } from "./TechnologyTreeModal.jsx";
 
 const TEXT = {
-  "zh-CN": { title: "管理中心", station: "进入发射台", practice: "CW 练习与教学", practiceProgress: "课程进度", warehouse: "仓库", store: "商店", log: "通联日志", achievements: "成就", placeholder: "功能占位", later: "该功能将在后续版本开放。", back: "返回存档", settings: "设置", local: "当地时间", close: "关闭" },
-  "zh-TW": { title: "管理中心", station: "進入發射臺", practice: "CW 練習與教學", practiceProgress: "課程進度", warehouse: "倉庫", store: "商店", log: "通聯日誌", achievements: "成就", placeholder: "功能預留", later: "此功能將在後續版本開放。", back: "返回存檔", settings: "設定", local: "當地時間", close: "關閉" },
-  ja: { title: "管理センター", station: "運用卓へ", practice: "CW 練習・レッスン", practiceProgress: "レッスン進捗", warehouse: "倉庫", store: "ショップ", log: "交信ログ", achievements: "実績", placeholder: "準備中", later: "この機能は今後のバージョンで開放されます。", back: "セーブへ戻る", settings: "設定", local: "現地時刻", close: "閉じる" },
-  en: { title: "Management Center", station: "Enter Station", practice: "CW Practice & Lessons", practiceProgress: "Lesson progress", warehouse: "Warehouse", store: "Store", log: "QSO Log", achievements: "Achievements", placeholder: "Coming Soon", later: "This feature will open in a later version.", back: "Back to Saves", settings: "Settings", local: "Local time", close: "Close" },
-  es: { title: "Centro de Gestión", station: "Entrar en la estación", practice: "Práctica y lecciones de CW", practiceProgress: "Progreso de lecciones", warehouse: "Almacén", store: "Tienda", log: "Registro QSO", achievements: "Logros", placeholder: "Próximamente", later: "Esta función se abrirá en una versión posterior.", back: "Volver a partidas", settings: "Ajustes", local: "Hora local", close: "Cerrar" },
-  de: { title: "Verwaltungszentrum", station: "Station betreten", practice: "CW-Übung und Lektionen", practiceProgress: "Lektionsfortschritt", warehouse: "Lager", store: "Laden", log: "QSO-Logbuch", achievements: "Erfolge", placeholder: "Demnächst", later: "Diese Funktion wird in einer späteren Version geöffnet.", back: "Zurück zu Spielständen", settings: "Einstellungen", local: "Ortszeit", close: "Schließen" },
-  ru: { title: "Центр управления", station: "Войти на станцию", practice: "Практика и уроки CW", practiceProgress: "Прогресс уроков", warehouse: "Склад", store: "Магазин", log: "Журнал QSO", achievements: "Достижения", placeholder: "Скоро", later: "Эта функция появится в следующей версии.", back: "Назад к сохранениям", settings: "Настройки", local: "Местное время", close: "Закрыть" },
+  "zh-CN": { title: "管理中心", station: "进入发射台", practice: "CW 练习与教学", practiceProgress: "课程进度", warehouse: "仓库", store: "商店", log: "通联日志", achievements: "成就", missions: "任务中心", placeholder: "功能占位", later: "该功能将在后续版本开放。", back: "返回存档", settings: "设置", local: "当地时间", close: "关闭" },
+  "zh-TW": { title: "管理中心", station: "進入發射臺", practice: "CW 練習與教學", practiceProgress: "課程進度", warehouse: "倉庫", store: "商店", log: "通聯日誌", achievements: "成就", missions: "任務中心", placeholder: "功能預留", later: "此功能將在後續版本開放。", back: "返回存檔", settings: "設定", local: "當地時間", close: "關閉" },
+  ja: { title: "管理センター", station: "運用卓へ", practice: "CW 練習・レッスン", practiceProgress: "レッスン進捗", warehouse: "倉庫", store: "ショップ", log: "交信ログ", achievements: "実績", missions: "ミッションセンター", placeholder: "準備中", later: "この機能は今後のバージョンで開放されます。", back: "セーブへ戻る", settings: "設定", local: "現地時刻", close: "閉じる" },
+  en: { title: "Management Center", station: "Enter Station", practice: "CW Practice & Lessons", practiceProgress: "Lesson progress", warehouse: "Warehouse", store: "Store", log: "QSO Log", achievements: "Achievements", missions: "Mission Center", placeholder: "Coming Soon", later: "This feature will open in a later version.", back: "Back to Saves", settings: "Settings", local: "Local time", close: "Close" },
+  es: { title: "Centro de Gestión", station: "Entrar en la estación", practice: "Práctica y lecciones de CW", practiceProgress: "Progreso de lecciones", warehouse: "Almacén", store: "Tienda", log: "Registro QSO", achievements: "Logros", missions: "Centro de misiones", placeholder: "Próximamente", later: "Esta función se abrirá en una versión posterior.", back: "Volver a partidas", settings: "Ajustes", local: "Hora local", close: "Cerrar" },
+  de: { title: "Verwaltungszentrum", station: "Station betreten", practice: "CW-Übung und Lektionen", practiceProgress: "Lektionsfortschritt", warehouse: "Lager", store: "Laden", log: "QSO-Logbuch", achievements: "Erfolge", missions: "Missionszentrale", placeholder: "Demnächst", later: "Diese Funktion wird in einer späteren Version geöffnet.", back: "Zurück zu Spielständen", settings: "Einstellungen", local: "Ortszeit", close: "Schließen" },
+  ru: { title: "Центр управления", station: "Войти на станцию", practice: "Практика и уроки CW", practiceProgress: "Прогресс уроков", warehouse: "Склад", store: "Магазин", log: "Журнал QSO", achievements: "Достижения", missions: "Центр заданий", placeholder: "Скоро", later: "Эта функция появится в следующей версии.", back: "Назад к сохранениям", settings: "Настройки", local: "Местное время", close: "Закрыть" },
 };
 
 const WAREHOUSE_TEXT = {
@@ -50,49 +51,49 @@ const QSO_LOG_TEXT = {
   "zh-CN": {
     title: "通联日志", kicker: "台站记录", records: "记录", latest: "最新", dateTime: "台站当地 / UTC", callsign: "呼号",
     frequency: "频率", rst: "发送 / 接收 RST", region: "地区", distance: "距离", propagation: "传播等级", antenna: "天线",
-    equipment: "设备", accessory: "配件", wpm: "速度", performance: "发报准确率 / 节奏", repeats: "请求重发", credits: "信用点", sim: "SIM · 虚构台站",
+    equipment: "设备", accessory: "配件", wpm: "速度", performance: "发报准确率 / 节奏", repeats: "请求重发", money: "金钱", sim: "SIM · 虚构台站",
     stationTime: "台站当地", utcTime: "协调世界时",
     emptyTitle: "尚无通联记录", emptyText: "完成一次通联并保存日志后，记录会出现在这里。", back: "返回管理中心", close: "关闭通联日志",
   },
   "zh-TW": {
     title: "通聯日誌", kicker: "臺站記錄", records: "記錄", latest: "最新", dateTime: "臺站當地 / UTC", callsign: "呼號",
     frequency: "頻率", rst: "發送 / 接收 RST", region: "地區", distance: "距離", propagation: "傳播等級", antenna: "天線",
-    equipment: "設備", accessory: "配件", wpm: "速度", performance: "發報準確率 / 節奏", repeats: "請求重發", credits: "信用點", sim: "SIM · 虛構臺站",
+    equipment: "設備", accessory: "配件", wpm: "速度", performance: "發報準確率 / 節奏", repeats: "請求重發", money: "金錢", sim: "SIM · 虛構臺站",
     stationTime: "臺站當地", utcTime: "協調世界時",
     emptyTitle: "尚無通聯記錄", emptyText: "完成一次通聯並儲存日誌後，記錄會顯示在這裡。", back: "返回管理中心", close: "關閉通聯日誌",
   },
   ja: {
     title: "交信ログ", kicker: "局運用記録", records: "件", latest: "最新", dateTime: "局の現地 / UTC", callsign: "コールサイン",
     frequency: "周波数", rst: "送信 / 受信 RST", region: "地域", distance: "距離", propagation: "伝搬レベル", antenna: "アンテナ",
-    equipment: "無線機", accessory: "アクセサリー", wpm: "速度", performance: "送信正確度 / リズム", repeats: "再送要求", credits: "クレジット", sim: "SIM · 架空局",
+    equipment: "無線機", accessory: "アクセサリー", wpm: "速度", performance: "送信正確度 / リズム", repeats: "再送要求", money: "所持金", sim: "SIM · 架空局",
     stationTime: "局の現地時刻", utcTime: "協定世界時",
     emptyTitle: "交信記録はありません", emptyText: "交信を完了してログを保存すると、ここに記録されます。", back: "管理センターへ戻る", close: "交信ログを閉じる",
   },
   en: {
     title: "QSO Log", kicker: "Station Record", records: "records", latest: "Latest", dateTime: "Station local / UTC", callsign: "Callsign",
     frequency: "Frequency", rst: "Sent / Received RST", region: "Region", distance: "Distance", propagation: "Propagation", antenna: "Antenna",
-    equipment: "Equipment", accessory: "Accessory", wpm: "Speed", performance: "Transmit accuracy / Rhythm", repeats: "Repeat requests", credits: "Credits", sim: "SIM · Fictional station",
+    equipment: "Equipment", accessory: "Accessory", wpm: "Speed", performance: "Transmit accuracy / Rhythm", repeats: "Repeat requests", money: "Money", sim: "SIM · Fictional station",
     stationTime: "Station local", utcTime: "Coordinated UTC",
     emptyTitle: "No QSO records yet", emptyText: "Complete a contact and save its log to add the first record.", back: "Back to Management Center", close: "Close QSO log",
   },
   es: {
     title: "Registro QSO", kicker: "Registro de estación", records: "registros", latest: "Más reciente", dateTime: "Hora local / UTC", callsign: "Indicativo",
     frequency: "Frecuencia", rst: "RST enviado / recibido", region: "Región", distance: "Distancia", propagation: "Propagación", antenna: "Antena",
-    equipment: "Equipo", accessory: "Accesorio", wpm: "Velocidad", performance: "Precisión / Ritmo", repeats: "Peticiones de repetición", credits: "Créditos", sim: "SIM · Estación ficticia",
+    equipment: "Equipo", accessory: "Accesorio", wpm: "Velocidad", performance: "Precisión / Ritmo", repeats: "Peticiones de repetición", money: "Dinero", sim: "SIM · Estación ficticia",
     stationTime: "Hora local de estación", utcTime: "UTC coordinado",
     emptyTitle: "Aún no hay registros QSO", emptyText: "Completa un contacto y guarda su registro para añadir la primera entrada.", back: "Volver al Centro de Gestión", close: "Cerrar registro QSO",
   },
   de: {
     title: "QSO-Logbuch", kicker: "Stationsprotokoll", records: "Einträge", latest: "Neuester", dateTime: "Stationszeit / UTC", callsign: "Rufzeichen",
     frequency: "Frequenz", rst: "Gesendeter / empfangener RST", region: "Region", distance: "Entfernung", propagation: "Ausbreitung", antenna: "Antenne",
-    equipment: "Ausrüstung", accessory: "Zubehör", wpm: "Geschwindigkeit", performance: "Sendegenauigkeit / Rhythmus", repeats: "Wiederholungsanfragen", credits: "Kredite", sim: "SIM · Fiktive Station",
+    equipment: "Ausrüstung", accessory: "Zubehör", wpm: "Geschwindigkeit", performance: "Sendegenauigkeit / Rhythmus", repeats: "Wiederholungsanfragen", money: "Geld", sim: "SIM · Fiktive Station",
     stationTime: "Stationsortszeit", utcTime: "Koordinierte UTC",
     emptyTitle: "Noch keine QSO-Einträge", emptyText: "Schließe eine Verbindung ab und speichere ihr Log, um den ersten Eintrag anzulegen.", back: "Zurück zum Verwaltungszentrum", close: "QSO-Logbuch schließen",
   },
   ru: {
     title: "Журнал QSO", kicker: "Журнал станции", records: "записей", latest: "Последняя", dateTime: "Местное время / UTC", callsign: "Позывной",
     frequency: "Частота", rst: "Переданный / принятый RST", region: "Регион", distance: "Расстояние", propagation: "Прохождение", antenna: "Антенна",
-    equipment: "Оборудование", accessory: "Аксессуар", wpm: "Скорость", performance: "Точность / Ритм", repeats: "Запросы повтора", credits: "Кредиты", sim: "SIM · Вымышленная станция",
+    equipment: "Оборудование", accessory: "Аксессуар", wpm: "Скорость", performance: "Точность / Ритм", repeats: "Запросы повтора", money: "Деньги", sim: "SIM · Вымышленная станция",
     stationTime: "Местное время станции", utcTime: "Всемирное время UTC",
     emptyTitle: "Записей QSO пока нет", emptyText: "Завершите связь и сохраните журнал, чтобы добавить первую запись.", back: "Назад в Центр управления", close: "Закрыть журнал QSO",
   },
@@ -306,7 +307,7 @@ function QsoLogModal({ language, save, onClose }) {
         ) : (
           <div className="qso-log-body">
             <aside className="qso-log-index" aria-label={t.records}>
-              <div className="qso-log-index-heading"><span>{t.dateTime}</span><span>{t.callsign}</span><span>{t.credits}</span></div>
+              <div className="qso-log-index-heading"><span>{t.dateTime}</span><span>{t.callsign}</span><span>{t.money}</span></div>
               <div className="qso-log-records" role="listbox" aria-label={t.title}>
                 {records.map((record, index) => (
                   <button key={record.key} className={record.key === selectedRecord.key ? "selected" : ""} role="option" aria-selected={record.key === selectedRecord.key} onClick={() => setSelectedKey(record.key)}>
@@ -339,7 +340,7 @@ function QsoLogModal({ language, save, onClose }) {
                 <div><dt>{t.wpm}</dt><dd>{formatMetric(firstValue(selected.wpm, selected.speedWpm), " WPM")}</dd></div>
                 <div><dt>{t.performance}</dt><dd>{formatMetric(accuracy, "%")} / {formatMetric(rhythm, "%")}</dd></div>
                 <div><dt>{t.repeats}</dt><dd>{formatMetric(firstValue(selected.repeatRequests, 0))}</dd></div>
-                <div className="qso-log-credit-fact"><dt>{t.credits}</dt><dd><Coins size={17} weight="fill" />{formatCredits(firstValue(selected.credits, selected.creditsAwarded))}</dd></div>
+                <div className="qso-log-credit-fact"><dt>{t.money}</dt><dd><Coins size={17} weight="fill" />{formatCredits(firstValue(selected.credits, selected.creditsAwarded))}</dd></div>
               </dl>
               <QsoRewardBreakdown language={language} breakdown={selected.rewardBreakdown ?? null} credits={firstValue(selected.credits, selected.creditsAwarded)} compact />
               <QsoLogReview entry={selected} language={language} />
@@ -517,7 +518,7 @@ function WarehouseModal({ language, save, onEquipItem, onUnlockTechnology, onClo
   );
 }
 
-export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onEnterStation, onEnterPractice, onBack, onSettings }) {
+export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onAcceptMission, onClaimMission, onAbandonMission, onEnterStation, onEnterPractice, onBack, onSettings }) {
   const t = TEXT[language] ?? TEXT.en;
   const location = getLocation(save.locationId);
   const practiceProgress = summarizePracticeProgress(save.practiceRecords);
@@ -534,7 +535,7 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
       <div className="home-window-slot"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="home-window-artwork" animated /></div>
       <img className="home-room-overlay" src="./assets/home-room-overlay.png" alt="" />
       <span className="home-lantern-flicker" aria-hidden="true" />
-      <header className="home-topbar"><h1>{t.title}</h1><span><Radio size={18} weight="fill" />21.060 MHz · CW</span><b>{save.callsign}</b><span>{t.local} {localTime}</span><button onClick={onBack} aria-label={t.back}><ArrowLeft size={21} /></button><button onClick={onSettings} aria-label={t.settings}><GearSix size={21} /></button></header>
+      <header className="home-topbar"><h1>{t.title}</h1><span><Radio size={18} weight="fill" />21.060 MHz · CW</span><b>{save.callsign}</b><span>{t.local} {localTime}</span><button className="home-mission-button" data-action="open-missions" onClick={() => setPanel("missions")} aria-label={t.missions}><ClipboardText size={21} /></button><button onClick={onBack} aria-label={t.back}><ArrowLeft size={21} /></button><button onClick={onSettings} aria-label={t.settings}><GearSix size={21} /></button></header>
 
       <button className="home-hotspot hotspot-warehouse" aria-label={t.warehouse} onClick={() => setPanel("warehouse")}><span><Warehouse size={22} weight="fill" />{t.warehouse}</span></button>
       <button className="home-hotspot hotspot-station" aria-label={t.station} onClick={onEnterStation}><span><Radio size={22} weight="fill" />{t.station}</span></button>
@@ -568,7 +569,8 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
       {panel === "store" && <StoreModal language={language} save={save} onPurchase={onPurchase} onClose={() => setPanel(null)} />}
       {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
       {panel === "achievements" && <AchievementsModal language={language} save={save} onClose={() => setPanel(null)} />}
-      {panel && !["warehouse", "store", "log", "achievements"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
+      {panel === "missions" && <MissionCenterModal language={language} save={save} onAccept={onAcceptMission} onClaim={onClaimMission} onAbandon={onAbandonMission} onClose={() => setPanel(null)} />}
+      {panel && !["warehouse", "store", "log", "achievements", "missions"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
     </main>
   );
 }

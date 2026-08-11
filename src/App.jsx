@@ -23,8 +23,11 @@ import { getAccessory } from "./game/accessoryCatalog.js";
 import { getAntenna } from "./game/antennaCatalog.js";
 import { equipmentName, getTransmitter } from "./game/equipmentCatalog.js";
 import { equipOwnedItem, purchaseItem } from "./game/economy.js";
-import { findNewlyUnlockedAchievements } from "./game/achievements.js";
+import { settleAchievementRewards } from "./game/achievements.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
+import {
+  abandonMission, acceptMission, claimMission, targetCallsignForActiveMission,
+} from "./game/missionSystem.js";
 import { unlockTechnology } from "./game/technologyTree.js";
 import {
   loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves,
@@ -63,7 +66,7 @@ const ASSETS = {
 
 const QA_OPTIONAL_NPC_CALLSIGNS = new Set(["SIM3RA", "SIM5TU", "SIM2DX", "SIM8CW", "SIM6JP"]);
 
-const BUILD_VERSION = "0.32.1";
+const BUILD_VERSION = "0.34.1";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -89,7 +92,7 @@ const COPY = {
     fixedToneHint: "套件音调固定；自动键速度可调，手键速度由系统检测", filterActive: "500 Hz 滤波", playCq: "播放 CQ", replayInput: "回放输入", target: "目标",
     decoded: "解码", accuracy: "发报准确率", rhythm: "节奏", powerOn: "开机", powerOff: "关机", cwReady: "CW 核心就绪", cwPlaying: "正在播放标准 CQ",
     cwKeying: "正在记录发报", cwReplay: "正在回放输入", cwCaptured: "输入已记录", cwReceiving: "接收 CW",
-    playNpc: "播放对方", submitReply: "发送回应", restartQso: "重新开始", credits: "信用点", sim: "虚构台站", propLevel: "传播等级",
+    playNpc: "播放对方", submitReply: "发送回应", restartQso: "重新开始", money: "金钱", sim: "虚构台站", propLevel: "传播等级",
     phaseWaiting: "等待播放 NPC 呼叫", phaseReply: "请发送双方呼号", phaseNpcRst: "等待播放对方 RST", phasePlayerRst: "请发送 RST 与 73",
     phaseFinal: "等待播放 73 / SK", phaseComplete: "通联完成，可写入日志", phaseFailed: "通联失败，请重新开始", invalidReply: "回应格式不正确",
   },
@@ -107,7 +110,7 @@ const COPY = {
     fixedToneHint: "套件音調固定；自動鍵速度可調，手鍵速度由系統偵測", filterActive: "500 Hz 濾波", playCq: "播放 CQ", replayInput: "重播輸入", target: "目標",
     decoded: "解碼", accuracy: "發報準確率", rhythm: "節奏", powerOn: "開機", powerOff: "關機", cwReady: "CW 核心就緒", cwPlaying: "正在播放標準 CQ",
     cwKeying: "正在記錄發報", cwReplay: "正在重播輸入", cwCaptured: "輸入已記錄", cwReceiving: "接收 CW",
-    playNpc: "播放對方", submitReply: "發送回應", restartQso: "重新開始", credits: "信用點", sim: "虛構臺站", propLevel: "傳播等級",
+    playNpc: "播放對方", submitReply: "發送回應", restartQso: "重新開始", money: "金錢", sim: "虛構臺站", propLevel: "傳播等級",
     phaseWaiting: "等待播放 NPC 呼叫", phaseReply: "請發送雙方呼號", phaseNpcRst: "等待播放對方 RST", phasePlayerRst: "請發送 RST 與 73",
     phaseFinal: "等待播放 73 / SK", phaseComplete: "通聯完成，可寫入日誌", phaseFailed: "通聯失敗，請重新開始", invalidReply: "回應格式不正確",
   },
@@ -125,7 +128,7 @@ const COPY = {
     fixedToneHint: "音程は固定です。オートキー速度は調整でき、縦振り電鍵は自動検出されます", filterActive: "500 Hz フィルター", playCq: "CQ を再生", replayInput: "入力を再生", target: "目標",
     decoded: "復号", accuracy: "送信正確度", rhythm: "リズム", powerOn: "電源オン", powerOff: "電源オフ", cwReady: "CW コア準備完了", cwPlaying: "標準 CQ を再生中",
     cwKeying: "送信を記録中", cwReplay: "入力を再生中", cwCaptured: "入力を記録しました", cwReceiving: "CW 受信中",
-    playNpc: "相手局を再生", submitReply: "応答を送信", restartQso: "やり直す", credits: "クレジット", sim: "架空局", propLevel: "伝搬レベル",
+    playNpc: "相手局を再生", submitReply: "応答を送信", restartQso: "やり直す", money: "所持金", sim: "架空局", propLevel: "伝搬レベル",
     phaseWaiting: "NPC の CQ を再生してください", phaseReply: "両局のコールを送信", phaseNpcRst: "相手局の RST を再生", phasePlayerRst: "RST と 73 を送信",
     phaseFinal: "73 / SK を再生", phaseComplete: "交信完了・ログ保存可能", phaseFailed: "交信失敗・やり直してください", invalidReply: "応答形式が正しくありません",
   },
@@ -143,7 +146,7 @@ const COPY = {
     fixedToneHint: "Kit tone is fixed; automatic-key speed is adjustable and straight-key speed is auto-detected", filterActive: "500 Hz filter", playCq: "Play CQ", replayInput: "Replay input", target: "Target",
     decoded: "Decoded", accuracy: "Transmit accuracy", rhythm: "Rhythm", powerOn: "Power on", powerOff: "Power off", cwReady: "CW core ready", cwPlaying: "Playing standard CQ",
     cwKeying: "Recording keying", cwReplay: "Replaying input", cwCaptured: "Input captured", cwReceiving: "Receiving CW",
-    playNpc: "Play station", submitReply: "Send reply", restartQso: "Restart", credits: "Credits", sim: "Fictional station", propLevel: "Propagation level",
+    playNpc: "Play station", submitReply: "Send reply", restartQso: "Restart", money: "Money", sim: "Fictional station", propLevel: "Propagation level",
     phaseWaiting: "Play the NPC calling message", phaseReply: "Send both callsigns", phaseNpcRst: "Play the NPC RST", phasePlayerRst: "Send RST and 73",
     phaseFinal: "Play 73 / SK", phaseComplete: "QSO complete; save the log", phaseFailed: "QSO failed; restart", invalidReply: "Reply format is not valid",
   },
@@ -161,7 +164,7 @@ const COPY = {
     fixedToneHint: "El tono del kit es fijo; la velocidad automática es ajustable y la manual se detecta", filterActive: "Filtro de 500 Hz", playCq: "Reproducir CQ", replayInput: "Reproducir entrada", target: "Objetivo",
     decoded: "Decodificado", accuracy: "Precisión de transmisión", rhythm: "Ritmo", powerOn: "Encender", powerOff: "Apagar", cwReady: "Núcleo CW listo", cwPlaying: "Reproduciendo CQ estándar",
     cwKeying: "Grabando manipulación", cwReplay: "Reproduciendo entrada", cwCaptured: "Entrada capturada", cwReceiving: "Recibiendo CW",
-    playNpc: "Reproducir estación", submitReply: "Enviar respuesta", restartQso: "Reiniciar", credits: "Créditos", sim: "Estación ficticia", propLevel: "Nivel de propagación",
+    playNpc: "Reproducir estación", submitReply: "Enviar respuesta", restartQso: "Reiniciar", money: "Dinero", sim: "Estación ficticia", propLevel: "Nivel de propagación",
     phaseWaiting: "Reproduce la llamada de la estación NPC", phaseReply: "Envía ambos indicativos", phaseNpcRst: "Reproduce el RST de la estación NPC", phasePlayerRst: "Envía RST y 73",
     phaseFinal: "Reproduce 73 / SK", phaseComplete: "QSO completado; guarda el registro", phaseFailed: "QSO fallido; reinicia", invalidReply: "El formato de respuesta no es válido",
   },
@@ -179,7 +182,7 @@ const COPY = {
     fixedToneHint: "Der Bausatzton ist fest; das Automatiktasten-Tempo ist einstellbar, Handtasten-Tempo wird erkannt", filterActive: "500-Hz-Filter", playCq: "CQ abspielen", replayInput: "Eingabe abspielen", target: "Ziel",
     decoded: "Dekodiert", accuracy: "Sendegenauigkeit", rhythm: "Rhythmus", powerOn: "Einschalten", powerOff: "Ausschalten", cwReady: "CW-Kern bereit", cwPlaying: "Standard-CQ wird abgespielt",
     cwKeying: "Tastung wird aufgezeichnet", cwReplay: "Eingabe wird abgespielt", cwCaptured: "Eingabe erfasst", cwReceiving: "CW-Empfang",
-    playNpc: "Station abspielen", submitReply: "Antwort senden", restartQso: "Neu starten", credits: "Kredite", sim: "Fiktive Station", propLevel: "Ausbreitungsstufe",
+    playNpc: "Station abspielen", submitReply: "Antwort senden", restartQso: "Neu starten", money: "Geld", sim: "Fiktive Station", propLevel: "Ausbreitungsstufe",
     phaseWaiting: "Ruf der NPC-Station abspielen", phaseReply: "Beide Rufzeichen senden", phaseNpcRst: "RST der NPC-Station abspielen", phasePlayerRst: "RST und 73 senden",
     phaseFinal: "73 / SK abspielen", phaseComplete: "QSO abgeschlossen; Log speichern", phaseFailed: "QSO fehlgeschlagen; neu starten", invalidReply: "Antwortformat ist ungültig",
   },
@@ -197,7 +200,7 @@ const COPY = {
     fixedToneHint: "Тон набора фиксирован; скорость автоматического ключа регулируется, ручного — определяется", filterActive: "Фильтр 500 Гц", playCq: "Воспроизвести CQ", replayInput: "Воспроизвести ввод", target: "Цель",
     decoded: "Декодировано", accuracy: "Точность передачи", rhythm: "Ритм", powerOn: "Включить", powerOff: "Выключить", cwReady: "Ядро CW готово", cwPlaying: "Воспроизводится стандартный CQ",
     cwKeying: "Запись манипуляции", cwReplay: "Воспроизведение ввода", cwCaptured: "Ввод записан", cwReceiving: "Приём CW",
-    playNpc: "Воспроизвести станцию", submitReply: "Передать ответ", restartQso: "Начать заново", credits: "Кредиты", sim: "Вымышленная станция", propLevel: "Уровень прохождения",
+    playNpc: "Воспроизвести станцию", submitReply: "Передать ответ", restartQso: "Начать заново", money: "Деньги", sim: "Вымышленная станция", propLevel: "Уровень прохождения",
     phaseWaiting: "Воспроизведите вызов станции NPC", phaseReply: "Передайте оба позывных", phaseNpcRst: "Воспроизведите RST станции NPC", phasePlayerRst: "Передайте RST и 73",
     phaseFinal: "Воспроизведите 73 / SK", phaseComplete: "QSO завершено; сохраните журнал", phaseFailed: "QSO не удалось; начните заново", invalidReply: "Неверный формат ответа",
   },
@@ -473,6 +476,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const [resultDismissed, setResultDismissed] = useState(false);
   const [settlementMeta, setSettlementMeta] = useState(null);
   const [powered, setPowered] = useState(true);
+  const keyInputStateRef = useRef(null);
   const [clock, setClock] = useState(() => new Date());
   const [selectedLogId, setSelectedLogId] = useState(null);
   const [qsoMetrics, setQsoMetrics] = useState({ samples: 0, wpm: 0, accuracy: 0, rhythm: 0 });
@@ -483,6 +487,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const exitConfirmingRef = useRef(false);
   const propagationKey = `${clock.getUTCFullYear()}-${clock.getUTCMonth()}-${clock.getUTCDate()}-${clock.getUTCHours()}-${Math.floor(clock.getUTCMinutes() / 10)}`;
   const propagationMap = useMemo(() => generatePropagationMap({ playerLocation, utc: clock }), [playerLocation, propagationKey]);
+  const missionTargetCallsign = targetCallsignForActiveMission(save);
   const initialNpc = useMemo(() => selectNpcForQso(propagationMap, { playerEquipmentBonus, seed: `${propagationKey}:0` }), [playerEquipmentBonus, propagationMap, propagationKey]);
   const [qso, setQso] = useState(() => createQso({
     npc: initialNpc,
@@ -492,7 +497,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const logRows = save.qsoLogs ?? [];
   const recentLogRows = logRows.slice(0, 6);
   const selectedLog = logRows.find((entry) => entry.id === selectedLogId) ?? null;
-  const credits = save.credits;
+  const money = save.money;
   const cw = useCwCore({
     targetText: qso.expectedPlayer ?? "",
     automaticWpm: save.automaticKeyWpm,
@@ -557,9 +562,12 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     const qaStations = window.cwgameSystem?.qaCapture
       ? NPC_STATIONS.filter(({ callsign }) => QA_OPTIONAL_NPC_CALLSIGNS.has(callsign))
       : undefined;
+    const missionStations = missionTargetCallsign
+      ? NPC_STATIONS.filter(({ callsign }) => callsign === missionTargetCallsign)
+      : undefined;
     const responder = selectNpcListenerForCq(propagationMap, {
       playerEquipmentBonus,
-      stations: qso.pendingResponder ? [qso.pendingResponder] : qaStations,
+      stations: qso.pendingResponder ? [qso.pendingResponder] : (qaStations ?? missionStations),
       seed,
       rfEnabled: antennaReady,
     });
@@ -574,7 +582,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     return () => window.clearTimeout(timer);
   }, [
     antennaReady, briefingOpen, exitRequest, playerEquipmentBonus, powered, propagationKey, propagationMap,
-    qso.npc, qso.pendingResponder, qso.phase, qso.unansweredCalls, qsoSerial, save.callsign,
+    missionTargetCallsign, qso.npc, qso.pendingResponder, qso.phase, qso.unansweredCalls, qsoSerial, save.callsign,
   ]);
 
   useEffect(() => {
@@ -621,28 +629,45 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     npcPlaybackRetry, qso.npc.wpm, qso.npcMessage, qso.npcReplyDisposition, qso.phase, qso.replyWpm,
   ]);
 
+  keyInputStateRef.current = {
+    antennaReady,
+    briefingOpen,
+    exitRequest,
+    inputBlocked,
+    keyType,
+    mapOpen,
+    powered,
+    qso,
+    retryRequired,
+    saveOrRestart,
+    submitReply,
+  };
+
   useEffect(() => {
     function onDown(event) {
-      if (mapOpen || briefingOpen || exitRequest || inputBlocked || !powered || !antennaReady) return;
+      const state = keyInputStateRef.current;
+      if (!state || state.mapOpen || state.briefingOpen || state.exitRequest || state.inputBlocked
+        || !state.powered || !state.antennaReady) return;
       if (["Space", "KeyZ", "KeyX", "F2", "F3"].includes(event.code)) event.preventDefault();
       if (event.repeat) return;
-      if (event.code === "F2") { submitReply(); return; }
-      if (event.code === "F3") { saveOrRestart(); return; }
-      if (!qsoCanAcceptPlayer(qso) || retryRequired) return;
-      if (keyType === "manual" && event.code === "Space") cw.beginManual();
-      if (keyType === "automatic" && event.code === "KeyZ") cw.beginAutomatic(".");
-      if (keyType === "automatic" && event.code === "KeyX") cw.beginAutomatic("-");
+      if (event.code === "F2") { state.submitReply(); return; }
+      if (event.code === "F3") { state.saveOrRestart(); return; }
+      if (!qsoCanAcceptPlayer(state.qso) || state.retryRequired) return;
+      if (state.keyType === "manual" && event.code === "Space") cw.beginManual();
+      if (state.keyType === "automatic" && event.code === "KeyZ") cw.beginAutomatic(".");
+      if (state.keyType === "automatic" && event.code === "KeyX") cw.beginAutomatic("-");
     }
     function onUp(event) {
-      if (keyType === "manual" && event.code === "Space") {
+      const state = keyInputStateRef.current;
+      if (state?.keyType === "manual" && event.code === "Space") {
         event.preventDefault();
         cw.endManual();
       }
-      if (keyType === "automatic" && event.code === "KeyZ") {
+      if (state?.keyType === "automatic" && event.code === "KeyZ") {
         event.preventDefault();
         cw.endAutomatic(".");
       }
-      if (keyType === "automatic" && event.code === "KeyX") {
+      if (state?.keyType === "automatic" && event.code === "KeyX") {
         event.preventDefault();
         cw.endAutomatic("-");
       }
@@ -657,7 +682,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       window.removeEventListener("blur", onBlur);
       cw.stopAll();
     };
-  }, [antennaReady, briefingOpen, cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll, exitRequest, inputBlocked, keyType, mapOpen, powered, qso, retryRequired, save, saved]);
+  }, [cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll]);
 
   function submitReply() {
     if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
@@ -820,7 +845,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     const entry = createCurrentLogEntry();
     const settlement = recordCompletedQso(save, entry);
     onSaveUpdate(settlement.added ? {
-        credits: settlement.save.credits,
+        money: settlement.save.money,
         qsoLogs: settlement.save.qsoLogs,
         qsoRecords: settlement.save.qsoRecords,
         technologyPoints: settlement.save.technologyPoints,
@@ -830,7 +855,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     setSettlementMeta({
       newRegion: settlement.newRegion,
       newDistanceRecord: settlement.newDistanceRecord,
-      creditsAwarded: settlement.creditsAwarded,
+      moneyAwarded: settlement.moneyAwarded,
       technologyPointsAwarded: settlement.technologyPointsAwarded,
       completedResearchProjects: settlement.completedResearchProjects,
       rewardBreakdown: settlement.rewardBreakdown,
@@ -910,7 +935,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const resultMeta = settlementMeta ?? (pendingSettlement ? {
     newRegion: pendingSettlement.newRegion,
     newDistanceRecord: pendingSettlement.newDistanceRecord,
-    creditsAwarded: pendingSettlement.creditsAwarded,
+    moneyAwarded: pendingSettlement.moneyAwarded,
     technologyPointsAwarded: pendingSettlement.technologyPointsAwarded,
     completedResearchProjects: pendingSettlement.completedResearchProjects,
     rewardBreakdown: pendingSettlement.rewardBreakdown,
@@ -945,6 +970,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       data-reply-wpm={qso.replyWpm ?? qso.npc.wpm}
       data-channel-notice={qso.channelNotice ?? ""}
       data-operator-profile={window.cwgameSystem?.qaCapture ? (qso.npc.operatorProfileId ?? "") : undefined}
+      data-mission-target-callsign={missionTargetCallsign ?? ""}
       data-contact-revealed={qso.contactRevealed}
       data-qa-has-contact={window.cwgameSystem?.qaCapture ? qso.hasContact : undefined}
       data-repeat-requests={qso.repeatRequests}
@@ -972,7 +998,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     >
       <header className="station-topbar">
         <div className="clock-group"><span>UTC <b>{utc}</b></span><i /><span>LOCAL <b>{local}</b></span></div>
-        <div className="station-name"><Radio size={18} weight="fill" /> {save.callsign} · {t.station} · {t.credits} {credits}</div>
+        <div className="station-name"><Radio size={18} weight="fill" /> {save.callsign} · {t.station} · {t.money} {money}</div>
         <div className="top-actions"><IconButton label={qsoCoachText(language).briefingTitle} onClick={openBriefing}><Question size={21} weight="bold" /></IconButton><IconButton label={t.back} data-action="back-home" onClick={(event) => requestExit("home", event.currentTarget)}><ArrowLeft size={21} /></IconButton><IconButton label={t.settings} onClick={onSettings}><GearSix size={21} /></IconButton></div>
       </header>
       <div className="station-grid">
@@ -1032,7 +1058,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       {!mapOpen && briefingOpen && <QsoBriefingModal language={language} guidance={save.qsoGuidance} onStart={startBriefedWatch} onSkip={skipBriefing} onClose={closeBriefing} />}
       {!mapOpen && !briefingOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_FAILED && <QsoResultModal language={language} failed onRestart={saveOrRestart} />}
       {!mapOpen && !briefingOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_COMPLETE && <QsoResultModal
-        language={language} entry={displayedResultEntry} creditsAwarded={resultMeta?.creditsAwarded ?? 0} saved={saved}
+        language={language} entry={displayedResultEntry} moneyAwarded={resultMeta?.moneyAwarded ?? 0} saved={saved}
         rewardBreakdown={resultMeta?.rewardBreakdown ?? null}
         technologyPointsAwarded={resultMeta?.technologyPointsAwarded ?? 0}
         completedResearchProjects={resultMeta?.completedResearchProjects ?? []}
@@ -1070,6 +1096,23 @@ export function App() {
     persistLanguagePreference(language);
   }, [language]);
 
+
+  useEffect(() => {
+    function handleEscapeMenu(event) {
+      if (event.key !== "Escape" || event.repeat || event.defaultPrevented) return;
+      if (settingsOpen) {
+        event.preventDefault();
+        setSettingsOpen(false);
+        return;
+      }
+      // Let the currently visible dialog consume Escape before opening the game menu.
+      if (document.querySelector('[aria-modal="true"]')) return;
+      event.preventDefault();
+      setSettingsOpen(true);
+    }
+    window.addEventListener("keydown", handleEscapeMenu);
+    return () => window.removeEventListener("keydown", handleEscapeMenu);
+  }, [settingsOpen]);
   function commitSaves(nextSavesOrUpdater) {
     const nextSaves = typeof nextSavesOrUpdater === "function"
       ? nextSavesOrUpdater(savesRef.current)
@@ -1105,22 +1148,27 @@ export function App() {
     }
   }
 
-  function updateActiveSave(patch, { notifyAchievements = false } = {}) {
-    if (!activeSaveId) return;
-    const previousSave = savesRef.current.find((save) => save.id === activeSaveId) ?? null;
-    const stored = commitSaves((current) => current.map((save) => save.id === activeSaveId
-      ? { ...save, ...patch, updatedAt: new Date().toISOString() }
-      : save));
-    if (!notifyAchievements || !previousSave) return;
-    const nextSave = stored.find((save) => save.id === activeSaveId) ?? null;
-    if (!nextSave) return;
-    const unlocked = findNewlyUnlockedAchievements(previousSave, nextSave)
+  function enqueueAchievementAwards(awards) {
+    const queued = (Array.isArray(awards) ? awards : [])
       .map((achievement) => ({ ...achievement, saveId: activeSaveId }));
-    if (!unlocked.length) return;
+    if (!queued.length) return;
     setAchievementQueue((current) => {
       const known = new Set(current.map((achievement) => `${achievement.saveId}:${achievement.id}`));
-      return [...current, ...unlocked.filter((achievement) => !known.has(`${achievement.saveId}:${achievement.id}`))];
+      return [...current, ...queued.filter((achievement) => !known.has(`${achievement.saveId}:${achievement.id}`))];
     });
+  }
+
+  function updateActiveSave(patch, { notifyAchievements = false } = {}) {
+    if (!activeSaveId) return;
+    let achievementSettlement = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      const nextSave = { ...save, ...patch, updatedAt: new Date().toISOString() };
+      if (!notifyAchievements) return nextSave;
+      achievementSettlement = settleAchievementRewards(nextSave);
+      return achievementSettlement.save;
+    }));
+    enqueueAchievementAwards(achievementSettlement?.newlyAwarded);
   }
 
   function recordActivePracticeAttempt(mode, result) {
@@ -1137,11 +1185,16 @@ export function App() {
   function purchaseForActiveSave(request) {
     if (!activeSaveId) return null;
     let transaction = null;
+    let achievementSettlement = null;
     commitSaves((current) => current.map((save) => {
       if (save.id !== activeSaveId) return save;
       transaction = purchaseItem(save, request);
-      return transaction.save;
+      if (!transaction.purchased) return transaction.save;
+      achievementSettlement = settleAchievementRewards(transaction.save);
+      transaction = { ...transaction, save: achievementSettlement.save };
+      return achievementSettlement.save;
     }));
+    enqueueAchievementAwards(achievementSettlement?.newlyAwarded);
     return transaction;
   }
 
@@ -1166,6 +1219,44 @@ export function App() {
     }));
     return transaction;
   }
+  function acceptMissionForActiveSave(missionId) {
+    if (!activeSaveId) return null;
+    let transaction = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      transaction = acceptMission(save, missionId);
+      return transaction.accepted ? { ...transaction.save, updatedAt: new Date().toISOString() } : save;
+    }));
+    return transaction;
+  }
+
+  function abandonMissionForActiveSave(missionId) {
+    if (!activeSaveId) return null;
+    let transaction = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      transaction = abandonMission(save, missionId);
+      return transaction.abandoned ? { ...transaction.save, updatedAt: new Date().toISOString() } : save;
+    }));
+    return transaction;
+  }
+
+  function claimMissionForActiveSave(missionId) {
+    if (!activeSaveId) return null;
+    let transaction = null;
+    let achievementSettlement = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      transaction = claimMission(save, missionId);
+      if (!transaction.claimed) return save;
+      achievementSettlement = settleAchievementRewards(transaction.save);
+      transaction = { ...transaction, save: achievementSettlement.save };
+      return { ...achievementSettlement.save, updatedAt: new Date().toISOString() };
+    }));
+    enqueueAchievementAwards(achievementSettlement?.newlyAwarded);
+    return transaction;
+  }
+
 
   function applySettings(next) {
     const nextWpm = normalizeAutomaticKeyWpm(next.automaticKeyWpm);
@@ -1201,7 +1292,7 @@ export function App() {
   let currentScreen;
   if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => enterPractice("start")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onAcceptMission={acceptMissionForActiveSave} onClaimMission={claimMissionForActiveSave} onAbandonMission={abandonMissionForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") {
     const persistentStats = practiceStatsByMode(activeSave?.practiceRecords);
     if (activeSave?.practiceRecords) {

@@ -9,6 +9,12 @@ import {
   TECHNOLOGY_TREE_VERSION, normalizeTechnologyPoints, normalizeUnlockedTechnologies,
 } from "./technologyTree.js";
 import { RESEARCH_PROJECTS_VERSION, normalizeCompletedResearchProjects } from "./researchProjects.js";
+import {
+  ACHIEVEMENT_REWARDS_VERSION, baselineAchievementRewardIds, normalizeClaimedAchievementRewards,
+} from "./achievements.js";
+import {
+  MISSION_STATE_VERSION, emptyMissionState, normalizeMissionState,
+} from "./missionSystem.js";
 
 export const SAVE_STORAGE_KEY = "game-morse-adventurer.saves.v1";
 export const ACTIVE_SAVE_KEY = "game-morse-adventurer.active-save.v1";
@@ -22,10 +28,11 @@ export function isValidCallsign(value) {
   return /^[A-Z0-9]{1,7}$/.test(String(value ?? ""));
 }
 
-export function normalizeCredits(value) {
-  const credits = Number(value);
-  return Number.isFinite(credits) ? Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(credits))) : 0;
+export function normalizeMoney(value) {
+  const money = Number(value);
+  return Number.isFinite(money) ? Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(money))) : 0;
 }
+export const normalizeCredits = normalizeMoney;
 
 export function normalizeQsoGuidance(value) {
   return QSO_GUIDANCE_LEVELS.includes(value) ? value : "full";
@@ -64,8 +71,13 @@ export function createSave({
     ownedEquipment: ["squid-01"],
     ownedAntennas: ["dipole"],
     accessories: [],
-    credits: 0,
+    money: 0,
+    achievementRewardsVersion: ACHIEVEMENT_REWARDS_VERSION,
+    claimedAchievementRewards: [],
+    knownOperatorNames: [],
     technologyTreeVersion: TECHNOLOGY_TREE_VERSION,
+    missionStateVersion: MISSION_STATE_VERSION,
+    missionState: emptyMissionState(),
     technologyPoints: 0,
     unlockedTechnologies: normalizeUnlockedTechnologies([]),
     researchProjectsVersion: RESEARCH_PROJECTS_VERSION,
@@ -129,7 +141,9 @@ export function normalizeSave(save) {
     ...ownedAntennas.map((itemId) => ({ category: "antenna", itemId })),
     ...ownedAccessories.map((itemId) => ({ category: "accessories", itemId })),
   ];
-  return {
+  const hasAchievementRewardLedger = Number(save?.achievementRewardsVersion) >= 1
+    || hasOwn("claimedAchievementRewards");
+  const normalized = {
     inventoryVersion: 3,
     id: String(save.id || `save-${Date.now()}`),
     callsign,
@@ -142,8 +156,12 @@ export function normalizeSave(save) {
     ownedEquipment,
     ownedAntennas,
     accessories: ownedAccessories,
-    credits: normalizeCredits(save.credits),
+    money: normalizeMoney(save.money ?? save.credits),
     technologyTreeVersion: TECHNOLOGY_TREE_VERSION,
+    knownOperatorNames: [...new Set((Array.isArray(save?.knownOperatorNames) ? save.knownOperatorNames : [])
+      .map((value) => String(value ?? "").trim().slice(0, 80)).filter(Boolean))].slice(0, 1000),
+    missionStateVersion: MISSION_STATE_VERSION,
+    missionState: normalizeMissionState(save?.missionState),
     technologyPoints: normalizeTechnologyPoints(save?.technologyPoints),
     unlockedTechnologies: normalizeUnlockedTechnologies(save?.unlockedTechnologies, {
       // Equipment released before the research system remains available to old saves.
@@ -162,6 +180,15 @@ export function normalizeSave(save) {
     createdAt: save.createdAt || new Date().toISOString(),
     updatedAt: save.updatedAt || new Date().toISOString(),
   };
+  normalized.achievementRewardsVersion = ACHIEVEMENT_REWARDS_VERSION;
+  normalized.claimedAchievementRewards = hasAchievementRewardLedger
+    ? normalizeClaimedAchievementRewards(save?.claimedAchievementRewards)
+    : baselineAchievementRewardIds({
+        ...normalized,
+        // Preserve whether legacy logs actually recorded a propagation level.
+        qsoLogs: Array.isArray(qsoLogSource) ? qsoLogSource : [],
+      });
+  return normalized;
 }
 
 export function loadSaves(storage = globalThis.localStorage) {

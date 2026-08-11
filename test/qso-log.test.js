@@ -264,7 +264,7 @@ test("normalizes aggregate records from retained logs", () => {
 test("records a completed QSO atomically and idempotently", () => {
   const save = {
     id: "save-1",
-    credits: 25,
+    money: 25,
     inventoryVersion: 1,
     ownedEquipment: ["squid-01"],
     ownedAntennas: ["dipole", "vertical"],
@@ -276,8 +276,8 @@ test("records a completed QSO atomically and idempotently", () => {
   assert.equal(first.added, true);
   assert.equal(first.newRegion, true);
   assert.equal(first.newDistanceRecord, true);
-  assert.equal(first.creditsAwarded, 195);
-  assert.equal(first.save.credits, 220);
+  assert.equal(first.moneyAwarded, 195);
+  assert.equal(first.save.money, 220);
   assert.strictEqual(first.settledEntry, first.save.qsoLogs.find((log) => log.id === "SIM7QX-1"));
   assert.deepEqual(first.rewardBreakdown, {
     version: 1,
@@ -309,8 +309,8 @@ test("records a completed QSO atomically and idempotently", () => {
   assert.equal(duplicate.newRegion, false);
   assert.equal(duplicate.newDistanceRecord, false);
   assert.strictEqual(duplicate.save, first.save);
-  assert.equal(duplicate.save.credits, 220);
-  assert.equal(duplicate.creditsAwarded, 0);
+  assert.equal(duplicate.save.money, 220);
+  assert.equal(duplicate.moneyAwarded, 0);
   assert.deepEqual(duplicate.rewardBreakdown, first.rewardBreakdown);
   assert.deepEqual(duplicate.settledEntry, first.settledEntry);
   assert.equal(duplicate.save.qsoRecords.total, 8);
@@ -318,7 +318,7 @@ test("records a completed QSO atomically and idempotently", () => {
 
 test("reports ordinary contacts without false milestones", () => {
   const save = {
-    credits: 0,
+    money: 0,
     qsoLogs: [entry({ id: "far", location: "NA-W", distanceKm: 9000 })],
     qsoRecords: { total: 1, longestDistanceKm: 9000, longestQsoId: "far", contactedRegions: ["NA-W"] },
   };
@@ -327,7 +327,7 @@ test("reports ordinary contacts without false milestones", () => {
   assert.equal(result.newRegion, false);
   assert.equal(result.newDistanceRecord, false);
   assert.equal(result.save.qsoRecords.longestQsoId, "far");
-  assert.equal(result.creditsAwarded, 150);
+  assert.equal(result.moneyAwarded, 150);
   assert.deepEqual(result.rewardBreakdown, {
     version: 1,
     base: 100,
@@ -341,7 +341,7 @@ test("reports ordinary contacts without false milestones", () => {
 
 test("awards weak-signal credit at P2 but not P3", () => {
   const save = {
-    credits: 10,
+    money: 10,
     qsoLogs: [entry({ id: "far", location: "NA-W", distanceKm: 9000 })],
     qsoRecords: { total: 1, longestDistanceKm: 9000, longestQsoId: "far", contactedRegions: ["NA-W"] },
   };
@@ -349,22 +349,22 @@ test("awards weak-signal credit at P2 but not P3", () => {
     id: "p2", distanceKm: 1000, finalPropagationLevel: 2,
     guidanceLevel: "full", independentWatch: false,
   }));
-  assert.equal(p2.creditsAwarded, 175);
-  assert.equal(p2.save.credits, 185);
+  assert.equal(p2.moneyAwarded, 175);
+  assert.equal(p2.save.money, 185);
   assert.equal(p2.rewardBreakdown.weakSignal, 75);
 
   const p3 = recordCompletedQso(p2.save, entry({
     id: "p3", distanceKm: 1100, finalPropagationLevel: 3,
     guidanceLevel: "full", independentWatch: false,
   }));
-  assert.equal(p3.creditsAwarded, 100);
-  assert.equal(p3.save.credits, 285);
+  assert.equal(p3.moneyAwarded, 100);
+  assert.equal(p3.save.money, 285);
   assert.equal(p3.rewardBreakdown.weakSignal, 0);
 });
 
 test("does not infer a weak-signal reward from a missing or invalid propagation level", () => {
   const save = {
-    credits: 10,
+    money: 10,
     qsoLogs: [entry({ id: "far", location: "NA-W", distanceKm: 9000, finalPropagationLevel: 4 })],
     qsoRecords: {
       total: 1,
@@ -382,7 +382,7 @@ test("does not infer a weak-signal reward from a missing or invalid propagation 
       guidanceLevel: "full",
       independentWatch: false,
     }));
-    assert.equal(result.creditsAwarded, 100);
+    assert.equal(result.moneyAwarded, 100);
     assert.equal(result.rewardBreakdown.weakSignal, 0);
     assert.equal(result.save.qsoRecords.weakSignalQsos, 0);
   }
@@ -390,18 +390,18 @@ test("does not infer a weak-signal reward from a missing or invalid propagation 
 
 test("does not retroactively award credits to a legacy settled log", () => {
   const legacyEntry = entry({ id: "legacy", version: 3, rewardBreakdown: undefined, credits: 150 });
-  const save = { credits: 7, qsoLogs: [legacyEntry], qsoRecords: null };
+  const save = { money: 7, qsoLogs: [legacyEntry], qsoRecords: null };
   const retry = recordCompletedQso(save, legacyEntry);
   assert.equal(retry.added, false);
   assert.strictEqual(retry.save, save);
-  assert.equal(retry.save.credits, 7);
-  assert.equal(retry.creditsAwarded, 0);
+  assert.equal(retry.save.money, 7);
+  assert.equal(retry.moneyAwarded, 0);
   assert.equal(retry.rewardBreakdown, null);
   assert.equal(retry.settledEntry.credits, 150);
 });
 
 test("keeps settlements idempotent after an old log is evicted", () => {
-  let save = { credits: 0, qsoLogs: [], qsoRecords: null };
+  let save = { money: 0, qsoLogs: [], qsoRecords: null };
   const first = entry({ id: "first", completedAt: "2026-07-15T00:05:00.000Z", finalPropagationLevel: 2 });
   save = recordCompletedQso(save, first).save;
   for (let index = 1; index <= MAX_QSO_LOGS; index += 1) {
@@ -415,19 +415,19 @@ test("keeps settlements idempotent after an old log is evicted", () => {
   assert.equal(save.qsoRecords.settledQsoIds.includes("first"), true);
   assert.equal(save.qsoRecords.weakSignalQsos, 1);
 
-  const creditsBeforeRetry = save.credits;
+  const moneyBeforeRetry = save.money;
   const totalBeforeRetry = save.qsoRecords.total;
   const retry = recordCompletedQso(save, first);
   assert.equal(retry.added, false);
   assert.strictEqual(retry.save, save);
-  assert.equal(retry.save.credits, creditsBeforeRetry);
+  assert.equal(retry.save.money, moneyBeforeRetry);
   assert.equal(retry.save.qsoRecords.total, totalBeforeRetry);
 });
 
 test("rejects settlement when either RST report is missing or invalid", () => {
-  const save = { credits: 0, qsoLogs: [], qsoRecords: null };
+  const save = { money: 0, qsoLogs: [], qsoRecords: null };
   assert.throws(() => recordCompletedQso(save, entry({ sent: null })), /sent and received RST/);
   assert.throws(() => recordCompletedQso(save, entry({ received: "999" })), /sent and received RST/);
-  assert.equal(save.credits, 0);
+  assert.equal(save.money, 0);
   assert.deepEqual(save.qsoLogs, []);
 });

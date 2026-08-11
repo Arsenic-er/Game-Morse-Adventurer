@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   evaluateAchievements,
   findNewlyUnlockedAchievements,
+  settleAchievementRewards,
 } from "../src/game/achievements.js";
 
 function log(overrides = {}) {
@@ -18,14 +19,19 @@ function log(overrides = {}) {
     ...overrides,
   };
 }
+function progressOf({ id, current, target, unlocked, progress }) {
+  return { id, current, target, unlocked, progress };
+}
 
-test("returns six locked achievements for an empty or malformed old save", () => {
+
+test("returns the complete locked achievement catalog for an empty or malformed old save", () => {
   for (const save of [null, {}, { qsoLogs: "bad", qsoRecords: { total: "nope" } }]) {
     const achievements = evaluateAchievements(save);
     assert.deepEqual(achievements.map(({ id }) => id), [
       "first-qso", "qso-5", "qso-10", "dx-5000", "weak-signal", "regions-3",
+      "independent-watch", "radio-upgrade", "antenna-upgrade", "first-accessory", "first-name",
     ]);
-    assert.equal(achievements.length, 6);
+    assert.equal(achievements.length, 11);
     for (const achievement of achievements) {
       assert.equal(achievement.current, 0);
       assert.equal(achievement.unlocked, false);
@@ -46,22 +52,22 @@ test("uses durable aggregate records for count, distance, and contacted regions"
   });
   const byId = Object.fromEntries(achievements.map((value) => [value.id, value]));
 
-  assert.deepEqual(byId["first-qso"], {
+  assert.deepEqual(progressOf(byId["first-qso"]), {
     id: "first-qso", current: 7, target: 1, unlocked: true, progress: 1,
   });
-  assert.deepEqual(byId["qso-5"], {
+  assert.deepEqual(progressOf(byId["qso-5"]), {
     id: "qso-5", current: 7, target: 5, unlocked: true, progress: 1,
   });
-  assert.deepEqual(byId["qso-10"], {
+  assert.deepEqual(progressOf(byId["qso-10"]), {
     id: "qso-10", current: 7, target: 10, unlocked: false, progress: 0.7,
   });
-  assert.deepEqual(byId["dx-5000"], {
+  assert.deepEqual(progressOf(byId["dx-5000"]), {
     id: "dx-5000", current: 6250.5, target: 5000, unlocked: true, progress: 1,
   });
-  assert.deepEqual(byId["weak-signal"], {
+  assert.deepEqual(progressOf(byId["weak-signal"]), {
     id: "weak-signal", current: 2, target: 1, unlocked: true, progress: 1,
   });
-  assert.deepEqual(byId["regions-3"], {
+  assert.deepEqual(progressOf(byId["regions-3"]), {
     id: "regions-3", current: 3, target: 3, unlocked: true, progress: 1,
   });
 });
@@ -95,7 +101,7 @@ test("does not award weak-signal achievement for invalid logs or missing levels"
     ],
   });
   const weakSignal = achievements.find(({ id }) => id === "weak-signal");
-  assert.deepEqual(weakSignal, {
+  assert.deepEqual(progressOf(weakSignal), {
     id: "weak-signal", current: 0, target: 1, unlocked: false, progress: 0,
   });
 });
@@ -171,4 +177,39 @@ test("new-unlock comparison safely handles malformed save snapshots", () => {
     ),
     [],
   );
+});
+
+test("achievement rewards add money and technology points exactly once", () => {
+  const save = {
+    money: 10,
+    technologyPoints: 2,
+    claimedAchievementRewards: [],
+    qsoLogs: [],
+    qsoRecords: { total: 10, longestDistanceKm: 5100, contactedRegions: ["AS-JA", "NA-W", "EU-W"], weakSignalQsos: 1 },
+    ownedEquipment: ["squid-01"],
+    ownedAntennas: ["dipole"],
+    accessories: [],
+    knownOperatorNames: [],
+  };
+  const first = settleAchievementRewards(save);
+  assert.deepEqual(first.newlyAwarded.map(({ id }) => id), [
+    "first-qso", "qso-5", "qso-10", "dx-5000", "weak-signal", "regions-3",
+  ]);
+  assert.equal(first.moneyAwarded, 1670);
+  assert.equal(first.technologyPointsAwarded, 2);
+  assert.equal(first.save.money, 1680);
+  assert.equal(first.save.technologyPoints, 4);
+
+  const duplicate = settleAchievementRewards(first.save);
+  assert.deepEqual(duplicate.newlyAwarded, []);
+  assert.equal(duplicate.moneyAwarded, 0);
+  assert.equal(duplicate.technologyPointsAwarded, 0);
+  assert.equal(duplicate.save.money, 1680);
+  assert.equal(duplicate.save.technologyPoints, 4);
+});
+
+test("equipment and people achievements use inventory and discovered-name state", () => {
+  const achievements = evaluateAchievements({ ownedEquipment: ["squid-01", "usdr-8"], ownedAntennas: ["dipole", "vertical"], accessories: ["cw-filter-500"], knownOperatorNames: ["Morse", "morse", "Wang"] });
+  const unlocked = achievements.filter(({ unlocked }) => unlocked).map(({ id }) => id);
+  assert.deepEqual(unlocked, ["radio-upgrade", "antenna-upgrade", "first-accessory", "first-name"]);
 });

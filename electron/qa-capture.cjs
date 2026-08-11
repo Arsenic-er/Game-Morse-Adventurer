@@ -306,7 +306,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.32.1")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.34.1")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
   const languageStorageKey = "game-morse-adventurer.language.v1";
@@ -564,10 +564,59 @@ async function runQaCapture(window) {
   await click(window, ".save-primary-action");
   await waitFor(window, ".home-screen");
   await capture(window, outputDir, shot("home"));
+  await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keydown", {
+    key: "Escape", code: "Escape", bubbles: true, cancelable: true,
+  }))`, true);
+  await waitFor(window, ".settings-modal");
+  const escapeMenuState = await window.webContents.executeJavaScript(`(() => ({
+    modalCount: document.querySelectorAll('[role="dialog"][aria-modal="true"]').length,
+    title: document.querySelector("#settings-title")?.textContent.trim() ?? "",
+  }))()`, true);
+  if (escapeMenuState.modalCount !== 1 || !escapeMenuState.title) throw new Error(`Escape did not open one game menu: ${JSON.stringify(escapeMenuState)}`);
+  await capture(window, outputDir, shot("home-escape-menu"));
+  await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keydown", {
+    key: "Escape", code: "Escape", bubbles: true, cancelable: true,
+  }))`, true);
+  await waitForMissing(window, ".settings-modal");
   await capture(window, outputDir, shot("home-motion-a"));
   await new Promise((resolve) => setTimeout(resolve, 1400));
   await capture(window, outputDir, shot("home-motion-b"));
   await clearHover(window);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-testid="mission-center-modal"]');
+  const initialMissionState = await window.webContents.executeJavaScript(`(() => ({
+    storyCount: document.querySelectorAll('.mission-card[data-mission-id^="story-"]').length,
+    available: document.querySelector('[data-mission-id="story-01"]')?.dataset.missionStatus ?? null,
+    locked: Array.from(document.querySelectorAll('.mission-card[data-mission-status="locked"]'), (node) => node.dataset.missionId),
+  }))()`, true);
+  if (initialMissionState.storyCount !== 3 || initialMissionState.available !== "available"
+    || JSON.stringify(initialMissionState.locked) !== JSON.stringify(["story-02", "story-03"])) {
+    throw new Error(`Unexpected initial mission board: ${JSON.stringify(initialMissionState)}`);
+  }
+  await capture(window, outputDir, shot("mission-story-initial"));
+  await click(window, '[data-action="accept-mission"][data-mission-action-id="story-01"]');
+  await waitFor(window, '[data-mission-id="story-01"][data-mission-status="active"]');
+  const acceptedMissionState = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    return {
+      version: save.missionStateVersion,
+      active: save.missionState?.activeMissions?.map(({ id }) => id) ?? [],
+      claimed: save.missionState?.claimedMissionIds ?? [],
+    };
+  })()`, true);
+  if (acceptedMissionState.version !== 1
+    || JSON.stringify(acceptedMissionState.active) !== JSON.stringify(["story-01"])
+    || acceptedMissionState.claimed.length !== 0) {
+    throw new Error(`Mission acceptance did not persist atomically: ${JSON.stringify(acceptedMissionState)}`);
+  }
+  await capture(window, outputDir, shot("mission-story-active"));
+  await click(window, '[data-mission-tab="daily"]');
+  await waitFor(window, '.mission-card[data-mission-id^="daily:"]');
+  const dailyMissionCount = await window.webContents.executeJavaScript('document.querySelectorAll(\'.mission-card[data-mission-id^="daily:"]\').length', true);
+  if (dailyMissionCount !== 3) throw new Error(`Expected three deterministic daily missions, received ${dailyMissionCount}`);
+  await capture(window, outputDir, shot("mission-daily"));
+  await click(window, '[data-action="close-missions-footer"]');
+  await waitForMissing(window, '[data-testid="mission-center-modal"]');
   await assertHoverTint(window, ".hotspot-store");
   await capture(window, outputDir, shot("home-hover-store"));
   await click(window, ".hotspot-store");
@@ -626,7 +675,7 @@ async function runQaCapture(window) {
     callsign: document.querySelector(".achievements-summary strong")?.textContent.trim() ?? null,
     savedCallsign: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
   }))()`, true);
-  if (emptyAchievementState.total !== 6 || emptyAchievementState.unlocked !== 0
+  if (emptyAchievementState.total !== 11 || emptyAchievementState.unlocked !== 0
     || emptyAchievementState.callsign !== emptyAchievementState.savedCallsign) {
     throw new Error(`Unexpected empty achievement state: ${JSON.stringify(emptyAchievementState)}`);
   }
@@ -643,9 +692,14 @@ async function runQaCapture(window) {
     const saves = JSON.parse(localStorage.getItem(key) || "[]");
     const save = saves[0];
     save.keyType = "automatic";
-    save.credits = 2000;
+    save.money = 2000;
     save.technologyPoints = 0;
     save.unlockedTechnologies = ["station-basics", "rf-circuits", "frequency-synthesis", "multiband-qrp", "feedline-matching", "vertical-aerials", "directional-arrays", "receiver-audio", "narrowband-filtering"];
+    // Keep every pre-QSO reward claimed except qso-5 so this smoke run can
+    // verify one deterministic paid unlock without earlier store rewards.
+    save.claimedAchievementRewards = [
+      "first-qso", "qso-10", "dx-5000", "weak-signal", "regions-3", "independent-watch", "radio-upgrade", "antenna-upgrade", "first-accessory", "first-name",
+    ];
     save.completedResearchProjects = ["first-contact", "reliable-operator"];
     save.qsoLogs = [
       { version: 1, id: "SIM9AK-qa-2", startedAt: "2026-07-15T03:06:00.000Z", completedAt: "2026-07-15T03:12:00.000Z", playerCallsign: save.callsign, callsign: "SIM9AK", frequencyMhz: 21.06, mode: "CW", sent: "559", received: "579", location: "EU-W", npcLatitude: 51.51, npcLongitude: -0.13, distanceKm: 9568.2, basePropagationLevel: 2, finalPropagationLevel: 3, propagationSource: "OFFLINE_DEFAULT", equipmentId: "squid-01", antennaId: save.antennaId, playerLocationId: save.locationId, wpm: 19, copyAccuracy: 94, keyingScore: 91, credits: 100, isFictional: true },
@@ -669,6 +723,12 @@ async function runQaCapture(window) {
 
   await click(window, ".save-primary-action");
   await waitFor(window, ".home-screen");
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-01"][data-mission-status="ready"]');
+  await capture(window, outputDir, shot("mission-story-ready"));
+  await click(window, '[data-action="close-missions-footer"]');
+  await waitForMissing(window, '[data-testid="mission-center-modal"]');
+
   await click(window, ".hotspot-store");
   await waitFor(window, '[data-testid="store-modal"]');
   await click(window, '[data-store-category="accessories"]');
@@ -677,9 +737,9 @@ async function runQaCapture(window) {
   await waitFor(window, '[data-store-item-id="cw-filter-500"][data-store-item-state="owned"]');
   const accessoryPurchaseState = await window.webContents.executeJavaScript(`(() => {
     const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
-    return { credits: save.credits, accessories: save.accessories, accessoryId: save.accessoryId };
+    return { money: save.money, accessories: save.accessories, accessoryId: save.accessoryId };
   })()`, true);
-  if (accessoryPurchaseState.credits !== 1700
+  if (accessoryPurchaseState.money !== 1700
     || !accessoryPurchaseState.accessories.includes("cw-filter-500")
     || accessoryPurchaseState.accessoryId !== "none") {
     throw new Error(`Accessory purchase was not atomic: ${JSON.stringify(accessoryPurchaseState)}`);
@@ -694,9 +754,9 @@ async function runQaCapture(window) {
   await waitFor(window, '[data-store-item-id="usdr-8"][data-store-item-state="owned"]');
   const radioPurchaseState = await window.webContents.executeJavaScript(`(() => {
     const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
-    return { credits: save.credits, ownedEquipment: save.ownedEquipment, equipmentId: save.equipmentId };
+    return { money: save.money, ownedEquipment: save.ownedEquipment, equipmentId: save.equipmentId };
   })()`, true);
-  if (radioPurchaseState.credits !== 900
+  if (radioPurchaseState.money !== 900
     || !radioPurchaseState.ownedEquipment.includes("usdr-8")
     || radioPurchaseState.equipmentId !== "squid-01") {
     throw new Error(`Radio purchase was not atomic: ${JSON.stringify(radioPurchaseState)}`);
@@ -741,7 +801,7 @@ async function runQaCapture(window) {
     callsign: document.querySelector(".achievements-summary strong")?.textContent.trim() ?? null,
     savedCallsign: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
   }))()`, true);
-  const expectedUnlockedAchievements = ["dx-5000", "first-qso"];
+  const expectedUnlockedAchievements = ["dx-5000", "first-accessory", "first-qso", "radio-upgrade"];
   if (JSON.stringify(populatedAchievementState.unlocked) !== JSON.stringify(expectedUnlockedAchievements)
     || populatedAchievementState.callsign !== populatedAchievementState.savedCallsign) {
     throw new Error(`Unexpected populated achievement state: ${JSON.stringify(populatedAchievementState)}`);
@@ -1320,6 +1380,11 @@ async function runQaCapture(window) {
   await capture(window, outputDir, shot("qso-leave-active"));
   await window.webContents.executeJavaScript('window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, cancelable: true }))', true);
   await waitForMissing(window, '[data-testid="qso-leave-dialog"]');
+  const stackedSettingsAfterEscape = await window.webContents.executeJavaScript(
+    'Boolean(document.querySelector(".settings-modal"))',
+    true,
+  );
+  if (stackedSettingsAfterEscape) throw new Error("Escape stacked Settings behind the QSO leave alertdialog");
   const draftAfterCancel = await window.webContents.executeJavaScript(`(() => ({
     phase: document.querySelector(".station-screen")?.dataset.qsoPhase,
     pulseCount: Number(document.querySelector(".station-screen")?.dataset.pulseCount),
@@ -1332,6 +1397,8 @@ async function runQaCapture(window) {
   await waitFor(window, '[data-testid="qso-leave-dialog"][data-leave-destination="new-qso"]');
   await click(window, '[data-action="confirm-qso-leave"]');
   await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-qso-exit-risk="none"][data-pulse-count="0"]');
+  // Let StationScreen reattach its key listeners after the confirmed QSO reset.
+  await delay(120);
   await sendAutomaticText(window, "E");
   const beforeClearInput = await window.webContents.executeJavaScript(`(() => {
     const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
@@ -1682,12 +1749,12 @@ async function runQaCapture(window) {
         guidanceLevel: entry.guidanceLevel,
         visualAssistUsed: entry.visualAssistUsed,
         independentWatch: entry.independentWatch,
-        creditsAwarded: entry.credits,
+        moneyAwarded: entry.credits,
         rewardBreakdown: entry.rewardBreakdown,
         location: entry.location,
         distanceKm: entry.distanceKm,
         finalPropagationLevel: entry.finalPropagationLevel,
-        saveCredits: save.credits,
+        saveMoney: save.money,
         attemptResults: (entry.attemptHistory ?? []).map((attempt) => attempt.result),
         attemptMetricsComplete: (entry.attemptHistory ?? []).every((attempt) =>
           Number.isFinite(attempt.wpm) && Number.isFinite(attempt.accuracy) && Number.isFinite(attempt.rhythm)),
@@ -1724,8 +1791,8 @@ async function runQaCapture(window) {
     || savedReward.weakSignal !== expectedWeakSignalReward
     || savedReward.newRegion !== expectedNewRegionReward
     || savedReward.newDistanceRecord !== expectedDistanceReward
-    || savedRewardTotal !== savedReward.total || savedEquipmentSnapshot.creditsAwarded !== savedReward.total
-    || savedEquipmentSnapshot.saveCredits !== 900 + savedReward.total
+    || savedRewardTotal !== savedReward.total || savedEquipmentSnapshot.moneyAwarded !== savedReward.total
+    || savedEquipmentSnapshot.saveMoney !== 900 + savedReward.total + 250
     || !savedAttemptResults.has("accepted") || !savedAttemptResults.has("transmitted")
     || !savedAttemptResults.has("rejected") || !savedAttemptResults.has("repeat")
     || !savedEquipmentSnapshot.attemptMetricsComplete
@@ -1773,6 +1840,37 @@ async function runQaCapture(window) {
   await waitFor(window, '[data-map-mode="world"]');
   await capture(window, outputDir, shot("world-map"));
 
+  await click(window, ".map-modal header .icon-button");
+  await waitForMissing(window, ".map-modal");
+  await click(window, '.station-topbar .top-actions [data-action="back-home"]');
+  await waitFor(window, ".home-screen");
+  const moneyBeforeMissionClaim = await window.webContents.executeJavaScript(
+    'JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].money',
+    true,
+  );
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-01"][data-mission-status="ready"]');
+  await click(window, '[data-action="claim-mission"][data-mission-action-id="story-01"]');
+  await waitFor(window, '[data-mission-id="story-01"][data-mission-status="claimed"]');
+  const claimedMissionState = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    return {
+      money: save.money,
+      active: save.missionState?.activeMissions?.map(({ id }) => id) ?? [],
+      claimed: save.missionState?.claimedMissionIds ?? [],
+      history: save.missionState?.history ?? [],
+    };
+  })()`, true);
+  if (claimedMissionState.money !== moneyBeforeMissionClaim + 150
+    || claimedMissionState.active.includes("story-01")
+    || !claimedMissionState.claimed.includes("story-01")
+    || claimedMissionState.history.filter(({ id }) => id === "story-01").length !== 1) {
+    throw new Error(`Mission reward was not atomic: ${JSON.stringify({ moneyBeforeMissionClaim, claimedMissionState })}`);
+  }
+  await capture(window, outputDir, shot("mission-story-claimed"));
+  await click(window, '[data-action="close-missions-footer"]');
+  await waitForMissing(window, '[data-testid="mission-center-modal"]');
+
   await window.reload();
   await waitFor(window, ".start-screen");
   await delay(350);
@@ -1797,6 +1895,9 @@ async function runQaCapture(window) {
       callsignLessonCorrect: Number(save.practiceRecords?.["callsign-rx"]?.lessonCorrect),
       notificationCount: document.querySelectorAll('[data-testid="achievement-notification"]').length,
       liveRegionCount: document.querySelectorAll('.achievement-notification-region[role="status"][aria-live="polite"]').length,
+      missionClaimed: save.missionState?.claimedMissionIds?.includes("story-01") === true,
+      missionActive: save.missionState?.activeMissions?.some(({ id }) => id === "story-01") === true,
+      missionHistoryCount: save.missionState?.history?.filter(({ id }) => id === "story-01").length ?? 0,
     };
   })()`, true);
   if (finalReloadState.totalQsos !== 5 || finalReloadState.practiceAttempts !== 10
@@ -1809,7 +1910,8 @@ async function runQaCapture(window) {
     || finalReloadState.callsignAttempts !== 1 || finalReloadState.callsignCorrect !== 1
     || finalReloadState.callsignLesson !== 1 || finalReloadState.callsignLessonsCompleted !== 0
     || finalReloadState.callsignLessonAttempts !== 1 || finalReloadState.callsignLessonCorrect !== 1
-    || finalReloadState.notificationCount !== 0 || finalReloadState.liveRegionCount !== 1) {
+    || finalReloadState.notificationCount !== 0 || finalReloadState.liveRegionCount !== 1
+    || !finalReloadState.missionClaimed || finalReloadState.missionActive || finalReloadState.missionHistoryCount !== 1) {
     throw new Error(`Reload repeated an unlock or lost durable records: ${JSON.stringify(finalReloadState)}`);
   }
   await capture(window, outputDir, shot("reload-without-achievement-repeat"));
@@ -1824,10 +1926,12 @@ async function runQaCapture(window) {
   return {
     outputDir,
     captures: [...[
-      "start", "save-create", "home", "home-motion-a", "home-motion-b",
+      "start", "save-create", "home", "home-escape-menu", "home-motion-a", "home-motion-b",
       "home-hover-store", "store-antenna", "store-radio", "store-accessory-research",
       "home-hover-warehouse", "technology-tree-initial", "warehouse-radio", "warehouse-accessories",
       "warehouse-antenna-selected", "warehouse-antenna-equipped",
+      "mission-story-initial", "mission-story-active", "mission-daily", "mission-story-ready",
+      "mission-story-claimed",
       "home-hover-achievements", "achievements-empty", "home-log-empty", "practice-session-only", "save-loaded", "store-accessory-owned", "store-radio-available", "store-radio-owned",
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
       "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "practice-callsign-region-selected", "practice-callsign-region-locked", "practice-callsign-region-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "qso-leave-active", "station-input-cleared", "qso-npc-query", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-optional-query", "qso-result-unsaved", "qso-leave-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",

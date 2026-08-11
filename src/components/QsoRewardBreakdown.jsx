@@ -78,10 +78,10 @@ function normalizeReward(value, fallback = 0) {
   return Number.isFinite(number) ? Math.max(0, Math.floor(number)) : fallback;
 }
 
-export function QsoRewardBreakdown({ language, breakdown, credits, compact = false }) {
+export function QsoRewardBreakdown({ language, breakdown, money, credits, compact = false }) {
   const t = TEXT[language] ?? TEXT.en;
   const hasBreakdown = Boolean(breakdown && typeof breakdown === "object");
-  const historicalTotal = normalizeReward(credits);
+  const historicalTotal = normalizeReward(money ?? credits);
   const total = hasBreakdown
     ? normalizeReward(breakdown.total, historicalTotal)
     : historicalTotal;

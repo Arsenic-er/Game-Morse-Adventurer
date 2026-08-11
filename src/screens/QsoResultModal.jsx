@@ -10,57 +10,57 @@ const TEXT = {
     success: "通联完成", failed: "通联未完成", saved: "已写入永久日志", unsaved: "等待写入日志",
     callsign: "对方呼号", region: "地区", distance: "距离", rst: "双方 RST", propagation: "传播等级",
     equipment: "设备快照", speed: "检测速度", accuracy: "发报准确率", rhythm: "发报节奏", repeats: "请求重发",
-    credits: "本次信用点", sim: "虚构台站", newRegion: "首次通联地区", newDistance: "最远距离纪录",
+    money: "本次金钱", sim: "虚构台站", newRegion: "首次通联地区", newDistance: "最远距离纪录",
     save: "写入日志并结算", leave: "不保存并返回管理中心", next: "开始下一次通联", restart: "重新开始本次通联", continue: "返回发射台",
-    failedHint: "本次回应未通过最小 QSO 流程判定，不会扣除信用点，也不会写入日志。",
+    failedHint: "本次回应未通过最小 QSO 流程判定，不会扣除金钱，也不会写入日志。",
   },
   "zh-TW": {
     success: "通聯完成", failed: "通聯未完成", saved: "已寫入永久日誌", unsaved: "等待寫入日誌",
     callsign: "對方呼號", region: "地區", distance: "距離", rst: "雙方 RST", propagation: "傳播等級",
     equipment: "設備快照", speed: "偵測速度", accuracy: "發報準確率", rhythm: "發報節奏", repeats: "請求重發",
-    credits: "本次信用點", sim: "虛構臺站", newRegion: "首次通聯地區", newDistance: "最遠距離紀錄",
+    money: "本次金錢", sim: "虛構臺站", newRegion: "首次通聯地區", newDistance: "最遠距離紀錄",
     save: "寫入日誌並結算", leave: "不儲存並返回管理中心", next: "開始下一次通聯", restart: "重新開始本次通聯", continue: "返回發射臺",
-    failedHint: "本次回應未通過最小 QSO 流程判定，不會扣除信用點，也不會寫入日誌。",
+    failedHint: "本次回應未通過最小 QSO 流程判定，不會扣除金錢，也不會寫入日誌。",
   },
   ja: {
     success: "交信完了", failed: "交信未完了", saved: "永久ログに保存済み", unsaved: "ログ保存待ち",
     callsign: "相手局", region: "地域", distance: "距離", rst: "双方の RST", propagation: "伝搬レベル",
     equipment: "装備スナップショット", speed: "検出速度", accuracy: "送信正確度", rhythm: "送信リズム", repeats: "再送要求",
-    credits: "今回のクレジット", sim: "架空局", newRegion: "初交信地域", newDistance: "最長距離記録",
+    money: "今回の報酬", sim: "架空局", newRegion: "初交信地域", newDistance: "最長距離記録",
     save: "ログ保存と精算", leave: "保存せず管理センターへ戻る", next: "次の交信を開始", restart: "この交信をやり直す", continue: "運用卓へ戻る",
-    failedHint: "最小 QSO 手順を完了できませんでした。クレジット消費やログ記録はありません。",
+    failedHint: "最小 QSO 手順を完了できませんでした。報酬消費やログ記録はありません。",
   },
   en: {
     success: "QSO Complete", failed: "QSO Incomplete", saved: "Saved to permanent log", unsaved: "Waiting to be logged",
     callsign: "Remote callsign", region: "Region", distance: "Distance", rst: "RST exchanged", propagation: "Propagation level",
     equipment: "Equipment snapshot", speed: "Detected speed", accuracy: "Transmit accuracy", rhythm: "Keying rhythm", repeats: "Repeat requests",
-    credits: "Credits earned", sim: "Fictional station", newRegion: "First contact in region", newDistance: "New distance record",
+    money: "Money earned", sim: "Fictional station", newRegion: "First contact in region", newDistance: "New distance record",
     save: "Save log and settle", leave: "Return home without saving", next: "Start next QSO", restart: "Restart this QSO", continue: "Return to station",
-    failedHint: "The reply did not complete the minimum QSO flow. No credits are deducted and no log entry is written.",
+    failedHint: "The reply did not complete the minimum QSO flow. No money is deducted and no log entry is written.",
   },
   es: {
     success: "QSO completado", failed: "QSO incompleto", saved: "Guardado en el registro permanente", unsaved: "Pendiente de registro",
     callsign: "Indicativo remoto", region: "Región", distance: "Distancia", rst: "RST intercambiado", propagation: "Nivel de propagación",
     equipment: "Resumen de equipo", speed: "Velocidad detectada", accuracy: "Precisión de transmisión", rhythm: "Ritmo de manipulación", repeats: "Peticiones de repetición",
-    credits: "Créditos obtenidos", sim: "Estación ficticia", newRegion: "Primer contacto en la región", newDistance: "Nuevo récord de distancia",
+    money: "Dinero obtenido", sim: "Estación ficticia", newRegion: "Primer contacto en la región", newDistance: "Nuevo récord de distancia",
     save: "Guardar registro y liquidar", leave: "Volver sin guardar", next: "Iniciar siguiente QSO", restart: "Reiniciar este QSO", continue: "Volver a la estación",
-    failedHint: "La respuesta no completó el flujo QSO mínimo. No se descuentan créditos ni se escribe ninguna entrada.",
+    failedHint: "La respuesta no completó el flujo QSO mínimo. No se descuenta dinero ni se escribe ninguna entrada.",
   },
   de: {
     success: "QSO abgeschlossen", failed: "QSO unvollständig", saved: "Im dauerhaften Log gespeichert", unsaved: "Wartet auf Protokollierung",
     callsign: "Gegenstationsrufzeichen", region: "Region", distance: "Entfernung", rst: "Ausgetauschter RST", propagation: "Ausbreitungsstufe",
     equipment: "Ausrüstungsübersicht", speed: "Erkannte Geschwindigkeit", accuracy: "Sendegenauigkeit", rhythm: "Tastrhythmus", repeats: "Wiederholungsanfragen",
-    credits: "Verdiente Kredite", sim: "Fiktive Station", newRegion: "Erster Kontakt in der Region", newDistance: "Neuer Entfernungsrekord",
+    money: "Verdientes Geld", sim: "Fiktive Station", newRegion: "Erster Kontakt in der Region", newDistance: "Neuer Entfernungsrekord",
     save: "Log speichern und abrechnen", leave: "Ohne Speichern zur Zentrale", next: "Nächstes QSO starten", restart: "Dieses QSO neu starten", continue: "Zurück zur Station",
-    failedHint: "Die Antwort hat den minimalen QSO-Ablauf nicht abgeschlossen. Es werden keine Kredite abgezogen und kein Logeintrag geschrieben.",
+    failedHint: "Die Antwort hat den minimalen QSO-Ablauf nicht abgeschlossen. Es wird kein Geld abgezogen und kein Logeintrag geschrieben.",
   },
   ru: {
     success: "QSO завершено", failed: "QSO не завершено", saved: "Сохранено в постоянном журнале", unsaved: "Ожидает записи в журнал",
     callsign: "Позывной корреспондента", region: "Регион", distance: "Расстояние", rst: "Обмен RST", propagation: "Уровень прохождения",
     equipment: "Снимок оборудования", speed: "Определённая скорость", accuracy: "Точность передачи", rhythm: "Ритм ключа", repeats: "Запросы повтора",
-    credits: "Получено кредитов", sim: "Вымышленная станция", newRegion: "Первая связь в регионе", newDistance: "Новый рекорд расстояния",
+    money: "Получено денег", sim: "Вымышленная станция", newRegion: "Первая связь в регионе", newDistance: "Новый рекорд расстояния",
     save: "Сохранить журнал и рассчитать", leave: "Вернуться без сохранения", next: "Начать следующее QSO", restart: "Начать это QSO заново", continue: "Вернуться на станцию",
-    failedHint: "Ответ не завершил минимальный порядок QSO. Кредиты не списываются, запись в журнал не создаётся.",
+    failedHint: "Ответ не завершил минимальный порядок QSO. Деньги не списываются, запись в журнал не создаётся.",
   },
 };
 
@@ -184,7 +184,7 @@ function QsoAttemptHistory({ entry, language }) {
 }
 
 export function QsoResultModal({
-  language, failed = false, entry = null, creditsAwarded = 0, saved = false,
+  language, failed = false, entry = null, moneyAwarded = 0, saved = false,
   technologyPointsAwarded = 0, completedResearchProjects = [],
   rewardBreakdown = null, onSave, onRestart, onNext, onLeave, onClose,
 }) {
@@ -231,14 +231,14 @@ export function QsoResultModal({
             <QsoAttemptHistory entry={entry} language={language} />
             <div className="qso-result-rewards">
               <span>{saved ? t.saved : t.unsaved}</span>
-              <strong>+{creditsAwarded} <small>{t.credits}</small></strong>
+              <strong>+{moneyAwarded} <small>{t.money}</small></strong>
               {technologyPointsAwarded > 0 && <div className="qso-technology-reward">
                 <Flask size={21} weight="fill" />
                 <span>{PROJECT_REWARD_TEXT[language] ?? PROJECT_REWARD_TEXT.en}</span>
                 <strong>+{technologyPointsAwarded} TP</strong>
                 <small>{completedResearchProjects.map((project) => researchProjectName(project, language)).join(" · ")}</small>
               </div>}
-              <QsoRewardBreakdown language={language} breakdown={rewardBreakdown} credits={creditsAwarded} compact />
+              <QsoRewardBreakdown language={language} breakdown={rewardBreakdown} money={moneyAwarded} compact />
             </div>
           </div>
         )}
