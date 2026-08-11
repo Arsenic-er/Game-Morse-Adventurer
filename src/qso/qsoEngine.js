@@ -1,6 +1,8 @@
 import { normalizeCwText } from "../cw/morse.js";
 import { greatCircleDistanceDegrees } from "../propagation/propagationEngine.js";
 import { assessCqTransmission } from "./cqAssessment.js";
+import { interpretCwTraffic, semanticResultFromProvider } from "./semanticInterpreter.js";
+import { observePlayerSignal } from "./signalObservation.js";
 import {
   buildRemoteReply, qrsStepForNpc, resolveRemoteCopy, resolveRemoteReportCopy, withOperatorProfile,
 } from "./operatorProfiles.js";
@@ -75,6 +77,27 @@ function normalizeMetric(value, maximum = 100) {
     : null;
 }
 
+function redactOptionalSemanticResult(result) {
+  if (!result || typeof result !== "object") return result;
+  return {
+    ...result,
+    normalized: "OPTIONAL RESPONSE REDACTED",
+    slots: [],
+    evidence: {},
+  };
+}
+
+function redactOptionalSignalObservation(observation) {
+  if (!observation || typeof observation !== "object") return observation;
+  return {
+    ...observation,
+    transcript: {
+      ...observation.transcript,
+      normalized: "OPTIONAL RESPONSE REDACTED",
+    },
+  };
+}
+
 function appendAttempt(qso, message, validation, metrics = {}, assessment = null) {
   const result = validation.valid
     ? (validation.action?.startsWith("repeat") ? "repeat" : validation.action === "transmit" ? "transmitted" : "accepted")
@@ -144,6 +167,9 @@ export function createQso({
     cqAssessment: null,
     lastCopyOutcome: null,
     lastCopyScore: null,
+    lastSemanticResult: null,
+    lastSignalObservation: null,
+    lastNpcReception: null,
     lastReportCopyOutcome: null,
     lastReportCopyScore: null,
     channelNotice: null,
@@ -317,7 +343,32 @@ export function submitPlayerMessage(qso, message, {
   accuracy = null,
   rhythm = null,
   seed = "report-copy",
+  semanticResult: providedSemanticResult = null,
 } = {}) {
+  const semanticResult = semanticResultFromProvider(providedSemanticResult) ?? interpretCwTraffic({
+    message,
+    phase: qso.phase,
+    selfCallsign: qso.playerCallsign,
+    peerCallsign: qso.npc?.callsign,
+    pendingQuestion: qso.optionalExchangeQuestion ?? "NONE",
+    wpm,
+  });
+  let signalObservation = observePlayerSignal({
+    message,
+    wpm,
+    accuracy,
+    rhythm,
+    semanticResult,
+  });
+  const containsPrivateOptionalTraffic = qso.phase === QSO_PHASES.PLAYER_OPTIONAL_ANSWER;
+  qso = {
+    ...qso,
+    lastSemanticResult: containsPrivateOptionalTraffic
+      ? redactOptionalSemanticResult(semanticResult) : semanticResult,
+    lastSignalObservation: containsPrivateOptionalTraffic
+      ? redactOptionalSignalObservation(signalObservation) : signalObservation,
+    lastNpcReception: null,
+  };
   const validation = validatePlayerMessage(qso, message);
   if (qso.phase === QSO_PHASES.PLAYER_CQ) {
     const cqAssessment = assessCqTransmission({
@@ -326,6 +377,14 @@ export function submitPlayerMessage(qso, message, {
       wpm,
       rhythm,
     });
+    signalObservation = observePlayerSignal({
+      message,
+      wpm,
+      accuracy: accuracy ?? cqAssessment.editScore,
+      rhythm,
+      semanticResult,
+    });
+    qso = { ...qso, lastSignalObservation: signalObservation };
     const transmittedValidation = {
       ...validation,
       valid: true,
@@ -444,6 +503,8 @@ export function submitPlayerMessage(qso, message, {
     accuracy,
     rhythm,
     seed,
+    semanticResult,
+    signalObservation,
     queryCount: reportCopyQueries,
   });
   const resolvedAttemptHistory = annotateLatestRemoteAttempt(attemptHistory, decision);
@@ -452,6 +513,7 @@ export function submitPlayerMessage(qso, message, {
       ...qso,
       phase: QSO_PHASES.NPC_REPLY,
       npc: decision.npc,
+      lastNpcReception: decision,
       attempts: 0,
       attemptHistory: resolvedAttemptHistory,
       lastError: null,
@@ -471,6 +533,7 @@ export function submitPlayerMessage(qso, message, {
       ...qso,
       phase: QSO_PHASES.PLAYER_RST_AND_73,
       npc: decision.npc,
+      lastNpcReception: decision,
       attempts: 0,
       attemptHistory: resolvedAttemptHistory,
       lastError: null,
@@ -491,6 +554,7 @@ export function submitPlayerMessage(qso, message, {
     ...qso,
     phase: optionalQuestion ? QSO_PHASES.NPC_OPTIONAL_QUERY : QSO_PHASES.NPC_73_AND_SK,
     npc: decision.npc,
+    lastNpcReception: decision,
     attempts: 0,
     attemptHistory: resolvedAttemptHistory,
     lastError: null,
@@ -542,6 +606,8 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
   }
   const decision = resolveRemoteCopy({
     assessment: qso.cqAssessment,
+    semanticResult: qso.lastSemanticResult,
+    signalObservation: qso.lastSignalObservation,
     npc,
     playerCallsign: qso.playerCallsign,
     seed,
@@ -553,6 +619,7 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
       ...qso,
       phase: QSO_PHASES.PLAYER_CQ,
       npc: decision.npc,
+      lastNpcReception: decision,
       unansweredCalls: qso.unansweredCalls + 1,
       lastError: null,
       channelNotice: "unreadableCq",
@@ -574,6 +641,7 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
       ...qso,
       phase: QSO_PHASES.NPC_REPLY,
       npc: decision.npc,
+      lastNpcReception: decision,
       lastError: null,
       channelNotice: null,
       npcMessage: buildRemoteReply(decision, qso.playerCallsign),
@@ -595,6 +663,7 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
       ...qso,
       phase: QSO_PHASES.NPC_REPLY,
       npc: decision.npc,
+      lastNpcReception: decision,
       lastError: null,
       channelNotice: null,
       npcMessage: buildRemoteReply(decision, qso.playerCallsign),
@@ -615,6 +684,7 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
     ...qso,
     phase: QSO_PHASES.NPC_REPLY,
     npc: decision.npc,
+    lastNpcReception: decision,
     lastError: null,
     channelNotice: null,
     npcMessage,

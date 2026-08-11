@@ -16,15 +16,16 @@
     "preview": "vite preview",
     "test": "node --test",
     "npc:generate": "node scripts/generate-npc-roster.mjs",
-    "desktop:dev": "vite build && electron .",
-    "desktop:build": "vite build && electron-builder --win portable"
+    "qso:simulate:poor": "node scripts/simulate-poor-qso.mjs",
+    "semantic:model:sync": "node scripts/sync-semantic-model.mjs",
+    "desktop:dev": "pnpm semantic:model:sync && vite build && electron .",
+    "desktop:build": "pnpm semantic:model:sync && vite build && electron-builder --win portable"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
-    "@vitejs/plugin-react": "5.0.4",
+    "onnxruntime-node": "^1.27.0",
     "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "vite": "6.4.2"
+    "react-dom": "19.2.0"
   },
   "build": {
     "appId": "com.cwgame.station",
@@ -37,7 +38,20 @@
       "electron/**/*",
       "package.json",
       "LICENSE",
-      "THIRD_PARTY_NOTICES.md"
+      "THIRD_PARTY_NOTICES.md",
+      "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**/*",
+      "!node_modules/onnxruntime-node/bin/napi-v6/linux/**/*",
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**/*",
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/x64/DirectML.dll",
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxcompiler.dll",
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxil.dll"
+    ],
+    "extraResources": [
+      {
+        "from": "runtime-models",
+        "to": "models",
+        "filter": ["**/*"]
+      }
     ],
     "asar": true,
     "win": {
@@ -53,7 +67,9 @@
     }
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "5.0.4",
     "electron": "^43.1.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "vite": "6.4.2"
   }
 }

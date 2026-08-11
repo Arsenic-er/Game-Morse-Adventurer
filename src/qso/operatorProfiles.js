@@ -1,6 +1,8 @@
 import { clamp } from "../cw/morse.js";
+import { signalObservationFromCqAssessment } from "./signalObservation.js";
 
 export const OPERATOR_PROFILE_SCHEMA_VERSION = 2;
+export const NPC_RECEPTION_SCHEMA_VERSION = 1;
 export const OPTIONAL_EXCHANGE_QUESTION_IDS = Object.freeze([
   "power", "location", "weather", "name", "age",
 ]);
@@ -83,6 +85,25 @@ function stableUnit(seed) {
   return hashString(seed) / 0xffffffff;
 }
 
+const CHANNEL_COPY_QUALITY = Object.freeze([8, 30, 55, 78, 95]);
+const CHANNEL_FADE_BASE = Object.freeze([18, 7, 2, 0, 0]);
+const CHANNEL_FADE_SPAN = Object.freeze([12, 9, 6, 0.5, 0.2]);
+
+function channelReception(npc, seed, stage) {
+  const level = Math.round(clamp(Number(npc?.finalLevel) || 0, 0, 4));
+  const fadePenalty = CHANNEL_FADE_BASE[level]
+    + stableUnit(`${seed}:${npc?.callsign ?? "UNKNOWN"}:${stage}:channel-fade`) * CHANNEL_FADE_SPAN[level];
+  return {
+    level,
+    quality: CHANNEL_COPY_QUALITY[level],
+    fadePenalty: Number(fadePenalty.toFixed(1)),
+  };
+}
+
+export function channelReceptionForNpc(npc, seed = "channel", stage = "cq") {
+  return Object.freeze(channelReception(npc, seed, stage));
+}
+
 export function resolveOperatorProfile(npc = {}) {
   const callsign = String(npc.callsign ?? "").toUpperCase();
   const assignment = NPC_OPERATOR_ASSIGNMENTS[callsign] ?? {};
@@ -160,39 +181,72 @@ export function responseDelayForNpc(npc, seed = "response") {
   return Math.round(700 + (100 - style.responseTempo) * 25 + stableUnit(`${seed}:delay`) * 700);
 }
 
+function semanticInput(semanticResult, assessment = {}) {
+  if (semanticResult?.schemaVersion) return semanticResult;
+  return {
+    schemaVersion: null,
+    provider: "legacy-cq-assessment",
+    normalized: assessment?.normalized ?? "",
+    acts: { CQ: Number(assessment?.intentScore ?? 0) / 100 },
+    topics: { CALLSIGN: Number(assessment?.identityScore ?? 0) / 100 },
+    procedure: { score: Number(assessment?.orderScore ?? 0) },
+    interpretability: Number(assessment?.semanticQuality ?? assessment?.quality ?? 0),
+    safeToCommit: assessment?.recognizable === true,
+    evidence: {
+      intentScore: Number(assessment?.intentScore ?? 0),
+      identityScore: Number(assessment?.identityScore ?? 0),
+      identityEditDistance: Number(assessment?.identityEditDistance ?? 0),
+      recognizable: assessment?.recognizable === true,
+    },
+  };
+}
+
 export function resolveRemoteCopy({
-  assessment, npc, playerCallsign = "", seed = "copy", queryCount = 0,
+  assessment, semanticResult = null, signalObservation = null,
+  npc, playerCallsign = "", seed = "copy", queryCount = 0,
 } = {}) {
   const enrichedNpc = withOperatorProfile(npc);
   const style = enrichedNpc.operatorStyle;
-  const channelQuality = [8, 30, 55, 78, 95][Math.round(clamp(Number(enrichedNpc.finalLevel) || 0, 0, 4))];
-  const playerWpm = assessment?.wpm === null || assessment?.wpm === undefined || assessment?.wpm === ""
+  const semantics = semanticInput(semanticResult, assessment);
+  const observation = signalObservation ?? signalObservationFromCqAssessment(assessment);
+  const safeQueryCount = Number.isSafeInteger(queryCount) && queryCount >= 0 ? queryCount : 0;
+  const channel = channelReception(enrichedNpc, seed, safeQueryCount ? `cq:${safeQueryCount}` : "cq");
+  const channelQuality = channel.quality;
+  const observedWpm = observation?.timing?.wpm;
+  const playerWpm = observedWpm === null || observedWpm === undefined || observedWpm === ""
     ? null
-    : Number(assessment.wpm);
+    : Number(observedWpm);
   const comfortableBand = 3 + .08 * style.speedTolerance;
   const excessWpm = Number.isFinite(playerWpm)
     ? Math.max(0, Math.abs(playerWpm - style.preferredWpm) - comfortableBand)
     : 0;
   const speedMatch = clamp(100 - excessWpm * 8, 0, 100);
   const speedPenalty = (100 - speedMatch) * (.1 + .0015 * (100 - style.rxSkill));
-  const procedurePenalty = Math.max(0, 100 - Number(assessment?.orderScore ?? 0))
+  const procedurePenalty = Math.max(0, 100 - Number(semantics?.procedure?.score ?? 0))
     * (.08 + .22 * style.procedureStrictness / 100);
-  const jitter = (stableUnit(`${seed}:${assessment?.normalized ?? ""}:${queryCount}`) - .5) * 6;
+  const jitter = (stableUnit(`${seed}:${semantics?.normalized ?? ""}:${queryCount}`) - .5) * 6;
+  const semanticScore = transmissionMetric(semantics?.interpretability, 0);
+  const rhythmScore = transmissionMetric(observation?.timing?.rhythmScore, 50);
+  const intentScore = transmissionMetric(semantics?.evidence?.intentScore, (semantics?.acts?.CQ ?? 0) * 100);
+  const identityScore = transmissionMetric(semantics?.evidence?.identityScore, (semantics?.topics?.CALLSIGN ?? 0) * 100);
+  const identityEditDistance = Math.max(0, Number(semantics?.evidence?.identityEditDistance ?? 0));
   let copyScore = (
-    .62 * Number(assessment?.quality ?? 0)
+    .59 * semanticScore
+    + .03 * rhythmScore
     + .18 * style.rxSkill
     + .14 * channelQuality
     - procedurePenalty
     - speedPenalty
+    - channel.fadePenalty
     + jitter
   );
   copyScore = clamp(copyScore, 0, 100);
 
   let outcome = copyScore >= 68 ? "copied" : copyScore >= 42 ? "query" : "unreadable";
-  if ((assessment?.intentScore ?? 0) < 55 && outcome === "copied") outcome = "query";
-  if ((assessment?.identityEditDistance ?? 1) > 0 && outcome === "copied") outcome = "query";
+  if (intentScore < 55 && outcome === "copied") outcome = "query";
+  if (identityEditDistance > 0 && outcome === "copied") outcome = "query";
   if (speedMatch < 35 && style.rxSkill < 85 && outcome === "copied") outcome = "query";
-  if ((assessment?.intentScore ?? 0) < 25 && (assessment?.identityScore ?? 0) < 25) outcome = "unreadable";
+  if (intentScore < 25 && identityScore < 25) outcome = "unreadable";
   const maxQueries = style.patience >= 90 ? 3 : style.patience >= 60 ? 2 : 1;
   if (outcome === "query" && queryCount >= maxQueries) outcome = "unreadable";
 
@@ -201,7 +255,7 @@ export function resolveRemoteCopy({
     const generalChance = .15 + .0075 * style.initiative;
     const generalRoll = stableUnit(`${seed}:initiative:${queryCount}`);
     disposition = style.lowCopyAction === "GENERAL_CQ"
-      && Number(assessment?.quality ?? 0) >= 12
+      && semanticScore >= 12
       && generalRoll < generalChance
       ? "general"
       : "silence";
@@ -212,19 +266,36 @@ export function resolveRemoteCopy({
   const selfCorrection = disposition === "copy"
     && stableUnit(`${seed}:tx-error`) < (100 - style.txAccuracy) / 100;
 
+  const reasonCodes = [];
+  if (speedMatch < 55) reasonCodes.push("speedOutsideComfortBand");
+  if (identityEditDistance > 0) reasonCodes.push("callsignUncertain");
+  if (intentScore < 55) reasonCodes.push("intentUncertain");
+  if (procedurePenalty >= 8) reasonCodes.push("procedureMismatch");
+  if (channel.level === 2) reasonCodes.push("marginalChannel");
+  if (channelQuality < 55) reasonCodes.push("weakChannel");
+  if (channel.fadePenalty >= 8) reasonCodes.push("deepFade");
+
   const decision = {
+    schemaVersion: NPC_RECEPTION_SCHEMA_VERSION,
     outcome,
     disposition,
     copyScore: Number(copyScore.toFixed(1)),
     speedMatch: Math.round(speedMatch),
     speedPenalty: Number(speedPenalty.toFixed(1)),
-    identityScore: Number(assessment?.identityScore ?? 0),
-    identityEditDistance: Number(assessment?.identityEditDistance ?? 0),
+    channelLevel: channel.level,
+    channelQuality,
+    channelFadePenalty: channel.fadePenalty,
+    semanticInterpretability: Number(semanticScore.toFixed(1)),
+    identityScore,
+    identityEditDistance,
+    reasonCodes,
     selfCorrection,
     replyWpm,
     responseDelayMs: responseDelayForNpc(enrichedNpc, seed),
     operatorProfileId: style.profileId,
     operatorProfileRevision: style.revision,
+    semanticResultSchemaVersion: semantics?.schemaVersion ?? null,
+    signalObservationSchemaVersion: observation?.schemaVersion ?? null,
     maxQueries,
     npc: enrichedNpc,
   };
@@ -247,48 +318,77 @@ export function resolveRemoteReportCopy({
   wpm = null,
   accuracy = null,
   rhythm = null,
+  semanticResult = null,
+  signalObservation = null,
   seed = "report-copy",
   queryCount = 0,
 } = {}) {
   const enrichedNpc = npc?.operatorStyle ? npc : withOperatorProfile(npc);
   const style = enrichedNpc.operatorStyle;
-  const channelQuality = [8, 30, 55, 78, 95][Math.round(clamp(Number(enrichedNpc.finalLevel) || 0, 0, 4))];
-  const playerWpm = wpm === null || wpm === undefined || wpm === "" ? null : Number(wpm);
+  const reportQueryCount = Number.isSafeInteger(queryCount) && queryCount >= 0 ? queryCount : 0;
+  const channel = channelReception(enrichedNpc, seed, reportQueryCount ? `report:${reportQueryCount}` : "report");
+  const channelQuality = channel.quality;
+  const observedWpm = signalObservation?.timing?.wpm ?? wpm;
+  const playerWpm = observedWpm === null || observedWpm === undefined || observedWpm === ""
+    ? null
+    : Number(observedWpm);
   const comfortableBand = 3 + .08 * style.speedTolerance;
   const excessWpm = Number.isFinite(playerWpm)
     ? Math.max(0, Math.abs(playerWpm - style.preferredWpm) - comfortableBand)
     : 0;
   const speedMatch = clamp(100 - excessWpm * 8, 0, 100);
   const speedPenalty = (100 - speedMatch) * (.1 + .0015 * (100 - style.rxSkill));
-  const accuracyScore = transmissionMetric(accuracy);
-  const rhythmScore = transmissionMetric(rhythm);
+  const accuracyScore = transmissionMetric(signalObservation?.transcript?.decoderAccuracy ?? accuracy);
+  const rhythmScore = transmissionMetric(signalObservation?.timing?.rhythmScore ?? rhythm);
+  const hasSemanticResult = Number.isFinite(Number(semanticResult?.schemaVersion));
+  const semanticScore = hasSemanticResult
+    ? transmissionMetric(semanticResult?.interpretability, 0)
+    : 100;
   const safeQueryCount = Number.isSafeInteger(queryCount) && queryCount >= 0 ? queryCount : 0;
   const jitter = (stableUnit(`${seed}:${enrichedNpc.callsign}:${safeQueryCount}:report`) - .5) * 6;
   let copyScore = (
-    .5 * accuracyScore
+    (hasSemanticResult ? .36 : .5) * accuracyScore
+    + (hasSemanticResult ? .14 : 0) * semanticScore
     + .16 * rhythmScore
     + .2 * style.rxSkill
     + .14 * channelQuality
     - speedPenalty
+    - channel.fadePenalty
     + jitter
   );
   copyScore = clamp(copyScore, 0, 100);
 
   let outcome = copyScore >= 68 ? "copied" : copyScore >= 42 ? "query" : "unreadable";
   if (speedMatch < 35 && style.rxSkill < 85 && outcome === "copied") outcome = "query";
+  if (hasSemanticResult && semanticScore < 35 && outcome === "copied") outcome = "query";
   const replyMessage = outcome === "query"
     ? (speedMatch < 55 ? "QRS? K" : "AGN? K")
     : null;
+  const reasonCodes = [];
+  if (speedMatch < 55) reasonCodes.push("speedOutsideComfortBand");
+  if (semanticScore < 55) reasonCodes.push("meaningUncertain");
+  if (accuracyScore < 60) reasonCodes.push("decodeErrors");
+  if (channel.level === 2) reasonCodes.push("marginalChannel");
+  if (channelQuality < 55) reasonCodes.push("weakChannel");
+  if (channel.fadePenalty >= 8) reasonCodes.push("deepFade");
 
   return {
+    schemaVersion: NPC_RECEPTION_SCHEMA_VERSION,
     outcome,
     disposition: outcome === "query" ? "report-query" : outcome,
     copyScore: Number(copyScore.toFixed(1)),
     speedMatch: Math.round(speedMatch),
     speedPenalty: Number(speedPenalty.toFixed(1)),
+    channelLevel: channel.level,
+    channelQuality,
+    channelFadePenalty: channel.fadePenalty,
+    semanticInterpretability: Number(semanticScore.toFixed(1)),
+    reasonCodes,
     replyMessage,
     operatorProfileId: style.profileId,
     operatorProfileRevision: style.revision,
+    semanticResultSchemaVersion: semanticResult?.schemaVersion ?? null,
+    signalObservationSchemaVersion: signalObservation?.schemaVersion ?? null,
     npc: enrichedNpc,
   };
 }

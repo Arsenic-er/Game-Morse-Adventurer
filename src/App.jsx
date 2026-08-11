@@ -476,6 +476,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const [resultDismissed, setResultDismissed] = useState(false);
   const [settlementMeta, setSettlementMeta] = useState(null);
   const [powered, setPowered] = useState(true);
+  const [semanticBusy, setSemanticBusy] = useState(false);
   const keyInputStateRef = useRef(null);
   const [clock, setClock] = useState(() => new Date());
   const [selectedLogId, setSelectedLogId] = useState(null);
@@ -639,6 +640,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     powered,
     qso,
     retryRequired,
+    semanticBusy,
     saveOrRestart,
     submitReply,
   };
@@ -647,7 +649,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     function onDown(event) {
       const state = keyInputStateRef.current;
       if (!state || state.mapOpen || state.briefingOpen || state.exitRequest || state.inputBlocked
-        || !state.powered || !state.antennaReady) return;
+        || state.semanticBusy || !state.powered || !state.antennaReady) return;
       if (["Space", "KeyZ", "KeyX", "F2", "F3"].includes(event.code)) event.preventDefault();
       if (event.repeat) return;
       if (event.code === "F2") { state.submitReply(); return; }
@@ -684,8 +686,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     };
   }, [cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll]);
 
-  function submitReply() {
-    if (!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
+  async function submitReply() {
+    if (semanticBusy || !powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
     const decoded = cw.analysis.decoded;
     const normalizedDecoded = decoded.trim().replace(/\s+/g, " ").toUpperCase();
     const rawSample = {
@@ -693,21 +695,46 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       accuracy: normalizedDecoded === "AGN K" ? scoreDecodedText(decoded, "AGN K") : cw.analysis.accuracy,
       rhythm: cw.analysis.rhythm,
     };
-    const nextQso = submitPlayerMessage(qso, decoded, rawSample);
-    const sample = {
-      ...rawSample,
-      accuracy: qso.phase === QSO_PHASES.PLAYER_CQ
-        ? (nextQso.cqAssessment?.editScore ?? rawSample.accuracy)
-        : rawSample.accuracy,
-    };
-    setQso(nextQso);
-    setQsoMetrics((current) => ({
-      samples: current.samples + 1,
-      wpm: current.wpm + sample.wpm,
-      accuracy: current.accuracy + sample.accuracy,
-      rhythm: current.rhythm + sample.rhythm,
-    }));
-    if (!nextQso.lastError) cw.clearInput();
+    setSemanticBusy(true);
+    try {
+      let modelSemanticResult = null;
+      try {
+        const response = await window.cwgameSystem?.interpretCwTraffic?.({
+          message: decoded,
+          phase: qso.phase,
+          selfCallsign: qso.playerCallsign,
+          peerCallsign: qso.npc?.callsign,
+          pendingQuestion: qso.optionalExchangeQuestion ?? "NONE",
+          knownSlots: [
+            ...(qso.hasContact ? ["CALLSIGN"] : []),
+            ...(qso.receivedRst ? ["RST"] : []),
+          ],
+        });
+        if (response?.ok) modelSemanticResult = response.result;
+      } catch {
+        modelSemanticResult = null;
+      }
+      const nextQso = submitPlayerMessage(qso, decoded, {
+        ...rawSample,
+        semanticResult: modelSemanticResult,
+      });
+      const sample = {
+        ...rawSample,
+        accuracy: qso.phase === QSO_PHASES.PLAYER_CQ
+          ? (nextQso.cqAssessment?.editScore ?? rawSample.accuracy)
+          : rawSample.accuracy,
+      };
+      setQso(nextQso);
+      setQsoMetrics((current) => ({
+        samples: current.samples + 1,
+        wpm: current.wpm + sample.wpm,
+        accuracy: current.accuracy + sample.accuracy,
+        rhythm: current.rhythm + sample.rhythm,
+      }));
+      if (!nextQso.lastError) cw.clearInput();
+    } finally {
+      setSemanticBusy(false);
+    }
   }
 
   function clearCurrentInput() {
@@ -1051,7 +1078,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
         </div>
         <div className={`receiver-live ${powered && cw.isListening ? "active" : ""} ${npcPlaybackRecovering ? "recovering" : ""}`} data-action="receiver-status"><Broadcast size={21} weight="fill" /><span>{!powered ? t.powerOff : npcPlaybackRecovering ? flow.receiverRecovering : flow.receiverLive}</span></div>
         <button data-action="replay-input" onClick={cw.replayInput} disabled={!cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Play size={20} weight="fill" />{t.replayInput}</button>
-        <button data-action="submit-reply" onClick={submitReply} disabled={!powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Broadcast size={20} />{qso.phase === QSO_PHASES.PLAYER_CQ ? flow.sendCq : flow.sendMessage}<kbd>F2</kbd></button>
+        <button data-action="submit-reply" onClick={submitReply} disabled={semanticBusy || !powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying}><Broadcast size={20} />{qso.phase === QSO_PHASES.PLAYER_CQ ? flow.sendCq : flow.sendMessage}<kbd>F2</kbd></button>
         <button data-action="save-or-restart" onClick={saveOrRestart} disabled={![QSO_PHASES.QSO_COMPLETE, QSO_PHASES.QSO_FAILED].includes(qso.phase) || saved}><FloppyDisk size={20} />{f3Label}<kbd>F3</kbd></button>
       </footer>
       {mapOpen && <MapModal language={language} mapMode={mapMode} setMapMode={setMapMode} propagationMap={propagationMap} onClose={() => setMapOpen(false)} />}
