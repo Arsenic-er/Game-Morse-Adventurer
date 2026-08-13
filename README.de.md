@@ -6,7 +6,7 @@
 
 [**English**](./README.md) · [**简体中文**](./README.zh-CN.md) · [**繁體中文**](./README.zh-TW.md) · [**日本語**](./README.ja.md) · [**Español**](./README.es.md) · [**Deutsch**](./README.de.md) · [**Русский**](./README.ru.md)
 
-[**Semantikmodell und Trainingsdaten**](https://github.com/Arsenic-er/Game-Morse-Adventurer-AI)
+[**Semantikmodell und Trainingsdaten**](https://github.com/Arsenic-er/cwformer)
 
 **v0.34.1**: `Esc` öffnet und schließt das Einstellungsmenü auf Titel-, Speicher-, Home-, Übungs- und Stationsbildschirm; der oberste Dialog behält Vorrang. Enthält den v0.34-Vertikalschnitt der Missionszentrale.
 
