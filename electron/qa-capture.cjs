@@ -306,7 +306,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.34.1")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.35.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
   const languageStorageKey = "game-morse-adventurer.language.v1";
@@ -588,9 +588,15 @@ async function runQaCapture(window) {
     storyCount: document.querySelectorAll('.mission-card[data-mission-id^="story-"]').length,
     available: document.querySelector('[data-mission-id="story-01"]')?.dataset.missionStatus ?? null,
     locked: Array.from(document.querySelectorAll('.mission-card[data-mission-status="locked"]'), (node) => node.dataset.missionId),
+    chapterFourNarrative: document.querySelector('[data-mission-id="story-04"] [data-mission-narrative]')?.dataset.missionNarrative ?? null,
+    chapterFourClues: Array.from(document.querySelectorAll('[data-mission-id="story-04"] [data-contract-clue]'), (node) => node.dataset.contractClue),
+    chapterFourRelationshipStats: document.querySelectorAll('[data-mission-id="story-04"] [data-relationship-stat]').length,
   }))()`, true);
-  if (initialMissionState.storyCount !== 3 || initialMissionState.available !== "available"
-    || JSON.stringify(initialMissionState.locked) !== JSON.stringify(["story-02", "story-03"])) {
+  if (initialMissionState.storyCount !== 4 || initialMissionState.available !== "available"
+    || JSON.stringify(initialMissionState.locked) !== JSON.stringify(["story-02", "story-03", "story-04"])
+    || initialMissionState.chapterFourNarrative !== "brief"
+    || JSON.stringify(initialMissionState.chapterFourClues) !== JSON.stringify(["propagation", "topics", "recovery"])
+    || initialMissionState.chapterFourRelationshipStats !== 2) {
     throw new Error(`Unexpected initial mission board: ${JSON.stringify(initialMissionState)}`);
   }
   await capture(window, outputDir, shot("mission-story-initial"));
@@ -604,7 +610,7 @@ async function runQaCapture(window) {
       claimed: save.missionState?.claimedMissionIds ?? [],
     };
   })()`, true);
-  if (acceptedMissionState.version !== 1
+  if (acceptedMissionState.version !== 2
     || JSON.stringify(acceptedMissionState.active) !== JSON.stringify(["story-01"])
     || acceptedMissionState.claimed.length !== 0) {
     throw new Error(`Mission acceptance did not persist atomically: ${JSON.stringify(acceptedMissionState)}`);
@@ -701,6 +707,8 @@ async function runQaCapture(window) {
       "first-qso", "qso-10", "dx-5000", "weak-signal", "regions-3", "independent-watch", "radio-upgrade", "antenna-upgrade", "first-accessory", "first-name",
     ];
     save.completedResearchProjects = ["first-contact", "reliable-operator"];
+    const activeStory = save.missionState?.activeMissions?.find(({ id }) => id === "story-01");
+    if (activeStory) activeStory.acceptedAt = "2026-07-14T00:00:00.000Z";
     save.qsoLogs = [
       { version: 1, id: "SIM9AK-qa-2", startedAt: "2026-07-15T03:06:00.000Z", completedAt: "2026-07-15T03:12:00.000Z", playerCallsign: save.callsign, callsign: "SIM9AK", frequencyMhz: 21.06, mode: "CW", sent: "559", received: "579", location: "EU-W", npcLatitude: 51.51, npcLongitude: -0.13, distanceKm: 9568.2, basePropagationLevel: 2, finalPropagationLevel: 3, propagationSource: "OFFLINE_DEFAULT", equipmentId: "squid-01", antennaId: save.antennaId, playerLocationId: save.locationId, wpm: 19, copyAccuracy: 94, keyingScore: 91, credits: 100, isFictional: true },
       { version: 1, id: "SIM6JP-qa-1", startedAt: "2026-07-14T22:00:00.000Z", completedAt: "2026-07-14T22:05:00.000Z", playerCallsign: save.callsign, callsign: "SIM6JP", frequencyMhz: 21.06, mode: "CW", sent: "579", received: "599", location: "AS-JA", npcLatitude: 35.68, npcLongitude: 139.76, distanceKm: 162.4, basePropagationLevel: 3, finalPropagationLevel: 4, propagationSource: "OFFLINE_DEFAULT", equipmentId: "squid-01", antennaId: "dipole", playerLocationId: save.locationId, wpm: 18, copyAccuracy: 98, keyingScore: 96, credits: 100, isFictional: true }
@@ -725,6 +733,7 @@ async function runQaCapture(window) {
   await waitFor(window, ".home-screen");
   await click(window, '[data-action="open-missions"]');
   await waitFor(window, '[data-mission-id="story-01"][data-mission-status="ready"]');
+  await waitFor(window, '[data-mission-id="story-01"] [data-mission-narrative="debrief"]');
   await capture(window, outputDir, shot("mission-story-ready"));
   await click(window, '[data-action="close-missions-footer"]');
   await waitForMissing(window, '[data-testid="mission-center-modal"]');
@@ -1730,6 +1739,7 @@ async function runQaCapture(window) {
       const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
       const entry = save.qsoLogs[0];
       return {
+        id: entry.id,
         version: entry.version,
         accessoryId: entry.accessoryId,
         equipmentId: entry.equipmentId,
@@ -1760,6 +1770,7 @@ async function runQaCapture(window) {
           Number.isFinite(attempt.wpm) && Number.isFinite(attempt.accuracy) && Number.isFinite(attempt.rhythm)),
         firstWatchCompleted: save.firstWatchCompleted,
         totalQsos: save.qsoRecords?.total,
+        relationship: save.operatorRelationships?.find(({ callsign }) => callsign === entry.callsign) ?? null,
       };
     })()`,
     true,
@@ -1783,7 +1794,7 @@ async function runQaCapture(window) {
     || !optionalPrivacyValid
     || !Number.isFinite(savedEquipmentSnapshot.cqQuality) || !Number.isFinite(savedEquipmentSnapshot.copyScore)
     || savedEquipmentSnapshot.copyOutcome !== "copied" || !savedEquipmentSnapshot.operatorProfileId
-    || savedEquipmentSnapshot.operatorProfileRevision !== 2 || !Number.isFinite(savedEquipmentSnapshot.remoteWpm)
+    || savedEquipmentSnapshot.operatorProfileRevision !== 4 || !Number.isFinite(savedEquipmentSnapshot.remoteWpm)
     || !Number.isFinite(savedEquipmentSnapshot.transmitAccuracy)
     || savedEquipmentSnapshot.guidanceLevel !== "full" || savedEquipmentSnapshot.visualAssistUsed !== true
     || savedEquipmentSnapshot.independentWatch !== false || savedReward.version !== 1
@@ -1798,6 +1809,10 @@ async function runQaCapture(window) {
     || !savedEquipmentSnapshot.attemptMetricsComplete
     || savedEquipmentSnapshot.firstWatchCompleted !== true || savedEquipmentSnapshot.totalQsos !== 5) {
     throw new Error(`QSO log v6 lost its review, operator, copy, reward, or equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
+  }
+  if (savedEquipmentSnapshot.relationship?.lastQsoId !== savedEquipmentSnapshot.id
+    || savedEquipmentSnapshot.relationship?.completedQsos < 1 || savedEquipmentSnapshot.relationship?.encounterCount < 1) {
+    throw new Error(`QSO relationship was not settled with the log: ${JSON.stringify(savedEquipmentSnapshot.relationship)}`);
   }
   await capture(window, outputDir, shot("qso-result-saved"));
   await click(window, ".qso-result-modal.success header .icon-button");
@@ -1850,6 +1865,7 @@ async function runQaCapture(window) {
   );
   await click(window, '[data-action="open-missions"]');
   await waitFor(window, '[data-mission-id="story-01"][data-mission-status="ready"]');
+  await waitFor(window, '[data-mission-id="story-01"] [data-mission-narrative="debrief"]');
   await click(window, '[data-action="claim-mission"][data-mission-action-id="story-01"]');
   await waitFor(window, '[data-mission-id="story-01"][data-mission-status="claimed"]');
   const claimedMissionState = await window.webContents.executeJavaScript(`(() => {

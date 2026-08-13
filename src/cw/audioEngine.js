@@ -9,6 +9,17 @@ export function receiverNoiseFilterForChannel(channel = {}) {
   };
 }
 
+export function receiverSignalProfileForChannel(channel = {}) {
+  const signalGain = Math.min(2, Math.max(0, Number(channel.signalGain) || 0));
+  const qsbDepth = Math.min(.95, Math.max(0, Number(channel.qsbDepth) || 0));
+  return {
+    signalGain,
+    qsbDepth,
+    carrierGain: signalGain * (1 - qsbDepth / 2),
+    qsbSwing: signalGain * qsbDepth / 2,
+  };
+}
+
 export class CwAudioEngine {
   constructor() {
     this.context = null;
@@ -62,21 +73,20 @@ export class CwAudioEngine {
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     const channelGain = context.createGain();
-    const signalGain = Number.isFinite(channel.signalGain) ? channel.signalGain : 1;
-    const qsbDepth = Math.min(.95, Math.max(0, Number(channel.qsbDepth) || 0));
+    const signalProfile = receiverSignalProfileForChannel({ signalGain: channel.signalGain ?? 1, qsbDepth: channel.qsbDepth });
     oscillator.type = "sine";
     oscillator.frequency.value = (Number(channel.toneHz) || FIXED_TONE_HZ) + (Number(channel.frequencyOffsetHz) || 0);
     gain.gain.value = 0;
-    channelGain.gain.value = signalGain * (1 - qsbDepth / 2);
+    channelGain.gain.value = signalProfile.carrierGain;
     oscillator.connect(gain).connect(channelGain).connect(context.destination);
 
     const sources = [oscillator];
-    if (qsbDepth > 0) {
+    if (signalProfile.qsbDepth > 0) {
       const lfo = context.createOscillator();
       const lfoGain = context.createGain();
       lfo.type = "sine";
       lfo.frequency.value = Number(channel.qsbRateHz) || .3;
-      lfoGain.gain.value = signalGain * qsbDepth / 2;
+      lfoGain.gain.value = signalProfile.qsbSwing;
       lfo.connect(lfoGain).connect(channelGain.gain);
       sources.push(lfo);
     }

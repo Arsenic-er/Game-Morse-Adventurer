@@ -4,10 +4,14 @@ import {
   normalizeQsoRewardBreakdown,
 } from "../game/qsoRewards.js";
 import { settleResearchProjects } from "../game/researchProjects.js";
+import { recordMissionQsoEvent } from "../game/missionSystem.js";
+import {
+  OPERATOR_RELATIONSHIPS_VERSION, recordCompletedOperatorRelationship,
+} from "./operatorRelationships.js";
 
 export const QSO_LOG_VERSION = 6;
 const OPTIONAL_EXCHANGE_QUESTION_IDS = Object.freeze([
-  "power", "location", "weather", "name", "age",
+  "power", "location", "weather", "name", "age", "rig", "antenna",
 ]);
 export const MAX_QSO_LOGS = 200;
 export const MAX_QSO_ATTEMPT_HISTORY = 50;
@@ -294,10 +298,16 @@ export function recordCompletedQso(save, candidate) {
     settledQsoIds: [...previousRecords.settledQsoIds, entry.id].sort(),
   };
   const money = Math.max(0, finiteNumber(save.money ?? save.credits)) + rewardBreakdown.total;
-  const researchSettlement = settleResearchProjects({ ...save, money, qsoLogs, qsoRecords });
+  const operatorRelationships = recordCompletedOperatorRelationship(save.operatorRelationships, persistedEntry);
+  const researchSettlement = settleResearchProjects({
+    ...save, money, qsoLogs, qsoRecords,
+    operatorRelationshipsVersion: OPERATOR_RELATIONSHIPS_VERSION,
+    operatorRelationships,
+  });
+  const missionSave = recordMissionQsoEvent(researchSettlement.save, persistedEntry);
 
   return {
-    save: researchSettlement.save,
+    save: missionSave,
     added: true,
     newRegion,
     newDistanceRecord,

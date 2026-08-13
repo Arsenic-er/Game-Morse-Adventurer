@@ -3,6 +3,9 @@ import { ACCESSORIES } from "./accessoryCatalog.js";
 import { KEY_OPTIONS, TRANSMITTERS } from "./equipmentCatalog.js";
 import { getLocation } from "./locations.js";
 import { normalizeQsoLogEntries, normalizeQsoRecords } from "../qso/qsoLog.js";
+import {
+  OPERATOR_RELATIONSHIPS_VERSION, normalizeOperatorRelationships, recordCompletedOperatorRelationship,
+} from "../qso/operatorRelationships.js";
 import { DEFAULT_AUTOMATIC_KEY_WPM, normalizeAutomaticKeyWpm } from "../cw/automaticKeyer.js";
 import { PRACTICE_RECORDS_VERSION, emptyPracticeRecords, normalizePracticeRecords } from "../practice/practiceRecords.js";
 import {
@@ -84,6 +87,8 @@ export function createSave({
     completedResearchProjects: [],
     qsoLogs: [],
     qsoRecords: normalizeQsoRecords(null, []),
+    operatorRelationshipsVersion: OPERATOR_RELATIONSHIPS_VERSION,
+    operatorRelationships: [],
     practiceRecordsVersion: PRACTICE_RECORDS_VERSION,
     practiceRecords: emptyPracticeRecords(),
     qsoGuidance: normalizeQsoGuidance(qsoGuidance),
@@ -133,6 +138,11 @@ export function normalizeSave(save) {
     : "none";
   const qsoLogSource = Array.isArray(save?.qsoLogs) ? save.qsoLogs : save?.qsoLogEntries;
   const qsoLogs = normalizeQsoLogEntries(qsoLogSource);
+  const operatorRelationships = hasOwn("operatorRelationships")
+    ? normalizeOperatorRelationships(save?.operatorRelationships)
+    : [...qsoLogs].reverse().reduce((relationships, log) => (
+      recordCompletedOperatorRelationship(relationships, log)
+    ), []);
   const hasTechnologyProgress = Number(save?.technologyTreeVersion) >= 1
     || hasOwn("technologyPoints")
     || hasOwn("unlockedTechnologies");
@@ -172,6 +182,8 @@ export function normalizeSave(save) {
     completedResearchProjects: normalizeCompletedResearchProjects(save?.completedResearchProjects),
     qsoLogs,
     qsoRecords: normalizeQsoRecords(save?.qsoRecords, qsoLogSource),
+    operatorRelationshipsVersion: OPERATOR_RELATIONSHIPS_VERSION,
+    operatorRelationships,
     practiceRecordsVersion: PRACTICE_RECORDS_VERSION,
     practiceRecords: normalizePracticeRecords(save?.practiceRecords),
     qsoGuidance: normalizeQsoGuidance(save?.qsoGuidance),

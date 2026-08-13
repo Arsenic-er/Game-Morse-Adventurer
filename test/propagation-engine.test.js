@@ -46,6 +46,19 @@ test("weak levels produce more noise and deeper QSB", () => {
   assert.ok(weak.signalGain < strong.signalGain);
 });
 
+test("the NPC copy fade drives the same signal envelope heard during playback", () => {
+  const clear = channelProfileForLevel(1, { callsign: "SIM2DX" }, { fadePenalty: 0 });
+  const deepFade = channelProfileForLevel(1, { callsign: "SIM2DX" }, { fadePenalty: 15.7 });
+  assert.equal(clear.decisionLinked, true);
+  assert.equal(deepFade.fadePenalty, 15.7);
+  assert.ok(deepFade.fadeSeverity > clear.fadeSeverity);
+  assert.ok(deepFade.signalGain < clear.signalGain);
+  assert.ok(deepFade.qsbDepth > clear.qsbDepth);
+  const legacy = channelProfileForLevel(1, { callsign: "SIM2DX" });
+  assert.equal(legacy.decisionLinked, false);
+  assert.equal(legacy.fadePenalty, 0);
+});
+
 test("antenna modifiers can reduce QSB without changing the propagation level", () => {
   const base = channelProfileForLevel(2, { callsign: "SIM1" });
   const vertical = channelProfileForLevel(2, { callsign: "SIM1" }, { qsbDepthMultiplier: 0.85 });

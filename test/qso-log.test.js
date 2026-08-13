@@ -295,6 +295,14 @@ test("records a completed QSO atomically and idempotently", () => {
   assert.deepEqual(first.save.accessories, []);
   assert.equal(first.save.qsoLogs.length, 2);
   assert.equal(first.save.qsoLogs[0].repeatRequests, 2);
+  assert.equal(first.save.operatorRelationshipsVersion, 1);
+  assert.deepEqual(first.save.operatorRelationships, [{
+    callsign: "SIM7QX", operatorProfileId: "careful-beginner", encounterCount: 1,
+    completedQsos: 1, weakSignalRecoveries: 0, topicCounts: { location: 1 },
+    firstMetAt: "2026-07-15T00:05:00.000Z", lastMetAt: "2026-07-15T00:05:00.000Z",
+    lastEncounterId: "SIM7QX:2026-07-15T00:00:00.000Z",
+    lastQsoId: "SIM7QX-1",
+  }]);
   assert.deepEqual(first.save.qsoRecords, {
     total: 8,
     longestDistanceKm: 8291.5,
@@ -311,6 +319,7 @@ test("records a completed QSO atomically and idempotently", () => {
   assert.strictEqual(duplicate.save, first.save);
   assert.equal(duplicate.save.money, 220);
   assert.equal(duplicate.moneyAwarded, 0);
+  assert.equal(duplicate.save.operatorRelationships[0].completedQsos, 1);
   assert.deepEqual(duplicate.rewardBreakdown, first.rewardBreakdown);
   assert.deepEqual(duplicate.settledEntry, first.settledEntry);
   assert.equal(duplicate.save.qsoRecords.total, 8);

@@ -4,8 +4,10 @@ const path = require("path");
 const { runQaCapture } = require("./qa-capture.cjs");
 const { readWindowsWifiStatus } = require("./network-status.cjs");
 const { qsoExitDialogOptions } = require("./qso-exit-dialog.cjs");
+const { createSemanticRuntime, sanitizeSemanticPayload } = require("./semantic-runtime.cjs");
 
 const qaCaptureMode = process.argv.includes("--qa-capture");
+const semanticSmokeMode = process.argv.includes("--semantic-smoke");
 const qaWidth = Math.max(1280, Number(process.env.CWGAME_QA_WIDTH) || 1672);
 const qaHeight = Math.max(720, Number(process.env.CWGAME_QA_HEIGHT) || 941);
 if (qaCaptureMode) app.disableHardwareAcceleration();
@@ -23,14 +25,66 @@ if (!gotLock) {
 } else {
   let mainWindow = null;
   let qsoUnloadGuard = { risk: "none", language: "en" };
+  const semanticRuntime = createSemanticRuntime({
+    assetDirectory: app.isPackaged
+      ? path.join(process.resourcesPath, "models")
+      : path.join(__dirname, "..", "runtime-models"),
+  });
+
+  function isMainRenderer(event) {
+    return Boolean(mainWindow && event.sender === mainWindow.webContents);
+  }
 
   ipcMain.handle("cwgame:network-status", () => readWindowsWifiStatus());
+  ipcMain.handle("cwgame:semantic-status", async (event) => (
+    isMainRenderer(event) ? semanticRuntime.status() : { available: false, reason: "untrusted-sender" }
+  ));
+  ipcMain.handle("cwgame:interpret-cw-traffic", async (event, payload = {}) => {
+    if (!isMainRenderer(event)) return { ok: false, error: "untrusted-sender" };
+    try {
+      const result = await semanticRuntime.interpret(sanitizeSemanticPayload(payload));
+      return { ok: true, result };
+    } catch (error) {
+      process.stderr.write(`Semantic runtime fallback: ${error?.stack || error}\n`);
+      return { ok: false, error: String(error?.message ?? error).slice(0, 240) };
+    }
+  });
   ipcMain.on("cwgame:qso-unload-guard", (event, payload = {}) => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return;
     const risk = ["active", "unsaved"].includes(payload.risk) ? payload.risk : "none";
     const language = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"].includes(payload.language) ? payload.language : "en";
     qsoUnloadGuard = { risk, language };
   });
+
+  async function runSemanticSmoke() {
+    let report;
+    try {
+      const result = await semanticRuntime.interpret({
+        message: "CQCQDEBH1ABCBH1ABCPSEK",
+        phase: "PLAYER_CQ",
+        selfCallsign: "BH1ABC",
+        peerCallsign: "JA1PIX",
+      });
+      report = {
+        ok: result.provider === "onnxruntime-node"
+          && result.safeToCommit === true
+          && result.acts.CQ > 0.9
+          && result.topics.CALLSIGN > 0.9,
+        provider: result.provider,
+        modelVersion: result.modelVersion,
+        interpretability: result.interpretability,
+      };
+    } catch (error) {
+      report = { ok: false, error: String(error?.stack || error) };
+    }
+    const serialized = `${JSON.stringify(report, null, 2)}\n`;
+    if (process.env.CWGAME_SEMANTIC_SMOKE_OUTPUT) {
+      fs.writeFileSync(process.env.CWGAME_SEMANTIC_SMOKE_OUTPUT, serialized, "utf8");
+    } else {
+      process.stdout.write(serialized);
+    }
+    app.exit(report.ok ? 0 : 1);
+  }
 
   function createWindow() {
     mainWindow = new BrowserWindow({
@@ -81,7 +135,10 @@ if (!gotLock) {
     mainWindow.on("closed", () => { mainWindow = null; qsoUnloadGuard = { risk: "none", language: "en" }; });
   }
 
-  app.whenReady().then(createWindow);
+  app.whenReady().then(() => {
+    if (semanticSmokeMode) return runSemanticSmoke();
+    return createWindow();
+  });
 
   app.on("second-instance", () => {
     if (!mainWindow) return;

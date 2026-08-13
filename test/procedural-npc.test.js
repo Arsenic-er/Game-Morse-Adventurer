@@ -153,6 +153,12 @@ test("station adapter matches the propagation and operator-profile contracts", (
   assert.ok(station.baseToneHz >= 620 && station.baseToneHz <= 700);
   assert.equal(station.operatorOverrides.txAccuracy, Number((100 - profile.radio.correctionEventPermille / 10).toFixed(1)));
   assert.ok(station.operatorOverrides.txAccuracy >= 96.6 && station.operatorOverrides.txAccuracy <= 100);
+  assert.ok(station.operatorOverrides.receptionTolerance >= 0 && station.operatorOverrides.receptionTolerance <= 100);
+  assert.match(station.operatorOverrides.personaRig, /^[A-Z0-9 ]+$/);
+  assert.match(station.operatorOverrides.personaAntenna, /^[A-Z0-9 ]+$/);
+  assert.ok([5, 10, 20, 50, 100].includes(station.operatorOverrides.personaPowerWatts));
+  assert.match(station.operatorOverrides.personaQth, /^[A-Z0-9 ]+$/);
+  assert.match(station.operatorOverrides.personaWeather, /^[A-Z]+$/);
   assert.ok(station.operatorOverrides.optionalQuestion === null
     || ["power", "location", "weather", "name", "age"].includes(station.operatorOverrides.optionalQuestion));
 });

@@ -42,15 +42,18 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   assert.equal(save.accessoryId, "none");
   assert.equal(save.money, 0);
   assert.deepEqual(save.qsoLogs, []);
+  assert.equal(save.operatorRelationshipsVersion, 1);
+  assert.deepEqual(save.operatorRelationships, []);
   assert.equal(save.achievementRewardsVersion, 1);
   assert.deepEqual(save.claimedAchievementRewards, []);
   assert.deepEqual(save.knownOperatorNames, []);
-  assert.equal(save.missionStateVersion, 1);
+  assert.equal(save.missionStateVersion, 2);
   assert.deepEqual(save.missionState, {
-    version: 1,
+    version: 2,
     activeMissions: [],
     claimedMissionIds: [],
     history: [],
+    events: [],
   });
   assert.deepEqual(save.qsoRecords, {
     total: 0,
@@ -96,12 +99,13 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
   assert.deepEqual(save.claimedAchievementRewards, ["first-qso", "dx-5000"]);
   assert.equal("credits" in save, false);
   assert.equal(save.qsoLogs[0].id, "legacy-qso");
-  assert.equal(save.missionStateVersion, 1);
+  assert.equal(save.missionStateVersion, 2);
   assert.deepEqual(save.missionState, {
-    version: 1,
+    version: 2,
     activeMissions: [],
     claimedMissionIds: [],
     history: [],
+    events: [],
   });
   assert.equal(save.qsoLogs[0].callsign, "SIM7QX");
   assert.equal(save.qsoLogs[0].version, QSO_LOG_VERSION);
@@ -114,6 +118,11 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
   assert.equal(save.qsoGuidance, "full");
   assert.equal(save.qsoBriefSeen, false);
   assert.equal(save.firstWatchCompleted, false);
+  assert.equal(save.operatorRelationshipsVersion, 1);
+  assert.equal(save.operatorRelationships.length, 1);
+  assert.equal(save.operatorRelationships[0].callsign, "SIM7QX");
+  assert.equal(save.operatorRelationships[0].completedQsos, 1);
+  assert.equal(save.operatorRelationships[0].lastQsoId, "legacy-qso");
   assert.equal("qsoLogEntries" in save, false);
   assert.deepEqual(save.qsoRecords, {
     total: 1,
@@ -123,6 +132,26 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
     weakSignalQsos: 0,
     settledQsoIds: ["legacy-qso"],
   });
+});
+
+test("legacy relationship migration replays repeated operators chronologically", () => {
+  const storage = storageStub();
+  const base = {
+    playerCallsign: "JA1OLD", callsign: "SIM7QX", sent: "559", received: "579", location: "NA-W",
+  };
+  storage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([{
+    id: "old-rel", callsign: "JA1OLD", locationId: "japan-tokyo-kanto",
+    qsoLogs: [
+      { ...base, id: "newer", startedAt: "2026-07-16T12:00:00Z", completedAt: "2026-07-16T12:03:00Z" },
+      { ...base, id: "older", startedAt: "2026-07-15T12:00:00Z", completedAt: "2026-07-15T12:03:00Z" },
+    ],
+  }]));
+  const relationship = loadSaves(storage)[0].operatorRelationships[0];
+  assert.equal(relationship.encounterCount, 2);
+  assert.equal(relationship.completedQsos, 2);
+  assert.equal(relationship.firstMetAt, "2026-07-15T12:03:00.000Z");
+  assert.equal(relationship.lastMetAt, "2026-07-16T12:03:00.000Z");
+  assert.equal(relationship.lastQsoId, "newer");
 });
 
 test("QSO guidance and first-watch flags normalize and persist safely", () => {

@@ -1,0 +1,50 @@
+{
+  "contractVersion": "qso-semantic-runtime-4",
+  "provider": "onnxruntime-node",
+  "cases": [
+    {
+      "id": "handwritten-canonical-cq",
+      "category": "handwritten-canonical",
+      "payload": {
+        "message": "CQ CQ DE BH1ABC BH1ABC K",
+        "phase": "PLAYER_CQ",
+        "selfCallsign": "BH1ABC",
+        "peerCallsign": "SIM8CW"
+      },
+      "expect": { "safeToCommit": true, "procedure": "CANONICAL", "act": "CQ", "topic": "CALLSIGN", "minimum": 0.9 }
+    },
+    {
+      "id": "handwritten-noncanonical-dynamic-rig",
+      "category": "handwritten-noncanonical",
+      "payload": {
+        "message": "MY RIG MICA 8 K",
+        "phase": "PLAYER_OPTIONAL_ANSWER",
+        "pendingQuestion": "RIG",
+        "selfCallsign": "BH1ABC",
+        "peerCallsign": "SIM8CW",
+        "catalogs": { "RIG": ["MICA 8"] }
+      },
+      "expect": { "safeToCommit": true, "procedure": "INTELLIGIBLE_NONCANONICAL", "topic": "RIG", "minimum": 0.9, "slot": "MICA 8" }
+    },
+    {
+      "id": "out-of-domain-shopping-text",
+      "category": "ood",
+      "payload": {
+        "message": "HELLO BUY POTATO K",
+        "phase": "PLAYER_CQ",
+        "selfCallsign": "BH1ABC",
+        "peerCallsign": "SIM8CW"
+      },
+      "expect": { "safeToCommit": false, "maximumInterpretability": 35 }
+    }
+  ],
+  "corruptedNBest": {
+    "minimumAccepted": 1,
+    "candidates": [
+      { "message": "T T T T", "safeToCommit": false },
+      { "message": "CQ T T K", "safeToCommit": false },
+      { "message": "CQCQDEBH1ABCBH1ABCPSEK", "safeToCommit": true }
+    ],
+    "context": { "phase": "PLAYER_CQ", "selfCallsign": "BH1ABC", "peerCallsign": "SIM8CW" }
+  }
+}

@@ -8,6 +8,7 @@ node_modules/
 *.key
 *.pfx
 dist/
+runtime-models/
 release/
 release-v*/
 design-references/

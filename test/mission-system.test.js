@@ -11,6 +11,8 @@ import {
   missionBoard,
   missionSummary,
   normalizeMissionState,
+  recordMissionQsoEvent,
+  recentMissionDna,
   targetCallsignForActiveMission,
 } from "../src/game/missionSystem.js";
 
@@ -78,7 +80,7 @@ test("story chapters unlock sequentially and rewards settle once", () => {
   const qrsOnly = { ...acceptedTwo.save, qsoLogs: [log({ callsign: "SIM3RA", repeatRequests: 1,
     attemptHistory: [{ message: "QRS K", result: "repeat" }] })] };
   assert.equal(missionBoard(qrsOnly).story[1].status, "active");
-  const confirmed = { ...acceptedTwo.save, qsoLogs: [log({ callsign: "SIM3RA", repeatRequests: 1, attemptHistory: agnAttempt })] };
+  const confirmed = { ...acceptedTwo.save, qsoLogs: [log({ callsign: "SIM3RA", completedAt: "2026-08-11T13:30:00.000Z", repeatRequests: 1, attemptHistory: agnAttempt })] };
   assert.equal(missionBoard(confirmed).story[1].status, "ready");
   const secondClaim = claimMission(confirmed, "story-02", "2026-08-11T14:00:00.000Z");
   assert.equal(secondClaim.claimed, true);

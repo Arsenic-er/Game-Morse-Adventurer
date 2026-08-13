@@ -185,12 +185,20 @@ export function channelProfileForLevel(level, npc = {}, modifiers = {}) {
   const noiseFilterQ = Number.isFinite(modifiers.noiseFilterQ)
     ? clamp(modifiers.noiseFilterQ, .1, 20)
     : .35;
+  const decisionLinked = Number.isFinite(modifiers.fadePenalty);
+  const fadePenalty = decisionLinked ? clamp(modifiers.fadePenalty, 0, 30) : 0;
+  const fadeSeverity = fadePenalty / 30;
+  const qsbDepth = clamp((base.qsbDepth + .22 * fadeSeverity) * qsbDepthMultiplier, 0, .95);
+  const signalGain = base.signalGain * (1 - .65 * fadeSeverity);
   return {
     level: safeLevel,
     noiseGain: base.noiseGain * noiseGainMultiplier,
-    qsbDepth: base.qsbDepth * qsbDepthMultiplier,
+    qsbDepth,
     qsbRateHz: base.qsbRateHz,
-    signalGain: base.signalGain,
+    signalGain,
+    fadePenalty,
+    fadeSeverity,
+    decisionLinked,
     frequencyOffsetHz: direction * (Number.isFinite(npc.frequencyOffsetHz) ? Math.abs(npc.frequencyOffsetHz) : base.offset),
     toneHz: Number(npc.baseToneHz) || 650,
     noiseFilterCenterHz,

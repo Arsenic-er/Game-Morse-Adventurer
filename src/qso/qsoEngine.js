@@ -1,6 +1,8 @@
 import { normalizeCwText } from "../cw/morse.js";
 import { greatCircleDistanceDegrees } from "../propagation/propagationEngine.js";
 import { assessCqTransmission } from "./cqAssessment.js";
+import { interpretCwTraffic, semanticResultFromProvider } from "./semanticInterpreter.js";
+import { observePlayerSignal } from "./signalObservation.js";
 import {
   buildRemoteReply, qrsStepForNpc, resolveRemoteCopy, resolveRemoteReportCopy, withOperatorProfile,
 } from "./operatorProfiles.js";
@@ -26,9 +28,73 @@ function tokenized(value) {
   return normalizeCwText(value).split(" ").filter(Boolean);
 }
 
-function hasCallsign(tokens, callsign) {
-  const expected = normalizeCallsign(callsign);
-  return tokens.some((token) => normalizeCallsign(token) === expected);
+function matchingTokenIndexes(tokens, value) {
+  const expected = normalizeCallsign(value);
+  return tokens.reduce((indexes, token, index) => {
+    if (normalizeCallsign(token) === expected) indexes.push(index);
+    return indexes;
+  }, []);
+}
+
+function reportSemanticEvidence(semanticResult, rst) {
+  // Direct validator callers may omit semantics, but every real submission
+  // supplies either the ONNX result or the deterministic interpreter result.
+  if (!semanticResult) return { valid: true, reason: null };
+  if (semanticResult.safeToCommit !== true) {
+    return { valid: false, reason: "unsafeSemanticResult" };
+  }
+  const reportAct = Number(semanticResult.acts?.REPORT ?? 0);
+  const rstTopic = Number(semanticResult.topics?.RST ?? 0);
+  if (reportAct < .5 || rstTopic < .5) {
+    return { valid: false, reason: "unrecognizedReport" };
+  }
+  const matchingRstSlot = Array.isArray(semanticResult.slots)
+    && semanticResult.slots.some((slot) => slot?.topic === "RST"
+      && String(slot?.value ?? "") === rst
+      && Number(slot?.confidence ?? 0) >= .5);
+  return matchingRstSlot
+    ? { valid: true, reason: null }
+    : { valid: false, reason: "unrecognizedReport" };
+}
+
+function validateReportTraffic(qso, tokens, semanticResult) {
+  const deIndexes = tokens.reduce((indexes, token, index) => {
+    if (token === "DE") indexes.push(index);
+    return indexes;
+  }, []);
+  if (!deIndexes.length) return { valid: false, reason: "missingDe" };
+  if (!["K", "KN"].includes(tokens.at(-1))) return { valid: false, reason: "missingK" };
+
+  const peerIndexes = matchingTokenIndexes(tokens, qso.npc.callsign);
+  const selfIndexes = matchingTokenIndexes(tokens, qso.playerCallsign);
+  if (!peerIndexes.length || !selfIndexes.length) return { valid: false, reason: "missingCallsign" };
+
+  const rstIndexes = tokens.reduce((indexes, token, index) => {
+    if (token === "RST") indexes.push(index);
+    return indexes;
+  }, []);
+  if (rstIndexes.length !== 1) return { valid: false, reason: "invalidRst" };
+  const rstIndex = rstIndexes[0];
+  const rst = tokens[rstIndex + 1] ?? null;
+  if (!/^[1-5][1-9][1-9]$/.test(rst ?? "")) return { valid: false, reason: "invalidRst" };
+
+  const signoffIndexes = tokens.reduce((indexes, token, index) => {
+    if (token === "73") indexes.push(index);
+    return indexes;
+  }, []);
+  if (!signoffIndexes.length) return { valid: false, reason: "missing73" };
+
+  const deIndex = deIndexes[0];
+  const handoverIndex = tokens.length - 1;
+  const rolesAreUnambiguous = deIndexes.length === 1
+    && peerIndexes.every((index) => index < deIndex)
+    && selfIndexes.every((index) => index > deIndex && index < rstIndex)
+    && signoffIndexes.every((index) => index > rstIndex && index < handoverIndex);
+  if (!rolesAreUnambiguous) return { valid: false, reason: "wrongReplyOrder" };
+
+  const semanticEvidence = reportSemanticEvidence(semanticResult, rst);
+  if (!semanticEvidence.valid) return semanticEvidence;
+  return { valid: true, reason: null, action: "complete", rst };
 }
 
 function expectedCq(playerCallsign) {
@@ -40,27 +106,93 @@ function expectedReport(npcCallsign, playerCallsign) {
 }
 
 const OPTIONAL_EXCHANGE_SPECS = Object.freeze({
-  power: Object.freeze({ keyword: "PWR", prompt: "PWR? K", example: "PWR 50 W K" }),
-  location: Object.freeze({ keyword: "QTH", prompt: "QTH? K", example: "QTH PIXEL CITY K" }),
-  weather: Object.freeze({ keyword: "WX", prompt: "WX? K", example: "WX SUNNY K" }),
-  name: Object.freeze({ keyword: "NAME", prompt: "NAME? K", example: "NAME SPARK K" }),
-  age: Object.freeze({ keyword: "AGE", prompt: "AGE? K", example: "AGE 25 K" }),
+  power: Object.freeze({ keyword: "PWR", aliases: ["PWR", "POWER"], semanticTopic: "POWER", prompt: "PWR? K", example: "PWR 50 W K" }),
+  location: Object.freeze({ keyword: "QTH", aliases: ["QTH", "LOC"], semanticTopic: "LOCATION", prompt: "QTH? K", example: "QTH PIXEL CITY K" }),
+  weather: Object.freeze({ keyword: "WX", aliases: ["WX", "WEATHER"], semanticTopic: "WEATHER", prompt: "WX? K", example: "WX SUNNY K" }),
+  name: Object.freeze({ keyword: "NAME", aliases: ["NAME"], semanticTopic: "NAME", prompt: "NAME? K", example: "NAME SPARK K" }),
+  age: Object.freeze({ keyword: "AGE", aliases: ["AGE"], semanticTopic: "AGE", prompt: "AGE? K", example: "AGE 25 K" }),
+  rig: Object.freeze({ keyword: "RIG", aliases: ["RIG", "RADIO"], semanticTopic: "RIG", prompt: "RIG? K", example: "RIG MICA 8 K" }),
+  antenna: Object.freeze({ keyword: "ANT", aliases: ["ANT", "ANTENNA"], semanticTopic: "ANTENNA", prompt: "ANT? K", example: "ANT DIPOLE K" }),
 });
 
 function optionalExchangeSpec(questionId) {
   return OPTIONAL_EXCHANGE_SPECS[questionId] ?? null;
 }
 
+function optionalQuestionPrompt(questionId, style = {}) {
+  const spec = optionalExchangeSpec(questionId);
+  if (!spec) return null;
+  if (style.replyStyle === "FRIENDLY") return `PSE ${spec.prompt}`;
+  if (style.replyStyle === "REPEAT") return `${spec.keyword} ${spec.prompt}`;
+  return spec.prompt;
+}
+
+function optionalExchangeMessage(qso, questionId, npcRst) {
+  const prompt = optionalQuestionPrompt(questionId, qso.npc?.operatorStyle);
+  return prompt ? `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} ${prompt}` : null;
+}
+
+function personaFact(style, questionId) {
+  const values = {
+    power: `MY PWR ${style.personaPowerWatts ?? 10} W`,
+    location: `MY QTH ${style.personaQth ?? "PIXEL CITY"}`,
+    weather: `MY WX ${style.personaWeather ?? "CLEAR"}`,
+    name: `MY NAME ${style.personaName ?? "OP"}`,
+    age: `MY AGE ${style.personaAge ?? 40}`,
+    rig: `MY RIG ${style.personaRig ?? "HOME RIG"}`,
+    antenna: `MY ANT ${style.personaAntenna ?? "DIPOLE"}`,
+  };
+  return values[questionId] ?? "MY INFO OK";
+}
+
 function finalNpcMessage(qso, outcome = null) {
   const style = qso.npc?.operatorStyle ?? {};
-  if (outcome === "answered" && qso.optionalExchangeQuestion === "name") {
-    return `${qso.playerCallsign} DE ${qso.npc.callsign} TNX MY NAME ${style.personaName ?? "OP"} 73 SK`;
+  const prefix = `${qso.playerCallsign} DE ${qso.npc.callsign}`;
+  const receivedRst = qso.receivedRst ?? "579";
+  const topic = optionalExchangeSpec(qso.optionalExchangeQuestion)?.keyword ?? "INFO";
+  if (outcome === "answered") {
+    const fact = personaFact(style, qso.optionalExchangeQuestion);
+    if (style.replyStyle === "TERSE") return `${prefix} R ${fact} 73 SK`;
+    if (style.replyStyle === "REPEAT") return `${prefix} TNX ${topic} ${fact} R RST ${receivedRst} 73 SK`;
+    if (style.replyStyle === "FRIENDLY") return `${prefix} TNX ${topic} ${fact} FB 73 SK`;
+    return `${prefix} TNX ${topic} ${fact} R RST ${receivedRst} 73 SK`;
   }
-  if (outcome === "answered" && qso.optionalExchangeQuestion === "age") {
-    return `${qso.playerCallsign} DE ${qso.npc.callsign} TNX AGE ${style.personaAge ?? 40} 73 SK`;
+  if (outcome === "skipped") {
+    if (style.replyStyle === "TERSE") return `${prefix} OK 73 SK`;
+    if (style.replyStyle === "FRIENDLY") return `${prefix} OK TNX QSO 73 SK`;
+    return `${prefix} OK R RST ${receivedRst} 73 SK`;
   }
-  const acknowledgement = outcome === "answered" ? "TNX " : outcome === "skipped" ? "OK " : "";
-  return `${qso.playerCallsign} DE ${qso.npc.callsign} ${acknowledgement}R RST ${qso.receivedRst ?? "579"} 73 SK`;
+  return `${prefix} R RST ${receivedRst} 73 SK`;
+}
+
+function optionalSemanticMatch(semanticResult, spec, tokens) {
+  const explicitTopic = spec.aliases.some((alias) => tokens.includes(alias));
+  const trustedContext = semanticResult?.provider === "onnxruntime-node";
+  return (explicitTopic || trustedContext)
+    && semanticResult?.safeToCommit === true
+    && Number(semanticResult?.acts?.PROVIDE ?? 0) >= .55
+    && Number(semanticResult?.topics?.[spec.semanticTopic] ?? 0) >= .55;
+}
+
+function optionalValueIsPresent(questionId, message, tokens, semanticResult) {
+  const compact = normalizeCwText(message).replace(/\s/g, "");
+  const slotValues = (semanticResult?.slots ?? [])
+    .filter(({ topic }) => topic === optionalExchangeSpec(questionId)?.semanticTopic)
+    .map(({ value }) => String(value ?? "").toUpperCase());
+  if (questionId === "power") {
+    const match = compact.match(/(?:PWR|POWER|MYPWR|MYPOWER)?(\d{1,4})WK$/);
+    const value = match?.[1] ?? slotValues.find((candidate) => /^\d{1,4}W$/.test(candidate))?.slice(0, -1);
+    return /^\d{1,4}$/.test(String(value ?? "")) && Number(value) >= 1;
+  }
+  if (questionId === "age") {
+    const match = compact.match(/(?:MY)?AGE(\d{1,3})K$/) ?? compact.match(/^(\d{1,3})K$/);
+    const value = match?.[1] ?? slotValues.find((candidate) => /^\d{1,3}$/.test(candidate));
+    return /^\d{1,3}$/.test(String(value ?? "")) && Number(value) >= 1 && Number(value) <= 120;
+  }
+  const spec = optionalExchangeSpec(questionId);
+  const ignored = new Set(["MY", "IS", "INFO", ...(spec?.aliases ?? [])]);
+  return tokens.slice(0, -1).some((token) => !ignored.has(token) && token.length > 0)
+    || slotValues.some(Boolean);
 }
 
 function normalizeGuidanceLevel(value) {
@@ -73,6 +205,27 @@ function normalizeMetric(value, maximum = 100) {
   return Number.isFinite(numeric)
     ? Number(Math.min(maximum, Math.max(0, numeric)).toFixed(1))
     : null;
+}
+
+function redactOptionalSemanticResult(result) {
+  if (!result || typeof result !== "object") return result;
+  return {
+    ...result,
+    normalized: "OPTIONAL RESPONSE REDACTED",
+    slots: [],
+    evidence: {},
+  };
+}
+
+function redactOptionalSignalObservation(observation) {
+  if (!observation || typeof observation !== "object") return observation;
+  return {
+    ...observation,
+    transcript: {
+      ...observation.transcript,
+      normalized: "OPTIONAL RESPONSE REDACTED",
+    },
+  };
 }
 
 function appendAttempt(qso, message, validation, metrics = {}, assessment = null) {
@@ -144,6 +297,9 @@ export function createQso({
     cqAssessment: null,
     lastCopyOutcome: null,
     lastCopyScore: null,
+    lastSemanticResult: null,
+    lastSignalObservation: null,
+    lastNpcReception: null,
     lastReportCopyOutcome: null,
     lastReportCopyScore: null,
     channelNotice: null,
@@ -239,7 +395,7 @@ export function onNpcPlaybackFinished(qso, completedAt = new Date().toISOString(
   return qso;
 }
 
-export function validatePlayerMessage(qso, message) {
+export function validatePlayerMessage(qso, message, { semanticResult = null } = {}) {
   const tokens = tokenized(message);
   if (qso.phase === QSO_PHASES.PLAYER_CQ) {
     const assessment = assessCqTransmission({ message, playerCallsign: qso.playerCallsign });
@@ -259,23 +415,7 @@ export function validatePlayerMessage(qso, message) {
     }
     if (tokens.includes("QRS")) return { valid: false, reason: "invalidQrs" };
     if (tokens.includes("AGN")) return { valid: false, reason: "invalidAgn" };
-    if (!tokens.includes("DE")) return { valid: false, reason: "missingDe" };
-    if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
-    if (!hasCallsign(tokens, qso.npc.callsign) || !hasCallsign(tokens, qso.playerCallsign)) return { valid: false, reason: "missingCallsign" };
-    const rstIndex = tokens.indexOf("RST");
-    const rst = rstIndex >= 0 ? tokens[rstIndex + 1] : null;
-    if (!rst || !/^[1-5][1-9][1-9]$/.test(rst)) return { valid: false, reason: "invalidRst" };
-    if (!tokens.includes("73")) return { valid: false, reason: "missing73" };
-    const inStrictOrder = tokens.length === 7
-      && normalizeCallsign(tokens[0]) === normalizeCallsign(qso.npc.callsign)
-      && tokens[1] === "DE"
-      && normalizeCallsign(tokens[2]) === normalizeCallsign(qso.playerCallsign)
-      && tokens[3] === "RST"
-      && tokens[4] === rst
-      && tokens[5] === "73"
-      && tokens[6] === "K";
-    if (!inStrictOrder) return { valid: false, reason: "wrongReplyOrder" };
-    return { valid: true, reason: null, action: "complete", rst };
+    return validateReportTraffic(qso, tokens, semanticResult);
   }
   if (qso.phase === QSO_PHASES.PLAYER_OPTIONAL_ANSWER) {
     if (["QRS K", "QRS PSE K", "PSE QRS K"].includes(tokens.join(" "))) {
@@ -291,20 +431,16 @@ export function validatePlayerMessage(qso, message) {
     if (tokens.includes("AGN")) return { valid: false, reason: "invalidAgn" };
     if (tokens.includes("SKIP") || tokens.includes("73")) return { valid: false, reason: "invalidOptionalSkip" };
     if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
+    if (semanticResult && semanticResult.safeToCommit !== true) {
+      return { valid: false, reason: "unsafeSemanticResult" };
+    }
     const spec = optionalExchangeSpec(qso.optionalExchangeQuestion);
     const payload = tokens.slice(1, -1);
-    if (!spec || tokens[0] !== spec.keyword || payload.length === 0) {
+    const legacyForm = Boolean(spec && tokens[0] === spec.keyword && payload.length > 0);
+    const semanticForm = Boolean(spec && optionalSemanticMatch(semanticResult, spec, tokens));
+    if (!spec || (!legacyForm && !semanticForm)
+      || !optionalValueIsPresent(qso.optionalExchangeQuestion, message, tokens, semanticResult)) {
       return { valid: false, reason: "invalidOptionalAnswer" };
-    }
-    if (qso.optionalExchangeQuestion === "power") {
-      if (payload.length !== 2 || !/^\d{1,4}$/.test(payload[0]) || payload[1] !== "W" || Number(payload[0]) < 1) {
-        return { valid: false, reason: "invalidOptionalAnswer" };
-      }
-    }
-    if (qso.optionalExchangeQuestion === "age") {
-      if (payload.length !== 1 || !/^\d{1,3}$/.test(payload[0]) || Number(payload[0]) < 1 || Number(payload[0]) > 120) {
-        return { valid: false, reason: "invalidOptionalAnswer" };
-      }
     }
     return { valid: true, reason: null, action: "answer-optional" };
   }
@@ -317,8 +453,33 @@ export function submitPlayerMessage(qso, message, {
   accuracy = null,
   rhythm = null,
   seed = "report-copy",
+  semanticResult: providedSemanticResult = null,
 } = {}) {
-  const validation = validatePlayerMessage(qso, message);
+  const semanticResult = semanticResultFromProvider(providedSemanticResult) ?? interpretCwTraffic({
+    message,
+    phase: qso.phase,
+    selfCallsign: qso.playerCallsign,
+    peerCallsign: qso.npc?.callsign,
+    pendingQuestion: qso.optionalExchangeQuestion ?? "NONE",
+    wpm,
+  });
+  let signalObservation = observePlayerSignal({
+    message,
+    wpm,
+    accuracy,
+    rhythm,
+    semanticResult,
+  });
+  const containsPrivateOptionalTraffic = qso.phase === QSO_PHASES.PLAYER_OPTIONAL_ANSWER;
+  qso = {
+    ...qso,
+    lastSemanticResult: containsPrivateOptionalTraffic
+      ? redactOptionalSemanticResult(semanticResult) : semanticResult,
+    lastSignalObservation: containsPrivateOptionalTraffic
+      ? redactOptionalSignalObservation(signalObservation) : signalObservation,
+    lastNpcReception: null,
+  };
+  const validation = validatePlayerMessage(qso, message, { semanticResult });
   if (qso.phase === QSO_PHASES.PLAYER_CQ) {
     const cqAssessment = assessCqTransmission({
       message,
@@ -326,6 +487,14 @@ export function submitPlayerMessage(qso, message, {
       wpm,
       rhythm,
     });
+    signalObservation = observePlayerSignal({
+      message,
+      wpm,
+      accuracy: accuracy ?? cqAssessment.editScore,
+      rhythm,
+      semanticResult,
+    });
+    qso = { ...qso, lastSignalObservation: signalObservation };
     const transmittedValidation = {
       ...validation,
       valid: true,
@@ -444,6 +613,8 @@ export function submitPlayerMessage(qso, message, {
     accuracy,
     rhythm,
     seed,
+    semanticResult,
+    signalObservation,
     queryCount: reportCopyQueries,
   });
   const resolvedAttemptHistory = annotateLatestRemoteAttempt(attemptHistory, decision);
@@ -452,6 +623,7 @@ export function submitPlayerMessage(qso, message, {
       ...qso,
       phase: QSO_PHASES.NPC_REPLY,
       npc: decision.npc,
+      lastNpcReception: decision,
       attempts: 0,
       attemptHistory: resolvedAttemptHistory,
       lastError: null,
@@ -471,6 +643,7 @@ export function submitPlayerMessage(qso, message, {
       ...qso,
       phase: QSO_PHASES.PLAYER_RST_AND_73,
       npc: decision.npc,
+      lastNpcReception: decision,
       attempts: 0,
       attemptHistory: resolvedAttemptHistory,
       lastError: null,
@@ -487,10 +660,14 @@ export function submitPlayerMessage(qso, message, {
   const optionalQuestion = optionalExchangeSpec(decision.npc.operatorStyle?.optionalQuestion)
     ? decision.npc.operatorStyle.optionalQuestion
     : null;
+  const optionalMessage = optionalQuestion
+    ? optionalExchangeMessage({ ...qso, npc: decision.npc }, optionalQuestion, npcRst)
+    : null;
   return {
     ...qso,
     phase: optionalQuestion ? QSO_PHASES.NPC_OPTIONAL_QUERY : QSO_PHASES.NPC_73_AND_SK,
     npc: decision.npc,
+    lastNpcReception: decision,
     attempts: 0,
     attemptHistory: resolvedAttemptHistory,
     lastError: null,
@@ -498,11 +675,9 @@ export function submitPlayerMessage(qso, message, {
     receivedRst: npcRst,
     optionalExchangeQuestion: optionalQuestion,
     optionalExchangeOutcome: optionalQuestion ? "pending" : "not-offered",
-    optionalExchangeMessage: optionalQuestion
-      ? `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} ${optionalExchangeSpec(optionalQuestion).prompt}`
-      : null,
+    optionalExchangeMessage: optionalMessage,
     npcMessage: optionalQuestion
-      ? `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} ${optionalExchangeSpec(optionalQuestion).prompt}`
+      ? optionalMessage
       : `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} 73 SK`,
     npcReplyDisposition: optionalQuestion ? "optional-query" : "copy",
     replyWpm: qso.replyWpm ?? qso.npc.wpm,
@@ -542,6 +717,8 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
   }
   const decision = resolveRemoteCopy({
     assessment: qso.cqAssessment,
+    semanticResult: qso.lastSemanticResult,
+    signalObservation: qso.lastSignalObservation,
     npc,
     playerCallsign: qso.playerCallsign,
     seed,
@@ -553,6 +730,7 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
       ...qso,
       phase: QSO_PHASES.PLAYER_CQ,
       npc: decision.npc,
+      lastNpcReception: decision,
       unansweredCalls: qso.unansweredCalls + 1,
       lastError: null,
       channelNotice: "unreadableCq",
@@ -574,6 +752,7 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
       ...qso,
       phase: QSO_PHASES.NPC_REPLY,
       npc: decision.npc,
+      lastNpcReception: decision,
       lastError: null,
       channelNotice: null,
       npcMessage: buildRemoteReply(decision, qso.playerCallsign),
@@ -595,6 +774,7 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
       ...qso,
       phase: QSO_PHASES.NPC_REPLY,
       npc: decision.npc,
+      lastNpcReception: decision,
       lastError: null,
       channelNotice: null,
       npcMessage: buildRemoteReply(decision, qso.playerCallsign),
@@ -615,6 +795,7 @@ export function resolveCqResponse(qso, npc, { seed = "cq-response" } = {}) {
     ...qso,
     phase: QSO_PHASES.NPC_REPLY,
     npc: decision.npc,
+    lastNpcReception: decision,
     lastError: null,
     channelNotice: null,
     npcMessage,

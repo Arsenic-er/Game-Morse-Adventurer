@@ -4,13 +4,13 @@ import { assessCqTransmission } from "../src/qso/cqAssessment.js";
 import {
   DEFAULT_OPERATOR_PROFILE_ID, NPC_OPERATOR_ASSIGNMENTS, OPERATOR_PROFILES,
   OPTIONAL_EXCHANGE_QUESTION_IDS, OPERATOR_PROFILE_SCHEMA_VERSION,
-  qrsStepForNpc, resolveOperatorProfile, resolveRemoteCopy, resolveRemoteReportCopy,
+  qrsStepForNpc, receptionThresholdsForNpc, resolveOperatorProfile, resolveRemoteCopy, resolveRemoteReportCopy,
   responseDelayForNpc, withOperatorProfile,
 } from "../src/qso/operatorProfiles.js";
 import { NPC_STATIONS } from "../src/propagation/propagationEngine.js";
 
 test("the versioned operator table covers every fictional station with bounded traits", () => {
-  assert.equal(OPERATOR_PROFILE_SCHEMA_VERSION, 2);
+  assert.equal(OPERATOR_PROFILE_SCHEMA_VERSION, 4);
   assert.ok(Object.keys(OPERATOR_PROFILES).length >= 7);
   for (const station of NPC_STATIONS) {
     assert.ok(NPC_OPERATOR_ASSIGNMENTS[station.callsign], station.callsign);
@@ -21,7 +21,7 @@ test("the versioned operator table covers every fictional station with bounded t
     assert.equal(Object.isFrozen(candidate), true, id);
     for (const key of [
       "rxSkill", "txAccuracy", "speedTolerance", "patience", "procedureStrictness",
-      "responseTempo", "fistStability", "verbosity", "initiative",
+      "responseTempo", "fistStability", "verbosity", "initiative", "receptionTolerance",
     ]) {
       assert.ok(candidate[key] >= 0 && candidate[key] <= 100, `${id}:${key}`);
     }
@@ -35,7 +35,6 @@ test("optional exchanges are deterministic profile data and only some stations a
     .filter(Boolean)
     .sort();
   assert.deepEqual(profileQuestions, [...OPTIONAL_EXCHANGE_QUESTION_IDS].sort());
-  assert.ok(Object.values(OPERATOR_PROFILES).some((candidate) => candidate.optionalQuestion === null));
 
   const stationQuestions = NPC_STATIONS.map((station) => resolveOperatorProfile(station).optionalQuestion);
   assert.deepEqual(new Set(stationQuestions.filter(Boolean)), new Set(OPTIONAL_EXCHANGE_QUESTION_IDS));
@@ -45,6 +44,11 @@ test("optional exchanges are deterministic profile data and only some stations a
     const style = resolveOperatorProfile(station);
     assert.match(style.personaName, /^[A-Z0-9]{1,12}$/);
     assert.ok(style.personaAge >= 1 && style.personaAge <= 120);
+    assert.match(style.personaRig, /^[A-Z0-9 ]{1,20}$/);
+    assert.match(style.personaAntenna, /^[A-Z0-9 ]{1,20}$/);
+    assert.ok(style.personaPowerWatts >= 1 && style.personaPowerWatts <= 1500);
+    assert.match(style.personaQth, /^[A-Z0-9 ]{1,20}$/);
+    assert.match(style.personaWeather, /^[A-Z0-9 ]{1,20}$/);
   }
 });
 
@@ -64,6 +68,37 @@ test("unknown callsigns use an explicit safe fallback profile", () => {
   assert.equal(unknown.operatorProfileId, DEFAULT_OPERATOR_PROFILE_ID);
   assert.equal(unknown.operatorProfileRevision, OPERATOR_PROFILE_SCHEMA_VERSION);
   assert.ok(unknown.wpm >= 5 && unknown.wpm <= 60);
+});
+
+test("reception tolerance independently changes verdict thresholds, not the signal score", () => {
+  const assessment = assessCqTransmission({
+    message: "CQ CQ DE BH1ABC K",
+    playerCallsign: "BH1ABC",
+    wpm: 18,
+    rhythm: 80,
+  });
+  const common = { assessment, playerCallsign: "BH1ABC", seed: "tolerance" };
+  const strict = resolveRemoteCopy({
+    ...common,
+    npc: { callsign: "SIMX", finalLevel: 1, operatorOverrides: {
+      rxSkill: 70, preferredWpm: 18, speedTolerance: 70, procedureStrictness: 40, receptionTolerance: 0,
+    } },
+  });
+  const tolerant = resolveRemoteCopy({
+    ...common,
+    npc: { callsign: "SIMX", finalLevel: 1, operatorOverrides: {
+      rxSkill: 70, preferredWpm: 18, speedTolerance: 70, procedureStrictness: 40, receptionTolerance: 100,
+    } },
+  });
+  assert.equal(strict.copyScore, tolerant.copyScore);
+  assert.equal(strict.outcome, "query");
+  assert.equal(tolerant.outcome, "copied");
+  assert.deepEqual(receptionThresholdsForNpc(strict.npc), {
+    receptionTolerance: 0, copyThreshold: 72, queryThreshold: 46,
+  });
+  assert.deepEqual(receptionThresholdsForNpc(tolerant.npc), {
+    receptionTolerance: 100, copyThreshold: 64, queryThreshold: 38,
+  });
 });
 
 test("the same imperfect CQ is copied by a veteran but queried by a beginner", () => {
@@ -264,4 +299,52 @@ test("query and reply style enums produce distinct, cause-aware messages", () =>
     seed: "reply-style",
   }).replyMessage;
   assert.equal(new Set(["TERSE", "REPEAT", "FRIENDLY", "STANDARD"].map(replyFor)).size, 4);
+});
+
+test("safeToCommit=false is a hard ceiling for CQ and report copy", () => {
+  const assessment = assessCqTransmission({
+    message: "CQ CQ DE BH1ABC K", playerCallsign: "BH1ABC", wpm: 18, rhythm: 100,
+  });
+  const unsafeCq = {
+    normalized: assessment.normalized,
+    safeToCommit: false,
+    interpretability: 100,
+    procedure: { score: 100 },
+    acts: { CQ: 1, PROVIDE: 1 },
+    topics: { CALLSIGN: 1 },
+    evidence: {
+      intentScore: 100,
+      identityScore: 100,
+      identityEditDistance: 0,
+      recognizable: true,
+    },
+  };
+  const cqDecision = resolveRemoteCopy({
+    assessment,
+    semanticResult: unsafeCq,
+    npc: { callsign: "SIM3RA", finalLevel: 4 },
+    playerCallsign: "BH1ABC",
+    seed: "unsafe-cq",
+  });
+  assert.notEqual(cqDecision.outcome, "copied");
+  assert.notEqual(cqDecision.disposition, "copy");
+  assert.ok(cqDecision.reasonCodes.includes("unsafeSemanticCommit"));
+
+  const unsafeReport = {
+    safeToCommit: false,
+    interpretability: 100,
+    acts: { REPORT: 1, PROVIDE: 1 },
+    topics: { RST: 1, CALLSIGN: 1 },
+    slots: [{ topic: "RST", role: "VALUE", value: "559", confidence: 1 }],
+  };
+  const reportDecision = resolveRemoteReportCopy({
+    npc: { callsign: "SIM3RA", finalLevel: 4 },
+    wpm: 17,
+    accuracy: 100,
+    rhythm: 100,
+    semanticResult: unsafeReport,
+    seed: "unsafe-report",
+  });
+  assert.notEqual(reportDecision.outcome, "copied");
+  assert.ok(reportDecision.reasonCodes.includes("unsafeSemanticCommit"));
 });

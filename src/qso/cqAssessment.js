@@ -128,6 +128,12 @@ export function assessCqTransmission({
   const hasRhythm = rhythm !== null && rhythm !== undefined && rhythm !== "" && Number.isFinite(Number(rhythm));
   const hasWpm = wpm !== null && wpm !== undefined && wpm !== "" && Number.isFinite(Number(wpm));
   const rhythmScore = hasRhythm ? clamp(Number(rhythm), 0, 100) : 50;
+  const semanticQuality = clamp((
+    .5 * best.score
+    + .35 * semanticScore
+    + .1 * orderScore
+    - garbagePenalty
+  ) / .95, 0, 100);
   let quality = (
     .5 * best.score
     + .35 * semanticScore
@@ -141,6 +147,7 @@ export function assessCqTransmission({
     normalized,
     bestCandidate: best.candidate,
     quality: Math.round(clamp(quality, 0, 100)),
+    semanticQuality: Math.round(semanticQuality),
     editScore: best.score,
     intentScore: Math.round(cqScore),
     deScore: Math.round(deScore),

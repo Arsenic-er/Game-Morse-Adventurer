@@ -29,6 +29,13 @@ The following third-party projects are used by or distributed with Game-Morse-Ad
 - Packages: `react`, `react-dom`
 - License: MIT License
 
+## ONNX Runtime
+
+- Project: https://github.com/microsoft/onnxruntime
+- Package: `onnxruntime-node`
+- Use: offline CPU inference for the QSO semantic model
+- License: MIT License
+
 ## Electron
 
 - Project: https://www.electronjs.org/
