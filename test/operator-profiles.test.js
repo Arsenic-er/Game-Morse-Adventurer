@@ -300,3 +300,51 @@ test("query and reply style enums produce distinct, cause-aware messages", () =>
   }).replyMessage;
   assert.equal(new Set(["TERSE", "REPEAT", "FRIENDLY", "STANDARD"].map(replyFor)).size, 4);
 });
+
+test("safeToCommit=false is a hard ceiling for CQ and report copy", () => {
+  const assessment = assessCqTransmission({
+    message: "CQ CQ DE BH1ABC K", playerCallsign: "BH1ABC", wpm: 18, rhythm: 100,
+  });
+  const unsafeCq = {
+    normalized: assessment.normalized,
+    safeToCommit: false,
+    interpretability: 100,
+    procedure: { score: 100 },
+    acts: { CQ: 1, PROVIDE: 1 },
+    topics: { CALLSIGN: 1 },
+    evidence: {
+      intentScore: 100,
+      identityScore: 100,
+      identityEditDistance: 0,
+      recognizable: true,
+    },
+  };
+  const cqDecision = resolveRemoteCopy({
+    assessment,
+    semanticResult: unsafeCq,
+    npc: { callsign: "SIM3RA", finalLevel: 4 },
+    playerCallsign: "BH1ABC",
+    seed: "unsafe-cq",
+  });
+  assert.notEqual(cqDecision.outcome, "copied");
+  assert.notEqual(cqDecision.disposition, "copy");
+  assert.ok(cqDecision.reasonCodes.includes("unsafeSemanticCommit"));
+
+  const unsafeReport = {
+    safeToCommit: false,
+    interpretability: 100,
+    acts: { REPORT: 1, PROVIDE: 1 },
+    topics: { RST: 1, CALLSIGN: 1 },
+    slots: [{ topic: "RST", role: "VALUE", value: "559", confidence: 1 }],
+  };
+  const reportDecision = resolveRemoteReportCopy({
+    npc: { callsign: "SIM3RA", finalLevel: 4 },
+    wpm: 17,
+    accuracy: 100,
+    rhythm: 100,
+    semanticResult: unsafeReport,
+    seed: "unsafe-report",
+  });
+  assert.notEqual(reportDecision.outcome, "copied");
+  assert.ok(reportDecision.reasonCodes.includes("unsafeSemanticCommit"));
+});

@@ -6,6 +6,10 @@ const MODEL_FILE = "qso-semanticformer-v0.4.int8.onnx";
 const CONTRACT_FILE = "qso-semanticformer-v0.4.runtime-contract.json";
 const EXPECTED_CONTRACT = "qso-semantic-runtime-4";
 
+const MAX_DYNAMIC_CATALOG_VALUES = 16;
+const MAX_DYNAMIC_CATALOG_VALUE_LENGTH = 32;
+const MAX_KNOWN_SLOTS = 24;
+
 const DEFAULT_CATALOGS = Object.freeze({
   NAME: ["AKI", "HANA", "KEN", "MIO", "REN", "SORA", "YUKI", "LEO", "MAYA", "NINA"],
   LOCATION: ["AOBA", "LAKE HILL", "PINE BAY", "SORA VALLEY", "WEST RIDGE", "MIZU PORT"],
@@ -15,6 +19,8 @@ const DEFAULT_CATALOGS = Object.freeze({
   REGION: ["JA", "EU", "NA", "SA", "AF", "OC"],
   CQ_SCOPE: ["DX", "TEST", "QRP"],
 });
+
+const DYNAMIC_CATALOG_NAMES = Object.freeze(Object.keys(DEFAULT_CATALOGS));
 
 const PROCEDURE_SCORES = Object.freeze({
   CANONICAL: 100,
@@ -106,6 +112,57 @@ function encodeKnownSlots(values, contract) {
   return encoded;
 }
 
+function normalizeCatalogValue(value) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .toUpperCase()
+    .replace(/[^ A-Z0-9/\-?,.+]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, MAX_DYNAMIC_CATALOG_VALUE_LENGTH);
+}
+
+function sanitizeDynamicCatalogs(catalogs) {
+  if (!catalogs || typeof catalogs !== "object" || Array.isArray(catalogs)) return {};
+  const sanitized = {};
+  for (const topic of DYNAMIC_CATALOG_NAMES) {
+    const supplied = catalogs[topic];
+    if (!Array.isArray(supplied)) continue;
+    const values = unique(supplied
+      .slice(0, MAX_DYNAMIC_CATALOG_VALUES)
+      .map(normalizeCatalogValue)
+      .filter((value) => /[A-Z0-9]/.test(value)));
+    if (values.length) sanitized[topic] = values;
+  }
+  return sanitized;
+}
+
+function sanitizeSemanticPayload(payload) {
+  const source = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  return {
+    message: boundedText(source.message, 512),
+    phase: boundedText(source.phase, 32),
+    pendingQuestion: boundedText(source.pendingQuestion, 32),
+    selfCallsign: boundedText(source.selfCallsign, 16),
+    peerCallsign: boundedText(source.peerCallsign, 16),
+    knownSlots: Array.isArray(source.knownSlots)
+      ? source.knownSlots.slice(0, MAX_KNOWN_SLOTS).map((value) => boundedText(value, 32))
+      : [],
+    catalogs: sanitizeDynamicCatalogs(source.catalogs),
+  };
+}
+
+function mergeCatalogs(dynamicCatalogs) {
+  const merged = {};
+  for (const topic of DYNAMIC_CATALOG_NAMES) {
+    merged[topic] = unique([
+      ...DEFAULT_CATALOGS[topic],
+      ...(dynamicCatalogs?.[topic] ?? []),
+    ]);
+  }
+  return merged;
+}
+
 function catalogMatches(text, values) {
   const matches = [];
   for (const value of [...values].sort((left, right) => right.length - left.length)) {
@@ -119,7 +176,7 @@ function unique(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
-function decodeSlots(text, topics, safeToCommit) {
+function decodeSlots(text, topics, safeToCommit, catalogs = DEFAULT_CATALOGS) {
   if (!safeToCommit) return [];
   const matches = {
     CALLSIGN: unique(text.match(/(?<![A-Z0-9])(?=[A-Z0-9]{3,7}(?![A-Z0-9]))(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*[0-9])[A-Z0-9]+/g) ?? []),
@@ -132,8 +189,8 @@ function decodeSlots(text, topics, safeToCommit) {
       .map((value) => value.replace(" ", ""))),
     RST: unique(text.match(/(?<![0-9])[1-5][1-9][1-9](?![0-9])/g) ?? []),
   };
-  for (const [topic, values] of Object.entries(DEFAULT_CATALOGS)) {
-    matches[topic] = catalogMatches(text, values);
+  for (const [topic, values] of Object.entries(catalogs)) {
+    matches[topic] = unique([...(matches[topic] ?? []), ...catalogMatches(text, values)]);
   }
   return Object.entries(matches).flatMap(([topic, values]) => {
     if ((topics[topic] ?? 0) < 0.5) return [];
@@ -194,9 +251,10 @@ function createSemanticRuntime({ assetDirectory }) {
 
   async function interpret(payload = {}) {
     const { contract, ort, session } = await load();
-    const text = encodeText(boundedText(payload.message, 512), contract);
-    const phase = normalizePhase(payload.phase);
-    const pending = normalizePendingQuestion(payload.pendingQuestion, contract);
+    const safePayload = sanitizeSemanticPayload(payload);
+    const text = encodeText(safePayload.message, contract);
+    const phase = normalizePhase(safePayload.phase);
+    const pending = normalizePendingQuestion(safePayload.pendingQuestion, contract);
     const context = new BigInt64Array([
       BigInt(contract.contextSchema.phaseToId[phase]),
       BigInt(contract.contextSchema.pendingQuestionToId[pending]),
@@ -205,9 +263,9 @@ function createSemanticRuntime({ assetDirectory }) {
       input_ids: new ort.Tensor("int64", text.ids, [1, contract.maxSemanticLength]),
       valid_mask: new ort.Tensor("bool", text.mask, [1, contract.maxSemanticLength]),
       context_ids: new ort.Tensor("int64", context, [1, 2]),
-      self_callsign_ids: new ort.Tensor("int64", encodeCallsign(boundedText(payload.selfCallsign, 16), contract), [1, contract.maxCallsignLength]),
-      peer_callsign_ids: new ort.Tensor("int64", encodeCallsign(boundedText(payload.peerCallsign, 16), contract), [1, contract.maxCallsignLength]),
-      known_slots: new ort.Tensor("float32", encodeKnownSlots(payload.knownSlots, contract), [1, contract.contextSchema.knownSlotNames.length]),
+      self_callsign_ids: new ort.Tensor("int64", encodeCallsign(safePayload.selfCallsign, contract), [1, contract.maxCallsignLength]),
+      peer_callsign_ids: new ort.Tensor("int64", encodeCallsign(safePayload.peerCallsign, contract), [1, contract.maxCallsignLength]),
+      known_slots: new ort.Tensor("float32", encodeKnownSlots(safePayload.knownSlots, contract), [1, contract.contextSchema.knownSlotNames.length]),
     };
     const output = await session.run(feeds);
     const actNames = contract.outputs.act_logits.names;
@@ -228,7 +286,7 @@ function createSemanticRuntime({ assetDirectory }) {
     const interpretability = Math.round(100 * (
       0.4 * maximumAct + 0.25 * maximumTopic + 0.2 * procedureProbabilities[procedureIndex] + 0.15 * safeProbability
     ));
-    const expectedCallsign = normalizeSemanticText(payload.selfCallsign, contract.tokenizer.characterToId).replace(/\s/g, "");
+    const expectedCallsign = normalizeSemanticText(safePayload.selfCallsign, contract.tokenizer.characterToId).replace(/\s/g, "");
     const compactText = text.normalized.replace(/\s/g, "");
     return {
       contractVersion: contract.contractVersion,
@@ -237,7 +295,7 @@ function createSemanticRuntime({ assetDirectory }) {
       normalized: text.normalized,
       acts,
       topics,
-      slots: decodeSlots(text.normalized, topics, safeToCommit),
+      slots: decodeSlots(text.normalized, topics, safeToCommit, mergeCatalogs(safePayload.catalogs)),
       register,
       procedure: {
         grade,
@@ -284,4 +342,6 @@ module.exports = {
   encodeText,
   normalizePhase,
   normalizeSemanticText,
+  sanitizeDynamicCatalogs,
+  sanitizeSemanticPayload,
 };

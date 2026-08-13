@@ -4,7 +4,7 @@ const path = require("path");
 const { runQaCapture } = require("./qa-capture.cjs");
 const { readWindowsWifiStatus } = require("./network-status.cjs");
 const { qsoExitDialogOptions } = require("./qso-exit-dialog.cjs");
-const { createSemanticRuntime } = require("./semantic-runtime.cjs");
+const { createSemanticRuntime, sanitizeSemanticPayload } = require("./semantic-runtime.cjs");
 
 const qaCaptureMode = process.argv.includes("--qa-capture");
 const semanticSmokeMode = process.argv.includes("--semantic-smoke");
@@ -42,7 +42,7 @@ if (!gotLock) {
   ipcMain.handle("cwgame:interpret-cw-traffic", async (event, payload = {}) => {
     if (!isMainRenderer(event)) return { ok: false, error: "untrusted-sender" };
     try {
-      const result = await semanticRuntime.interpret(payload && typeof payload === "object" ? payload : {});
+      const result = await semanticRuntime.interpret(sanitizeSemanticPayload(payload));
       return { ok: true, result };
     } catch (error) {
       process.stderr.write(`Semantic runtime fallback: ${error?.stack || error}\n`);

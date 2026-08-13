@@ -47,12 +47,13 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   assert.equal(save.achievementRewardsVersion, 1);
   assert.deepEqual(save.claimedAchievementRewards, []);
   assert.deepEqual(save.knownOperatorNames, []);
-  assert.equal(save.missionStateVersion, 1);
+  assert.equal(save.missionStateVersion, 2);
   assert.deepEqual(save.missionState, {
-    version: 1,
+    version: 2,
     activeMissions: [],
     claimedMissionIds: [],
     history: [],
+    events: [],
   });
   assert.deepEqual(save.qsoRecords, {
     total: 0,
@@ -98,12 +99,13 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
   assert.deepEqual(save.claimedAchievementRewards, ["first-qso", "dx-5000"]);
   assert.equal("credits" in save, false);
   assert.equal(save.qsoLogs[0].id, "legacy-qso");
-  assert.equal(save.missionStateVersion, 1);
+  assert.equal(save.missionStateVersion, 2);
   assert.deepEqual(save.missionState, {
-    version: 1,
+    version: 2,
     activeMissions: [],
     claimedMissionIds: [],
     history: [],
+    events: [],
   });
   assert.equal(save.qsoLogs[0].callsign, "SIM7QX");
   assert.equal(save.qsoLogs[0].version, QSO_LOG_VERSION);

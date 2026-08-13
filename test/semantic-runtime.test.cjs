@@ -9,6 +9,8 @@ const {
   encodeText,
   normalizePhase,
   normalizeSemanticText,
+  sanitizeDynamicCatalogs,
+  sanitizeSemanticPayload,
 } = require("../electron/semantic-runtime.cjs");
 
 const assetDirectory = path.resolve(__dirname, "..", "runtime-models");
@@ -34,6 +36,31 @@ test("game phases map onto the model dialogue phases", () => {
   assert.equal(normalizePhase("PLAYER_RST_AND_73"), "EXCHANGE");
   assert.equal(normalizePhase("QSO_COMPLETE"), "CLOSING");
   assert.equal(normalizePhase("unexpected"), "IDLE");
+});
+test("semantic IPC catalogs are allowlisted, normalized, deduplicated, and bounded", () => {
+  const catalogs = sanitizeDynamicCatalogs({
+    NAME: Array.from({ length: 20 }, (_, index) => ` op-${index} `),
+    LOCATION: ["  Forest <Club>  ", "FOREST CLUB", null],
+    RIG: "MICA 8",
+    CALLSIGN: ["EVIL1"],
+  });
+  assert.deepEqual(catalogs.NAME, Array.from({ length: 16 }, (_, index) => `OP-${index}`));
+  assert.deepEqual(catalogs.LOCATION, ["FOREST CLUB"]);
+  assert.equal(Object.hasOwn(catalogs, "RIG"), false);
+  assert.equal(Object.hasOwn(catalogs, "CALLSIGN"), false);
+
+  const payload = sanitizeSemanticPayload({
+    message: "X".repeat(600),
+    phase: "PLAYER_CQ".repeat(8),
+    selfCallsign: "BH1ABC-TOO-LONG-AGAIN",
+    knownSlots: Array.from({ length: 40 }, (_, index) => `SLOT-${index}`),
+    catalogs,
+  });
+  assert.equal(payload.message.length, 512);
+  assert.equal(payload.phase.length, 32);
+  assert.equal(payload.selfCallsign.length, 16);
+  assert.equal(payload.knownSlots.length, 24);
+  assert.deepEqual(payload.catalogs, catalogs);
 });
 
 test("INT8 semantic model accepts tolerant CQ and rejects noise", {

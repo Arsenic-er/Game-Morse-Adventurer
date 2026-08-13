@@ -4,6 +4,7 @@ import {
   normalizeQsoRewardBreakdown,
 } from "../game/qsoRewards.js";
 import { settleResearchProjects } from "../game/researchProjects.js";
+import { recordMissionQsoEvent } from "../game/missionSystem.js";
 import {
   OPERATOR_RELATIONSHIPS_VERSION, recordCompletedOperatorRelationship,
 } from "./operatorRelationships.js";
@@ -303,9 +304,10 @@ export function recordCompletedQso(save, candidate) {
     operatorRelationshipsVersion: OPERATOR_RELATIONSHIPS_VERSION,
     operatorRelationships,
   });
+  const missionSave = recordMissionQsoEvent(researchSettlement.save, persistedEntry);
 
   return {
-    save: researchSettlement.save,
+    save: missionSave,
     added: true,
     newRegion,
     newDistanceRecord,

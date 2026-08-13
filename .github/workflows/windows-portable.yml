@@ -46,11 +46,75 @@ jobs:
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Sync pinned cwformer semantic model
+        run: pnpm semantic:model:sync
+
       - name: Run automated tests
         run: pnpm test
 
+      - name: Gate poor-channel scenarios on ONNX Runtime
+        shell: pwsh
+        run: |
+          $reportPath = Join-Path $env:RUNNER_TEMP "poor-qso-report.json"
+          $env:CWGAME_SCENARIO_OUTPUT = $reportPath
+          pnpm qso:simulate:poor
+          if ($LASTEXITCODE -ne 0) {
+            throw "Poor-channel semantic scenario gate failed"
+          }
+          $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+          if ($report.provider -ne "onnxruntime-node") {
+            throw "Poor-channel gate used '$($report.provider)' instead of onnxruntime-node"
+          }
+          if (!$report.releaseReady -or $report.passed -ne $report.total) {
+            throw "Poor-channel gate did not pass every scenario"
+          }
+          "Poor-channel model gate: $($report.passed)/$($report.total) via $($report.provider)." |
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
+      - name: Gate NPC calibration on ONNX Runtime
+        shell: pwsh
+        run: |
+          $lines = @(pnpm qso:calibrate 2>&1)
+          $exitCode = $LASTEXITCODE
+          $lines | ForEach-Object { Write-Output $_ }
+          $output = $lines -join "`n"
+          if ($exitCode -ne 0) {
+            throw "NPC reception calibration gate failed"
+          }
+          if ($output -notmatch '"provider"\s*:\s*"onnxruntime-node"') {
+            throw "NPC calibration did not use onnxruntime-node"
+          }
+          if ($output -notmatch '"releaseReady"\s*:\s*true') {
+            throw "NPC calibration did not reach its release threshold"
+          }
+          "NPC reception calibration passed through the ONNX provider." |
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
       - name: Build portable executable
         run: pnpm run desktop:build
+
+      - name: Smoke-test packaged semantic model
+        shell: pwsh
+        run: |
+          $semanticOutput = Join-Path $env:RUNNER_TEMP "cwgame-semantic-smoke.json"
+          $env:CWGAME_SEMANTIC_SMOKE_OUTPUT = $semanticOutput
+          $process = Start-Process `
+            -FilePath "release/CWGame-latest.exe" `
+            -ArgumentList "--semantic-smoke" `
+            -WindowStyle Hidden `
+            -PassThru `
+            -Wait
+          Remove-Item Env:CWGAME_SEMANTIC_SMOKE_OUTPUT -ErrorAction SilentlyContinue
+          if ($process.ExitCode -ne 0 -or !(Test-Path -LiteralPath $semanticOutput)) {
+            throw "Packaged semantic smoke failed with exit code $($process.ExitCode)"
+          }
+          $report = Get-Content -LiteralPath $semanticOutput -Raw | ConvertFrom-Json
+          if (!$report.ok -or $report.provider -ne "onnxruntime-node") {
+            $report | ConvertTo-Json -Depth 5
+            throw "Packaged executable did not load the pinned ONNX model"
+          }
+          "Packaged semantic model: $($report.modelVersion) via $($report.provider)." |
+            Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
 
       - name: Smoke-test packaged game
         shell: pwsh

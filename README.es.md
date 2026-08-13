@@ -8,7 +8,7 @@
 
 [**Modelo semántico y datos de entrenamiento**](https://github.com/Arsenic-er/cwformer)
 
-**v0.34.1**: `Esc` abre y cierra Ajustes desde el título, selección de partida, Home, práctica y estación, respetando siempre el diálogo superior. Incluye la entrega vertical del Centro de misiones v0.34.
+**v0.35.0**: cwformer funciona mediante un proveedor INT8 ONNX local real y combina la semántica con la habilidad, personalidad y tolerancia de cada NPC; `safeToCommit` impide avanzar con contenido incierto. Los informes aceptan CW válido y flexible, mientras que catálogos dinámicos limitados siguen al operador, lugar, radio y antena actuales. Las misiones añaden el capítulo 4, contratos de comunicación congelados, eventos QSO atómicos, diez tipos de ADN diario con prevención de repeticiones recientes y una progresión calibrada de dinero y puntos tecnológicos.
 
 
 [![Windows portable](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml/badge.svg)](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml)

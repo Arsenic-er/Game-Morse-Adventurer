@@ -242,6 +242,25 @@ test("optional answers accept semantic and contextual variants while rejecting e
   emptyAge = onNpcPlaybackFinished(emptyAge);
   emptyAge = submitPlayerMessage(emptyAge, "MY AGE K");
   assert.equal(emptyAge.lastError, "invalidOptionalAnswer");
+
+  let unsafePower = reachReportPhase({ ...npc, callsign: "SIM5TU" });
+  unsafePower = submitPlayerMessage(unsafePower, "SIM5TU DE SIM-K7QX RST 559 73 K");
+  unsafePower = onNpcPlaybackFinished(unsafePower);
+  const powerMessage = "PWR 50 W K";
+  const powerSemantics = interpretCwTraffic({
+    message: powerMessage,
+    phase: QSO_PHASES.PLAYER_OPTIONAL_ANSWER,
+    selfCallsign: unsafePower.playerCallsign,
+    peerCallsign: unsafePower.npc.callsign,
+    pendingQuestion: "POWER",
+  });
+  unsafePower = submitPlayerMessage(unsafePower, powerMessage, {
+    semanticResult: { ...powerSemantics, safeToCommit: false },
+  });
+  assert.equal(unsafePower.phase, QSO_PHASES.PLAYER_OPTIONAL_ANSWER);
+  assert.equal(unsafePower.lastError, "unsafeSemanticResult");
+  assert.equal(unsafePower.optionalExchangeOutcome, "pending");
+  assert.equal(unsafePower.attemptHistory.at(-1).result, "rejected");
 });
 
 test("an optional question can be replayed or politely skipped with no extra reward", () => {
@@ -440,7 +459,7 @@ test("requires a valid RST and 73", () => {
   assert.equal(qso.attempts, 0);
 });
 
-test("requires the strict REMOTE DE PLAYER RST nnn 73 K closing order", () => {
+test("report safety fields preserve addressing order without imposing a seven-token script", () => {
   let qso = submitPlayerMessage(createQso({ npc }), "CQ CQ DE SIM-K7QX K");
   qso = onNpcPlaybackFinished(resolveCqResponse(qso, npc));
   assert.equal(validatePlayerMessage(qso, "SIM7QX SIM-K7QX RST 559 73 K").reason, "missingDe");
@@ -449,6 +468,102 @@ test("requires the strict REMOTE DE PLAYER RST nnn 73 K closing order", () => {
   assert.equal(validatePlayerMessage(qso, "SIM-K7QX DE SIM7QX RST 559 73 K").reason, "wrongReplyOrder");
   assert.equal(validatePlayerMessage(qso, "SIM7QX RST 559 DE SIM-K7QX 73 K").reason, "wrongReplyOrder");
   assert.equal(validatePlayerMessage(qso, "SIM7QX DE SIM-K7QX RST 559 73 K").valid, true);
+
+  for (const message of [
+    "R SIM7QX DE SIM-K7QX UR RST 559 TNX 73 PSE K",
+    "SIM7QX SIM7QX DE SIM-K7QX SIM-K7QX R UR RST 559 TNX 73 KN",
+  ]) {
+    const semanticResult = interpretCwTraffic({
+      message,
+      phase: QSO_PHASES.PLAYER_RST_AND_73,
+      selfCallsign: qso.playerCallsign,
+      peerCallsign: qso.npc.callsign,
+    });
+    assert.equal(semanticResult.safeToCommit, true, message);
+    assert.deepEqual(
+      validatePlayerMessage(qso, message, { semanticResult: {
+        ...semanticResult,
+        provider: "onnxruntime-node",
+        acts: { ...semanticResult.acts, PROVIDE: .002 },
+      } }),
+      { valid: true, reason: null, action: "complete", rst: "559" },
+      message,
+    );
+  }
+});
+
+test("an extended report reaches NPC copy evaluation and can complete normally", () => {
+  let qso = reachReportPhase();
+  const message = "R SIM7QX DE SIM-K7QX UR RST 559 TNX 73 PSE K";
+  qso = submitPlayerMessage(qso, message, {
+    wpm: 18,
+    accuracy: 100,
+    rhythm: 100,
+    seed: "extended-report",
+  });
+  assert.equal(qso.lastError, null);
+  assert.equal(qso.lastReportCopyOutcome, "copied");
+  assert.equal(qso.phase, QSO_PHASES.NPC_73_AND_SK);
+  assert.equal(qso.sentRst, "559");
+  assert.equal(qso.attemptHistory.at(-1).remoteOutcome, "copied");
+});
+
+test("unsafe or unsupported semantic reports never advance a contact", () => {
+  const message = "SIM7QX DE SIM-K7QX RST 559 73 K";
+  const semantics = interpretCwTraffic({
+    message,
+    phase: QSO_PHASES.PLAYER_RST_AND_73,
+    selfCallsign: "SIM-K7QX",
+    peerCallsign: "SIM7QX",
+  });
+  assert.equal(semantics.safeToCommit, true);
+
+  const candidates = [
+    [{ ...semantics, safeToCommit: false }, "unsafeSemanticResult"],
+    [{ ...semantics, acts: { ...semantics.acts, REPORT: 0 } }, "unrecognizedReport"],
+    [{ ...semantics, topics: { ...semantics.topics, RST: 0 } }, "unrecognizedReport"],
+    [{
+      ...semantics,
+      slots: semantics.slots.map((slot) => slot.topic === "RST" ? { ...slot, value: "599" } : slot),
+    }, "unrecognizedReport"],
+  ];
+
+  for (const [semanticResult, reason] of candidates) {
+    let qso = reachReportPhase();
+    qso = submitPlayerMessage(qso, message, {
+      wpm: 18,
+      accuracy: 100,
+      rhythm: 100,
+      seed: `fail-closed:${reason}`,
+      semanticResult,
+    });
+    assert.equal(qso.phase, QSO_PHASES.PLAYER_RST_AND_73, reason);
+    assert.equal(qso.lastError, reason);
+    assert.equal(qso.sentRst, null);
+    assert.equal(qso.lastReportCopyOutcome, null);
+    assert.equal(qso.attemptHistory.at(-1).result, "rejected");
+    assert.equal(qso.attemptHistory.at(-1).remoteOutcome, null);
+  }
+});
+
+test("hard report fields cannot be bypassed by an optimistic model result", () => {
+  const qso = reachReportPhase();
+  const goodMessage = "SIM7QX DE SIM-K7QX RST 559 73 K";
+  const optimistic = interpretCwTraffic({
+    message: goodMessage,
+    phase: QSO_PHASES.PLAYER_RST_AND_73,
+    selfCallsign: qso.playerCallsign,
+    peerCallsign: qso.npc.callsign,
+  });
+  for (const [message, reason] of [
+    ["SIM7QX DE SIM-K7QX RST 999 73 K", "invalidRst"],
+    ["SIM-K7QX DE SIM7QX RST 559 73 K", "wrongReplyOrder"],
+    ["SIM7QX DE SIM-K7QX RST 559 K", "missing73"],
+    ["SIM7QX DE SIM-K7QX RST 559 73", "missingK"],
+    ["SIM7QX DE SIM-K7QX RST 559 RST 579 73 K", "invalidRst"],
+  ]) {
+    assert.equal(validatePlayerMessage(qso, message, { semanticResult: optimistic }).reason, reason, message);
+  }
 });
 
 test("attempt history records every submission and retains only the newest bounded entries", () => {

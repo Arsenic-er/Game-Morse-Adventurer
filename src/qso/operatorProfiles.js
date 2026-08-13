@@ -217,7 +217,8 @@ export function receptionThresholdsForNpc(npc = {}) {
 }
 
 function semanticInput(semanticResult, assessment = {}) {
-  if (semanticResult?.schemaVersion) return semanticResult;
+  if (semanticResult && typeof semanticResult === "object"
+    && Object.hasOwn(semanticResult, "safeToCommit")) return semanticResult;
   return {
     schemaVersion: null,
     provider: "legacy-cq-assessment",
@@ -281,6 +282,12 @@ export function resolveRemoteCopy({
   let outcome = copyScore >= thresholds.copyThreshold
     ? "copied"
     : copyScore >= thresholds.queryThreshold ? "query" : "unreadable";
+  // A semantic rejection is an invariant, not another personality-dependent
+  // score. Operators may differ in whether they query or stay silent, but no
+  // amount of RX skill or reception tolerance may turn unsafe traffic into a
+  // copied call.
+  const semanticCommitSafe = semantics?.safeToCommit === true;
+  if (!semanticCommitSafe && outcome === "copied") outcome = "query";
   if (intentScore < 55 && outcome === "copied") outcome = "query";
   if (identityEditDistance > 0 && outcome === "copied") outcome = "query";
   if (speedMatch < 35 && style.rxSkill < 85 && outcome === "copied") outcome = "query";
@@ -305,6 +312,7 @@ export function resolveRemoteCopy({
     && stableUnit(`${seed}:tx-error`) < (100 - style.txAccuracy) / 100;
 
   const reasonCodes = [];
+  if (!semanticCommitSafe) reasonCodes.push("unsafeSemanticCommit");
   if (speedMatch < 55) reasonCodes.push("speedOutsideComfortBand");
   if (identityEditDistance > 0) reasonCodes.push("callsignUncertain");
   if (intentScore < 55) reasonCodes.push("intentUncertain");
@@ -382,7 +390,7 @@ export function resolveRemoteReportCopy({
   const speedPenalty = (100 - speedMatch) * (.1 + .0015 * (100 - style.rxSkill));
   const accuracyScore = transmissionMetric(signalObservation?.transcript?.decoderAccuracy ?? accuracy);
   const rhythmScore = transmissionMetric(signalObservation?.timing?.rhythmScore ?? rhythm);
-  const hasSemanticResult = Number.isFinite(Number(semanticResult?.schemaVersion));
+  const hasSemanticResult = semanticResult !== null && typeof semanticResult === "object";
   const semanticScore = hasSemanticResult
     ? transmissionMetric(semanticResult?.interpretability, 0)
     : 100;
@@ -403,12 +411,18 @@ export function resolveRemoteReportCopy({
   let outcome = copyScore >= thresholds.copyThreshold
     ? "copied"
     : copyScore >= thresholds.queryThreshold ? "query" : "unreadable";
+  // Keep the model's commit gate fail-closed. Personality still selects the
+  // threshold between a repeat request and an unreadable report, never whether
+  // an explicitly unsafe report can complete a QSO.
+  const semanticCommitSafe = !hasSemanticResult || semanticResult?.safeToCommit === true;
+  if (!semanticCommitSafe && outcome === "copied") outcome = "query";
   if (speedMatch < 35 && style.rxSkill < 85 && outcome === "copied") outcome = "query";
   if (hasSemanticResult && semanticScore < 35 && outcome === "copied") outcome = "query";
   const replyMessage = outcome === "query"
     ? (speedMatch < 55 ? "QRS? K" : "AGN? K")
     : null;
   const reasonCodes = [];
+  if (!semanticCommitSafe) reasonCodes.push("unsafeSemanticCommit");
   if (speedMatch < 55) reasonCodes.push("speedOutsideComfortBand");
   if (semanticScore < 55) reasonCodes.push("meaningUncertain");
   if (accuracyScore < 60) reasonCodes.push("decodeErrors");

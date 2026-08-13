@@ -69,7 +69,7 @@ const ASSETS = {
 
 const QA_OPTIONAL_NPC_CALLSIGNS = new Set(["SIM3RA", "SIM5TU", "SIM2DX", "SIM8CW", "SIM6JP"]);
 
-const BUILD_VERSION = "0.34.1";
+const BUILD_VERSION = "0.35.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -499,6 +499,20 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     playerCallsign: save.callsign,
     guidanceLevel: normalizeQsoGuidance(save.qsoGuidance),
   }));
+  const semanticCatalogs = useMemo(() => {
+    const style = qso.npc?.operatorStyle ?? {};
+    return {
+      NAME: [style.personaName],
+      LOCATION: [style.personaQth, location.names?.en],
+      WEATHER: [style.personaWeather],
+      RIG: [style.personaRig, transmitter.panelLabel, transmitter.names?.en, transmitter.id],
+      ANTENNA: [style.personaAntenna, antenna.names?.en, antenna.id],
+      REGION: [qso.npc?.regionId, location.countryCode, location.region],
+    };
+  }, [
+    antenna.id, antenna.names, location.countryCode, location.names, location.region,
+    qso.npc, transmitter.id, transmitter.names, transmitter.panelLabel,
+  ]);
   const logRows = save.qsoLogs ?? [];
   const recentLogRows = logRows.slice(0, 6);
   const selectedLog = logRows.find((entry) => entry.id === selectedLogId) ?? null;
@@ -732,6 +746,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
             ...(qso.hasContact ? ["CALLSIGN"] : []),
             ...(qso.receivedRst ? ["RST"] : []),
           ],
+          catalogs: semanticCatalogs,
         });
         if (response?.ok) modelSemanticResult = response.result;
       } catch {
@@ -902,6 +917,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
         operatorRelationships: settlement.save.operatorRelationships,
         technologyPoints: settlement.save.technologyPoints,
         completedResearchProjects: settlement.save.completedResearchProjects,
+        missionStateVersion: settlement.save.missionStateVersion,
+        missionState: settlement.save.missionState,
         firstWatchCompleted: true,
       } : { firstWatchCompleted: true }, { notifyAchievements: settlement.added });
     setSettlementMeta({

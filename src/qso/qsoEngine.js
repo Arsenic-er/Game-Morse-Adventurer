@@ -28,9 +28,73 @@ function tokenized(value) {
   return normalizeCwText(value).split(" ").filter(Boolean);
 }
 
-function hasCallsign(tokens, callsign) {
-  const expected = normalizeCallsign(callsign);
-  return tokens.some((token) => normalizeCallsign(token) === expected);
+function matchingTokenIndexes(tokens, value) {
+  const expected = normalizeCallsign(value);
+  return tokens.reduce((indexes, token, index) => {
+    if (normalizeCallsign(token) === expected) indexes.push(index);
+    return indexes;
+  }, []);
+}
+
+function reportSemanticEvidence(semanticResult, rst) {
+  // Direct validator callers may omit semantics, but every real submission
+  // supplies either the ONNX result or the deterministic interpreter result.
+  if (!semanticResult) return { valid: true, reason: null };
+  if (semanticResult.safeToCommit !== true) {
+    return { valid: false, reason: "unsafeSemanticResult" };
+  }
+  const reportAct = Number(semanticResult.acts?.REPORT ?? 0);
+  const rstTopic = Number(semanticResult.topics?.RST ?? 0);
+  if (reportAct < .5 || rstTopic < .5) {
+    return { valid: false, reason: "unrecognizedReport" };
+  }
+  const matchingRstSlot = Array.isArray(semanticResult.slots)
+    && semanticResult.slots.some((slot) => slot?.topic === "RST"
+      && String(slot?.value ?? "") === rst
+      && Number(slot?.confidence ?? 0) >= .5);
+  return matchingRstSlot
+    ? { valid: true, reason: null }
+    : { valid: false, reason: "unrecognizedReport" };
+}
+
+function validateReportTraffic(qso, tokens, semanticResult) {
+  const deIndexes = tokens.reduce((indexes, token, index) => {
+    if (token === "DE") indexes.push(index);
+    return indexes;
+  }, []);
+  if (!deIndexes.length) return { valid: false, reason: "missingDe" };
+  if (!["K", "KN"].includes(tokens.at(-1))) return { valid: false, reason: "missingK" };
+
+  const peerIndexes = matchingTokenIndexes(tokens, qso.npc.callsign);
+  const selfIndexes = matchingTokenIndexes(tokens, qso.playerCallsign);
+  if (!peerIndexes.length || !selfIndexes.length) return { valid: false, reason: "missingCallsign" };
+
+  const rstIndexes = tokens.reduce((indexes, token, index) => {
+    if (token === "RST") indexes.push(index);
+    return indexes;
+  }, []);
+  if (rstIndexes.length !== 1) return { valid: false, reason: "invalidRst" };
+  const rstIndex = rstIndexes[0];
+  const rst = tokens[rstIndex + 1] ?? null;
+  if (!/^[1-5][1-9][1-9]$/.test(rst ?? "")) return { valid: false, reason: "invalidRst" };
+
+  const signoffIndexes = tokens.reduce((indexes, token, index) => {
+    if (token === "73") indexes.push(index);
+    return indexes;
+  }, []);
+  if (!signoffIndexes.length) return { valid: false, reason: "missing73" };
+
+  const deIndex = deIndexes[0];
+  const handoverIndex = tokens.length - 1;
+  const rolesAreUnambiguous = deIndexes.length === 1
+    && peerIndexes.every((index) => index < deIndex)
+    && selfIndexes.every((index) => index > deIndex && index < rstIndex)
+    && signoffIndexes.every((index) => index > rstIndex && index < handoverIndex);
+  if (!rolesAreUnambiguous) return { valid: false, reason: "wrongReplyOrder" };
+
+  const semanticEvidence = reportSemanticEvidence(semanticResult, rst);
+  if (!semanticEvidence.valid) return semanticEvidence;
+  return { valid: true, reason: null, action: "complete", rst };
 }
 
 function expectedCq(playerCallsign) {
@@ -351,23 +415,7 @@ export function validatePlayerMessage(qso, message, { semanticResult = null } = 
     }
     if (tokens.includes("QRS")) return { valid: false, reason: "invalidQrs" };
     if (tokens.includes("AGN")) return { valid: false, reason: "invalidAgn" };
-    if (!tokens.includes("DE")) return { valid: false, reason: "missingDe" };
-    if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
-    if (!hasCallsign(tokens, qso.npc.callsign) || !hasCallsign(tokens, qso.playerCallsign)) return { valid: false, reason: "missingCallsign" };
-    const rstIndex = tokens.indexOf("RST");
-    const rst = rstIndex >= 0 ? tokens[rstIndex + 1] : null;
-    if (!rst || !/^[1-5][1-9][1-9]$/.test(rst)) return { valid: false, reason: "invalidRst" };
-    if (!tokens.includes("73")) return { valid: false, reason: "missing73" };
-    const inStrictOrder = tokens.length === 7
-      && normalizeCallsign(tokens[0]) === normalizeCallsign(qso.npc.callsign)
-      && tokens[1] === "DE"
-      && normalizeCallsign(tokens[2]) === normalizeCallsign(qso.playerCallsign)
-      && tokens[3] === "RST"
-      && tokens[4] === rst
-      && tokens[5] === "73"
-      && tokens[6] === "K";
-    if (!inStrictOrder) return { valid: false, reason: "wrongReplyOrder" };
-    return { valid: true, reason: null, action: "complete", rst };
+    return validateReportTraffic(qso, tokens, semanticResult);
   }
   if (qso.phase === QSO_PHASES.PLAYER_OPTIONAL_ANSWER) {
     if (["QRS K", "QRS PSE K", "PSE QRS K"].includes(tokens.join(" "))) {
@@ -383,6 +431,9 @@ export function validatePlayerMessage(qso, message, { semanticResult = null } = 
     if (tokens.includes("AGN")) return { valid: false, reason: "invalidAgn" };
     if (tokens.includes("SKIP") || tokens.includes("73")) return { valid: false, reason: "invalidOptionalSkip" };
     if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
+    if (semanticResult && semanticResult.safeToCommit !== true) {
+      return { valid: false, reason: "unsafeSemanticResult" };
+    }
     const spec = optionalExchangeSpec(qso.optionalExchangeQuestion);
     const payload = tokens.slice(1, -1);
     const legacyForm = Boolean(spec && tokens[0] === spec.keyword && payload.length > 0);

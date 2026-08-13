@@ -1172,6 +1172,21 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .mission-center-modal > footer > span { color: #718f8d; font-size: 8px; letter-spacing: .1em; }
 .mission-center-modal > footer button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 220px; height: 38px; border: 2px solid #bd8b2c; color: #ffe09a; background: #30240e; box-shadow: 3px 3px 0 #020506; font-size: 9px; }
 
+.mission-narrative { padding: 9px; border-left: 3px solid #416f70; color: #7f9f9c; background: #06151a; }
+.mission-narrative b, .mission-contract > b, .mission-relationship > b { display: block; margin-bottom: 6px; color: #65b9b3; font-size: 7px; letter-spacing: .12em; }
+.mission-narrative p { margin: 0; font-size: 8px; line-height: 1.65; }
+.mission-ready .mission-narrative, .mission-claimed .mission-narrative { border-left-color: #b4822c; background: #19160d; }
+.mission-ready .mission-narrative b, .mission-claimed .mission-narrative b { color: #e2b651; }
+.mission-contract { padding: 8px; border: 2px dashed #3c6567; background: #051317; }
+.mission-contract ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.mission-contract li { display: inline-grid; gap: 3px; padding: 5px 6px; border: 1px solid #31575a; background: #092127; }
+.mission-contract li span { color: #628a88; font-size: 6px; letter-spacing: .08em; }
+.mission-contract li strong { color: #b8d8d3; font-size: 8px; }
+.mission-target-identity { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-content: start; }
+.mission-relationship { display: grid; gap: 5px; padding-left: 8px; border-left: 1px dashed #765820; }
+.mission-relationship > b { color: #c19a4b; }
+.mission-relationship span { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #9b8b66; font-size: 7px; }
+.mission-relationship span strong { color: #ffe09a; font-size: 10px; }
 @media (max-width: 1120px) {
   .mission-center-modal { grid-template-rows: 72px 48px minmax(0, 1fr) 50px; height: calc(100vh - 24px); }
   .mission-list { grid-template-columns: 1fr; }
