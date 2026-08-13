@@ -5,6 +5,9 @@
 ### ピクセルアートで楽しむ CW アマチュア無線局アドベンチャー
 
 [**English**](./README.md) · [**简体中文**](./README.zh-CN.md) · [**繁體中文**](./README.zh-TW.md) · [**日本語**](./README.ja.md) · [**Español**](./README.es.md) · [**Deutsch**](./README.de.md) · [**Русский**](./README.ru.md)
+
+[**意味理解モデルと学習データ**](https://github.com/Arsenic-er/Game-Morse-Adventurer-AI)
+
 **v0.34.1**：タイトル、セーブ選択、Home、練習台、交信画面で `Esc` により設定メニューを開閉でき、最前面のダイアログを優先する動作を維持します。v0.34 のミッションセンター縦切り実装も含みます。
 
 
