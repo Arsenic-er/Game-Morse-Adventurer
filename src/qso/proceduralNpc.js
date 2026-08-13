@@ -361,6 +361,19 @@ export function generateNpcBatch(options = {}) {
   return Array.from(iterateNpcBatch(options));
 }
 
+const NPC_RIG_FACTS = Object.freeze(["QRP KIT", "MICA 8", "HOME RIG", "FIELD RIG", "CLUB RIG"]);
+const NPC_ANTENNA_FACTS = Object.freeze(["DIPOLE", "VERTICAL", "3EL YAGI", "LONG WIRE"]);
+const NPC_POWER_FACTS = Object.freeze([5, 10, 20, 50, 100]);
+const NPC_WEATHER_FACTS = Object.freeze(["CLEAR", "CLOUDY", "RAIN", "WINDY", "SNOW"]);
+
+function stationFact(npc, label, catalog) {
+  return catalog[hash32(`${npc.worldNpcKey ?? npc.npcId}|${label}`) % catalog.length];
+}
+
+function cwLocation(value) {
+  return String(value ?? "PIXEL CITY").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim().slice(0, 20) || "PIXEL CITY";
+}
+
 export function proceduralNpcToStation(npc) {
   if (!npc?.station || !npc?.radio || !npc?.qso || !npc?.personality) {
     throw new TypeError("A complete procedural NPC profile is required");
@@ -370,6 +383,7 @@ export function proceduralNpcToStation(npc) {
     && SUPPORTED_OPTIONAL_EXCHANGE_TOPICS.has(npc.qso.optionalQuestionTopic)
     ? npc.qso.optionalQuestionTopic
     : null;
+  const copyTolerance = Math.max(0, Math.min(100, Math.round(100 - npc.qso.firmThreshold)));
   return Object.freeze({
     callsign: npc.station.callsign,
     regionId: npc.station.locationId,
@@ -389,6 +403,7 @@ export function proceduralNpcToStation(npc) {
       preferredWpm: npc.radio.preferredWpm,
       speedTolerance: Math.min(100, (npc.radio.comfortableMaxWpm - npc.radio.comfortableMinWpm) * 6),
       patience: npc.personality.patience,
+      receptionTolerance: copyTolerance,
       procedureStrictness: npc.qso.procedureStrictness,
       responseTempo: Math.max(0, Math.min(100, Math.round(112 - npc.qso.replyDelayMs / 40))),
       fistStability: Math.max(0, 100 - npc.radio.timingJitter),
@@ -399,6 +414,11 @@ export function proceduralNpcToStation(npc) {
       optionalQuestion,
       personaName: npc.identity.operatorName,
       personaAge: npc.identity.ageYears,
+      personaRig: stationFact(npc, "rig", NPC_RIG_FACTS),
+      personaAntenna: stationFact(npc, "antenna", NPC_ANTENNA_FACTS),
+      personaPowerWatts: stationFact(npc, "power", NPC_POWER_FACTS),
+      personaQth: cwLocation(npc.station.locationId),
+      personaWeather: stationFact(npc, "weather", NPC_WEATHER_FACTS),
     }),
   });
 }

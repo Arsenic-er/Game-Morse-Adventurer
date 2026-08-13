@@ -1,10 +1,10 @@
 import { clamp } from "../cw/morse.js";
 import { signalObservationFromCqAssessment } from "./signalObservation.js";
 
-export const OPERATOR_PROFILE_SCHEMA_VERSION = 3;
+export const OPERATOR_PROFILE_SCHEMA_VERSION = 4;
 export const NPC_RECEPTION_SCHEMA_VERSION = 2;
 export const OPTIONAL_EXCHANGE_QUESTION_IDS = Object.freeze([
-  "power", "location", "weather", "name", "age",
+  "power", "location", "weather", "name", "age", "rig", "antenna",
 ]);
 
 function profile(candidate) {
@@ -17,7 +17,7 @@ export const OPERATOR_PROFILES = Object.freeze({
     speedTolerance: 48, patience: 90, procedureStrictness: 25, responseTempo: 35,
     fistStability: 55, verbosity: 78, initiative: 45, receptionTolerance: 25,
     queryStyle: "AGN",
-    replyStyle: "REPEAT", lowCopyAction: "GENERAL_CQ", optionalQuestion: null,
+    replyStyle: "REPEAT", lowCopyAction: "GENERAL_CQ", optionalQuestion: "rig",
   }),
   "patient-veteran": profile({
     archetype: "patient-veteran", rxSkill: 94, txAccuracy: 97, preferredWpm: 17,
@@ -31,7 +31,7 @@ export const OPERATOR_PROFILES = Object.freeze({
     speedTolerance: 72, patience: 28, procedureStrictness: 82, responseTempo: 96,
     fistStability: 98, verbosity: 10, initiative: 75, receptionTolerance: 35,
     queryStyle: "QUESTION",
-    replyStyle: "TERSE", lowCopyAction: "SILENCE", optionalQuestion: null,
+    replyStyle: "TERSE", lowCopyAction: "SILENCE", optionalQuestion: "antenna",
   }),
   "youth-club": profile({
     archetype: "youth-club", rxSkill: 74, txAccuracy: 86, preferredWpm: 15,
@@ -65,16 +65,16 @@ export const OPERATOR_PROFILES = Object.freeze({
 
 // Explicit fictional personas only; no value is read from the OS, browser, or user account.
 export const NPC_OPERATOR_ASSIGNMENTS = Object.freeze({
-  SIM7QX: Object.freeze({ profileId: "careful-beginner", personaName: "RIN", personaAge: 24 }),
-  SIM3RA: Object.freeze({ profileId: "patient-veteran", personaName: "MORSE", personaAge: 68 }),
-  SIM9AK: Object.freeze({ profileId: "contest-sprinter", personaName: "MAX", personaAge: 31 }),
-  SIM5TU: Object.freeze({ profileId: "traditional-fist", personaName: "WANG", personaAge: 52 }),
-  SIM2DX: Object.freeze({ profileId: "weak-signal-listener", personaName: "NOVA", personaAge: 44 }),
-  SIM8CW: Object.freeze({ profileId: "friendly-ragchewer", personaName: "DIEGO", personaAge: 37 }),
-  SIM6JP: Object.freeze({ profileId: "youth-club", personaName: "SORA", personaAge: 19 }),
-  SIM4NZ: Object.freeze({ profileId: "patient-veteran", preferredWpm: 17, optionalQuestion: null, personaName: "LEE", personaAge: 63 }),
-  SIM1IN: Object.freeze({ profileId: "careful-beginner", preferredWpm: 12, personaName: "KAI", personaAge: 27 }),
-  SIM0BR: Object.freeze({ profileId: "friendly-ragchewer", preferredWpm: 19, optionalQuestion: null, personaName: "LUNA", personaAge: 41 }),
+  SIM7QX: Object.freeze({ profileId: "careful-beginner", optionalQuestion: null, personaName: "RIN", personaAge: 24, personaRig: "QRP KIT", personaAntenna: "DIPOLE", personaPowerWatts: 5, personaQth: "PIXEL BAY", personaWeather: "CLEAR" }),
+  SIM3RA: Object.freeze({ profileId: "patient-veteran", personaName: "MORSE", personaAge: 68, personaRig: "HOME RIG", personaAntenna: "DIPOLE", personaPowerWatts: 50, personaQth: "PINE RIDGE", personaWeather: "CLOUDY" }),
+  SIM9AK: Object.freeze({ profileId: "contest-sprinter", optionalQuestion: null, personaName: "MAX", personaAge: 31, personaRig: "CONTEST RIG", personaAntenna: "3EL YAGI", personaPowerWatts: 100, personaQth: "RIVER CITY", personaWeather: "WINDY" }),
+  SIM5TU: Object.freeze({ profileId: "traditional-fist", personaName: "WANG", personaAge: 52, personaRig: "QRP KIT", personaAntenna: "LONG WIRE", personaPowerWatts: 10, personaQth: "HILL TOWN", personaWeather: "CLEAR" }),
+  SIM2DX: Object.freeze({ profileId: "weak-signal-listener", personaName: "NOVA", personaAge: 44, personaRig: "MICA 8", personaAntenna: "VERTICAL", personaPowerWatts: 5, personaQth: "LAKE CAMP", personaWeather: "RAIN" }),
+  SIM8CW: Object.freeze({ profileId: "friendly-ragchewer", personaName: "DIEGO", personaAge: 37, personaRig: "HOME RIG", personaAntenna: "DIPOLE", personaPowerWatts: 50, personaQth: "SUNNY VALE", personaWeather: "CLEAR" }),
+  SIM6JP: Object.freeze({ profileId: "youth-club", personaName: "SORA", personaAge: 19, personaRig: "CLUB RIG", personaAntenna: "DIPOLE", personaPowerWatts: 20, personaQth: "FOREST CLUB", personaWeather: "CLOUDY" }),
+  SIM4NZ: Object.freeze({ profileId: "patient-veteran", preferredWpm: 17, optionalQuestion: "rig", personaName: "LEE", personaAge: 63, personaRig: "VINTAGE RIG", personaAntenna: "DIPOLE", personaPowerWatts: 40, personaQth: "COAST POINT", personaWeather: "CLEAR" }),
+  SIM1IN: Object.freeze({ profileId: "careful-beginner", preferredWpm: 12, personaName: "KAI", personaAge: 27, personaRig: "QRP KIT", personaAntenna: "VERTICAL", personaPowerWatts: 5, personaQth: "CEDAR TOWN", personaWeather: "RAIN" }),
+  SIM0BR: Object.freeze({ profileId: "friendly-ragchewer", preferredWpm: 19, optionalQuestion: "antenna", personaName: "LUNA", personaAge: 41, personaRig: "MICA 8", personaAntenna: "3EL YAGI", personaPowerWatts: 10, personaQth: "MOON BAY", personaWeather: "CLEAR" }),
 });
 
 export const DEFAULT_OPERATOR_PROFILE_ID = "patient-veteran";
@@ -116,6 +116,10 @@ function boundedTrait(value, fallback = 50) {
   return Math.round(clamp(Number.isFinite(numeric) ? numeric : fallback, 0, 100));
 }
 
+function cwWords(value, fallback) {
+  return String(value ?? fallback).toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim().slice(0, 20) || fallback;
+}
+
 export function resolveOperatorProfile(npc = {}) {
   const callsign = String(npc.callsign ?? "").toUpperCase();
   const assignment = NPC_OPERATOR_ASSIGNMENTS[callsign] ?? {};
@@ -136,6 +140,11 @@ export function resolveOperatorProfile(npc = {}) {
     receptionTolerance: boundedTrait(resolved.receptionTolerance),
     personaName: String(resolved.personaName ?? "OP").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) || "OP",
     personaAge: Math.min(120, Math.max(1, Math.floor(Number(resolved.personaAge) || 40))),
+    personaRig: cwWords(resolved.personaRig, "HOME RIG"),
+    personaAntenna: cwWords(resolved.personaAntenna, "DIPOLE"),
+    personaPowerWatts: Math.min(1500, Math.max(1, Math.floor(Number(resolved.personaPowerWatts) || 10))),
+    personaQth: cwWords(resolved.personaQth, "PIXEL CITY"),
+    personaWeather: cwWords(resolved.personaWeather, "CLEAR"),
   };
 }
 

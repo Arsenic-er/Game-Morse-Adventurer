@@ -106,7 +106,7 @@ test("completes the minimum QSO state machine", () => {
   assert.ok(log.copyScore >= 75);
   assert.equal(log.copyOutcome, "copied");
   assert.equal(log.operatorProfileId, "careful-beginner");
-  assert.equal(log.operatorProfileRevision, 3);
+  assert.equal(log.operatorProfileRevision, 4);
   assert.ok(log.remoteWpm >= 5 && log.remoteWpm <= 60);
   assert.equal(log.guidanceLevel, "full");
   assert.equal(log.visualAssistUsed, true);
@@ -156,27 +156,37 @@ test("optional topics use NPC reply style without retaining the player's answer"
     {
       callsign: "SIM3RA", answer: "QTH SECRET HARBOR K",
       question: "SIM-K7QX DE SIM3RA R RST 579 QTH QTH? K",
-      final: "SIM-K7QX DE SIM3RA TNX QTH R RST 579 73 SK", privateText: "SECRET HARBOR",
+      final: "SIM-K7QX DE SIM3RA TNX QTH MY QTH PINE RIDGE R RST 579 73 SK", privateText: "SECRET HARBOR",
     },
     {
       callsign: "SIM5TU", answer: "PWR 50 W K",
       question: "SIM-K7QX DE SIM5TU R RST 579 PWR? K",
-      final: "SIM-K7QX DE SIM5TU TNX PWR INFO R RST 579 73 SK", privateText: "50 W",
+      final: "SIM-K7QX DE SIM5TU TNX PWR MY PWR 10 W R RST 579 73 SK", privateText: "50 W",
     },
     {
       callsign: "SIM2DX", answer: "WX SUNNY K",
       question: "SIM-K7QX DE SIM2DX R RST 579 WX? K",
-      final: "SIM-K7QX DE SIM2DX TNX WX INFO R RST 579 73 SK", privateText: "SUNNY",
+      final: "SIM-K7QX DE SIM2DX TNX WX MY WX RAIN R RST 579 73 SK", privateText: "SUNNY",
     },
     {
       callsign: "SIM8CW", answer: "NAME SPARK K",
       question: "SIM-K7QX DE SIM8CW R RST 579 PSE NAME? K",
-      final: "SIM-K7QX DE SIM8CW TNX NAME MY NAME DIEGO 73 SK", privateText: "SPARK",
+      final: "SIM-K7QX DE SIM8CW TNX NAME MY NAME DIEGO FB 73 SK", privateText: "SPARK",
     },
     {
       callsign: "SIM6JP", answer: "AGE 25 K",
       question: "SIM-K7QX DE SIM6JP R RST 579 PSE AGE? K",
-      final: "SIM-K7QX DE SIM6JP TNX AGE MY AGE 19 73 SK", privateText: "AGE 25",
+      final: "SIM-K7QX DE SIM6JP TNX AGE MY AGE 19 FB 73 SK", privateText: "AGE 25",
+    },
+    {
+      callsign: "SIM4NZ", answer: "RIG FIELD RADIO K",
+      question: "SIM-K7QX DE SIM4NZ R RST 579 RIG RIG? K",
+      final: "SIM-K7QX DE SIM4NZ TNX RIG MY RIG VINTAGE RIG R RST 579 73 SK", privateText: "FIELD RADIO",
+    },
+    {
+      callsign: "SIM0BR", answer: "ANTENNA VERTICAL K",
+      question: "SIM-K7QX DE SIM0BR R RST 579 PSE ANT? K",
+      final: "SIM-K7QX DE SIM0BR TNX ANT MY ANT 3EL YAGI FB 73 SK", privateText: "VERTICAL",
     },
   ];
   for (const candidate of cases) {
@@ -198,6 +208,8 @@ test("optional answers accept semantic and contextual variants while rejecting e
     ["SIM2DX", "WEATHER SUNNY K"],
     ["SIM8CW", "MY NAME SPARK K"],
     ["SIM6JP", "MY AGE 25 K"],
+    ["SIM4NZ", "RADIO FIELD RIG K"],
+    ["SIM0BR", "ANTENNA VERTICAL K"],
   ];
   for (const [callsign, answer] of cases) {
     const remote = { ...npc, callsign };

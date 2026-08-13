@@ -1730,6 +1730,7 @@ async function runQaCapture(window) {
       const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
       const entry = save.qsoLogs[0];
       return {
+        id: entry.id,
         version: entry.version,
         accessoryId: entry.accessoryId,
         equipmentId: entry.equipmentId,
@@ -1760,6 +1761,7 @@ async function runQaCapture(window) {
           Number.isFinite(attempt.wpm) && Number.isFinite(attempt.accuracy) && Number.isFinite(attempt.rhythm)),
         firstWatchCompleted: save.firstWatchCompleted,
         totalQsos: save.qsoRecords?.total,
+        relationship: save.operatorRelationships?.find(({ callsign }) => callsign === entry.callsign) ?? null,
       };
     })()`,
     true,
@@ -1783,7 +1785,7 @@ async function runQaCapture(window) {
     || !optionalPrivacyValid
     || !Number.isFinite(savedEquipmentSnapshot.cqQuality) || !Number.isFinite(savedEquipmentSnapshot.copyScore)
     || savedEquipmentSnapshot.copyOutcome !== "copied" || !savedEquipmentSnapshot.operatorProfileId
-    || savedEquipmentSnapshot.operatorProfileRevision !== 2 || !Number.isFinite(savedEquipmentSnapshot.remoteWpm)
+    || savedEquipmentSnapshot.operatorProfileRevision !== 4 || !Number.isFinite(savedEquipmentSnapshot.remoteWpm)
     || !Number.isFinite(savedEquipmentSnapshot.transmitAccuracy)
     || savedEquipmentSnapshot.guidanceLevel !== "full" || savedEquipmentSnapshot.visualAssistUsed !== true
     || savedEquipmentSnapshot.independentWatch !== false || savedReward.version !== 1
@@ -1798,6 +1800,10 @@ async function runQaCapture(window) {
     || !savedEquipmentSnapshot.attemptMetricsComplete
     || savedEquipmentSnapshot.firstWatchCompleted !== true || savedEquipmentSnapshot.totalQsos !== 5) {
     throw new Error(`QSO log v6 lost its review, operator, copy, reward, or equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
+  }
+  if (savedEquipmentSnapshot.relationship?.lastQsoId !== savedEquipmentSnapshot.id
+    || savedEquipmentSnapshot.relationship?.completedQsos < 1 || savedEquipmentSnapshot.relationship?.encounterCount < 1) {
+    throw new Error(`QSO relationship was not settled with the log: ${JSON.stringify(savedEquipmentSnapshot.relationship)}`);
   }
   await capture(window, outputDir, shot("qso-result-saved"));
   await click(window, ".qso-result-modal.success header .icon-button");

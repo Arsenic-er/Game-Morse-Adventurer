@@ -45,6 +45,9 @@ import {
 import { responseDelayForNpc } from "./qso/operatorProfiles.js";
 
 import { recordCompletedQso } from "./qso/qsoLog.js";
+import {
+  OPERATOR_RELATIONSHIPS_VERSION, operatorEncounterId, recordOperatorEncounter,
+} from "./qso/operatorRelationships.js";
 import { QSO_EXIT_RISKS, qsoExitRisk } from "./qso/qsoExitGuard.js";
 import { HomeScreen } from "./screens/HomeScreen.jsx";
 import { QsoLeaveConfirmModal } from "./screens/QsoLeaveConfirmModal.jsx";
@@ -478,6 +481,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   const [powered, setPowered] = useState(true);
   const [semanticBusy, setSemanticBusy] = useState(false);
   const keyInputStateRef = useRef(null);
+  const recordedEncounterIdsRef = useRef(new Set());
   const [clock, setClock] = useState(() => new Date());
   const [selectedLogId, setSelectedLogId] = useState(null);
   const [qsoMetrics, setQsoMetrics] = useState({ samples: 0, wpm: 0, accuracy: 0, rhythm: 0 });
@@ -512,13 +516,14 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   });
   const retryRequired = Boolean(qso.lastError && qso.lastError !== "noResponse");
   const npcChannel = useMemo(
-    () => channelProfileForLevel(qso.npc.finalLevel, qso.npc, {
+    () => channelProfileForLevel(qso.lastNpcReception?.channelLevel ?? qso.npc.finalLevel, qso.npc, {
       qsbDepthMultiplier: combinedQsbDepthMultiplier,
       noiseGainMultiplier: combinedNoiseGainMultiplier,
       noiseFilterCenterHz: accessory.filterCenterHz,
       noiseFilterQ: accessory.filterQ,
+      fadePenalty: qso.lastNpcReception?.channelFadePenalty,
     }),
-    [accessory.filterCenterHz, accessory.filterQ, combinedNoiseGainMultiplier, combinedQsbDepthMultiplier, qso.npc],
+    [accessory.filterCenterHz, accessory.filterQ, combinedNoiseGainMultiplier, combinedQsbDepthMultiplier, qso.lastNpcReception, qso.npc],
   );
   const receiverChannel = useMemo(
     () => (qso.hasContact ? npcChannel : {
@@ -528,6 +533,24 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     }),
     [accessory.filterCenterHz, accessory.filterQ, combinedNoiseGainMultiplier, npcChannel, qso.hasContact],
   );
+
+  useEffect(() => {
+    const responder = qso.lastNpcReception?.npc;
+    if (!responder?.callsign || qso.npcReplyDisposition === "no-response") return;
+    const encounterId = operatorEncounterId(responder.callsign, qso.startedAt);
+    if (!encounterId || recordedEncounterIdsRef.current.has(encounterId)) return;
+    const operatorRelationships = recordOperatorEncounter(
+      save.operatorRelationships,
+      responder,
+      qso.startedAt,
+      encounterId,
+    );
+    recordedEncounterIdsRef.current.add(encounterId);
+    onSaveUpdate({
+      operatorRelationshipsVersion: OPERATOR_RELATIONSHIPS_VERSION,
+      operatorRelationships,
+    });
+  }, [onSaveUpdate, qso.lastNpcReception, qso.npcReplyDisposition, qso.startedAt, save.operatorRelationships]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setClock(new Date()), 1000);
@@ -875,6 +898,8 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
         money: settlement.save.money,
         qsoLogs: settlement.save.qsoLogs,
         qsoRecords: settlement.save.qsoRecords,
+        operatorRelationshipsVersion: settlement.save.operatorRelationshipsVersion,
+        operatorRelationships: settlement.save.operatorRelationships,
         technologyPoints: settlement.save.technologyPoints,
         completedResearchProjects: settlement.save.completedResearchProjects,
         firstWatchCompleted: true,
@@ -1021,6 +1046,9 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       data-channel-noise-gain={receiverChannel.noiseGain}
       data-channel-qsb-depth={npcChannel.qsbDepth}
       data-channel-qsb-depth-multiplier={combinedQsbDepthMultiplier}
+      data-channel-signal-gain={npcChannel.signalGain}
+      data-channel-fade-penalty={npcChannel.fadePenalty}
+      data-channel-decision-linked={npcChannel.decisionLinked}
       style={{ "--room": `url(${location.scene})` }}
     >
       <header className="station-topbar">

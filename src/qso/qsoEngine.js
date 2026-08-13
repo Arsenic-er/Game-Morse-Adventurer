@@ -47,6 +47,8 @@ const OPTIONAL_EXCHANGE_SPECS = Object.freeze({
   weather: Object.freeze({ keyword: "WX", aliases: ["WX", "WEATHER"], semanticTopic: "WEATHER", prompt: "WX? K", example: "WX SUNNY K" }),
   name: Object.freeze({ keyword: "NAME", aliases: ["NAME"], semanticTopic: "NAME", prompt: "NAME? K", example: "NAME SPARK K" }),
   age: Object.freeze({ keyword: "AGE", aliases: ["AGE"], semanticTopic: "AGE", prompt: "AGE? K", example: "AGE 25 K" }),
+  rig: Object.freeze({ keyword: "RIG", aliases: ["RIG", "RADIO"], semanticTopic: "RIG", prompt: "RIG? K", example: "RIG MICA 8 K" }),
+  antenna: Object.freeze({ keyword: "ANT", aliases: ["ANT", "ANTENNA"], semanticTopic: "ANTENNA", prompt: "ANT? K", example: "ANT DIPOLE K" }),
 });
 
 function optionalExchangeSpec(questionId) {
@@ -66,22 +68,30 @@ function optionalExchangeMessage(qso, questionId, npcRst) {
   return prompt ? `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} ${prompt}` : null;
 }
 
+function personaFact(style, questionId) {
+  const values = {
+    power: `MY PWR ${style.personaPowerWatts ?? 10} W`,
+    location: `MY QTH ${style.personaQth ?? "PIXEL CITY"}`,
+    weather: `MY WX ${style.personaWeather ?? "CLEAR"}`,
+    name: `MY NAME ${style.personaName ?? "OP"}`,
+    age: `MY AGE ${style.personaAge ?? 40}`,
+    rig: `MY RIG ${style.personaRig ?? "HOME RIG"}`,
+    antenna: `MY ANT ${style.personaAntenna ?? "DIPOLE"}`,
+  };
+  return values[questionId] ?? "MY INFO OK";
+}
+
 function finalNpcMessage(qso, outcome = null) {
   const style = qso.npc?.operatorStyle ?? {};
   const prefix = `${qso.playerCallsign} DE ${qso.npc.callsign}`;
   const receivedRst = qso.receivedRst ?? "579";
   const topic = optionalExchangeSpec(qso.optionalExchangeQuestion)?.keyword ?? "INFO";
   if (outcome === "answered") {
-    if (style.replyStyle === "FRIENDLY" && qso.optionalExchangeQuestion === "name") {
-      return `${prefix} TNX NAME MY NAME ${style.personaName ?? "OP"} 73 SK`;
-    }
-    if (style.replyStyle === "FRIENDLY" && qso.optionalExchangeQuestion === "age") {
-      return `${prefix} TNX AGE MY AGE ${style.personaAge ?? 40} 73 SK`;
-    }
-    if (style.replyStyle === "TERSE") return `${prefix} R ${topic} 73 SK`;
-    if (style.replyStyle === "REPEAT") return `${prefix} TNX ${topic} R RST ${receivedRst} 73 SK`;
-    if (style.replyStyle === "FRIENDLY") return `${prefix} TNX ${topic} INFO FB 73 SK`;
-    return `${prefix} TNX ${topic} INFO R RST ${receivedRst} 73 SK`;
+    const fact = personaFact(style, qso.optionalExchangeQuestion);
+    if (style.replyStyle === "TERSE") return `${prefix} R ${fact} 73 SK`;
+    if (style.replyStyle === "REPEAT") return `${prefix} TNX ${topic} ${fact} R RST ${receivedRst} 73 SK`;
+    if (style.replyStyle === "FRIENDLY") return `${prefix} TNX ${topic} ${fact} FB 73 SK`;
+    return `${prefix} TNX ${topic} ${fact} R RST ${receivedRst} 73 SK`;
   }
   if (outcome === "skipped") {
     if (style.replyStyle === "TERSE") return `${prefix} OK 73 SK`;
@@ -115,7 +125,8 @@ function optionalValueIsPresent(questionId, message, tokens, semanticResult) {
     const value = match?.[1] ?? slotValues.find((candidate) => /^\d{1,3}$/.test(candidate));
     return /^\d{1,3}$/.test(String(value ?? "")) && Number(value) >= 1 && Number(value) <= 120;
   }
-  const ignored = new Set(["MY", "IS", "INFO", optionalExchangeSpec(questionId)?.keyword]);
+  const spec = optionalExchangeSpec(questionId);
+  const ignored = new Set(["MY", "IS", "INFO", ...(spec?.aliases ?? [])]);
   return tokens.slice(0, -1).some((token) => !ignored.has(token) && token.length > 0)
     || slotValues.some(Boolean);
 }

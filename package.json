@@ -17,6 +17,7 @@
     "test": "node --test",
     "npc:generate": "node scripts/generate-npc-roster.mjs",
     "qso:simulate:poor": "node scripts/simulate-poor-qso.mjs",
+    "qso:calibrate": "node scripts/calibrate-operators.mjs",
     "semantic:model:sync": "node scripts/sync-semantic-model.mjs",
     "desktop:dev": "pnpm semantic:model:sync && vite build && electron .",
     "desktop:build": "pnpm semantic:model:sync && vite build && electron-builder --win portable"

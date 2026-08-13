@@ -10,7 +10,7 @@ import {
 import { NPC_STATIONS } from "../src/propagation/propagationEngine.js";
 
 test("the versioned operator table covers every fictional station with bounded traits", () => {
-  assert.equal(OPERATOR_PROFILE_SCHEMA_VERSION, 3);
+  assert.equal(OPERATOR_PROFILE_SCHEMA_VERSION, 4);
   assert.ok(Object.keys(OPERATOR_PROFILES).length >= 7);
   for (const station of NPC_STATIONS) {
     assert.ok(NPC_OPERATOR_ASSIGNMENTS[station.callsign], station.callsign);
@@ -35,7 +35,6 @@ test("optional exchanges are deterministic profile data and only some stations a
     .filter(Boolean)
     .sort();
   assert.deepEqual(profileQuestions, [...OPTIONAL_EXCHANGE_QUESTION_IDS].sort());
-  assert.ok(Object.values(OPERATOR_PROFILES).some((candidate) => candidate.optionalQuestion === null));
 
   const stationQuestions = NPC_STATIONS.map((station) => resolveOperatorProfile(station).optionalQuestion);
   assert.deepEqual(new Set(stationQuestions.filter(Boolean)), new Set(OPTIONAL_EXCHANGE_QUESTION_IDS));
@@ -45,6 +44,11 @@ test("optional exchanges are deterministic profile data and only some stations a
     const style = resolveOperatorProfile(station);
     assert.match(style.personaName, /^[A-Z0-9]{1,12}$/);
     assert.ok(style.personaAge >= 1 && style.personaAge <= 120);
+    assert.match(style.personaRig, /^[A-Z0-9 ]{1,20}$/);
+    assert.match(style.personaAntenna, /^[A-Z0-9 ]{1,20}$/);
+    assert.ok(style.personaPowerWatts >= 1 && style.personaPowerWatts <= 1500);
+    assert.match(style.personaQth, /^[A-Z0-9 ]{1,20}$/);
+    assert.match(style.personaWeather, /^[A-Z0-9 ]{1,20}$/);
   }
 });
 
