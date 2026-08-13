@@ -42,27 +42,82 @@ function expectedReport(npcCallsign, playerCallsign) {
 }
 
 const OPTIONAL_EXCHANGE_SPECS = Object.freeze({
-  power: Object.freeze({ keyword: "PWR", prompt: "PWR? K", example: "PWR 50 W K" }),
-  location: Object.freeze({ keyword: "QTH", prompt: "QTH? K", example: "QTH PIXEL CITY K" }),
-  weather: Object.freeze({ keyword: "WX", prompt: "WX? K", example: "WX SUNNY K" }),
-  name: Object.freeze({ keyword: "NAME", prompt: "NAME? K", example: "NAME SPARK K" }),
-  age: Object.freeze({ keyword: "AGE", prompt: "AGE? K", example: "AGE 25 K" }),
+  power: Object.freeze({ keyword: "PWR", aliases: ["PWR", "POWER"], semanticTopic: "POWER", prompt: "PWR? K", example: "PWR 50 W K" }),
+  location: Object.freeze({ keyword: "QTH", aliases: ["QTH", "LOC"], semanticTopic: "LOCATION", prompt: "QTH? K", example: "QTH PIXEL CITY K" }),
+  weather: Object.freeze({ keyword: "WX", aliases: ["WX", "WEATHER"], semanticTopic: "WEATHER", prompt: "WX? K", example: "WX SUNNY K" }),
+  name: Object.freeze({ keyword: "NAME", aliases: ["NAME"], semanticTopic: "NAME", prompt: "NAME? K", example: "NAME SPARK K" }),
+  age: Object.freeze({ keyword: "AGE", aliases: ["AGE"], semanticTopic: "AGE", prompt: "AGE? K", example: "AGE 25 K" }),
 });
 
 function optionalExchangeSpec(questionId) {
   return OPTIONAL_EXCHANGE_SPECS[questionId] ?? null;
 }
 
+function optionalQuestionPrompt(questionId, style = {}) {
+  const spec = optionalExchangeSpec(questionId);
+  if (!spec) return null;
+  if (style.replyStyle === "FRIENDLY") return `PSE ${spec.prompt}`;
+  if (style.replyStyle === "REPEAT") return `${spec.keyword} ${spec.prompt}`;
+  return spec.prompt;
+}
+
+function optionalExchangeMessage(qso, questionId, npcRst) {
+  const prompt = optionalQuestionPrompt(questionId, qso.npc?.operatorStyle);
+  return prompt ? `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} ${prompt}` : null;
+}
+
 function finalNpcMessage(qso, outcome = null) {
   const style = qso.npc?.operatorStyle ?? {};
-  if (outcome === "answered" && qso.optionalExchangeQuestion === "name") {
-    return `${qso.playerCallsign} DE ${qso.npc.callsign} TNX MY NAME ${style.personaName ?? "OP"} 73 SK`;
+  const prefix = `${qso.playerCallsign} DE ${qso.npc.callsign}`;
+  const receivedRst = qso.receivedRst ?? "579";
+  const topic = optionalExchangeSpec(qso.optionalExchangeQuestion)?.keyword ?? "INFO";
+  if (outcome === "answered") {
+    if (style.replyStyle === "FRIENDLY" && qso.optionalExchangeQuestion === "name") {
+      return `${prefix} TNX NAME MY NAME ${style.personaName ?? "OP"} 73 SK`;
+    }
+    if (style.replyStyle === "FRIENDLY" && qso.optionalExchangeQuestion === "age") {
+      return `${prefix} TNX AGE MY AGE ${style.personaAge ?? 40} 73 SK`;
+    }
+    if (style.replyStyle === "TERSE") return `${prefix} R ${topic} 73 SK`;
+    if (style.replyStyle === "REPEAT") return `${prefix} TNX ${topic} R RST ${receivedRst} 73 SK`;
+    if (style.replyStyle === "FRIENDLY") return `${prefix} TNX ${topic} INFO FB 73 SK`;
+    return `${prefix} TNX ${topic} INFO R RST ${receivedRst} 73 SK`;
   }
-  if (outcome === "answered" && qso.optionalExchangeQuestion === "age") {
-    return `${qso.playerCallsign} DE ${qso.npc.callsign} TNX AGE ${style.personaAge ?? 40} 73 SK`;
+  if (outcome === "skipped") {
+    if (style.replyStyle === "TERSE") return `${prefix} OK 73 SK`;
+    if (style.replyStyle === "FRIENDLY") return `${prefix} OK TNX QSO 73 SK`;
+    return `${prefix} OK R RST ${receivedRst} 73 SK`;
   }
-  const acknowledgement = outcome === "answered" ? "TNX " : outcome === "skipped" ? "OK " : "";
-  return `${qso.playerCallsign} DE ${qso.npc.callsign} ${acknowledgement}R RST ${qso.receivedRst ?? "579"} 73 SK`;
+  return `${prefix} R RST ${receivedRst} 73 SK`;
+}
+
+function optionalSemanticMatch(semanticResult, spec, tokens) {
+  const explicitTopic = spec.aliases.some((alias) => tokens.includes(alias));
+  const trustedContext = semanticResult?.provider === "onnxruntime-node";
+  return (explicitTopic || trustedContext)
+    && semanticResult?.safeToCommit === true
+    && Number(semanticResult?.acts?.PROVIDE ?? 0) >= .55
+    && Number(semanticResult?.topics?.[spec.semanticTopic] ?? 0) >= .55;
+}
+
+function optionalValueIsPresent(questionId, message, tokens, semanticResult) {
+  const compact = normalizeCwText(message).replace(/\s/g, "");
+  const slotValues = (semanticResult?.slots ?? [])
+    .filter(({ topic }) => topic === optionalExchangeSpec(questionId)?.semanticTopic)
+    .map(({ value }) => String(value ?? "").toUpperCase());
+  if (questionId === "power") {
+    const match = compact.match(/(?:PWR|POWER|MYPWR|MYPOWER)?(\d{1,4})WK$/);
+    const value = match?.[1] ?? slotValues.find((candidate) => /^\d{1,4}W$/.test(candidate))?.slice(0, -1);
+    return /^\d{1,4}$/.test(String(value ?? "")) && Number(value) >= 1;
+  }
+  if (questionId === "age") {
+    const match = compact.match(/(?:MY)?AGE(\d{1,3})K$/) ?? compact.match(/^(\d{1,3})K$/);
+    const value = match?.[1] ?? slotValues.find((candidate) => /^\d{1,3}$/.test(candidate));
+    return /^\d{1,3}$/.test(String(value ?? "")) && Number(value) >= 1 && Number(value) <= 120;
+  }
+  const ignored = new Set(["MY", "IS", "INFO", optionalExchangeSpec(questionId)?.keyword]);
+  return tokens.slice(0, -1).some((token) => !ignored.has(token) && token.length > 0)
+    || slotValues.some(Boolean);
 }
 
 function normalizeGuidanceLevel(value) {
@@ -265,7 +320,7 @@ export function onNpcPlaybackFinished(qso, completedAt = new Date().toISOString(
   return qso;
 }
 
-export function validatePlayerMessage(qso, message) {
+export function validatePlayerMessage(qso, message, { semanticResult = null } = {}) {
   const tokens = tokenized(message);
   if (qso.phase === QSO_PHASES.PLAYER_CQ) {
     const assessment = assessCqTransmission({ message, playerCallsign: qso.playerCallsign });
@@ -319,18 +374,11 @@ export function validatePlayerMessage(qso, message) {
     if (tokens.at(-1) !== "K") return { valid: false, reason: "missingK" };
     const spec = optionalExchangeSpec(qso.optionalExchangeQuestion);
     const payload = tokens.slice(1, -1);
-    if (!spec || tokens[0] !== spec.keyword || payload.length === 0) {
+    const legacyForm = Boolean(spec && tokens[0] === spec.keyword && payload.length > 0);
+    const semanticForm = Boolean(spec && optionalSemanticMatch(semanticResult, spec, tokens));
+    if (!spec || (!legacyForm && !semanticForm)
+      || !optionalValueIsPresent(qso.optionalExchangeQuestion, message, tokens, semanticResult)) {
       return { valid: false, reason: "invalidOptionalAnswer" };
-    }
-    if (qso.optionalExchangeQuestion === "power") {
-      if (payload.length !== 2 || !/^\d{1,4}$/.test(payload[0]) || payload[1] !== "W" || Number(payload[0]) < 1) {
-        return { valid: false, reason: "invalidOptionalAnswer" };
-      }
-    }
-    if (qso.optionalExchangeQuestion === "age") {
-      if (payload.length !== 1 || !/^\d{1,3}$/.test(payload[0]) || Number(payload[0]) < 1 || Number(payload[0]) > 120) {
-        return { valid: false, reason: "invalidOptionalAnswer" };
-      }
     }
     return { valid: true, reason: null, action: "answer-optional" };
   }
@@ -369,7 +417,7 @@ export function submitPlayerMessage(qso, message, {
       ? redactOptionalSignalObservation(signalObservation) : signalObservation,
     lastNpcReception: null,
   };
-  const validation = validatePlayerMessage(qso, message);
+  const validation = validatePlayerMessage(qso, message, { semanticResult });
   if (qso.phase === QSO_PHASES.PLAYER_CQ) {
     const cqAssessment = assessCqTransmission({
       message,
@@ -550,6 +598,9 @@ export function submitPlayerMessage(qso, message, {
   const optionalQuestion = optionalExchangeSpec(decision.npc.operatorStyle?.optionalQuestion)
     ? decision.npc.operatorStyle.optionalQuestion
     : null;
+  const optionalMessage = optionalQuestion
+    ? optionalExchangeMessage({ ...qso, npc: decision.npc }, optionalQuestion, npcRst)
+    : null;
   return {
     ...qso,
     phase: optionalQuestion ? QSO_PHASES.NPC_OPTIONAL_QUERY : QSO_PHASES.NPC_73_AND_SK,
@@ -562,11 +613,9 @@ export function submitPlayerMessage(qso, message, {
     receivedRst: npcRst,
     optionalExchangeQuestion: optionalQuestion,
     optionalExchangeOutcome: optionalQuestion ? "pending" : "not-offered",
-    optionalExchangeMessage: optionalQuestion
-      ? `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} ${optionalExchangeSpec(optionalQuestion).prompt}`
-      : null,
+    optionalExchangeMessage: optionalMessage,
     npcMessage: optionalQuestion
-      ? `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} ${optionalExchangeSpec(optionalQuestion).prompt}`
+      ? optionalMessage
       : `${qso.playerCallsign} DE ${qso.npc.callsign} R RST ${npcRst} 73 SK`,
     npcReplyDisposition: optionalQuestion ? "optional-query" : "copy",
     replyWpm: qso.replyWpm ?? qso.npc.wpm,

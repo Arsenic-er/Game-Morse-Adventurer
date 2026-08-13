@@ -1,8 +1,8 @@
 import { clamp } from "../cw/morse.js";
 import { signalObservationFromCqAssessment } from "./signalObservation.js";
 
-export const OPERATOR_PROFILE_SCHEMA_VERSION = 2;
-export const NPC_RECEPTION_SCHEMA_VERSION = 1;
+export const OPERATOR_PROFILE_SCHEMA_VERSION = 3;
+export const NPC_RECEPTION_SCHEMA_VERSION = 2;
 export const OPTIONAL_EXCHANGE_QUESTION_IDS = Object.freeze([
   "power", "location", "weather", "name", "age",
 ]);
@@ -15,43 +15,50 @@ export const OPERATOR_PROFILES = Object.freeze({
   "careful-beginner": profile({
     archetype: "careful-beginner", rxSkill: 58, txAccuracy: 72, preferredWpm: 10,
     speedTolerance: 48, patience: 90, procedureStrictness: 25, responseTempo: 35,
-    fistStability: 55, verbosity: 78, initiative: 45, queryStyle: "AGN",
+    fistStability: 55, verbosity: 78, initiative: 45, receptionTolerance: 25,
+    queryStyle: "AGN",
     replyStyle: "REPEAT", lowCopyAction: "GENERAL_CQ", optionalQuestion: null,
   }),
   "patient-veteran": profile({
     archetype: "patient-veteran", rxSkill: 94, txAccuracy: 97, preferredWpm: 17,
     speedTolerance: 88, patience: 96, procedureStrictness: 40, responseTempo: 55,
-    fistStability: 92, verbosity: 70, initiative: 55, queryStyle: "AGN",
+    fistStability: 92, verbosity: 70, initiative: 55, receptionTolerance: 80,
+    queryStyle: "AGN",
     replyStyle: "REPEAT", lowCopyAction: "GENERAL_CQ", optionalQuestion: "location",
   }),
   "contest-sprinter": profile({
     archetype: "contest-sprinter", rxSkill: 98, txAccuracy: 99, preferredWpm: 28,
     speedTolerance: 72, patience: 28, procedureStrictness: 82, responseTempo: 96,
-    fistStability: 98, verbosity: 10, initiative: 75, queryStyle: "QUESTION",
+    fistStability: 98, verbosity: 10, initiative: 75, receptionTolerance: 35,
+    queryStyle: "QUESTION",
     replyStyle: "TERSE", lowCopyAction: "SILENCE", optionalQuestion: null,
   }),
   "youth-club": profile({
     archetype: "youth-club", rxSkill: 74, txAccuracy: 86, preferredWpm: 15,
     speedTolerance: 70, patience: 84, procedureStrictness: 35, responseTempo: 75,
-    fistStability: 76, verbosity: 65, initiative: 88, queryStyle: "AGN",
+    fistStability: 76, verbosity: 65, initiative: 88, receptionTolerance: 55,
+    queryStyle: "AGN",
     replyStyle: "FRIENDLY", lowCopyAction: "GENERAL_CQ", optionalQuestion: "age",
   }),
   "traditional-fist": profile({
     archetype: "traditional-fist", rxSkill: 90, txAccuracy: 88, preferredWpm: 13,
     speedTolerance: 82, patience: 78, procedureStrictness: 70, responseTempo: 45,
-    fistStability: 62, verbosity: 55, initiative: 62, queryStyle: "QRS",
+    fistStability: 62, verbosity: 55, initiative: 62, receptionTolerance: 60,
+    queryStyle: "QRS",
     replyStyle: "STANDARD", lowCopyAction: "GENERAL_CQ", optionalQuestion: "power",
   }),
   "weak-signal-listener": profile({
     archetype: "weak-signal-listener", rxSkill: 96, txAccuracy: 95, preferredWpm: 16,
     speedTolerance: 90, patience: 88, procedureStrictness: 55, responseTempo: 25,
-    fistStability: 90, verbosity: 40, initiative: 35, queryStyle: "QRZ",
+    fistStability: 90, verbosity: 40, initiative: 35, receptionTolerance: 90,
+    queryStyle: "QRZ",
     replyStyle: "STANDARD", lowCopyAction: "SILENCE", optionalQuestion: "weather",
   }),
   "friendly-ragchewer": profile({
     archetype: "friendly-ragchewer", rxSkill: 80, txAccuracy: 90, preferredWpm: 18,
     speedTolerance: 65, patience: 74, procedureStrictness: 20, responseTempo: 58,
-    fistStability: 85, verbosity: 95, initiative: 70, queryStyle: "AGN",
+    fistStability: 85, verbosity: 95, initiative: 70, receptionTolerance: 70,
+    queryStyle: "AGN",
     replyStyle: "FRIENDLY", lowCopyAction: "GENERAL_CQ", optionalQuestion: "name",
   }),
 });
@@ -104,6 +111,11 @@ export function channelReceptionForNpc(npc, seed = "channel", stage = "cq") {
   return Object.freeze(channelReception(npc, seed, stage));
 }
 
+function boundedTrait(value, fallback = 50) {
+  const numeric = Number(value);
+  return Math.round(clamp(Number.isFinite(numeric) ? numeric : fallback, 0, 100));
+}
+
 export function resolveOperatorProfile(npc = {}) {
   const callsign = String(npc.callsign ?? "").toUpperCase();
   const assignment = NPC_OPERATOR_ASSIGNMENTS[callsign] ?? {};
@@ -121,6 +133,7 @@ export function resolveOperatorProfile(npc = {}) {
     optionalQuestion: OPTIONAL_EXCHANGE_QUESTION_IDS.includes(resolved.optionalQuestion)
       ? resolved.optionalQuestion
       : null,
+    receptionTolerance: boundedTrait(resolved.receptionTolerance),
     personaName: String(resolved.personaName ?? "OP").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12) || "OP",
     personaAge: Math.min(120, Math.max(1, Math.floor(Number(resolved.personaAge) || 40))),
   };
@@ -181,6 +194,19 @@ export function responseDelayForNpc(npc, seed = "response") {
   return Math.round(700 + (100 - style.responseTempo) * 25 + stableUnit(`${seed}:delay`) * 700);
 }
 
+function receptionThresholds(style = {}) {
+  const receptionTolerance = boundedTrait(style.receptionTolerance);
+  return {
+    receptionTolerance,
+    copyThreshold: Number((72 - .08 * receptionTolerance).toFixed(1)),
+    queryThreshold: Number((46 - .08 * receptionTolerance).toFixed(1)),
+  };
+}
+
+export function receptionThresholdsForNpc(npc = {}) {
+  return Object.freeze(receptionThresholds(npc?.operatorStyle ?? resolveOperatorProfile(npc)));
+}
+
 function semanticInput(semanticResult, assessment = {}) {
   if (semanticResult?.schemaVersion) return semanticResult;
   return {
@@ -207,6 +233,7 @@ export function resolveRemoteCopy({
 } = {}) {
   const enrichedNpc = withOperatorProfile(npc);
   const style = enrichedNpc.operatorStyle;
+  const thresholds = receptionThresholds(style);
   const semantics = semanticInput(semanticResult, assessment);
   const observation = signalObservation ?? signalObservationFromCqAssessment(assessment);
   const safeQueryCount = Number.isSafeInteger(queryCount) && queryCount >= 0 ? queryCount : 0;
@@ -242,7 +269,9 @@ export function resolveRemoteCopy({
   );
   copyScore = clamp(copyScore, 0, 100);
 
-  let outcome = copyScore >= 68 ? "copied" : copyScore >= 42 ? "query" : "unreadable";
+  let outcome = copyScore >= thresholds.copyThreshold
+    ? "copied"
+    : copyScore >= thresholds.queryThreshold ? "query" : "unreadable";
   if (intentScore < 55 && outcome === "copied") outcome = "query";
   if (identityEditDistance > 0 && outcome === "copied") outcome = "query";
   if (speedMatch < 35 && style.rxSkill < 85 && outcome === "copied") outcome = "query";
@@ -280,6 +309,9 @@ export function resolveRemoteCopy({
     outcome,
     disposition,
     copyScore: Number(copyScore.toFixed(1)),
+    receptionTolerance: thresholds.receptionTolerance,
+    copyThreshold: thresholds.copyThreshold,
+    queryThreshold: thresholds.queryThreshold,
     speedMatch: Math.round(speedMatch),
     speedPenalty: Number(speedPenalty.toFixed(1)),
     channelLevel: channel.level,
@@ -325,6 +357,7 @@ export function resolveRemoteReportCopy({
 } = {}) {
   const enrichedNpc = npc?.operatorStyle ? npc : withOperatorProfile(npc);
   const style = enrichedNpc.operatorStyle;
+  const thresholds = receptionThresholds(style);
   const reportQueryCount = Number.isSafeInteger(queryCount) && queryCount >= 0 ? queryCount : 0;
   const channel = channelReception(enrichedNpc, seed, reportQueryCount ? `report:${reportQueryCount}` : "report");
   const channelQuality = channel.quality;
@@ -358,7 +391,9 @@ export function resolveRemoteReportCopy({
   );
   copyScore = clamp(copyScore, 0, 100);
 
-  let outcome = copyScore >= 68 ? "copied" : copyScore >= 42 ? "query" : "unreadable";
+  let outcome = copyScore >= thresholds.copyThreshold
+    ? "copied"
+    : copyScore >= thresholds.queryThreshold ? "query" : "unreadable";
   if (speedMatch < 35 && style.rxSkill < 85 && outcome === "copied") outcome = "query";
   if (hasSemanticResult && semanticScore < 35 && outcome === "copied") outcome = "query";
   const replyMessage = outcome === "query"
@@ -377,6 +412,9 @@ export function resolveRemoteReportCopy({
     outcome,
     disposition: outcome === "query" ? "report-query" : outcome,
     copyScore: Number(copyScore.toFixed(1)),
+    receptionTolerance: thresholds.receptionTolerance,
+    copyThreshold: thresholds.copyThreshold,
+    queryThreshold: thresholds.queryThreshold,
     speedMatch: Math.round(speedMatch),
     speedPenalty: Number(speedPenalty.toFixed(1)),
     channelLevel: channel.level,

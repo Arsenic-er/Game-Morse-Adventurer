@@ -4,13 +4,13 @@ import { assessCqTransmission } from "../src/qso/cqAssessment.js";
 import {
   DEFAULT_OPERATOR_PROFILE_ID, NPC_OPERATOR_ASSIGNMENTS, OPERATOR_PROFILES,
   OPTIONAL_EXCHANGE_QUESTION_IDS, OPERATOR_PROFILE_SCHEMA_VERSION,
-  qrsStepForNpc, resolveOperatorProfile, resolveRemoteCopy, resolveRemoteReportCopy,
+  qrsStepForNpc, receptionThresholdsForNpc, resolveOperatorProfile, resolveRemoteCopy, resolveRemoteReportCopy,
   responseDelayForNpc, withOperatorProfile,
 } from "../src/qso/operatorProfiles.js";
 import { NPC_STATIONS } from "../src/propagation/propagationEngine.js";
 
 test("the versioned operator table covers every fictional station with bounded traits", () => {
-  assert.equal(OPERATOR_PROFILE_SCHEMA_VERSION, 2);
+  assert.equal(OPERATOR_PROFILE_SCHEMA_VERSION, 3);
   assert.ok(Object.keys(OPERATOR_PROFILES).length >= 7);
   for (const station of NPC_STATIONS) {
     assert.ok(NPC_OPERATOR_ASSIGNMENTS[station.callsign], station.callsign);
@@ -21,7 +21,7 @@ test("the versioned operator table covers every fictional station with bounded t
     assert.equal(Object.isFrozen(candidate), true, id);
     for (const key of [
       "rxSkill", "txAccuracy", "speedTolerance", "patience", "procedureStrictness",
-      "responseTempo", "fistStability", "verbosity", "initiative",
+      "responseTempo", "fistStability", "verbosity", "initiative", "receptionTolerance",
     ]) {
       assert.ok(candidate[key] >= 0 && candidate[key] <= 100, `${id}:${key}`);
     }
@@ -64,6 +64,37 @@ test("unknown callsigns use an explicit safe fallback profile", () => {
   assert.equal(unknown.operatorProfileId, DEFAULT_OPERATOR_PROFILE_ID);
   assert.equal(unknown.operatorProfileRevision, OPERATOR_PROFILE_SCHEMA_VERSION);
   assert.ok(unknown.wpm >= 5 && unknown.wpm <= 60);
+});
+
+test("reception tolerance independently changes verdict thresholds, not the signal score", () => {
+  const assessment = assessCqTransmission({
+    message: "CQ CQ DE BH1ABC K",
+    playerCallsign: "BH1ABC",
+    wpm: 18,
+    rhythm: 80,
+  });
+  const common = { assessment, playerCallsign: "BH1ABC", seed: "tolerance" };
+  const strict = resolveRemoteCopy({
+    ...common,
+    npc: { callsign: "SIMX", finalLevel: 1, operatorOverrides: {
+      rxSkill: 70, preferredWpm: 18, speedTolerance: 70, procedureStrictness: 40, receptionTolerance: 0,
+    } },
+  });
+  const tolerant = resolveRemoteCopy({
+    ...common,
+    npc: { callsign: "SIMX", finalLevel: 1, operatorOverrides: {
+      rxSkill: 70, preferredWpm: 18, speedTolerance: 70, procedureStrictness: 40, receptionTolerance: 100,
+    } },
+  });
+  assert.equal(strict.copyScore, tolerant.copyScore);
+  assert.equal(strict.outcome, "query");
+  assert.equal(tolerant.outcome, "copied");
+  assert.deepEqual(receptionThresholdsForNpc(strict.npc), {
+    receptionTolerance: 0, copyThreshold: 72, queryThreshold: 46,
+  });
+  assert.deepEqual(receptionThresholdsForNpc(tolerant.npc), {
+    receptionTolerance: 100, copyThreshold: 64, queryThreshold: 38,
+  });
 });
 
 test("the same imperfect CQ is copied by a veteran but queried by a beginner", () => {

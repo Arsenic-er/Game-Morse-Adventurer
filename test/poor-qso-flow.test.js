@@ -41,11 +41,6 @@ test("a locked weak-signal responder can copy a clean retransmission after a dee
   qso = onNpcPlaybackFinished(qso);
   assert.equal(qso.phase, QSO_PHASES.PLAYER_CQ);
   qso = resolveCqResponse(transmitCq(qso), qso.pendingResponder, { seed: "deep-fade-expert" });
-  assert.equal(qso.npcReplyDisposition, "query");
-  assert.equal(qso.pendingResponderQueryCount, 2);
-
-  qso = onNpcPlaybackFinished(qso);
-  qso = resolveCqResponse(transmitCq(qso), qso.pendingResponder, { seed: "deep-fade-expert" });
   assert.equal(qso.npcReplyDisposition, "copy");
   assert.equal(qso.lastCopyOutcome, "copied");
   assert.equal(qso.hasContact, true);

@@ -6,6 +6,7 @@ import {
   restartQso, submitPlayerMessage, validatePlayerMessage,
 } from "../src/qso/qsoEngine.js";
 import { MAX_QSO_ATTEMPT_HISTORY, QSO_LOG_VERSION } from "../src/qso/qsoLog.js";
+import { interpretCwTraffic } from "../src/qso/semanticInterpreter.js";
 
 const npc = {
   callsign: "SIM7QX", regionId: "NA-SIM", latitude: 37.77, longitude: -122.42,
@@ -105,7 +106,7 @@ test("completes the minimum QSO state machine", () => {
   assert.ok(log.copyScore >= 75);
   assert.equal(log.copyOutcome, "copied");
   assert.equal(log.operatorProfileId, "careful-beginner");
-  assert.equal(log.operatorProfileRevision, 2);
+  assert.equal(log.operatorProfileRevision, 3);
   assert.ok(log.remoteWpm >= 5 && log.remoteWpm <= 60);
   assert.equal(log.guidanceLevel, "full");
   assert.equal(log.visualAssistUsed, true);
@@ -123,7 +124,7 @@ test("a profile-selected optional question accepts an explicit answer without pe
   assert.equal(qso.phase, QSO_PHASES.NPC_OPTIONAL_QUERY);
   assert.equal(qso.optionalExchangeQuestion, "location");
   assert.equal(qso.optionalExchangeOutcome, "pending");
-  assert.equal(qso.npcMessage, "SIM-K7QX DE SIM3RA R RST 579 QTH? K");
+  assert.equal(qso.npcMessage, "SIM-K7QX DE SIM3RA R RST 579 QTH QTH? K");
   assert.equal(qsoNeedsNpcPlayback(qso), true);
 
   qso = onNpcPlaybackFinished(qso);
@@ -148,6 +149,87 @@ test("a profile-selected optional question accepts an explicit answer without pe
   assert.equal(log.optionalExchangeOutcome, "answered");
   assert.equal(log.optionalExchangeRepeatRequests, 0);
   assert.doesNotMatch(JSON.stringify(log), /SECRET|PRIVATE/);
+});
+
+test("optional topics use NPC reply style without retaining the player's answer", () => {
+  const cases = [
+    {
+      callsign: "SIM3RA", answer: "QTH SECRET HARBOR K",
+      question: "SIM-K7QX DE SIM3RA R RST 579 QTH QTH? K",
+      final: "SIM-K7QX DE SIM3RA TNX QTH R RST 579 73 SK", privateText: "SECRET HARBOR",
+    },
+    {
+      callsign: "SIM5TU", answer: "PWR 50 W K",
+      question: "SIM-K7QX DE SIM5TU R RST 579 PWR? K",
+      final: "SIM-K7QX DE SIM5TU TNX PWR INFO R RST 579 73 SK", privateText: "50 W",
+    },
+    {
+      callsign: "SIM2DX", answer: "WX SUNNY K",
+      question: "SIM-K7QX DE SIM2DX R RST 579 WX? K",
+      final: "SIM-K7QX DE SIM2DX TNX WX INFO R RST 579 73 SK", privateText: "SUNNY",
+    },
+    {
+      callsign: "SIM8CW", answer: "NAME SPARK K",
+      question: "SIM-K7QX DE SIM8CW R RST 579 PSE NAME? K",
+      final: "SIM-K7QX DE SIM8CW TNX NAME MY NAME DIEGO 73 SK", privateText: "SPARK",
+    },
+    {
+      callsign: "SIM6JP", answer: "AGE 25 K",
+      question: "SIM-K7QX DE SIM6JP R RST 579 PSE AGE? K",
+      final: "SIM-K7QX DE SIM6JP TNX AGE MY AGE 19 73 SK", privateText: "AGE 25",
+    },
+  ];
+  for (const candidate of cases) {
+    const remote = { ...npc, callsign: candidate.callsign };
+    let qso = reachReportPhase(remote);
+    qso = submitPlayerMessage(qso, `${candidate.callsign} DE SIM-K7QX RST 559 73 K`);
+    assert.equal(qso.npcMessage, candidate.question, candidate.callsign);
+    qso = onNpcPlaybackFinished(qso);
+    qso = submitPlayerMessage(qso, candidate.answer);
+    assert.equal(qso.npcMessage, candidate.final, candidate.callsign);
+    assert.doesNotMatch(JSON.stringify(qso), new RegExp(candidate.privateText), candidate.callsign);
+  }
+});
+
+test("optional answers accept semantic and contextual variants while rejecting empty values", () => {
+  const cases = [
+    ["SIM3RA", "MY QTH SECRET HARBOR K"],
+    ["SIM5TU", "POWER 50W K"],
+    ["SIM2DX", "WEATHER SUNNY K"],
+    ["SIM8CW", "MY NAME SPARK K"],
+    ["SIM6JP", "MY AGE 25 K"],
+  ];
+  for (const [callsign, answer] of cases) {
+    const remote = { ...npc, callsign };
+    let qso = reachReportPhase(remote);
+    qso = submitPlayerMessage(qso, `${callsign} DE SIM-K7QX RST 559 73 K`);
+    qso = onNpcPlaybackFinished(qso);
+    qso = submitPlayerMessage(qso, answer);
+    assert.equal(qso.optionalExchangeOutcome, "answered", `${callsign}:${answer}`);
+    assert.equal(qso.attemptHistory.at(-1).message, "OPTIONAL RESPONSE REDACTED");
+    assert.doesNotMatch(JSON.stringify(qso), new RegExp(answer.replace(/ K$/, "")), callsign);
+  }
+
+  let contextual = reachReportPhase({ ...npc, callsign: "SIM3RA" });
+  contextual = submitPlayerMessage(contextual, "SIM3RA DE SIM-K7QX RST 559 73 K");
+  contextual = onNpcPlaybackFinished(contextual);
+  const contextualSemantics = interpretCwTraffic({
+    message: "PIXEL CITY K",
+    phase: QSO_PHASES.PLAYER_OPTIONAL_ANSWER,
+    selfCallsign: contextual.playerCallsign,
+    peerCallsign: contextual.npc.callsign,
+    pendingQuestion: "LOCATION",
+  });
+  contextual = submitPlayerMessage(contextual, "PIXEL CITY K", {
+    semanticResult: { ...contextualSemantics, provider: "onnxruntime-node" },
+  });
+  assert.equal(contextual.optionalExchangeOutcome, "answered");
+
+  let emptyAge = reachReportPhase({ ...npc, callsign: "SIM6JP" });
+  emptyAge = submitPlayerMessage(emptyAge, "SIM6JP DE SIM-K7QX RST 559 73 K");
+  emptyAge = onNpcPlaybackFinished(emptyAge);
+  emptyAge = submitPlayerMessage(emptyAge, "MY AGE K");
+  assert.equal(emptyAge.lastError, "invalidOptionalAnswer");
 });
 
 test("an optional question can be replayed or politely skipped with no extra reward", () => {
