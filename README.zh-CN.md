@@ -5,6 +5,9 @@
 ### 像素风 CW 业余无线电台站冒险
 
 [**English**](./README.md) · [**简体中文**](./README.zh-CN.md) · [**繁體中文**](./README.zh-TW.md) · [**日本語**](./README.ja.md) · [**Español**](./README.es.md) · [**Deutsch**](./README.de.md) · [**Русский**](./README.ru.md)
+
+[**语义模型与训练数据**](https://github.com/Arsenic-er/cwformer)
+
 **v0.34.1**：开始页、存档页、Home、练习台和通联台现在都能用 `Esc` 打开或关闭设置菜单，并保留最上层弹窗优先关闭的行为；包含 v0.34 任务中心纵向切片。
 
 

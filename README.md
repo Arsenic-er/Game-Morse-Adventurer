@@ -5,6 +5,9 @@
 ### A pixel-art CW amateur radio station adventure
 
 [**English**](./README.md) · [**简体中文**](./README.zh-CN.md) · [**繁體中文**](./README.zh-TW.md) · [**日本語**](./README.ja.md) · [**Español**](./README.es.md) · [**Deutsch**](./README.de.md) · [**Русский**](./README.ru.md)
+
+[**Semantic model and training data**](https://github.com/Arsenic-er/cwformer)
+
 **v0.34.1**: Adds an `Esc` shortcut that opens and closes the Settings menu across the title, save selection, Home, practice, and station screens while preserving topmost-dialog behavior. Includes the v0.34 Mission Center vertical slice.
 
 

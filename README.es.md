@@ -5,6 +5,9 @@
 ### Una aventura pixel art de estación de radioaficionado CW
 
 [**English**](./README.md) · [**简体中文**](./README.zh-CN.md) · [**繁體中文**](./README.zh-TW.md) · [**日本語**](./README.ja.md) · [**Español**](./README.es.md) · [**Deutsch**](./README.de.md) · [**Русский**](./README.ru.md)
+
+[**Modelo semántico y datos de entrenamiento**](https://github.com/Arsenic-er/cwformer)
+
 **v0.34.1**: `Esc` abre y cierra Ajustes desde el título, selección de partida, Home, práctica y estación, respetando siempre el diálogo superior. Incluye la entrega vertical del Centro de misiones v0.34.
 
 
