@@ -171,6 +171,12 @@
 
 尚未实现：第 5–15 章剧情内容、点名/比赛/救援专用结构化交换器、年度活动调度、开放台站模式、完整奖状墙和赛季运营。
 
+### 7.2 第 5 章工作设计状态（2026-08-21）
+
+第 5 章已确认“同一时刻的灯火”作为情感核心，并确定首次纯剧情场、通关后现实日期年度复刻、双时间线、NOVA 引路 / SORA 主持 / MORSE 收尾、先追台再主控、音频优先 pile-up、`RST + 地区代码` 交换和基础/银/金三级结果。具体参数、对白、奖励和像素 UI 尚待继续设计，不视为已经实现。
+
+完整工作记录见 [`planning/chapter-05-lights-working-design-v0.1.md`](planning/chapter-05-lights-working-design-v0.1.md)。
+
 ## 8. 官方参考
 
 - [IARU — World Amateur Radio Day](https://www.iaru.org/on-the-air/world-amateur-radio-day/)
