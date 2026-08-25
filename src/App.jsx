@@ -30,9 +30,12 @@ import {
 } from "./game/missionSystem.js";
 import { unlockTechnology } from "./game/technologyTree.js";
 import {
-  loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves, touchSaveWorldCalendar,
+  loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves,
 } from "./game/saveStore.js";
 import { WORLD_CALENDAR_HEARTBEAT_MS } from "./game/worldCalendar.js";
+import {
+  isWorldCalendarGameplayActive, touchActiveWorldCalendarSaves,
+} from "./game/worldCalendarHeartbeat.js";
 import { PracticeScreen } from "./practice/PracticeScreen.jsx";
 import { practiceStatsByMode, recordPracticeAttempt, updatePracticePreference } from "./practice/practiceRecords.js";
 import { PropagationMap } from "./propagation/PropagationMap.jsx";
@@ -1197,21 +1200,15 @@ export function App() {
   }
 
   useEffect(() => {
-    if (!activeSaveId || !["home", "station", "practice"].includes(screen)) return undefined;
+    if (!isWorldCalendarGameplayActive({ activeSaveId, screen, practiceReturnScreen })) return undefined;
     function touchActiveWorldCalendar() {
-      let changed = false;
-      const nextSaves = savesRef.current.map((save) => {
-        if (save.id !== activeSaveId) return save;
-        const touched = touchSaveWorldCalendar(save, new Date());
-        if (touched !== save) changed = true;
-        return touched;
-      });
-      if (changed) commitSaves(nextSaves);
+      const result = touchActiveWorldCalendarSaves(savesRef.current, activeSaveId, new Date());
+      if (result.changed) commitSaves(result.saves);
     }
     touchActiveWorldCalendar();
     const timer = window.setInterval(touchActiveWorldCalendar, WORLD_CALENDAR_HEARTBEAT_MS);
     return () => window.clearInterval(timer);
-  }, [activeSaveId, screen]);
+  }, [activeSaveId, practiceReturnScreen, screen]);
 
   function selectSave(saveId) {
     const selected = savesRef.current.find((save) => save.id === saveId);
