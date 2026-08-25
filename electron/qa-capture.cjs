@@ -592,8 +592,8 @@ async function runQaCapture(window) {
     chapterFourClues: Array.from(document.querySelectorAll('[data-mission-id="story-04"] [data-contract-clue]'), (node) => node.dataset.contractClue),
     chapterFourRelationshipStats: document.querySelectorAll('[data-mission-id="story-04"] [data-relationship-stat]').length,
   }))()`, true);
-  if (initialMissionState.storyCount !== 4 || initialMissionState.available !== "available"
-    || JSON.stringify(initialMissionState.locked) !== JSON.stringify(["story-02", "story-03", "story-04"])
+  if (initialMissionState.storyCount !== 5 || initialMissionState.available !== "available"
+    || JSON.stringify(initialMissionState.locked) !== JSON.stringify(["story-02", "story-03", "story-04", "story-05"])
     || initialMissionState.chapterFourNarrative !== "brief"
     || JSON.stringify(initialMissionState.chapterFourClues) !== JSON.stringify(["propagation", "topics", "recovery"])
     || initialMissionState.chapterFourRelationshipStats !== 2) {
@@ -1788,7 +1788,7 @@ async function runQaCapture(window) {
   const expectedWeakSignalReward = Number(savedEquipmentSnapshot.finalPropagationLevel) <= 2 ? 75 : 0;
   const expectedNewRegionReward = ["AS-JA", "EU-W"].includes(savedEquipmentSnapshot.location) ? 0 : 20;
   const expectedDistanceReward = Number(savedEquipmentSnapshot.distanceKm) > 9568.2 ? 25 : 0;
-  if (savedEquipmentSnapshot.version !== 6
+  if (savedEquipmentSnapshot.version !== 7
     || savedEquipmentSnapshot.accessoryId !== "cw-filter-500" || savedEquipmentSnapshot.equipmentId !== "usdr-8"
     || savedEquipmentSnapshot.repeatRequests !== 2 || savedEquipmentSnapshot.copyQueries !== 1
     || !optionalPrivacyValid
@@ -1808,7 +1808,7 @@ async function runQaCapture(window) {
     || !savedAttemptResults.has("rejected") || !savedAttemptResults.has("repeat")
     || !savedEquipmentSnapshot.attemptMetricsComplete
     || savedEquipmentSnapshot.firstWatchCompleted !== true || savedEquipmentSnapshot.totalQsos !== 5) {
-    throw new Error(`QSO log v6 lost its review, operator, copy, reward, or equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
+    throw new Error(`QSO log v7 lost its review, operator, copy, reward, or equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
   }
   if (savedEquipmentSnapshot.relationship?.lastQsoId !== savedEquipmentSnapshot.id
     || savedEquipmentSnapshot.relationship?.completedQsos < 1 || savedEquipmentSnapshot.relationship?.encounterCount < 1) {
