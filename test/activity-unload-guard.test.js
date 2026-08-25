@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createLightsRun, LIGHTS_PHASES } from "../src/game/lightsRun.js";
 import { activityUnloadRisk } from "../src/game/lightsUiModel.js";
 import { createQso, QSO_PHASES } from "../src/qso/qsoEngine.js";
@@ -17,4 +18,12 @@ test("generic activity unload guard protects live and completed-unsettled lights
   assert.equal(activityUnloadRisk({ activity: "lights", run: completedLights, settled: false }), "unsaved");
   assert.equal(activityUnloadRisk({ activity: "qso", risk: qsoExitRisk(liveQso) }), "active");
   assert.equal(activityUnloadRisk({ activity: "home" }), "none");
+});
+
+test("ordinary QSO visibility loss stops all playback and receiver noise", () => {
+  const source = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+  const stationScreen = source.slice(source.indexOf("function StationScreen"), source.indexOf("export function App"));
+  assert.match(stationScreen, /function onVisibilityChange\(\)\s*\{[\s\S]*document\.visibilityState === "hidden"[\s\S]*cw\.stopAll\(\)[\s\S]*cw\.stopListening\(\)/);
+  assert.match(stationScreen, /document\.addEventListener\("visibilitychange", onVisibilityChange\)/);
+  assert.match(stationScreen, /document\.removeEventListener\("visibilitychange", onVisibilityChange\)/);
 });

@@ -717,7 +717,11 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
         cw.endAutomatic("-");
       }
     }
-    function onBlur() { cw.stopAll(); cw.stopListening(); }
+    function onInactive() { cw.stopAll(); cw.stopListening(); }
+    function onBlur() { onInactive(); }
+    function onVisibilityChange() {
+      if (document.visibilityState === "hidden") onInactive();
+    }
     function onFocus() {
       if (powered && !exitRequest && !inputBlocked) cw.startListening(receiverChannel);
     }
@@ -725,11 +729,13 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
     window.addEventListener("keyup", onUp);
     window.addEventListener("blur", onBlur);
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       cw.stopAll();
     };
   }, [cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.startListening, cw.stopAll,
