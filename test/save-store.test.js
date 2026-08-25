@@ -10,6 +10,7 @@ import { QSO_LOG_VERSION, recordCompletedQso } from "../src/qso/qsoLog.js";
 import { PRACTICE_MODES } from "../src/practice/practiceEngine.js";
 import { recordPracticeAttempt } from "../src/practice/practiceRecords.js";
 import { PRACTICE_CALLSIGN_REGIONS } from "../src/practice/practiceCallsignCatalog.js";
+import { WORLD_CALENDAR_VERSION, emptyWorldCalendarState } from "../src/game/worldCalendar.js";
 
 function storageStub() {
   const data = new Map();
@@ -55,6 +56,8 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
     history: [],
     events: [],
   });
+  assert.equal(save.worldCalendarVersion, WORLD_CALENDAR_VERSION);
+  assert.deepEqual(save.worldCalendarState, emptyWorldCalendarState());
   assert.deepEqual(save.qsoRecords, {
     total: 0,
     longestDistanceKm: 0,
@@ -107,6 +110,8 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
     history: [],
     events: [],
   });
+  assert.equal(save.worldCalendarVersion, WORLD_CALENDAR_VERSION);
+  assert.deepEqual(save.worldCalendarState, emptyWorldCalendarState());
   assert.equal(save.qsoLogs[0].callsign, "SIM7QX");
   assert.equal(save.qsoLogs[0].version, QSO_LOG_VERSION);
   assert.equal(save.qsoLogs[0].rewardBreakdown, null);

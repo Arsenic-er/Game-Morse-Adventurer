@@ -18,6 +18,9 @@ import {
 import {
   MISSION_STATE_VERSION, emptyMissionState, normalizeMissionState,
 } from "./missionSystem.js";
+import {
+  WORLD_CALENDAR_VERSION, emptyWorldCalendarState, normalizeWorldCalendarState,
+} from "./worldCalendar.js";
 
 export const SAVE_STORAGE_KEY = "game-morse-adventurer.saves.v1";
 export const ACTIVE_SAVE_KEY = "game-morse-adventurer.active-save.v1";
@@ -81,6 +84,8 @@ export function createSave({
     technologyTreeVersion: TECHNOLOGY_TREE_VERSION,
     missionStateVersion: MISSION_STATE_VERSION,
     missionState: emptyMissionState(),
+    worldCalendarVersion: WORLD_CALENDAR_VERSION,
+    worldCalendarState: emptyWorldCalendarState(),
     technologyPoints: 0,
     unlockedTechnologies: normalizeUnlockedTechnologies([]),
     researchProjectsVersion: RESEARCH_PROJECTS_VERSION,
@@ -172,6 +177,8 @@ export function normalizeSave(save) {
       .map((value) => String(value ?? "").trim().slice(0, 80)).filter(Boolean))].slice(0, 1000),
     missionStateVersion: MISSION_STATE_VERSION,
     missionState: normalizeMissionState(save?.missionState),
+    worldCalendarVersion: WORLD_CALENDAR_VERSION,
+    worldCalendarState: normalizeWorldCalendarState(save?.worldCalendarState),
     technologyPoints: normalizeTechnologyPoints(save?.technologyPoints),
     unlockedTechnologies: normalizeUnlockedTechnologies(save?.unlockedTechnologies, {
       // Equipment released before the research system remains available to old saves.
