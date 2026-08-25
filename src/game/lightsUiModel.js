@@ -114,6 +114,33 @@ export function createActivityPlaybackLifecycle({
   };
 }
 
+export function registerActivityPlaybackVisibility({
+  windowTarget = globalThis.window,
+  documentTarget = globalThis.document,
+  lifecycle,
+  onActiveChange = () => {},
+} = {}) {
+  const isActive = () => documentTarget?.visibilityState !== "hidden"
+    && (typeof documentTarget?.hasFocus !== "function" || documentTarget.hasFocus());
+  const applyActiveState = (active) => {
+    lifecycle?.setVisible?.(active);
+    onActiveChange(active);
+  };
+  const onBlur = () => applyActiveState(false);
+  const onFocus = () => applyActiveState(isActive());
+  const onVisibilityChange = () => applyActiveState(isActive());
+
+  applyActiveState(isActive());
+  windowTarget?.addEventListener?.("blur", onBlur);
+  windowTarget?.addEventListener?.("focus", onFocus);
+  documentTarget?.addEventListener?.("visibilitychange", onVisibilityChange);
+  return () => {
+    windowTarget?.removeEventListener?.("blur", onBlur);
+    windowTarget?.removeEventListener?.("focus", onFocus);
+    documentTarget?.removeEventListener?.("visibilitychange", onVisibilityChange);
+  };
+}
+
 export function lightsExitNeedsConfirmation(run, { settled = false } = {}) {
   if (!run || settled) return false;
   if (run.phase === LIGHTS_PHASES.RUN_COMPLETE) return true;

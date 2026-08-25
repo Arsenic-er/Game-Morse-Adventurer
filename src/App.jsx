@@ -25,7 +25,7 @@ import { equipmentName, getTransmitter } from "./game/equipmentCatalog.js";
 import { equipOwnedItem, purchaseItem } from "./game/economy.js";
 import { settleAchievementRewards } from "./game/achievements.js";
 import { settleLightsRun } from "./game/lightsSettlement.js";
-import { createActivityPlaybackLifecycle } from "./game/lightsUiModel.js";
+import { createActivityPlaybackLifecycle, registerActivityPlaybackVisibility } from "./game/lightsUiModel.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
 import {
   abandonMission, acceptMission, claimMission, targetCallsignForActiveMission,
@@ -496,7 +496,9 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
   const [npcPlaybackRetry, setNpcPlaybackRetry] = useState(0);
   const [npcPlaybackRecovering, setNpcPlaybackRecovering] = useState(false);
   const [exitRequest, setExitRequest] = useState(null);
-  const [windowActive, setWindowActive] = useState(true);
+  const [windowActive, setWindowActive] = useState(() => (
+    document.visibilityState !== "hidden" && document.hasFocus()
+  ));
   const exitConfirmingRef = useRef(false);
   const propagationKey = `${clock.getUTCFullYear()}-${clock.getUTCMonth()}-${clock.getUTCDate()}-${clock.getUTCHours()}-${Math.floor(clock.getUTCMinutes() / 10)}`;
   const propagationMap = useMemo(() => generatePropagationMap({ playerLocation, utc: clock }), [playerLocation, propagationKey]);
@@ -586,6 +588,13 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
     qsoPlaybackLifecycle.setAudioControls({ stopAll: cw.stopAll, stopListening: cw.stopListening });
     return () => qsoPlaybackLifecycle.clearPlayback();
   }, [cw.stopAll, cw.stopListening, qsoPlaybackLifecycle]);
+
+  useEffect(() => registerActivityPlaybackVisibility({
+    windowTarget: window,
+    documentTarget: document,
+    lifecycle: qsoPlaybackLifecycle,
+    onActiveChange: setWindowActive,
+  }), [qsoPlaybackLifecycle]);
 
   useEffect(() => {
     if (!powered || exitRequest || inputBlocked || !windowActive) {
@@ -732,37 +741,14 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
         cw.endAutomatic("-");
       }
     }
-    function onInactive() {
-      qsoPlaybackLifecycle.setVisible(false);
-      setWindowActive(false);
-    }
-    function onBlur() { onInactive(); }
-    function onVisibilityChange() {
-      if (document.visibilityState === "hidden") onInactive();
-      else onFocus();
-    }
-    function onFocus() {
-      if (document.visibilityState !== "hidden") {
-        qsoPlaybackLifecycle.setVisible(true);
-        setWindowActive(true);
-        if (powered && !exitRequest && !inputBlocked) cw.startListening(receiverChannel);
-      }
-    }
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
-      window.removeEventListener("blur", onBlur);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
       cw.stopAll();
     };
-  }, [cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.startListening,
-    exitRequest, inputBlocked, powered, qsoPlaybackLifecycle, receiverChannel]);
+  }, [cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll]);
 
   async function submitReply() {
     if (semanticBusy || !powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
