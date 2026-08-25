@@ -134,6 +134,65 @@ test("fixed SORA QSOs retain one person and the SIM6JP station identity", () => 
   assert.equal(normalized.stationId, "station:sim6jp");
 });
 
+test("QSO logs reject forged fixed identity claims and let npcId take precedence", () => {
+  const forgedLegacy = normalizeQsoLogEntry(entry({
+    callsign: "SIM9ZZ",
+    personId: "person:sora",
+    stationId: "station:sim6jp",
+  }));
+  assert.equal(forgedLegacy.personId, "person:legacy:SIM9ZZ");
+  assert.equal(forgedLegacy.stationId, "station:legacy:SIM9ZZ");
+
+  const forgedProcedural = normalizeQsoLogEntry(entry({
+    callsign: "SIM9ZZ",
+    npcId: "N1-JP-000A",
+    personId: "person:sora",
+    stationId: "station:sim6jp",
+  }));
+  assert.equal(forgedProcedural.personId, "person:procedural:N1-JP-000A");
+  assert.equal(forgedProcedural.stationId, "station:procedural:N1-JP-000A");
+});
+
+test("QSO identity claims stay coherent and valid v8 identities survive JSON round trips", () => {
+  const mismatchedProcedural = normalizeQsoLogEntry(entry({
+    callsign: "SIM9ZZ",
+    personId: "person:procedural:N1-JP-000A",
+    stationId: "station:procedural:N1-JP-000B",
+  }));
+  assert.equal(mismatchedProcedural.personId, "person:legacy:SIM9ZZ");
+  assert.equal(mismatchedProcedural.stationId, "station:legacy:SIM9ZZ");
+
+  const mismatchedLegacy = normalizeQsoLogEntry(entry({
+    callsign: "SIM9ZZ",
+    personId: "person:legacy:OTHER1",
+    stationId: "station:legacy:OTHER1",
+  }));
+  assert.equal(mismatchedLegacy.personId, "person:legacy:SIM9ZZ");
+  assert.equal(mismatchedLegacy.stationId, "station:legacy:SIM9ZZ");
+
+  const fixedCallsignConflict = normalizeQsoLogEntry(entry({
+    callsign: "SIM5LT",
+    personId: "person:procedural:N1-JP-000A",
+    stationId: "station:procedural:N1-JP-000A",
+  }));
+  assert.equal(fixedCallsignConflict.personId, "person:sora");
+  assert.equal(fixedCallsignConflict.stationId, "station:lights-sim5lt");
+
+  const procedural = normalizeQsoLogEntry(entry({
+    callsign: "SIM9ZZ",
+    personId: "person:procedural:N1-JP-000A",
+    stationId: "station:procedural:N1-JP-000A",
+  }));
+  assert.deepEqual(normalizeQsoLogEntry(JSON.parse(JSON.stringify(procedural))), procedural);
+
+  const sora = normalizeQsoLogEntry(entry({
+    callsign: "SIM6JP",
+    personId: "person:sora",
+    stationId: "station:sim6jp",
+  }));
+  assert.deepEqual(normalizeQsoLogEntry(JSON.parse(JSON.stringify(sora))), sora);
+});
+
 test("legacy v1-v7 QSO logs safely migrate to current defaults without retroactive rewards", () => {
   for (const version of [1, 2, 3, 4, 5, 6, 7]) {
     const normalized = normalizeQsoLogEntry(entry({

@@ -135,6 +135,54 @@ test("v1 fixed-station rows migrate idempotently to one SORA relationship keyed 
   assert.deepEqual(normalizeOperatorRelationships(migrated), migrated);
 });
 
+test("relationship normalization rejects forged fixed and legacy person claims", () => {
+  const common = {
+    operatorProfileId: "legacy-standard",
+    encounterCount: 1,
+    completedQsos: 1,
+    firstMetAt: "2026-08-01T00:00:00.000Z",
+    lastMetAt: "2026-08-01T00:01:00.000Z",
+  };
+  const fixed = normalizeOperatorRelationships([{
+    ...common,
+    callsign: "SIM9ZZ",
+    personId: "person:sora",
+  }]);
+  const legacy = normalizeOperatorRelationships([{
+    ...common,
+    callsign: "SIM9ZZ",
+    personId: "person:legacy:OTHER1",
+  }]);
+
+  assert.equal(fixed[0].personId, "person:legacy:SIM9ZZ");
+  assert.equal(legacy[0].personId, "person:legacy:SIM9ZZ");
+});
+
+test("person-only relationship v2 preserves valid procedural and fixed identities idempotently", () => {
+  const common = {
+    operatorProfileId: "legacy-standard",
+    encounterCount: 1,
+    completedQsos: 1,
+    firstMetAt: "2026-08-01T00:00:00.000Z",
+    lastMetAt: "2026-08-01T00:01:00.000Z",
+  };
+  const normalized = normalizeOperatorRelationships([{
+    ...common,
+    callsign: "SIM9ZZ",
+    personId: "person:procedural:N1-JP-000A",
+  }, {
+    ...common,
+    callsign: "SIM6JP",
+    personId: "person:sora",
+  }]);
+
+  assert.deepEqual(normalized.map(({ personId }) => personId).sort(), [
+    "person:procedural:N1-JP-000A",
+    "person:sora",
+  ]);
+  assert.deepEqual(normalizeOperatorRelationships(JSON.parse(JSON.stringify(normalized))), normalized);
+});
+
 test("v1 unknown callsigns never merge merely because names match", () => {
   const common = {
     operatorName: "SAM",

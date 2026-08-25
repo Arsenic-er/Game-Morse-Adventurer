@@ -22,7 +22,7 @@ function contact(index, region = ["JP", "US", "CN", "GE", "CH", "FI", "JP"][inde
   return {
     id: `story:lights:${index}`,
     npcId: `N1-${region}-${String(index + 1).padStart(4, "0")}`,
-    callsign: `SIM${index}LT`,
+    callsign: `SIM${index}EV`,
     eventRegionCode: region,
     locationId: LOCATION_BY_REGION[region],
     operatorName: `OPERATOR ${index}`,

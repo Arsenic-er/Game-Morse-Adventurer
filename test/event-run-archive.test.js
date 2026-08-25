@@ -37,7 +37,7 @@ function result({
     contacts: contacts ? CONTACT_LOCATIONS.map(([eventRegionCode, locationId], index) => ({
       id: `${runId}:contact-${index}`,
       npcId: `N1-${eventRegionCode}-${String(index + 1).padStart(4, "0")}`,
-      callsign: `SIM${index + 1}LT`,
+      callsign: `SIM${index + 1}EV`,
       eventRegionCode,
       locationId,
       completedAt: new Date(Date.parse(completedAt) - (7 - index) * 60_000).toISOString(),
@@ -59,7 +59,7 @@ test("a lights run becomes a seven-contact identity and local-context snapshot",
   assert.deepEqual(snapshot.contacts[0], {
     personId: "person:procedural:N1-JP-0001",
     stationId: "station:procedural:N1-JP-0001",
-    onAirCallsign: "SIM1LT",
+    onAirCallsign: "SIM1EV",
     eventRegionCode: "JP",
     locationId: "japan-tokyo-kanto",
     timeZone: "Asia/Tokyo",
@@ -70,6 +70,19 @@ test("a lights run becomes a seven-contact identity and local-context snapshot",
   assert.deepEqual(snapshot.contacts.map(({ timeZone }) => timeZone), CONTACT_LOCATIONS.map(([, , timeZone]) => timeZone));
   assert.equal(JSON.stringify(snapshot).includes("operatorName"), false);
   assert.equal(JSON.stringify(snapshot).includes("freeText"), false);
+});
+
+test("event snapshots reject forged fixed IDs when a procedural npcId proves identity", () => {
+  const forged = result();
+  Object.assign(forged.contacts[0], {
+    personId: "person:sora",
+    stationId: "station:sim6jp",
+  });
+
+  const snapshot = createEventRunSnapshot(forged, { stationTimeZone: "Asia/Tokyo" });
+
+  assert.equal(snapshot.contacts[0].personId, "person:procedural:N1-JP-0001");
+  assert.equal(snapshot.contacts[0].stationId, "station:procedural:N1-JP-0001");
 });
 
 test("weather and message facts are deterministic across normalization and JSON round trips", () => {

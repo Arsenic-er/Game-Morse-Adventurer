@@ -1,4 +1,4 @@
-import { personIdForOperator } from "../game/personIdentity.js";
+import { personIdForOperator, personIdForPersonOnlyRecord } from "../game/personIdentity.js";
 
 export const OPERATOR_RELATIONSHIPS_VERSION = 2;
 export const MAX_OPERATOR_RELATIONSHIPS = 2000;
@@ -38,7 +38,7 @@ function topicCounts(value) {
 export function normalizeOperatorRelationship(candidate) {
   if (!candidate || typeof candidate !== "object") return null;
   const normalizedCallsign = relationshipCallsign(candidate.callsign);
-  const personId = personIdForOperator({ ...candidate, callsign: normalizedCallsign });
+  const personId = personIdForPersonOnlyRecord({ ...candidate, callsign: normalizedCallsign });
   const firstMetAt = iso(candidate.firstMetAt);
   const lastMetAt = iso(candidate.lastMetAt);
   if (!personId || !normalizedCallsign || !firstMetAt || !lastMetAt) return null;
