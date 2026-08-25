@@ -56,7 +56,7 @@ function entry(overrides = {}) {
   };
 }
 
-test("normalizes the complete QSO log v6 schema", () => {
+test("normalizes the complete QSO log v7 schema", () => {
   const normalized = normalizeQsoLogEntry(entry());
   assert.equal(normalized.version, QSO_LOG_VERSION);
   assert.equal(normalized.startedAt, "2026-07-15T00:00:00.000Z");
@@ -102,8 +102,27 @@ test("normalizes the complete QSO log v6 schema", () => {
   }]);
 });
 
-test("legacy v1-v5 QSO logs safely migrate to v6 defaults without retroactive rewards", () => {
-  for (const version of [1, 2, 3, 4, 5]) {
+test("preserves bounded lights-event identity without creating ordinary rewards", () => {
+  const normalized = normalizeQsoLogEntry(entry({
+    eventId: "lights-across-air<script>",
+    eventMode: "story",
+    eventRegionCode: "jp!",
+    onAirCallsign: "sim5lt",
+    operatorCallsign: "ja1lgt",
+    credits: 0,
+    rewardBreakdown: null,
+  }));
+  assert.equal(normalized.eventId, "lights-across-airscript");
+  assert.equal(normalized.eventMode, "story");
+  assert.equal(normalized.eventRegionCode, "JP");
+  assert.equal(normalized.onAirCallsign, "SIM5LT");
+  assert.equal(normalized.operatorCallsign, "JA1LGT");
+  assert.equal(normalized.rewardBreakdown, null);
+  assert.equal(normalized.credits, 0);
+});
+
+test("legacy v1-v6 QSO logs safely migrate to v7 defaults without retroactive rewards", () => {
+  for (const version of [1, 2, 3, 4, 5, 6]) {
     const normalized = normalizeQsoLogEntry(entry({
     version,
     accessoryId: undefined,

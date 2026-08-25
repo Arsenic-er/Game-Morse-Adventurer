@@ -9,7 +9,7 @@ import {
   OPERATOR_RELATIONSHIPS_VERSION, recordCompletedOperatorRelationship,
 } from "./operatorRelationships.js";
 
-export const QSO_LOG_VERSION = 6;
+export const QSO_LOG_VERSION = 7;
 const OPTIONAL_EXCHANGE_QUESTION_IDS = Object.freeze([
   "power", "location", "weather", "name", "age", "rig", "antenna",
 ]);
@@ -61,6 +61,20 @@ function normalizeRepeatRequests(value) {
 
 function normalizeGuidanceLevel(value) {
   return ["full", "hints", "off"].includes(value) ? value : "full";
+}
+
+function normalizeEventId(value) {
+  const normalized = String(value ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 48);
+  return normalized || null;
+}
+
+function normalizeEventMode(value) {
+  return ["story", "annual", "practice"].includes(value) ? value : null;
+}
+
+function normalizeEventRegion(value) {
+  const normalized = String(value ?? "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
+  return normalized || null;
 }
 
 function normalizeAttemptMetric(value, maximum = 100) {
@@ -135,6 +149,7 @@ export function normalizeQsoLogEntry(entry) {
   const optionalExchangeOutcome = candidateQuestion && ["answered", "skipped"].includes(entry.optionalExchangeOutcome)
     ? entry.optionalExchangeOutcome : "not-offered";
   const optionalExchangeQuestion = optionalExchangeOutcome === "not-offered" ? null : candidateQuestion;
+  const eventId = normalizeEventId(entry.eventId);
   return {
     version: QSO_LOG_VERSION,
     id: normalizeId(entry.id, callsign, completedAt),
@@ -182,6 +197,11 @@ export function normalizeQsoLogEntry(entry) {
     rewardBreakdown,
     credits: rewardBreakdown?.total
       ?? Math.max(0, Math.floor(finiteNumber(entry.credits ?? entry.creditsAwarded))),
+    eventId,
+    eventMode: eventId ? normalizeEventMode(entry.eventMode) : null,
+    eventRegionCode: eventId ? normalizeEventRegion(entry.eventRegionCode) : null,
+    onAirCallsign: eventId ? normalizeCallsign(entry.onAirCallsign) || null : null,
+    operatorCallsign: eventId ? normalizeCallsign(entry.operatorCallsign) || null : null,
     isFictional: entry.isFictional !== false,
   };
 }
