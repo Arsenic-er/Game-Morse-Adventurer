@@ -5,7 +5,7 @@ import {
   LIGHTS_PHASES, advanceLightsPlayback, createLightsRun, submitLightsTransmission, tickLightsRun,
 } from "../src/game/lightsRun.js";
 import {
-  lightsAnnualStampLabel, lightsExitNeedsConfirmation, lightsRunSeed, lightsTimerShouldRun, lightsUiModel,
+  advanceLightsActiveClock, lightsAnnualStampLabel, lightsExitNeedsConfirmation, lightsRunSeed, lightsTimerShouldRun, lightsUiModel,
 } from "../src/game/lightsUiModel.js";
 import { LIGHTS_TEXT } from "../src/screens/lightsEventText.js";
 
@@ -79,6 +79,18 @@ test("control time includes radio playback but pauses for menus and an inactive 
   assert.equal(lightsTimerShouldRun({ phase, inputBlocked: true }), false);
   assert.equal(lightsTimerShouldRun({ phase, windowActive: false }), false);
   assert.equal(lightsTimerShouldRun({ phase: LIGHTS_PHASES.CHASE_CQ }), false);
+});
+
+test("active lights clock accumulates monotonic elapsed time without charging paused intervals", () => {
+  const delayed = advanceLightsActiveClock({ elapsedMs: 1_000, monotonicNow: 500, active: true }, 2_500);
+  assert.deepEqual(delayed, { elapsedMs: 3_000, monotonicNow: 2_500, active: true });
+
+  const paused = advanceLightsActiveClock({ ...delayed, active: false }, 8_500);
+  assert.deepEqual(paused, { elapsedMs: 3_000, monotonicNow: 8_500, active: false });
+
+  const resumed = advanceLightsActiveClock(paused, 10_500);
+  assert.deepEqual(resumed, { elapsedMs: 3_000, monotonicNow: 10_500, active: false });
+  assert.equal(advanceLightsActiveClock({ ...resumed, active: true }, 12_500).elapsedMs, 5_000);
 });
 
 test("completed but unsettled results remain protected from accidental exit", () => {

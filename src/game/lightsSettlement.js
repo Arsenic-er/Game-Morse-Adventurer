@@ -1,7 +1,7 @@
 import { getLocation } from "./locations.js";
 import { LIGHTS_EVENT, LIGHTS_EVENT_REGIONS } from "./lightsEventCatalog.js";
 import { scoreLightsResult } from "./lightsScoring.js";
-import { advanceWorldCalendarState, recordLightsAnnualResult } from "./worldCalendar.js";
+import { advanceWorldCalendarState, recordLightsAnnualResult, stationCalendarDate } from "./worldCalendar.js";
 import {
   appendQsoLog, normalizeQsoLogEntry, normalizeQsoLogs, normalizeQsoRecords,
 } from "../qso/qsoLog.js";
@@ -248,7 +248,7 @@ function recordEventContacts(save, result) {
   return { qsoLogs, qsoRecords, operatorRelationships };
 }
 
-export function settleLightsRun(save, candidate, { now = new Date() } = {}) {
+export function settleLightsRun(save, candidate, { observedAt = null, now = null } = {}) {
   if (!save || typeof save !== "object" || Array.isArray(save)) throw new TypeError("A save record is required.");
   const result = normalizeResult(candidate);
   if (!result) return { save, result: null, settled: false, reason: "invalid-result", moneyAwarded: 0, technologyPointsAwarded: 0 };
@@ -265,7 +265,11 @@ export function settleLightsRun(save, candidate, { now = new Date() } = {}) {
     return { save, result, settled: false, reason: "story-incomplete", moneyAwarded: 0, technologyPointsAwarded: 0 };
   }
   const timeZone = getLocation(save.locationId).timeZone;
-  let worldCalendarState = save.worldCalendarState;
+  const observedIso = iso(observedAt ?? now ?? new Date()) ?? result.completedAt;
+  const observedInstant = new Date(observedIso);
+  const completionInstant = new Date(result.completedAt);
+  const observation = advanceWorldCalendarState(save.worldCalendarState, { now: observedInstant, timeZone });
+  let worldCalendarState = observation.state;
   let reason = null;
   let modeMoney = 0;
   let practiceRecords = state.practiceRecords;
@@ -275,22 +279,31 @@ export function settleLightsRun(save, candidate, { now = new Date() } = {}) {
   let annualStampGranted = false;
 
   if (result.mode === "annual") {
-    const annual = recordLightsAnnualResult(worldCalendarState, {
-      now, timeZone, storyCompleted, score: result.score, grade: result.grade,
+    const eventClockState = observation.annualRewardsPaused ? {
+      ...observation.state,
+      rollbackGuardUntil: new Date(Math.max(observedInstant.getTime(), completionInstant.getTime()) + 1).toISOString(),
+    } : {
+      ...observation.state,
+      lastTrustedAt: result.completedAt,
+    };
+    const annual = recordLightsAnnualResult(eventClockState, {
+      now: completionInstant, timeZone, storyCompleted, score: result.score, grade: result.grade,
     });
     if (!annual.accepted) {
       return { save, result, settled: false, reason: annual.reason, moneyAwarded: 0, technologyPointsAwarded: 0 };
     }
-    worldCalendarState = annual.state;
+    worldCalendarState = {
+      ...annual.state,
+      lastTrustedAt: observation.state.lastTrustedAt,
+      rollbackGuardUntil: observation.state.rollbackGuardUntil,
+    };
     reason = annual.reason;
     rewardsPaused = annual.reason === "clock-rollback";
     modeMoney = annual.rewardGranted ? 300 : 0;
     annualStamp = annual.record.stamp;
     annualStampGranted = annual.stampGranted;
   } else if (result.mode === "practice") {
-    const calendar = advanceWorldCalendarState(worldCalendarState, { now, timeZone });
-    worldCalendarState = calendar.state;
-    const dateKey = calendar.stationDate.dateKey;
+    const dateKey = stationCalendarDate(completionInstant, timeZone).dateKey;
     const previous = practiceRecords.find((record) => record.dateKey === dateKey)
       ?? { dateKey, bestScore: 0, bestGrade: "none", moneyPaid: 0 };
     const targetReward = PRACTICE_REWARD[result.grade];
@@ -334,7 +347,7 @@ export function settleLightsRun(save, candidate, { now = new Date() } = {}) {
     qsoRecords: contacts.qsoRecords,
     operatorRelationshipsVersion: OPERATOR_RELATIONSHIPS_VERSION,
     operatorRelationships: contacts.operatorRelationships,
-    updatedAt: iso(now) ?? result.completedAt,
+    updatedAt: observedIso,
   };
   return {
     save: nextSave, result, settled: true, reason, moneyAwarded, technologyPointsAwarded: 0,

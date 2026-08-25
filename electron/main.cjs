@@ -24,7 +24,7 @@ if (!gotLock) {
   app.quit();
 } else {
   let mainWindow = null;
-  let qsoUnloadGuard = { risk: "none", language: "en" };
+  let activityUnloadGuard = { risk: "none", language: "en" };
   const semanticRuntime = createSemanticRuntime({
     assetDirectory: app.isPackaged
       ? path.join(process.resourcesPath, "models")
@@ -49,11 +49,11 @@ if (!gotLock) {
       return { ok: false, error: String(error?.message ?? error).slice(0, 240) };
     }
   });
-  ipcMain.on("cwgame:qso-unload-guard", (event, payload = {}) => {
+  ipcMain.on("cwgame:activity-unload-guard", (event, payload = {}) => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return;
     const risk = ["active", "unsaved"].includes(payload.risk) ? payload.risk : "none";
     const language = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"].includes(payload.language) ? payload.language : "en";
-    qsoUnloadGuard = { risk, language };
+    activityUnloadGuard = { risk, language };
   });
 
   async function runSemanticSmoke() {
@@ -109,8 +109,8 @@ if (!gotLock) {
     Menu.setApplicationMenu(null);
     mainWindow.loadFile(path.join(__dirname, "..", "dist", "index.html"));
     mainWindow.webContents.on("will-prevent-unload", (event) => {
-      if (qsoUnloadGuard.risk === "none") return;
-      const choice = dialog.showMessageBoxSync(mainWindow, qsoExitDialogOptions(qsoUnloadGuard));
+      if (activityUnloadGuard.risk === "none") return;
+      const choice = dialog.showMessageBoxSync(mainWindow, qsoExitDialogOptions(activityUnloadGuard));
       if (choice === 1) event.preventDefault();
     });
     if (qaCaptureMode) {
@@ -132,7 +132,7 @@ if (!gotLock) {
     } else {
       mainWindow.once("ready-to-show", () => mainWindow.show());
     }
-    mainWindow.on("closed", () => { mainWindow = null; qsoUnloadGuard = { risk: "none", language: "en" }; });
+    mainWindow.on("closed", () => { mainWindow = null; activityUnloadGuard = { risk: "none", language: "en" }; });
   }
 
   app.whenReady().then(() => {

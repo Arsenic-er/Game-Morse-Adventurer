@@ -13,7 +13,7 @@ import {
   restartLightsControl, submitLightsTransmission, tickLightsRun,
 } from "../game/lightsRun.js";
 import {
-  lightsAnnualStampLabel, lightsExitNeedsConfirmation, lightsRunSeed, lightsTimerShouldRun, lightsUiModel,
+  activityUnloadRisk, advanceLightsActiveClock, lightsAnnualStampLabel, lightsExitNeedsConfirmation, lightsRunSeed, lightsTimerShouldRun, lightsUiModel,
 } from "../game/lightsUiModel.js";
 import { lightsText } from "./lightsEventText.js";
 
@@ -26,7 +26,7 @@ function expectedPlayerText(run) {
   return "";
 }
 
-export function LightsEventScreen({ language, mode, save, inputBlocked = false, onSettle, onBack }) {
+export function LightsEventScreen({ language, mode, save, inputBlocked = false, onActivityRisk, onSettle, onBack }) {
   const t = lightsText(language);
   const [run, setRun] = useState(() => {
     const startedAt = new Date();
@@ -44,8 +44,10 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
   const [settlement, setSettlement] = useState(null);
   const [windowActive, setWindowActive] = useState(true);
   const playbackKeyRef = useRef(null);
+  const activeClockRef = useRef({ elapsedMs: 0, monotonicNow: null, active: false });
   const inputRef = useRef(null);
   const model = useMemo(() => lightsUiModel(run, language), [language, run]);
+  const unloadRisk = activityUnloadRisk({ activity: "lights", run, settled: Boolean(settlement) });
   const annualStampLabel = lightsAnnualStampLabel(settlement, language);
   const targetText = expectedPlayerText(run);
   const cw = useCwCore({
@@ -55,9 +57,21 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
   });
 
   useEffect(() => {
+    if (inputBlocked || !windowActive) return undefined;
     cw.startListening({ noiseGain: 0.06, noiseFilterCenterHz: 650, noiseFilterQ: 1.4 });
     return () => cw.stopListening();
-  }, [cw.startListening, cw.stopListening]);
+  }, [cw.startListening, cw.stopListening, inputBlocked, windowActive]);
+
+  useEffect(() => {
+    if (!inputBlocked) return;
+    playbackKeyRef.current = null;
+    cw.stopAll();
+  }, [cw.stopAll, inputBlocked]);
+
+  useEffect(() => {
+    onActivityRisk?.(unloadRisk);
+    return () => onActivityRisk?.("none");
+  }, [onActivityRisk, unloadRisk]);
 
   useEffect(() => {
     if (!model.needsPlayback || inputBlocked || !windowActive) return undefined;
@@ -86,8 +100,24 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
     model.needsLayeredPlayback, model.needsPlayback, playbackRetry, run, windowActive]);
 
   useEffect(() => {
-    if (!lightsTimerShouldRun({ phase: run.phase, inputBlocked, windowActive })) return undefined;
-    const timer = window.setInterval(() => setRun((current) => tickLightsRun(current, 250)), 250);
+    const active = lightsTimerShouldRun({ phase: run.phase, inputBlocked, windowActive });
+    const baseline = performance.now();
+    if (!active) {
+      activeClockRef.current = {
+        ...activeClockRef.current,
+        monotonicNow: baseline,
+        active: false,
+      };
+      return undefined;
+    }
+    activeClockRef.current = { elapsedMs: run.elapsedMs, monotonicNow: baseline, active: true };
+    const timer = window.setInterval(() => {
+      const previous = activeClockRef.current;
+      const next = advanceLightsActiveClock(previous, performance.now());
+      activeClockRef.current = next;
+      const elapsedMs = next.elapsedMs - previous.elapsedMs;
+      if (elapsedMs > 0) setRun((current) => tickLightsRun(current, elapsedMs));
+    }, 250);
     return () => window.clearInterval(timer);
   }, [inputBlocked, run.phase, windowActive]);
 

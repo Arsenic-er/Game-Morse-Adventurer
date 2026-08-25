@@ -18,6 +18,12 @@ test("station calendar date is derived from the station time zone, not the host"
   });
 });
 
+test("literal annual-window boundaries remain distinct for Tokyo, New York, and the Rhine", () => {
+  assert.equal(stationCalendarDate("2026-05-07T14:59:00.000Z", "Asia/Tokyo").dateKey, "2026-05-07");
+  assert.equal(stationCalendarDate("2026-05-08T03:59:00.000Z", "America/New_York").dateKey, "2026-05-07");
+  assert.equal(stationCalendarDate("2026-04-30T22:30:00.000Z", "Europe/Berlin").dateKey, "2026-05-01");
+});
+
 test("first story run is date independent and completed stories retain practice", () => {
   const story = evaluateLightsAvailability({
     now: "2026-12-20T12:00:00.000Z", timeZone: "Europe/Zurich", storyCompleted: false,

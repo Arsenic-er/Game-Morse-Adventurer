@@ -144,7 +144,11 @@ test("long retry identifiers remain distinct and preserve every contact", () => 
 
 test("annual settlement grants 300 once per station year and improves the best record", () => {
   const save = saveWithStoryComplete();
-  const first = settleLightsRun(save, result({ mode: "annual", count: 5, runId: "annual:first" }), {
+  const first = settleLightsRun(save, {
+    ...result({ mode: "annual", count: 5, runId: "annual:first" }),
+    startedAt: "2026-05-03T09:52:00.000Z",
+    completedAt: "2026-05-03T10:00:00.000Z",
+  }, {
     now: "2026-05-03T10:00:00.000Z",
   });
   assert.equal(first.settled, true);
@@ -152,7 +156,11 @@ test("annual settlement grants 300 once per station year and improves the best r
   assert.equal(first.moneyAwarded, 400); // 300 annual + first silver lifetime bonus.
   assert.equal(first.annualStamp, "standard");
   assert.equal(first.annualStampGranted, true);
-  const improved = settleLightsRun(first.save, result({ mode: "annual", count: 7, runId: "annual:gold" }), {
+  const improved = settleLightsRun(first.save, {
+    ...result({ mode: "annual", count: 7, runId: "annual:gold" }),
+    startedAt: "2026-05-05T09:52:00.000Z",
+    completedAt: "2026-05-05T10:00:00.000Z",
+  }, {
     now: "2026-05-05T10:00:00.000Z",
   });
   assert.equal(improved.moneyAwarded, 100); // only silver -> gold lifetime difference.
@@ -162,7 +170,11 @@ test("annual settlement grants 300 once per station year and improves the best r
 });
 
 test("annual settlement rejects closed dates and pauses all money during rollback guard", () => {
-  const closed = settleLightsRun(saveWithStoryComplete(), result({ mode: "annual" }), {
+  const closed = settleLightsRun(saveWithStoryComplete(), {
+    ...result({ mode: "annual" }),
+    startedAt: "2026-06-01T09:52:00.000Z",
+    completedAt: "2026-06-01T10:00:00.000Z",
+  }, {
     now: "2026-06-01T10:00:00.000Z",
   });
   assert.equal(closed.settled, false);
@@ -184,6 +196,49 @@ test("annual settlement rejects closed dates and pauses all money during rollbac
   assert.equal(rollback.save.lightsEventState.lifetimeGradePaid, 0);
   assert.equal(rollback.annualStamp, "none");
   assert.equal(rollback.annualStampGranted, false);
+});
+
+test("delayed annual settlement keeps Tokyo, New York, and Rhine event dates while observation controls rollback", () => {
+  const cases = [
+    {
+      name: "Tokyo closes at the end of the May 7 station day",
+      locationId: "japan-tokyo-kanto",
+      completedAt: "2026-05-07T14:59:00.000Z",
+    },
+    {
+      name: "New York remains open late on the May 7 station day",
+      locationId: "usa-new-england",
+      completedAt: "2026-05-08T03:59:00.000Z",
+    },
+    {
+      name: "Rhine opens at the start of the May 1 station day",
+      locationId: "europe-rhine-valley",
+      completedAt: "2026-04-30T22:30:00.000Z",
+    },
+  ];
+  for (const { name, locationId, completedAt } of cases) {
+    const save = {
+      ...createSave({ callsign: "JA1LGT", locationId }),
+      missionState: { claimedMissionIds: ["story-05"] },
+      worldCalendarState: {
+        version: 1,
+        lastTrustedAt: "2026-06-02T12:00:00.000Z",
+        rollbackGuardUntil: null,
+        annualRecords: [],
+      },
+    };
+    const settled = settleLightsRun(save, {
+      ...result({ mode: "annual", count: 3, runId: `boundary:${locationId}` }),
+      startedAt: "2026-04-30T22:00:00.000Z",
+      completedAt,
+    }, { observedAt: "2026-06-01T12:00:00.000Z" });
+    assert.equal(settled.settled, true, name);
+    assert.equal(settled.reason, "clock-rollback", name);
+    assert.equal(settled.moneyAwarded, 0, name);
+    assert.equal(settled.save.worldCalendarState.lastTrustedAt, "2026-06-02T12:00:00.000Z", name);
+    assert.equal(settled.save.worldCalendarState.rollbackGuardUntil, "2026-06-02T12:00:00.000Z", name);
+    assert.equal(settled.save.worldCalendarState.annualRecords[0].year, 2026, name);
+  }
 });
 
 test("practice pays only the daily best grade delta", () => {

@@ -53,7 +53,7 @@ import { recordCompletedQso } from "./qso/qsoLog.js";
 import {
   OPERATOR_RELATIONSHIPS_VERSION, operatorEncounterId, recordOperatorEncounter,
 } from "./qso/operatorRelationships.js";
-import { QSO_EXIT_RISKS, qsoExitRisk } from "./qso/qsoExitGuard.js";
+import { qsoExitRisk } from "./qso/qsoExitGuard.js";
 import { HomeScreen } from "./screens/HomeScreen.jsx";
 import { LightsEventScreen } from "./screens/LightsEventScreen.jsx";
 import { QsoLeaveConfirmModal } from "./screens/QsoLeaveConfirmModal.jsx";
@@ -459,7 +459,7 @@ function MapModal({ language, mapMode, setMapMode, propagationMap, onClose }) {
   );
 }
 
-function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBack, inputBlocked = false }) {
+function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, onSettings, onBack, inputBlocked = false }) {
   const t = COPY[language];
   const flow = STATION_FLOW_COPY[language] ?? STATION_FLOW_COPY.en;
   const optionalFlow = OPTIONAL_EXCHANGE_COPY[language] ?? OPTIONAL_EXCHANGE_COPY.en;
@@ -578,30 +578,30 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
   }, []);
 
   useEffect(() => {
-    if (!powered || exitRequest) {
+    if (!powered || exitRequest || inputBlocked) {
       cw.stopListening();
       return undefined;
     }
     cw.startListening(receiverChannel);
     return () => cw.stopListening();
-  }, [cw.startListening, cw.stopListening, exitRequest, powered, receiverChannel]);
+  }, [cw.startListening, cw.stopListening, exitRequest, inputBlocked, powered, receiverChannel]);
 
   useEffect(() => {
-    window.cwgameSystem?.setQsoUnloadGuard?.(exitRisk, language);
-    function onBeforeUnload(event) {
-      if (exitRisk === QSO_EXIT_RISKS.NONE) return;
-      event.preventDefault();
-      event.returnValue = "";
-    }
-    window.addEventListener("beforeunload", onBeforeUnload);
+    onActivityRisk?.(exitRisk);
     return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      window.cwgameSystem?.setQsoUnloadGuard?.(QSO_EXIT_RISKS.NONE, language);
+      onActivityRisk?.("none");
     };
-  }, [exitRisk, language]);
+  }, [exitRisk, onActivityRisk]);
 
   useEffect(() => {
-    if (briefingOpen || exitRequest || qso.phase !== QSO_PHASES.WAITING_RESPONSE || !powered || !antennaReady) return undefined;
+    if (!inputBlocked) return;
+    cw.stopAll();
+    cw.stopListening();
+    setNpcPlaybackRecovering(false);
+  }, [cw.stopAll, cw.stopListening, inputBlocked]);
+
+  useEffect(() => {
+    if (briefingOpen || exitRequest || inputBlocked || qso.phase !== QSO_PHASES.WAITING_RESPONSE || !powered || !antennaReady) return undefined;
     const seed = `${propagationKey}:${qsoSerial}:${qso.unansweredCalls}:${save.callsign}`;
     const qaStations = window.cwgameSystem?.qaCapture
       ? NPC_STATIONS.filter(({ callsign }) => QA_OPTIONAL_NPC_CALLSIGNS.has(callsign))
@@ -625,12 +625,12 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
     }, delay);
     return () => window.clearTimeout(timer);
   }, [
-    antennaReady, briefingOpen, exitRequest, playerEquipmentBonus, powered, propagationKey, propagationMap,
+    antennaReady, briefingOpen, exitRequest, inputBlocked, playerEquipmentBonus, powered, propagationKey, propagationMap,
     missionTargetCallsign, qso.npc, qso.pendingResponder, qso.phase, qso.unansweredCalls, qsoSerial, save.callsign,
   ]);
 
   useEffect(() => {
-    if (briefingOpen || exitRequest || !qsoNeedsNpcPlayback(qso) || !powered || !antennaReady) return undefined;
+    if (briefingOpen || exitRequest || inputBlocked || !qsoNeedsNpcPlayback(qso) || !powered || !antennaReady) return undefined;
     const activePhase = qso.phase;
     let cancelled = false;
     let retryTimer = null;
@@ -669,7 +669,7 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
       if (focusHandler) window.removeEventListener("focus", focusHandler);
     };
   }, [
-    antennaReady, briefingOpen, cw.clearInput, cw.playIncoming, exitRequest, npcChannel, powered,
+    antennaReady, briefingOpen, cw.clearInput, cw.playIncoming, exitRequest, inputBlocked, npcChannel, powered,
     npcPlaybackRetry, qso.npc.wpm, qso.npcMessage, qso.npcReplyDisposition, qso.phase, qso.replyWpm,
   ]);
 
@@ -717,17 +717,23 @@ function StationScreen({ language, keyType, save, onSaveUpdate, onSettings, onBa
         cw.endAutomatic("-");
       }
     }
-    function onBlur() { cw.stopAll(); }
+    function onBlur() { cw.stopAll(); cw.stopListening(); }
+    function onFocus() {
+      if (powered && !exitRequest && !inputBlocked) cw.startListening(receiverChannel);
+    }
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
     window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onFocus);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
       window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onFocus);
       cw.stopAll();
     };
-  }, [cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.stopAll]);
+  }, [cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.startListening, cw.stopAll,
+    cw.stopListening, exitRequest, inputBlocked, powered, receiverChannel]);
 
   async function submitReply() {
     if (semanticBusy || !powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
@@ -1164,6 +1170,7 @@ export function App() {
   const [practiceReturnScreen, setPracticeReturnScreen] = useState("start");
   const [lightsMode, setLightsMode] = useState("story");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activityRisk, setActivityRisk] = useState("none");
   const [manualOpen, setManualOpen] = useState(false);
   const [achievementQueue, setAchievementQueue] = useState([]);
   const [saves, setSaves] = useState(() => loadSaves());
@@ -1192,6 +1199,20 @@ export function App() {
     window.addEventListener("keydown", handleEscapeMenu);
     return () => window.removeEventListener("keydown", handleEscapeMenu);
   }, [settingsOpen]);
+
+  useEffect(() => {
+    window.cwgameSystem?.setActivityUnloadGuard?.(activityRisk, language);
+    function onBeforeUnload(event) {
+      if (activityRisk === "none") return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.cwgameSystem?.setActivityUnloadGuard?.("none", language);
+    };
+  }, [activityRisk, language]);
   function commitSaves(nextSavesOrUpdater) {
     const nextSaves = typeof nextSavesOrUpdater === "function"
       ? nextSavesOrUpdater(savesRef.current)
@@ -1430,10 +1451,11 @@ export function App() {
     mode={lightsMode}
     save={activeSave}
     inputBlocked={settingsOpen}
+    onActivityRisk={setActivityRisk}
     onSettle={settleLightsForActiveSave}
     onBack={() => setScreen("home")}
   />;
-  else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
+  else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onActivityRisk={setActivityRisk} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
   else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   return <>
     {currentScreen}

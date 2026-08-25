@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld("cwgameSystem", {
   getNetworkStatus: () => ipcRenderer.invoke("cwgame:network-status"),
   getSemanticStatus: () => ipcRenderer.invoke("cwgame:semantic-status"),
   interpretCwTraffic: (payload) => ipcRenderer.invoke("cwgame:interpret-cw-traffic", payload),
-  setQsoUnloadGuard: (risk, language) => ipcRenderer.send("cwgame:qso-unload-guard", { risk, language }),
+  setActivityUnloadGuard: (risk, language) => ipcRenderer.send("cwgame:activity-unload-guard", { risk, language }),
   qaCapture,
   consumeQaIncomingFailure: (phase) => {
     if (!qaCapture || failedIncomingPhases.has(phase)) return false;

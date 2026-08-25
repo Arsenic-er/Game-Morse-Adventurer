@@ -36,12 +36,33 @@ export function lightsTimerShouldRun({ phase, inputBlocked = false, windowActive
   return CONTROL_PHASES.has(phase) && inputBlocked !== true && windowActive !== false;
 }
 
+export function advanceLightsActiveClock(clock, monotonicNow) {
+  const elapsedMs = Math.max(0, Number(clock?.elapsedMs) || 0);
+  const now = Number(monotonicNow);
+  const previousNow = Number(clock?.monotonicNow);
+  const active = clock?.active === true;
+  const elapsedDelta = active && Number.isFinite(now) && Number.isFinite(previousNow)
+    ? Math.max(0, now - previousNow) : 0;
+  return {
+    elapsedMs: elapsedMs + elapsedDelta,
+    monotonicNow: Number.isFinite(now) ? now : Number.isFinite(previousNow) ? previousNow : null,
+    active,
+  };
+}
+
 export function lightsExitNeedsConfirmation(run, { settled = false } = {}) {
   if (!run || settled) return false;
   if (run.phase === LIGHTS_PHASES.RUN_COMPLETE) return true;
   const initialPhase = run.mode === "story" ? LIGHTS_PHASES.CHASE_CQ : LIGHTS_PHASES.CONTROL_CQ;
   return Number(run.elapsedMs) > 0 || run.chaseCompleted === true || (run.contacts?.length ?? 0) > 0
     || run.phase !== initialPhase;
+}
+
+export function activityUnloadRisk({ activity, run, settled = false, risk } = {}) {
+  if (activity === "lights" && lightsExitNeedsConfirmation(run, { settled })) {
+    return run?.phase === LIGHTS_PHASES.RUN_COMPLETE ? "unsaved" : "active";
+  }
+  return activity === "qso" && ["active", "unsaved"].includes(risk) ? risk : "none";
 }
 
 export function lightsRunSeed({ saveId, mode, stationDate, startedAt } = {}) {
