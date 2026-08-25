@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   LIGHTS_PHASES, advanceLightsPlayback, createLightsRun, currentLightsPileup,
-  currentLightsPrompt, lightsRunResult, submitLightsTransmission, tickLightsRun,
+  currentLightsPrompt, lightsRunResult, restartLightsControl, submitLightsTransmission, tickLightsRun,
 } from "../src/game/lightsRun.js";
 
 function controlRun(overrides = {}) {
@@ -111,6 +111,14 @@ test("the eight-minute timer ends an unfinished run and ignores invalid ticks", 
   assert.equal(lightsRunResult(ended).grade, "none");
 });
 
+test("the run records the real completion instant instead of synthesizing wall time", () => {
+  const run = controlRun();
+  const completedAt = "2026-05-05T09:14:30.000Z";
+  const ended = tickLightsRun(run, 480_000, completedAt);
+  assert.equal(ended.completedAt, completedAt);
+  assert.equal(lightsRunResult(ended).completedAt, completedAt);
+});
+
 test("invalid event CQ and wrong report regions preserve the active round", () => {
   let run = submitLightsTransmission(controlRun(), "CQ DE SIM5LT K");
   assert.equal(run.phase, LIGHTS_PHASES.CONTROL_CQ);
@@ -122,4 +130,21 @@ test("invalid event CQ and wrong report regions preserve the active round", () =
   run = submitLightsTransmission(run, `${caller.callsign} DE SIM5LT RST 579 US K`);
   assert.equal(run.phase, LIGHTS_PHASES.CONTROL_PLAYER_REPORT);
   assert.equal(run.lastError, "wrongRegion");
+});
+
+test("a failed story slot can retry the control stage without repeating the chase", () => {
+  const completed = {
+    ...controlRun({ mode: "story" }),
+    phase: LIGHTS_PHASES.RUN_COMPLETE,
+    chaseCompleted: true,
+    elapsedMs: 480_000,
+    completedAt: "2026-05-05T09:08:00.000Z",
+  };
+  const retry = restartLightsControl(completed, {
+    seed: "retry-control", startedAt: "2026-05-05T09:09:00.000Z",
+  });
+  assert.equal(retry.phase, LIGHTS_PHASES.CONTROL_CQ);
+  assert.equal(retry.chaseCompleted, true);
+  assert.equal(retry.elapsedMs, 0);
+  assert.notEqual(retry.runId, completed.runId);
 });

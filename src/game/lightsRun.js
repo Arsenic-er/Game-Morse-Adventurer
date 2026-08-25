@@ -58,6 +58,7 @@ export function createLightsRun({
     mode: normalizedMode,
     seed: String(seed),
     startedAt: started,
+    completedAt: null,
     playerCallsign: callsign,
     playerRegion: region,
     guidance: GUIDANCE_LEVELS.has(guidance) ? guidance : "full",
@@ -112,7 +113,7 @@ export function currentLightsPileup(run) {
   return run.pileup;
 }
 
-export function advanceLightsPlayback(run) {
+export function advanceLightsPlayback(run, completedAt = new Date()) {
   if (!run || typeof run !== "object") return run;
   if (run.phase === LIGHTS_PHASES.CHASE_CQ) return { ...run, phase: LIGHTS_PHASES.CHASE_PLAYER_CALL, lastError: null };
   if (run.phase === LIGHTS_PHASES.CHASE_NPC_REPORT) return { ...run, phase: LIGHTS_PHASES.CHASE_PLAYER_REPORT, lastError: null };
@@ -131,6 +132,7 @@ export function advanceLightsPlayback(run) {
     return {
       ...run,
       phase: completed ? LIGHTS_PHASES.RUN_COMPLETE : LIGHTS_PHASES.CONTROL_CQ,
+      completedAt: completed ? iso(completedAt) : run.completedAt,
       contacts,
       pileup: null,
       playbackCallers: Object.freeze([]),
@@ -271,7 +273,7 @@ export function submitLightsTransmission(run, message, { semanticResult = null }
   return { ...run, lastError: "notWaitingForPlayer" };
 }
 
-export function tickLightsRun(run, elapsedMs) {
+export function tickLightsRun(run, elapsedMs, completedAt = new Date()) {
   const delta = Number(elapsedMs);
   if (!run || typeof run !== "object" || !Number.isFinite(delta) || delta <= 0
     || run.phase === LIGHTS_PHASES.RUN_COMPLETE) return run;
@@ -280,6 +282,24 @@ export function tickLightsRun(run, elapsedMs) {
     ...run,
     elapsedMs: elapsed,
     phase: elapsed >= LIGHTS_RUN_DURATION_MS ? LIGHTS_PHASES.RUN_COMPLETE : run.phase,
+    completedAt: elapsed >= LIGHTS_RUN_DURATION_MS ? iso(completedAt) : run.completedAt,
+  };
+}
+
+export function restartLightsControl(run, { startedAt = new Date(), seed = null } = {}) {
+  if (!run || run.phase !== LIGHTS_PHASES.RUN_COMPLETE) return run;
+  const retry = createLightsRun({
+    mode: run.mode,
+    playerCallsign: run.playerCallsign,
+    playerRegion: run.playerRegion,
+    guidance: run.guidance,
+    seed: seed ?? `${run.seed}:retry:${run.runId}`,
+    startedAt,
+  });
+  return {
+    ...retry,
+    phase: LIGHTS_PHASES.CONTROL_CQ,
+    chaseCompleted: run.chaseCompleted || run.mode !== "story",
   };
 }
 
@@ -295,7 +315,9 @@ export function lightsRunResult(run) {
     agnRequestCount: run.agnRequestCount,
   };
   const scored = scoreLightsResult(facts);
-  const completedAt = new Date(Date.parse(run.startedAt) + run.elapsedMs).toISOString();
+  const completedAt = run.completedAt
+    ? iso(run.completedAt)
+    : new Date(Date.parse(run.startedAt) + run.elapsedMs).toISOString();
   return {
     version: 1,
     runId: run.runId,

@@ -104,7 +104,10 @@ test("annual reward is granted once per year while the best result can improve",
   });
   assert.equal(first.accepted, true);
   assert.equal(first.rewardGranted, true);
-  assert.deepEqual(first.record, { year: 2026, rewardClaimed: true, bestScore: 3, bestGrade: "base" });
+  assert.deepEqual(first.record, {
+    year: 2026, rewardClaimed: true, bestScore: 3, bestGrade: "base", stamp: "standard",
+  });
+  assert.equal(first.stampGranted, true);
 
   const improved = recordLightsAnnualResult(first.state, {
     now: "2026-05-05T12:00:00.000Z", timeZone: "UTC", storyCompleted: true,
@@ -112,7 +115,10 @@ test("annual reward is granted once per year while the best result can improve",
   });
   assert.equal(improved.accepted, true);
   assert.equal(improved.rewardGranted, false);
-  assert.deepEqual(improved.record, { year: 2026, rewardClaimed: true, bestScore: 7, bestGrade: "gold" });
+  assert.deepEqual(improved.record, {
+    year: 2026, rewardClaimed: true, bestScore: 7, bestGrade: "gold", stamp: "special",
+  });
+  assert.equal(improved.stampGranted, true);
 
   const nextYear = recordLightsAnnualResult(improved.state, {
     now: "2027-05-03T12:00:00.000Z", timeZone: "UTC", storyCompleted: true,
@@ -120,6 +126,7 @@ test("annual reward is granted once per year while the best result can improve",
   });
   assert.equal(nextYear.rewardGranted, true);
   assert.equal(nextYear.state.annualRecords.length, 2);
+  assert.equal(nextYear.record.stamp, "standard");
 });
 
 test("annual result rejects closed dates and incomplete stories", () => {
@@ -139,7 +146,10 @@ test("clock rollback records an improved result but never grants the annual rewa
   assert.equal(recorded.accepted, true);
   assert.equal(recorded.rewardGranted, false);
   assert.equal(recorded.reason, "clock-rollback");
-  assert.deepEqual(recorded.record, { year: 2026, rewardClaimed: false, bestScore: 7, bestGrade: "gold" });
+  assert.deepEqual(recorded.record, {
+    year: 2026, rewardClaimed: false, bestScore: 7, bestGrade: "gold", stamp: "none",
+  });
+  assert.equal(recorded.stampGranted, false);
 });
 
 test("future-year poisoning cannot evict the settlement year or repeat its reward", () => {
@@ -176,7 +186,9 @@ test("future-year poisoning cannot erase an existing claim before settlement", (
   });
   assert.equal(result.accepted, true);
   assert.equal(result.rewardGranted, false);
-  assert.deepEqual(result.record, { year: 2026, rewardClaimed: true, bestScore: 5, bestGrade: "silver" });
+  assert.deepEqual(result.record, {
+    year: 2026, rewardClaimed: true, bestScore: 5, bestGrade: "silver", stamp: "special",
+  });
 });
 
 test("annual settlement rejects years outside the persisted record domain", () => {

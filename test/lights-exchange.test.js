@@ -41,3 +41,12 @@ test("an explicitly unsafe semantic result fails closed", () => {
     accepted: false, reason: "unsafeSemanticResult", rst: null, region: null,
   });
 });
+
+test("three-digit callsign suffixes are never parsed as the signal report", () => {
+  const result = parseLightsReport("SIMJ182 DE SIM5LT RST 579 CN K", {
+    selfCallsign: "SIM5LT",
+    peerCallsign: "SIMJ182",
+    expectedRegion: "CN",
+  });
+  assert.deepEqual(result, { accepted: true, reason: null, rst: "579", region: "CN" });
+});

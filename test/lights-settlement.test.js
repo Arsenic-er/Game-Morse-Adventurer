@@ -80,6 +80,17 @@ test("lights event state has bounded hostile-input normalization", () => {
   assert.ok(normalized.practiceRecords.every(({ moneyPaid }) => moneyPaid === 80));
 });
 
+test("lights state normalization bounds the hostile arrays it scans", () => {
+  const settledRunIds = Array.from({ length: 10_000 }, (_, index) => `run-${index}`);
+  const practiceRecords = Array.from({ length: 10_000 }, (_, index) => ({
+    dateKey: `2026-01-${String((index % 28) + 1).padStart(2, "0")}`,
+    bestScore: 1, bestGrade: "base", moneyPaid: 40,
+  }));
+  settledRunIds[0] = { toString() { throw new Error("unbounded-run-scan"); } };
+  Object.defineProperty(practiceRecords[0], "dateKey", { get() { throw new Error("unbounded-date-scan"); } });
+  assert.doesNotThrow(() => normalizeLightsEventState({ settledRunIds, practiceRecords }));
+});
+
 test("story settlement recomputes the grade, records event QSOs, and pays only lifetime grade bonus", () => {
   const save = createSave({ callsign: "JA1LGT", locationId: "japan-tokyo-kanto" });
   const settled = settleLightsRun(save, result({ grade: "none", score: 1 }), {
@@ -121,11 +132,15 @@ test("annual settlement grants 300 once per station year and improves the best r
   assert.equal(first.settled, true);
   assert.equal(first.result.grade, "silver");
   assert.equal(first.moneyAwarded, 400); // 300 annual + first silver lifetime bonus.
+  assert.equal(first.annualStamp, "standard");
+  assert.equal(first.annualStampGranted, true);
   const improved = settleLightsRun(first.save, result({ mode: "annual", count: 7, runId: "annual:gold" }), {
     now: "2026-05-05T10:00:00.000Z",
   });
   assert.equal(improved.moneyAwarded, 100); // only silver -> gold lifetime difference.
   assert.equal(improved.save.worldCalendarState.annualRecords[0].bestGrade, "gold");
+  assert.equal(improved.annualStamp, "special");
+  assert.equal(improved.annualStampGranted, true);
 });
 
 test("annual settlement rejects closed dates and pauses all money during rollback guard", () => {
@@ -149,6 +164,8 @@ test("annual settlement rejects closed dates and pauses all money during rollbac
   assert.equal(rollback.moneyAwarded, 0);
   assert.equal(rollback.reason, "clock-rollback");
   assert.equal(rollback.save.lightsEventState.lifetimeGradePaid, 0);
+  assert.equal(rollback.annualStamp, "none");
+  assert.equal(rollback.annualStampGranted, false);
 });
 
 test("practice pays only the daily best grade delta", () => {
@@ -166,4 +183,34 @@ test("practice pays only the daily best grade delta", () => {
     now: "2026-06-01T12:00:00.000Z",
   });
   assert.equal(repeated.moneyAwarded, 0);
+});
+
+test("evicted recent run ids remain permanently idempotent through the QSO ledger", () => {
+  let save = createSave({ callsign: "JA1LGT", locationId: "japan-tokyo-kanto" });
+  for (let index = 0; index < 205; index += 1) {
+    save = settleLightsRun(save, result({ runId: `story:archive-${index}` }), {
+      now: `2026-05-05T${String(Math.floor(index / 60)).padStart(2, "0")}:${String(index % 60).padStart(2, "0")}:00.000Z`,
+    }).save;
+  }
+  assert.equal(save.lightsEventState.settledRunIds.includes("story:archive-0"), false);
+  const replay = settleLightsRun(save, result({ runId: "story:archive-0" }), {
+    now: "2026-05-06T12:00:00.000Z",
+  });
+  assert.equal(replay.settled, false);
+  assert.equal(replay.reason, "already-settled");
+});
+
+test("clock rollback cannot replay a pruned daily practice reward", () => {
+  let save = saveWithStoryComplete();
+  for (let index = 0; index < 35; index += 1) {
+    const day = new Date(Date.UTC(2026, 5, 1 + index, 12));
+    save = settleLightsRun(save, result({
+      mode: "practice", count: 3, runId: `practice:day-${index}`,
+    }), { now: day }).save;
+  }
+  const replay = settleLightsRun(save, result({
+    mode: "practice", count: 3, runId: "practice:old-date-new-run",
+  }), { now: "2026-06-01T12:00:00.000Z" });
+  assert.equal(replay.moneyAwarded, 0);
+  assert.equal(replay.reason, "clock-rollback");
 });

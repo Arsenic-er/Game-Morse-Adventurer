@@ -27,6 +27,31 @@ const TRANSMIT_PHASES = new Set([
   LIGHTS_PHASES.CHASE_PLAYER_CALL, LIGHTS_PHASES.CHASE_PLAYER_REPORT,
   LIGHTS_PHASES.CONTROL_CQ, LIGHTS_PHASES.CONTROL_SELECTION, LIGHTS_PHASES.CONTROL_PLAYER_REPORT,
 ]);
+const CONTROL_PHASES = new Set([
+  LIGHTS_PHASES.CONTROL_CQ, LIGHTS_PHASES.CONTROL_PILEUP, LIGHTS_PHASES.CONTROL_SELECTION,
+  LIGHTS_PHASES.CONTROL_CALLER_REPORT, LIGHTS_PHASES.CONTROL_PLAYER_REPORT, LIGHTS_PHASES.CONTROL_FINAL,
+]);
+
+export function lightsTimerShouldRun({ phase, inputBlocked = false, windowActive = true } = {}) {
+  return CONTROL_PHASES.has(phase) && inputBlocked !== true && windowActive !== false;
+}
+
+export function lightsExitNeedsConfirmation(run, { settled = false } = {}) {
+  if (!run || settled) return false;
+  if (run.phase === LIGHTS_PHASES.RUN_COMPLETE) return true;
+  const initialPhase = run.mode === "story" ? LIGHTS_PHASES.CHASE_CQ : LIGHTS_PHASES.CONTROL_CQ;
+  return Number(run.elapsedMs) > 0 || run.chaseCompleted === true || (run.contacts?.length ?? 0) > 0
+    || run.phase !== initialPhase;
+}
+
+export function lightsRunSeed({ saveId, mode, stationDate, startedAt } = {}) {
+  const id = String(saveId ?? "save");
+  if (mode === "story") return `${id}:story`;
+  if (mode === "annual") return `${id}:annual:${Number(stationDate?.year) || 1970}`;
+  const instant = new Date(startedAt);
+  const suffix = Number.isFinite(instant.getTime()) ? instant.toISOString() : new Date(0).toISOString();
+  return `${id}:practice:${String(stationDate?.dateKey ?? "1970-01-01")}:${suffix}`;
+}
 
 function timerText(elapsedMs) {
   const seconds = Math.ceil(Math.max(0, LIGHTS_RUN_DURATION_MS - Number(elapsedMs || 0)) / 1000);
@@ -57,7 +82,8 @@ export function lightsUiModel(run, language = "en") {
     modeLabel: t[run?.mode] ?? t.story,
     instruction: t[INSTRUCTION_KEYS[run?.phase]] ?? t.phaseComplete,
     incomingText: currentLightsPrompt(run),
-    callerHint: pileup?.callers?.length ? `${pileup.callers.length} ${t.caller}` : "",
+    callerHint: run?.guidance === "hints" && pileup?.callers?.length
+      ? `${pileup.callers.length} ${t.caller}` : "",
     needsPlayback: PLAYBACK_PHASES.has(run?.phase),
     needsLayeredPlayback: run?.phase === LIGHTS_PHASES.CONTROL_PILEUP,
     canTransmit: TRANSMIT_PHASES.has(run?.phase),

@@ -10,6 +10,7 @@ const MAX_ANNUAL_RECORDS = 20;
 const MAX_ANNUAL_RECORD_INPUTS = MAX_ANNUAL_RECORDS * 4;
 const MAX_ANNUAL_SCORE = 999;
 const GRADE_RANK = Object.freeze({ none: 0, base: 1, silver: 2, gold: 3 });
+const STAMP_RANK = Object.freeze({ none: 0, standard: 1, special: 2 });
 
 function validDate(value) {
   if (value == null || value === "") return null;
@@ -30,6 +31,10 @@ function normalizeGrade(value) {
   return Object.hasOwn(GRADE_RANK, value) ? value : "none";
 }
 
+function normalizeStamp(value) {
+  return Object.hasOwn(STAMP_RANK, value) ? value : "none";
+}
+
 function normalizeAnnualRecord(value) {
   const year = Number(value?.year);
   if (!Number.isInteger(year) || year < 1970 || year > 9999) return null;
@@ -38,6 +43,7 @@ function normalizeAnnualRecord(value) {
     rewardClaimed: value?.rewardClaimed === true,
     bestScore: normalizeScore(value?.bestScore),
     bestGrade: normalizeGrade(value?.bestGrade),
+    stamp: normalizeStamp(value?.stamp),
   };
 }
 
@@ -66,6 +72,8 @@ export function normalizeWorldCalendarState(value, { anchorYear = null } = {}) {
       bestScore: Math.max(previous.bestScore, record.bestScore),
       bestGrade: GRADE_RANK[record.bestGrade] > GRADE_RANK[previous.bestGrade]
         ? record.bestGrade : previous.bestGrade,
+      stamp: STAMP_RANK[record.stamp] > STAMP_RANK[previous.stamp]
+        ? record.stamp : previous.stamp,
     } : record);
   }
   const trustedYear = validDate(lastTrustedAt)?.getUTCFullYear() ?? null;
@@ -200,14 +208,18 @@ export function recordLightsAnnualResult(value, {
 
   const year = availability.stationDate.year;
   const previous = availability.state.annualRecords.find((record) => record.year === year) ?? {
-    year, rewardClaimed: false, bestScore: 0, bestGrade: "none",
+    year, rewardClaimed: false, bestScore: 0, bestGrade: "none", stamp: "none",
   };
   const nextGrade = normalizeGrade(grade);
+  const targetStamp = availability.specialDay ? "special" : "standard";
+  const nextStamp = availability.annualRewardsPaused || STAMP_RANK[previous.stamp] >= STAMP_RANK[targetStamp]
+    ? previous.stamp : targetStamp;
   const record = {
     year,
     rewardClaimed: previous.rewardClaimed || !availability.annualRewardsPaused,
     bestScore: Math.max(previous.bestScore, normalizeScore(score)),
     bestGrade: GRADE_RANK[nextGrade] > GRADE_RANK[previous.bestGrade] ? nextGrade : previous.bestGrade,
+    stamp: nextStamp,
   };
   const annualRecords = retainAnnualRecords(
     availability.state.annualRecords.filter((candidate) => candidate.year !== year).concat(record),
@@ -216,6 +228,7 @@ export function recordLightsAnnualResult(value, {
   return {
     accepted: true,
     rewardGranted: !previous.rewardClaimed && !availability.annualRewardsPaused,
+    stampGranted: STAMP_RANK[nextStamp] > STAMP_RANK[previous.stamp],
     reason: availability.annualRewardsPaused ? "clock-rollback" : null,
     record,
     state: { ...availability.state, annualRecords },

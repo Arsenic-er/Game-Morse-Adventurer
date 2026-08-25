@@ -1353,7 +1353,7 @@ export function App() {
     let achievementSettlement = null;
     commitSaves((current) => current.map((save) => {
       if (save.id !== activeSaveId) return save;
-      transaction = settleLightsRun(save, result, { now: result?.completedAt });
+      transaction = settleLightsRun(save, result, { now: new Date() });
       if (!transaction.settled) return save;
       achievementSettlement = settleAchievementRewards(transaction.save);
       transaction = { ...transaction, save: achievementSettlement.save };

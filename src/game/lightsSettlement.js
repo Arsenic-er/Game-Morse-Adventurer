@@ -1,7 +1,7 @@
 import { getLocation } from "./locations.js";
 import { LIGHTS_EVENT, LIGHTS_EVENT_REGIONS } from "./lightsEventCatalog.js";
 import { scoreLightsResult } from "./lightsScoring.js";
-import { recordLightsAnnualResult, stationCalendarDate } from "./worldCalendar.js";
+import { advanceWorldCalendarState, recordLightsAnnualResult } from "./worldCalendar.js";
 import {
   appendQsoLog, normalizeQsoLogEntry, normalizeQsoLogs, normalizeQsoRecords,
 } from "../qso/qsoLog.js";
@@ -11,7 +11,9 @@ import {
 
 export const LIGHTS_EVENT_STATE_VERSION = 1;
 const MAX_SETTLED_RUN_IDS = 200;
+const MAX_SETTLED_RUN_INPUTS = MAX_SETTLED_RUN_IDS * 4;
 const MAX_PRACTICE_RECORDS = 31;
+const MAX_PRACTICE_RECORD_INPUTS = MAX_PRACTICE_RECORDS * 4;
 const GRADE_RANK = Object.freeze({ none: 0, base: 1, silver: 2, gold: 3 });
 const GRADE_BONUS = Object.freeze({ none: 0, base: 0, silver: 100, gold: 200 });
 const PRACTICE_REWARD = Object.freeze({ none: 0, base: 40, silver: 60, gold: 80 });
@@ -68,11 +70,15 @@ export function emptyLightsEventState() {
 
 export function normalizeLightsEventState(value) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  const settledRunIds = [...new Set((Array.isArray(source.settledRunIds) ? source.settledRunIds : [])
+  const settledRunSource = Array.isArray(source.settledRunIds)
+    ? source.settledRunIds.slice(-MAX_SETTLED_RUN_INPUTS) : [];
+  const settledRunIds = [...new Set(settledRunSource
     .map((id) => String(id ?? "").trim().slice(0, 128)).filter(Boolean))]
     .slice(-MAX_SETTLED_RUN_IDS);
   const records = new Map();
-  for (const candidate of Array.isArray(source.practiceRecords) ? source.practiceRecords : []) {
+  const practiceRecordSource = Array.isArray(source.practiceRecords)
+    ? source.practiceRecords.slice(-MAX_PRACTICE_RECORD_INPUTS) : [];
+  for (const candidate of practiceRecordSource) {
     const record = normalizePracticeRecord(candidate);
     if (!record) continue;
     const previous = records.get(record.dateKey);
@@ -90,6 +96,11 @@ export function normalizeLightsEventState(value) {
     lifetimeGradePaid: Math.min(GRADE_BONUS.gold, integer(source.lifetimeGradePaid)),
     practiceRecords: [...records.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-MAX_PRACTICE_RECORDS),
   };
+}
+
+function runSettlementLedgerId(runId) {
+  const value = `lights-run:${String(runId ?? "")}`;
+  return value.length <= 96 ? value : `${value.slice(0, 55)}:${value.slice(-40)}`;
 }
 
 function normalizeContact(value, index, result) {
@@ -199,15 +210,24 @@ function recordEventContacts(save, result) {
     };
     operatorRelationships = recordCompletedOperatorRelationship(operatorRelationships, log);
   }
+  const settlementId = runSettlementLedgerId(result.runId);
+  if (!qsoRecords.settledQsoIds.includes(settlementId)) {
+    qsoRecords = {
+      ...qsoRecords,
+      settledQsoIds: [...qsoRecords.settledQsoIds, settlementId].sort(),
+    };
+  }
   return { qsoLogs, qsoRecords, operatorRelationships };
 }
 
-export function settleLightsRun(save, candidate, { now = candidate?.completedAt ?? new Date() } = {}) {
+export function settleLightsRun(save, candidate, { now = new Date() } = {}) {
   if (!save || typeof save !== "object" || Array.isArray(save)) throw new TypeError("A save record is required.");
   const result = normalizeResult(candidate);
   if (!result) return { save, result: null, settled: false, reason: "invalid-result", moneyAwarded: 0, technologyPointsAwarded: 0 };
   const state = normalizeLightsEventState(save.lightsEventState);
-  if (state.settledRunIds.includes(result.runId)) {
+  const qsoRecords = normalizeQsoRecords(save.qsoRecords, save.qsoLogs);
+  if (state.settledRunIds.includes(result.runId)
+    || qsoRecords.settledQsoIds.includes(runSettlementLedgerId(result.runId))) {
     return { save, result, settled: false, reason: "already-settled", moneyAwarded: 0, technologyPointsAwarded: 0 };
   }
 
@@ -221,7 +241,9 @@ export function settleLightsRun(save, candidate, { now = candidate?.completedAt 
   let reason = null;
   let modeMoney = 0;
   let practiceRecords = state.practiceRecords;
-  let annualRewardsPaused = false;
+  let rewardsPaused = false;
+  let annualStamp = null;
+  let annualStampGranted = false;
 
   if (result.mode === "annual") {
     const annual = recordLightsAnnualResult(worldCalendarState, {
@@ -232,26 +254,32 @@ export function settleLightsRun(save, candidate, { now = candidate?.completedAt 
     }
     worldCalendarState = annual.state;
     reason = annual.reason;
-    annualRewardsPaused = annual.reason === "clock-rollback";
+    rewardsPaused = annual.reason === "clock-rollback";
     modeMoney = annual.rewardGranted ? 300 : 0;
+    annualStamp = annual.record.stamp;
+    annualStampGranted = annual.stampGranted;
   } else if (result.mode === "practice") {
-    const dateKey = stationCalendarDate(now, timeZone).dateKey;
+    const calendar = advanceWorldCalendarState(worldCalendarState, { now, timeZone });
+    worldCalendarState = calendar.state;
+    rewardsPaused = calendar.annualRewardsPaused;
+    reason = rewardsPaused ? "clock-rollback" : null;
+    const dateKey = calendar.stationDate.dateKey;
     const previous = practiceRecords.find((record) => record.dateKey === dateKey)
       ?? { dateKey, bestScore: 0, bestGrade: "none", moneyPaid: 0 };
     const targetReward = PRACTICE_REWARD[result.grade];
-    modeMoney = Math.max(0, targetReward - previous.moneyPaid);
+    modeMoney = rewardsPaused ? 0 : Math.max(0, targetReward - previous.moneyPaid);
     const record = {
       dateKey,
       bestScore: Math.max(previous.bestScore, result.score),
       bestGrade: betterGrade(previous.bestGrade, result.grade),
-      moneyPaid: Math.max(previous.moneyPaid, targetReward),
+      moneyPaid: rewardsPaused ? previous.moneyPaid : Math.max(previous.moneyPaid, targetReward),
     };
     practiceRecords = practiceRecords.filter((candidateRecord) => candidateRecord.dateKey !== dateKey)
       .concat(record).sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-MAX_PRACTICE_RECORDS);
   }
 
   const targetGradePaid = GRADE_BONUS[result.grade];
-  const gradeMoney = annualRewardsPaused ? 0 : Math.max(0, targetGradePaid - state.lifetimeGradePaid);
+  const gradeMoney = rewardsPaused ? 0 : Math.max(0, targetGradePaid - state.lifetimeGradePaid);
   const moneyAwarded = modeMoney + gradeMoney;
   const nextState = normalizeLightsEventState({
     ...state,
@@ -273,5 +301,8 @@ export function settleLightsRun(save, candidate, { now = candidate?.completedAt 
     operatorRelationships: contacts.operatorRelationships,
     updatedAt: iso(now) ?? result.completedAt,
   };
-  return { save: nextSave, result, settled: true, reason, moneyAwarded, technologyPointsAwarded: 0 };
+  return {
+    save: nextSave, result, settled: true, reason, moneyAwarded, technologyPointsAwarded: 0,
+    annualStamp, annualStampGranted,
+  };
 }

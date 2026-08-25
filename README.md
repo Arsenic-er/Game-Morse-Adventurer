@@ -8,7 +8,7 @@
 
 [**Semantic model and training data**](https://github.com/Arsenic-er/cwformer)
 
-**v0.36.0**: Adds the playable Chapter 5 event “Lights Across the Air.” Chase SORA at the fictional `SIM5LT` event station, then take control through deterministic two-to-four-station CW pile-ups. Story, station-local annual replay (May 1–7), and year-round practice share tolerant callsign/RST/region exchanges, `AGN`/`QRS` and partial-call recovery, eight-minute scoring, Base/Silver/Gold grades, idempotent rewards, career logs, and NPC relationships. The event UI is localized in all seven interface languages; the later lights-map result presentation remains planned.
+**v0.36.0**: Adds the playable Chapter 5 event “Lights Across the Air.” Chase SORA at the fictional `SIM5LT` event station, then take control through deterministic two-to-four-station CW pile-ups. Story, station-local annual replay (May 1–7), and year-round practice share tolerant callsign/RST/region exchanges, `AGN`/`QRS` and partial-call recovery, eight-minute scoring, Base/Silver/Gold grades, idempotent rewards, career logs, and NPC relationships. Annual completions preserve a dated memorial stamp, upgraded to a gold-border stamp on May 5 without paying twice. The event UI is localized in all seven interface languages; the later lights-map result presentation remains planned.
 
 
 [![Windows portable](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml/badge.svg)](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml)

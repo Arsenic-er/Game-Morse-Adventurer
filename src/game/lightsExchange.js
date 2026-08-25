@@ -41,15 +41,17 @@ export function parseLightsReport(message, {
   const expected = String(expectedRegion ?? "").trim().toUpperCase();
   if (!self || !peer || !compact.includes(self) || !compact.includes(peer)) return rejected("wrongCallsign");
   const address = `${peer}DE${self}`;
-  if (!compact.includes(address)) return rejected("wrongCallsignOrder");
+  const addressIndex = compact.indexOf(address);
+  if (addressIndex < 0) return rejected("wrongCallsignOrder");
   if (!HANDOFF_PATTERN.test(compact)) return rejected("missingHandoff");
 
-  const rstResult = rstMatchFor(compact);
+  const addressEnd = addressIndex + address.length;
+  const payload = compact.slice(addressEnd);
+  const rstResult = rstMatchFor(payload);
   if (!rstResult || !rstResult.legal) return rejected("invalidRst");
-  const afterRst = compact.slice(rstResult.match.index + rstResult.match[0].length);
+  const afterRst = payload.slice(rstResult.match.index + rstResult.match[0].length);
   const afterPayload = stripTrailingProcedure(afterRst);
-  const addressEnd = compact.indexOf(address) + address.length;
-  const beforeRst = compact.slice(addressEnd, rstResult.match.index)
+  const beforeRst = payload.slice(0, rstResult.match.index)
     .replace(/^(?:R|PSE|RST)+/, "");
   const region = (afterPayload.slice(0, 2) || beforeRst.slice(-2)).toUpperCase();
   if (!region) return rejected("missingRegion");
