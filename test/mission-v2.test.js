@@ -12,6 +12,7 @@ import {
   recordMissionQsoEvent,
 } from "../src/game/missionSystem.js";
 import { recordCompletedQso } from "../src/qso/qsoLog.js";
+import { emptyLightsEventState } from "../src/game/lightsSettlement.js";
 
 const ACCEPTED_AT = "2026-08-12T09:00:00.000Z";
 
@@ -123,4 +124,67 @@ test("daily mission DNA avoids the twelve most recent fingerprints when alternat
   const next = dailyMissionDefinitions(baseSave({ missionState: normalizeMissionState({ history }) }), "2026-08-13T12:00:00.000Z");
   assert.ok(next.every(({ dna }) => !history.some(({ dnaFingerprint }) => dnaFingerprint === dna.fingerprint)));
   assert.deepEqual(recentMissionDna(baseSave({ missionState: normalizeMissionState({ history }) })), history.map(({ dnaFingerprint }) => dnaFingerprint));
+});
+
+test("chapter five unlocks after chapter four and only accepts a new base lights result", () => {
+  const completedAt = "2026-08-12T11:00:00.000Z";
+  const oldResult = {
+    runId: "story:old", score: 400, grade: "base", completedAt: "2026-08-12T08:00:00.000Z",
+  };
+  const unlocked = baseSave({
+    knownOperatorNames: ["NOVA"],
+    missionState: normalizeMissionState({
+      claimedMissionIds: ["story-01", "story-02", "story-03", "story-04"],
+    }),
+    lightsEventState: {
+      ...emptyLightsEventState(), settledRunIds: [oldResult.runId], storyBest: oldResult,
+    },
+  });
+  const board = missionBoard(unlocked).story;
+  assert.equal(board.length, 5);
+  assert.equal(board[4].status, "available");
+  assert.equal(board[4].objective, "lights-event");
+  assert.deepEqual(board[4].contract, {
+    missionPhase: "lights-control",
+    targetCallsign: null,
+    requiredTopics: ["CALLSIGN", "RST", "REGION"],
+    recoveryActions: ["AGN", "QRS"],
+    maximumPropagationLevel: null,
+    recoveryRequired: false,
+    requiredDistinctOperators: 0,
+    eventId: "lights-across-air",
+    eventMode: "story",
+    minimumGrade: "base",
+  });
+
+  const accepted = acceptMission(unlocked, "story-05", "2026-08-12T09:00:00.000Z");
+  assert.equal(accepted.accepted, true);
+  assert.deepEqual(accepted.save.missionState.activeMissions[0].baselineLightsRunIds, ["story:old"]);
+  assert.equal(missionBoard(accepted.save).story[4].status, "active");
+
+  const readySave = {
+    ...accepted.save,
+    lightsEventState: {
+      ...accepted.save.lightsEventState,
+      settledRunIds: ["story:old", "story:new"],
+      storyBest: { runId: "story:new", score: 835, grade: "gold", completedAt },
+    },
+  };
+  assert.equal(missionBoard(readySave).story[4].status, "ready");
+  const claimed = claimMission(readySave, "story-05", "2026-08-12T11:05:00.000Z");
+  assert.equal(claimed.claimed, true);
+  assert.equal(claimed.moneyAwarded, 500);
+  assert.equal(claimed.technologyPointsAwarded, 2);
+  assert.equal(claimed.save.money, 500);
+  assert.equal(claimed.save.technologyPoints, 2);
+  assert.deepEqual(claimed.save.knownOperatorNames, ["NOVA", "SORA"]);
+  assert.equal(claimMission(claimed.save, "story-05").reason, "MISSION_ALREADY_CLAIMED");
+});
+
+test("chapter five remains locked before chapter four is claimed", () => {
+  const board = missionBoard(baseSave({
+    missionState: normalizeMissionState({ claimedMissionIds: ["story-01", "story-02", "story-03"] }),
+  })).story;
+  assert.equal(board.at(-1).id, "story-05");
+  assert.equal(board.at(-1).status, "locked");
 });

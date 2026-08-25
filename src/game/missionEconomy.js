@@ -19,7 +19,7 @@ export const DEFAULT_MISSION_ECONOMY_SCENARIO = Object.freeze({
   cycles: 12,
   contactsPerCycle: 2,
   dailyMissionInterval: 2,
-  storyClaimCycles: Object.freeze([1, 3, 6, 10]),
+  storyClaimCycles: Object.freeze([1, 3, 6, 10, 12]),
   startDate: "2026-08-01T12:00:00.000Z",
   stationId: "economy-calibration-station",
 });

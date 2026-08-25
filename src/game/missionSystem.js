@@ -1,6 +1,6 @@
 export const MISSION_STATE_VERSION = 2;
 export const MAX_ACTIVE_DAILY_MISSIONS = 2;
-export const STORY_MISSION_IDS = Object.freeze(["story-01", "story-02", "story-03", "story-04"]);
+export const STORY_MISSION_IDS = Object.freeze(["story-01", "story-02", "story-03", "story-04", "story-05"]);
 export const RECENT_MISSION_DNA_LIMIT = 12;
 export const MISSION_EVENT_LIMIT = 120;
 
@@ -37,6 +37,17 @@ const STORY_MISSIONS = Object.freeze([
     contract: Object.freeze({
       missionPhase: "weak-weather-exchange", targetCallsign: "SIM2DX", requiredTopics: ["WEATHER"],
       maximumPropagationLevel: 2, recoveryRequired: true, recoveryActions: ["AGN", "QRS"],
+    }),
+  }),
+  Object.freeze({
+    id: "story-05", type: "story", chapter: 5, titleKey: "story05Title", descriptionKey: "story05Description",
+    objectiveKey: "story05Objective", briefKey: "story05Brief", debriefKey: "story05Debrief",
+    objective: "lights-event", target: 1, prerequisiteId: "story-04",
+    moneyReward: 500, technologyPointsReward: 2,
+    contract: Object.freeze({
+      missionPhase: "lights-control", requiredTopics: ["CALLSIGN", "RST", "REGION"],
+      recoveryActions: ["AGN", "QRS"], eventId: "lights-across-air", eventMode: "story",
+      minimumGrade: "base",
     }),
   }),
 ]);
@@ -107,6 +118,9 @@ function normalizeMissionContract(value) {
       ? null : Math.min(4, safeInteger(value.maximumPropagationLevel, 4)),
     recoveryRequired: value.recoveryRequired === true,
     requiredDistinctOperators: safeInteger(value.requiredDistinctOperators, 100),
+    eventId: String(value.eventId ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 48) || null,
+    eventMode: ["story", "annual", "practice"].includes(value.eventMode) ? value.eventMode : null,
+    minimumGrade: ["base", "silver", "gold"].includes(value.minimumGrade) ? value.minimumGrade : null,
   };
 }
 
@@ -174,6 +188,7 @@ function normalizeActiveMission(value) {
     id,
     acceptedAt,
     baselineQsoIds: normalizeStringList(value?.baselineQsoIds, 200, 96),
+    baselineLightsRunIds: normalizeStringList(value?.baselineLightsRunIds, 200, 128),
     knownCallsigns: normalizeStringList(value?.knownCallsigns, 2000, 16),
     contract: normalizeMissionContract(value?.contract),
     dnaFingerprint: String(value?.dnaFingerprint ?? "").trim().slice(0, 240) || null,
@@ -318,6 +333,16 @@ function evaluateObjective(definition, logs, save, active = null) {
       && entry?.optionalExchangeOutcome === "answered"
       && usedRecovery(entry)) ? 1 : 0;
   }
+  if (definition.objective === "lights-event") {
+    const best = save?.lightsEventState?.storyBest;
+    const gradeRank = { none: 0, base: 1, silver: 2, gold: 3 };
+    const acceptedAt = Date.parse(active?.acceptedAt ?? "");
+    const completedAt = Date.parse(best?.completedAt ?? "");
+    const baseline = new Set(active?.baselineLightsRunIds ?? []);
+    current = best?.runId && !baseline.has(String(best.runId))
+      && Number.isFinite(acceptedAt) && Number.isFinite(completedAt) && completedAt >= acceptedAt
+      && (gradeRank[best.grade] ?? 0) >= gradeRank.base ? 1 : 0;
+  }
   if (definition.objective === "clean-qso") {
     current = logs.filter((entry) => safeInteger(entry?.repeatRequests) === 0
       && Number(entry?.transmitAccuracy) >= 85 && Number(entry?.keyingScore) >= 75).length;
@@ -400,6 +425,8 @@ export function acceptMission(save, missionId, acceptedAt = new Date().toISOStri
     id: definition.id,
     acceptedAt,
     baselineQsoIds: (Array.isArray(save?.qsoLogs) ? save.qsoLogs : []).map(({ id }) => id).filter(Boolean),
+    baselineLightsRunIds: (Array.isArray(save?.lightsEventState?.settledRunIds)
+      ? save.lightsEventState.settledRunIds : []).map((id) => String(id)).filter(Boolean),
     knownCallsigns: (Array.isArray(save?.operatorRelationships) ? save.operatorRelationships : [])
       .map(({ callsign }) => callsign).filter(Boolean),
     contract: normalizeMissionContract(definition.contract),
@@ -434,7 +461,8 @@ export function claimMission(save, missionId, claimedAt = new Date().toISOString
       dnaFingerprint: evaluated.dna?.fingerprint ?? null, outcome: "completed",
     }],
   });
-  const revealedName = definition.id === "story-02" ? "MORSE" : definition.id === "story-04" ? "NOVA" : null;
+  const revealedName = definition.id === "story-02" ? "MORSE"
+    : definition.id === "story-04" ? "NOVA" : definition.id === "story-05" ? "SORA" : null;
   const knownOperatorNames = revealedName
     ? [...new Set([...(Array.isArray(save?.knownOperatorNames) ? save.knownOperatorNames : []), revealedName])]
     : save?.knownOperatorNames;
