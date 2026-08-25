@@ -1,0 +1,113 @@
+{
+  "inventoryVersion": 3,
+  "id": "fixture-v035",
+  "callsign": "JA1OLD",
+  "locationId": "japan-tokyo-kanto",
+  "equipmentId": "usdr-8",
+  "antennaId": "vertical",
+  "accessoryId": "cw-filter-500",
+  "keyType": "automatic",
+  "automaticKeyWpm": 22,
+  "ownedEquipment": ["squid-01", "usdr-8"],
+  "ownedAntennas": ["dipole", "vertical"],
+  "accessories": ["cw-filter-500"],
+  "money": 1234,
+  "achievementRewardsVersion": 1,
+  "claimedAchievementRewards": ["first-qso"],
+  "knownOperatorNames": ["SORA"],
+  "technologyTreeVersion": 1,
+  "technologyPoints": 7,
+  "unlockedTechnologies": [],
+  "completedResearchProjects": [],
+  "missionStateVersion": 2,
+  "missionState": {
+    "version": 2,
+    "activeMissions": [],
+    "claimedMissionIds": ["story-01", "story-02"],
+    "history": [
+      {
+        "id": "story-01",
+        "claimedAt": "2026-07-01T00:00:00.000Z",
+        "moneyReward": 150,
+        "technologyPointsReward": 0,
+        "outcome": "completed"
+      },
+      {
+        "id": "story-02",
+        "claimedAt": "2026-07-02T00:00:00.000Z",
+        "moneyReward": 220,
+        "technologyPointsReward": 1,
+        "outcome": "completed"
+      }
+    ],
+    "events": []
+  },
+  "qsoLogs": [
+    {
+      "version": 6,
+      "id": "sora-old-qso",
+      "startedAt": "2026-07-02T10:00:00.000Z",
+      "completedAt": "2026-07-02T10:03:00.000Z",
+      "playerCallsign": "JA1OLD",
+      "callsign": "SIM6JP",
+      "sent": "559",
+      "received": "579",
+      "location": "AS-JA",
+      "operatorProfileId": "youth-club",
+      "credits": 100
+    },
+    {
+      "version": 6,
+      "id": "legacy-old-qso",
+      "startedAt": "2026-07-03T10:00:00.000Z",
+      "completedAt": "2026-07-03T10:03:00.000Z",
+      "playerCallsign": "JA1OLD",
+      "callsign": "OLD9ZZ",
+      "sent": "559",
+      "received": "579",
+      "location": "NA-W",
+      "operatorProfileId": "legacy-standard",
+      "credits": 100
+    }
+  ],
+  "qsoRecords": {
+    "total": 2,
+    "longestDistanceKm": 0,
+    "longestQsoId": "sora-old-qso",
+    "contactedRegions": ["AS-JA", "NA-W"],
+    "weakSignalQsos": 0,
+    "settledQsoIds": ["sora-old-qso", "legacy-old-qso"]
+  },
+  "operatorRelationshipsVersion": 1,
+  "operatorRelationships": [
+    {
+      "callsign": "SIM6JP",
+      "operatorProfileId": "youth-club",
+      "encounterCount": 1,
+      "completedQsos": 1,
+      "weakSignalRecoveries": 0,
+      "topicCounts": { "name": 1 },
+      "firstMetAt": "2026-07-02T10:03:00.000Z",
+      "lastMetAt": "2026-07-02T10:03:00.000Z",
+      "lastEncounterId": "SIM6JP:2026-07-02T10:00:00.000Z",
+      "lastQsoId": "sora-old-qso"
+    },
+    {
+      "callsign": "OLD9ZZ",
+      "operatorProfileId": "legacy-standard",
+      "encounterCount": 1,
+      "completedQsos": 1,
+      "weakSignalRecoveries": 0,
+      "topicCounts": {},
+      "firstMetAt": "2026-07-03T10:03:00.000Z",
+      "lastMetAt": "2026-07-03T10:03:00.000Z",
+      "lastEncounterId": "OLD9ZZ:2026-07-03T10:00:00.000Z",
+      "lastQsoId": "legacy-old-qso"
+    }
+  ],
+  "qsoGuidance": "hints",
+  "qsoBriefSeen": true,
+  "firstWatchCompleted": true,
+  "createdAt": "2026-07-01T00:00:00.000Z",
+  "updatedAt": "2026-07-03T10:03:00.000Z"
+}

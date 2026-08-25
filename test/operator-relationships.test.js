@@ -24,9 +24,10 @@ function log(overrides = {}) {
 }
 
 test("relationship schema records encounters, completed QSOs, recoveries and topics", () => {
-  assert.equal(OPERATOR_RELATIONSHIPS_VERSION, 1);
+  assert.equal(OPERATOR_RELATIONSHIPS_VERSION, 2);
   const first = recordCompletedOperatorRelationship([], log());
   assert.deepEqual(first, [{
+    personId: "person:legacy:SIM2DX",
     callsign: "SIM2DX",
     operatorProfileId: "weak-signal-listener",
     encounterCount: 1,
@@ -90,4 +91,92 @@ test("an on-air responder counts as met before completion without double countin
   assert.deepEqual(recordOperatorEncounter(completed, {
     callsign: "SIM2DX", operatorProfileId: "weak-signal-listener",
   }, startedAt, encounterId), completed);
+});
+
+test("v1 fixed-station rows migrate idempotently to one SORA relationship keyed by personId", () => {
+  const legacy = [{
+    callsign: "SIM6JP",
+    operatorProfileId: "youth-club",
+    encounterCount: 2,
+    completedQsos: 2,
+    weakSignalRecoveries: 1,
+    topicCounts: { name: 1 },
+    firstMetAt: "2026-08-01T00:00:00.000Z",
+    lastMetAt: "2026-08-02T00:00:00.000Z",
+    lastEncounterId: "SIM6JP:2026-08-02T00:00:00.000Z",
+    lastQsoId: "club-qso",
+  }, {
+    callsign: "SIM5LT",
+    operatorProfileId: "youth-club",
+    encounterCount: 1,
+    completedQsos: 0,
+    weakSignalRecoveries: 0,
+    topicCounts: { weather: 1 },
+    firstMetAt: "2026-08-03T00:00:00.000Z",
+    lastMetAt: "2026-08-03T00:00:00.000Z",
+    lastEncounterId: "lights-chase:story-run",
+    lastQsoId: null,
+  }];
+
+  const migrated = normalizeOperatorRelationships(legacy);
+  assert.deepEqual(migrated, [{
+    personId: "person:sora",
+    callsign: "SIM5LT",
+    operatorProfileId: "youth-club",
+    encounterCount: 3,
+    completedQsos: 2,
+    weakSignalRecoveries: 1,
+    topicCounts: { weather: 1, name: 1 },
+    firstMetAt: "2026-08-01T00:00:00.000Z",
+    lastMetAt: "2026-08-03T00:00:00.000Z",
+    lastEncounterId: "lights-chase:story-run",
+    lastQsoId: "club-qso",
+  }]);
+  assert.deepEqual(normalizeOperatorRelationships(migrated), migrated);
+});
+
+test("v1 unknown callsigns never merge merely because names match", () => {
+  const common = {
+    operatorName: "SAM",
+    operatorProfileId: "legacy-standard",
+    encounterCount: 1,
+    completedQsos: 1,
+    firstMetAt: "2026-08-01T00:00:00.000Z",
+    lastMetAt: "2026-08-01T00:01:00.000Z",
+  };
+  const migrated = normalizeOperatorRelationships([
+    { ...common, callsign: "OLD1AA" },
+    { ...common, callsign: "OLD2BB" },
+  ]);
+
+  assert.deepEqual(migrated.map(({ personId }) => personId).sort(), [
+    "person:legacy:OLD1AA",
+    "person:legacy:OLD2BB",
+  ]);
+});
+
+test("cross-station migration keeps merged counters within safe integer bounds", () => {
+  const common = {
+    operatorProfileId: "youth-club",
+    encounterCount: 1e30,
+    completedQsos: 1e30,
+    weakSignalRecoveries: 1e30,
+    topicCounts: { weather: 1e30 },
+  };
+  const [relationship] = normalizeOperatorRelationships([{
+    ...common,
+    callsign: "SIM6JP",
+    firstMetAt: "2026-08-01T00:00:00.000Z",
+    lastMetAt: "2026-08-01T00:00:00.000Z",
+  }, {
+    ...common,
+    callsign: "SIM5LT",
+    firstMetAt: "2026-08-02T00:00:00.000Z",
+    lastMetAt: "2026-08-02T00:00:00.000Z",
+  }]);
+
+  assert.equal(relationship.encounterCount, Number.MAX_SAFE_INTEGER);
+  assert.equal(relationship.completedQsos, Number.MAX_SAFE_INTEGER);
+  assert.equal(relationship.weakSignalRecoveries, Number.MAX_SAFE_INTEGER);
+  assert.equal(relationship.topicCounts.weather, Number.MAX_SAFE_INTEGER);
 });

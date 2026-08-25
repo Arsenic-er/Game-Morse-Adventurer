@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
-  createSave, isValidCallsign, loadSaves, normalizeQsoGuidance, persistSaves, sanitizeCallsign,
+  createSave, isValidCallsign, loadSaves, normalizeQsoGuidance, normalizeSave, persistSaves, sanitizeCallsign,
 } from "../src/game/saveStore.js";
 import {
   DEFAULT_AUTOMATIC_KEY_WPM, normalizeAutomaticKeyWpm,
@@ -12,6 +13,12 @@ import { recordPracticeAttempt } from "../src/practice/practiceRecords.js";
 import { PRACTICE_CALLSIGN_REGIONS } from "../src/practice/practiceCallsignCatalog.js";
 import { WORLD_CALENDAR_VERSION, emptyWorldCalendarState } from "../src/game/worldCalendar.js";
 import { LIGHTS_EVENT_STATE_VERSION, emptyLightsEventState } from "../src/game/lightsSettlement.js";
+import { EVENT_RUN_ARCHIVE_VERSION, emptyEventRunArchive } from "../src/game/eventRunArchive.js";
+
+const SAVE_V035_FIXTURE = JSON.parse(readFileSync(
+  new URL("./fixtures/save-v035-sanitized.json", import.meta.url),
+  "utf8",
+));
 
 function storageStub() {
   const data = new Map();
@@ -44,7 +51,7 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   assert.equal(save.accessoryId, "none");
   assert.equal(save.money, 0);
   assert.deepEqual(save.qsoLogs, []);
-  assert.equal(save.operatorRelationshipsVersion, 1);
+  assert.equal(save.operatorRelationshipsVersion, 2);
   assert.deepEqual(save.operatorRelationships, []);
   assert.equal(save.achievementRewardsVersion, 1);
   assert.deepEqual(save.claimedAchievementRewards, []);
@@ -61,6 +68,8 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   assert.deepEqual(save.worldCalendarState, emptyWorldCalendarState());
   assert.equal(save.lightsEventStateVersion, LIGHTS_EVENT_STATE_VERSION);
   assert.deepEqual(save.lightsEventState, emptyLightsEventState());
+  assert.equal(save.eventRunArchiveVersion, EVENT_RUN_ARCHIVE_VERSION);
+  assert.deepEqual(save.eventRunArchive, emptyEventRunArchive());
   assert.deepEqual(save.qsoRecords, {
     total: 0,
     longestDistanceKm: 0,
@@ -128,8 +137,9 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
   assert.equal(save.qsoGuidance, "full");
   assert.equal(save.qsoBriefSeen, false);
   assert.equal(save.firstWatchCompleted, false);
-  assert.equal(save.operatorRelationshipsVersion, 1);
+  assert.equal(save.operatorRelationshipsVersion, 2);
   assert.equal(save.operatorRelationships.length, 1);
+  assert.equal(save.operatorRelationships[0].personId, "person:legacy:SIM7QX");
   assert.equal(save.operatorRelationships[0].callsign, "SIM7QX");
   assert.equal(save.operatorRelationships[0].completedQsos, 1);
   assert.equal(save.operatorRelationships[0].lastQsoId, "legacy-qso");
@@ -142,6 +152,31 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
     weakSignalQsos: 0,
     settledQsoIds: ["legacy-qso"],
   });
+});
+
+test("a sanitized v0.35 save normalizes twice without progress loss or retroactive rewards", () => {
+  const first = normalizeSave(SAVE_V035_FIXTURE);
+  const second = normalizeSave(JSON.parse(JSON.stringify(first)));
+
+  assert.deepEqual(second, first);
+  assert.equal(first.money, 1234);
+  assert.equal(first.technologyPoints, 7);
+  assert.deepEqual(first.ownedEquipment, ["squid-01", "usdr-8"]);
+  assert.deepEqual(first.ownedAntennas, ["dipole", "vertical"]);
+  assert.deepEqual(first.accessories, ["cw-filter-500"]);
+  assert.equal(first.equipmentId, "usdr-8");
+  assert.equal(first.antennaId, "vertical");
+  assert.equal(first.accessoryId, "cw-filter-500");
+  assert.deepEqual(first.qsoLogs.map(({ id }) => id), ["legacy-old-qso", "sora-old-qso"]);
+  assert.deepEqual(first.missionState.claimedMissionIds, ["story-01", "story-02"]);
+  assert.equal(first.missionState.history.length, 2);
+  assert.deepEqual(first.operatorRelationships.map(({ personId }) => personId), [
+    "person:legacy:OLD9ZZ",
+    "person:sora",
+  ]);
+  assert.deepEqual(first.claimedAchievementRewards, ["first-qso"]);
+  assert.equal(first.eventRunArchiveVersion, EVENT_RUN_ARCHIVE_VERSION);
+  assert.deepEqual(first.eventRunArchive, emptyEventRunArchive());
 });
 
 test("legacy relationship migration replays repeated operators chronologically", () => {

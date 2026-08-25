@@ -8,8 +8,9 @@ import { recordMissionQsoEvent } from "../game/missionSystem.js";
 import {
   OPERATOR_RELATIONSHIPS_VERSION, recordCompletedOperatorRelationship,
 } from "./operatorRelationships.js";
+import { personIdForOperator, stationIdentityForCallsign } from "../game/personIdentity.js";
 
-export const QSO_LOG_VERSION = 7;
+export const QSO_LOG_VERSION = 8;
 const OPTIONAL_EXCHANGE_QUESTION_IDS = Object.freeze([
   "power", "location", "weather", "name", "age", "rig", "antenna",
 ]);
@@ -75,6 +76,25 @@ function normalizeEventMode(value) {
 function normalizeEventRegion(value) {
   const normalized = String(value ?? "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
   return normalized || null;
+}
+
+function identifierHash(value) {
+  let left = 2166136261;
+  let right = 5381;
+  for (const character of String(value)) {
+    const code = character.charCodeAt(0);
+    left = Math.imul(left ^ code, 16777619);
+    right = Math.imul(right, 33) ^ code;
+  }
+  return `${(left >>> 0).toString(16).padStart(8, "0")}${(right >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function normalizeEventRunId(value) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return null;
+  if (normalized.length <= 128) return normalized;
+  const suffix = `:${identifierHash(normalized)}`;
+  return `${normalized.slice(0, 128 - suffix.length)}${suffix}`;
 }
 
 function normalizeAttemptMetric(value, maximum = 100) {
@@ -150,6 +170,17 @@ export function normalizeQsoLogEntry(entry) {
     ? entry.optionalExchangeOutcome : "not-offered";
   const optionalExchangeQuestion = optionalExchangeOutcome === "not-offered" ? null : candidateQuestion;
   const eventId = normalizeEventId(entry.eventId);
+  const personId = personIdForOperator({ ...entry, callsign });
+  const station = stationIdentityForCallsign(callsign, entry);
+  if (!personId || !station) return null;
+  const suppliedPropagationRecorded = entry.propagationLevelRecorded;
+  const rawPropagationLevel = entry.finalPropagationLevel ?? entry.finalLevel;
+  const propagationLevelRecorded = suppliedPropagationRecorded === false ? false : (
+    rawPropagationLevel !== null && rawPropagationLevel !== undefined && rawPropagationLevel !== ""
+      && Number.isFinite(Number(rawPropagationLevel))
+      && Number(rawPropagationLevel) >= 0
+      && Number(rawPropagationLevel) <= 4
+  );
   return {
     version: QSO_LOG_VERSION,
     id: normalizeId(entry.id, callsign, completedAt),
@@ -157,6 +188,8 @@ export function normalizeQsoLogEntry(entry) {
     completedAt,
     playerCallsign,
     callsign,
+    personId,
+    stationId: station.stationId,
     frequencyMhz: Math.max(0, finiteNumber(entry.frequencyMhz ?? entry.frequency, 21.06)),
     mode: "CW",
     sent: normalizeRst(entry.sent ?? entry.sentRst),
@@ -167,6 +200,7 @@ export function normalizeQsoLogEntry(entry) {
     distanceKm: Number(distanceKm.toFixed(1)),
     basePropagationLevel,
     finalPropagationLevel,
+    propagationLevelRecorded,
     propagationSource: String(entry.propagationSource ?? "OFFLINE_DEFAULT").trim().slice(0, 48) || "OFFLINE_DEFAULT",
     equipmentId: String(entry.equipmentId ?? "squid-01").trim().slice(0, 48) || "squid-01",
     antennaId: String(entry.antennaId ?? "none").trim().slice(0, 48) || "none",
@@ -198,6 +232,7 @@ export function normalizeQsoLogEntry(entry) {
     credits: rewardBreakdown?.total
       ?? Math.max(0, Math.floor(finiteNumber(entry.credits ?? entry.creditsAwarded))),
     eventId,
+    eventRunId: eventId ? normalizeEventRunId(entry.eventRunId ?? entry.runId) : null,
     eventMode: eventId ? normalizeEventMode(entry.eventMode) : null,
     eventRegionCode: eventId ? normalizeEventRegion(entry.eventRegionCode) : null,
     onAirCallsign: eventId ? normalizeCallsign(entry.onAirCallsign) || null : null,
@@ -239,6 +274,7 @@ export function normalizeQsoRecords(records, entries = []) {
   for (const log of logs) settledQsoIds.add(log.id);
   const retainedWeakSignalQsos = (Array.isArray(entries) ? entries : []).filter((candidate) => {
     if (!normalizeQsoLogEntry(candidate)) return false;
+    if (candidate?.propagationLevelRecorded === false) return false;
     const value = candidate?.finalPropagationLevel ?? candidate?.finalLevel;
     if (value === null || value === undefined || value === "") return false;
     const level = Number(value);

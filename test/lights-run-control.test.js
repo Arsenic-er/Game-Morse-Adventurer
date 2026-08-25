@@ -21,7 +21,7 @@ function completeRound(run, selectionMessage = null) {
   run = callCq(run);
   assert.equal(run.phase, LIGHTS_PHASES.CONTROL_PILEUP);
   const caller = currentLightsPileup(run).callers[0];
-  run = advanceLightsPlayback(run);
+  run = advanceLightsPlayback(run, "2026-05-05T09:01:00.000Z");
   run = submitLightsTransmission(run, selectionMessage ?? `${caller.callsign} DE SIM5LT KN`);
   assert.equal(run.phase, LIGHTS_PHASES.CONTROL_CALLER_REPORT);
   assert.match(currentLightsPrompt(run), new RegExp(`SIM5LT DE ${caller.callsign} RST 599 ${caller.regionCode} K`));
@@ -43,16 +43,21 @@ test("a control round freezes responders and records an event contact after the 
   assert.equal(run.selectedCaller, caller);
   run = advanceLightsPlayback(run);
   run = submitLightsTransmission(run, `${caller.callsign} DE SIM5LT 579 CN TU K`);
-  run = advanceLightsPlayback(run);
+  run = advanceLightsPlayback(run, "2026-05-05T09:01:00.000Z");
   assert.equal(run.phase, LIGHTS_PHASES.CONTROL_CQ);
   assert.equal(run.contacts.length, 1);
   assert.deepEqual(run.contacts[0], {
     id: `${run.runId}:1:${caller.callsign}`,
+    npcId: caller.npcId,
+    personId: caller.personId,
+    stationId: caller.stationId,
     callsign: caller.callsign,
     eventRegionCode: caller.regionCode,
     locationId: caller.locationId,
     operatorName: caller.operatorName,
     operatorProfileId: caller.operatorProfileId,
+    timeZone: caller.timeZone,
+    completedAt: "2026-05-05T09:01:00.000Z",
     remoteRst: "599",
     sentRst: "579",
     onAirCallsign: "SIM5LT",

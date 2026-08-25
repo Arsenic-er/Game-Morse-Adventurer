@@ -1,6 +1,8 @@
 import { encodeTextToEvents, normalizeCwText } from "../cw/morse.js";
 import { generateProceduralNpc, PROCEDURAL_NPC_REGIONS } from "../qso/proceduralNpc.js";
 import { LIGHTS_EVENT, LIGHTS_EVENT_REGIONS } from "./lightsEventCatalog.js";
+import { getLocation } from "./locations.js";
+import { personIdForOperator, stationIdentityForCallsign } from "./personIdentity.js";
 
 const REGION_SOURCE = Object.freeze({ JP: "JP", US: "US", CN: "CN", GE: "DE", CH: "CH", FI: "FI" });
 const GUIDANCE = Object.freeze({
@@ -40,11 +42,16 @@ function callerFor({ seed, worldSeed, round, guidance, code, index, count }) {
   const qsbDepth = Number((.08 + (hash32(`${seed}:${round}:${index}:qsb`) % 43) / 100).toFixed(2));
   const text = `${LIGHTS_EVENT.callsign} DE ${npc.station.callsign} ${npc.station.callsign} K`;
   const encoded = encodeTextToEvents(text, { wpm });
+  const personId = personIdForOperator({ npcId: npc.npcId, callsign: npc.station.callsign });
+  const station = stationIdentityForCallsign(npc.station.callsign, { npcId: npc.npcId });
   return Object.freeze({
     npcId: npc.npcId,
+    personId,
+    stationId: station.stationId,
     callsign: npc.station.callsign,
     regionCode: code,
     locationId: npc.station.locationId,
+    timeZone: getLocation(npc.station.locationId).timeZone,
     operatorName: npc.identity.operatorName,
     operatorProfileId: npc.qso.operatorProfileId,
     wpm,

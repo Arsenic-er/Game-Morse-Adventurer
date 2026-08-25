@@ -9,6 +9,12 @@ test("pile-up generation is deterministic, bounded, and makes five regions reach
   assert.deepEqual(first, repeated);
   assert.ok(first.callers.length >= 3 && first.callers.length <= 4);
   assert.equal(first.callers.every(({ callsign }) => /^[A-Z0-9]{1,7}$/.test(callsign)), true);
+  assert.equal(first.callers.every(({ npcId, personId, stationId, timeZone }) => (
+    personId === `person:procedural:${npcId}`
+      && stationId === `station:procedural:${npcId}`
+      && typeof timeZone === "string"
+      && timeZone.includes("/")
+  )), true);
   assert.equal(first.callers.every(({ callsign, regionCode, wpm, toneHz, signalGain, startOffsetMs, text }) => (
     LIGHTS_EVENT_REGIONS.includes(regionCode)
       && wpm >= 18 && wpm <= 24

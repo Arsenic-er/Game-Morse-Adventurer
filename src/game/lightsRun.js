@@ -3,6 +3,7 @@ import { LIGHTS_EVENT, LIGHTS_EVENT_REGIONS } from "./lightsEventCatalog.js";
 import { parseLightsReport } from "./lightsExchange.js";
 import { createLightsPileup, resolveLightsCallsignSelection } from "./lightsPileup.js";
 import { scoreLightsResult } from "./lightsScoring.js";
+import { PERSON_ID_SORA, STATION_ID_LIGHTS_SIM5LT } from "./personIdentity.js";
 
 export const LIGHTS_RUN_DURATION_MS = 8 * 60 * 1000;
 export const LIGHTS_MAX_CONTACTS = 7;
@@ -69,9 +70,10 @@ export function createLightsRun({
   if (!LIGHTS_EVENT_REGIONS.includes(region)) throw new Error("PLAYER_REGION_REQUIRED");
   const started = iso(startedAt);
   const normalizedSeed = boundedSeed(seed);
+  const runId = `${normalizedMode}:${stableIdToken(normalizedSeed)}:${started}`;
   return {
     version: 1,
-    runId: `${normalizedMode}:${stableIdToken(normalizedSeed)}:${started}`,
+    runId,
     mode: normalizedMode,
     seed: normalizedSeed,
     startedAt: started,
@@ -81,9 +83,12 @@ export function createLightsRun({
     guidance: GUIDANCE_LEVELS.has(guidance) ? guidance : "full",
     phase: normalizedMode === "story" ? LIGHTS_PHASES.CHASE_CQ : LIGHTS_PHASES.CONTROL_CQ,
     chaseCompleted: false,
+    chaseEncounterId: normalizedMode === "story" ? `lights-chase:${runId}` : null,
     chaseWpm: 18,
     chase: Object.freeze({
       callsign: LIGHTS_EVENT.callsign,
+      personId: PERSON_ID_SORA,
+      stationId: STATION_ID_LIGHTS_SIM5LT,
       region: "JP",
       rst: "599",
       operatorName: "SORA",
@@ -144,7 +149,8 @@ export function advanceLightsPlayback(run, completedAt = new Date()) {
     return { ...run, phase: LIGHTS_PHASES.CONTROL_PLAYER_REPORT, lastError: null };
   }
   if (run.phase === LIGHTS_PHASES.CONTROL_FINAL) {
-    const contacts = Object.freeze([...run.contacts, Object.freeze(run.pendingContact)]);
+    const contact = Object.freeze({ ...run.pendingContact, completedAt: iso(completedAt) });
+    const contacts = Object.freeze([...run.contacts, contact]);
     const completed = contacts.length >= LIGHTS_MAX_CONTACTS;
     return {
       ...run,
@@ -274,11 +280,15 @@ export function submitLightsTransmission(run, message, { semanticResult = null }
       phase: LIGHTS_PHASES.CONTROL_FINAL,
       pendingContact: {
         id: `${run.runId}:${run.round}:${run.selectedCaller.callsign}`,
+        npcId: run.selectedCaller.npcId,
+        personId: run.selectedCaller.personId,
+        stationId: run.selectedCaller.stationId,
         callsign: run.selectedCaller.callsign,
         eventRegionCode: run.selectedCaller.regionCode,
         locationId: run.selectedCaller.locationId,
         operatorName: run.selectedCaller.operatorName,
         operatorProfileId: run.selectedCaller.operatorProfileId,
+        timeZone: run.selectedCaller.timeZone,
         remoteRst: "599",
         sentRst: parsed.rst,
         onAirCallsign: LIGHTS_EVENT.callsign,
@@ -318,6 +328,7 @@ export function restartLightsControl(run, { startedAt = new Date(), seed = null 
     ...retry,
     phase: LIGHTS_PHASES.CONTROL_CQ,
     chaseCompleted: run.chaseCompleted || run.mode !== "story",
+    chaseEncounterId: run.chaseEncounterId ?? retry.chaseEncounterId,
   };
 }
 
@@ -345,6 +356,7 @@ export function lightsRunResult(run) {
     playerCallsign: run.playerCallsign,
     playerRegion: run.playerRegion,
     chaseCompleted: run.chaseCompleted,
+    chaseEncounterId: run.chaseEncounterId,
     contacts: run.contacts.map((contact) => ({ ...contact })),
     ...facts,
     ...scored,

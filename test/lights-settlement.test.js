@@ -7,13 +7,24 @@ import {
   normalizeLightsEventState,
   settleLightsRun,
 } from "../src/game/lightsSettlement.js";
+import { EVENT_RUN_ARCHIVE_VERSION } from "../src/game/eventRunArchive.js";
+
+const LOCATION_BY_REGION = Object.freeze({
+  JP: "japan-tokyo-kanto",
+  US: "usa-new-england",
+  CN: "china-chengdu-plain",
+  GE: "europe-rhine-valley",
+  CH: "europe-swiss-lake",
+  FI: "europe-finland-lake",
+});
 
 function contact(index, region = ["JP", "US", "CN", "GE", "CH", "FI", "JP"][index]) {
   return {
     id: `story:lights:${index}`,
+    npcId: `N1-${region}-${String(index + 1).padStart(4, "0")}`,
     callsign: `SIM${index}LT`,
     eventRegionCode: region,
-    locationId: `event-${region.toLowerCase()}`,
+    locationId: LOCATION_BY_REGION[region],
     operatorName: `OPERATOR ${index}`,
     operatorProfileId: "steady-regular",
     remoteRst: "599",
@@ -104,15 +115,37 @@ test("story settlement recomputes the grade, records event QSOs, and pays only l
   assert.equal(settled.save.lightsEventState.storyBest.grade, "gold");
   assert.equal(settled.save.qsoLogs.length, 7);
   assert.equal(settled.save.qsoRecords.total, 7);
-  assert.equal(settled.save.operatorRelationships.length, 7);
+  assert.equal(settled.save.operatorRelationships.length, 8);
+  const sora = settled.save.operatorRelationships.find(({ personId }) => personId === "person:sora");
+  assert.deepEqual({
+    callsign: sora.callsign,
+    encounterCount: sora.encounterCount,
+    completedQsos: sora.completedQsos,
+    lastEncounterId: sora.lastEncounterId,
+  }, {
+    callsign: "SIM5LT",
+    encounterCount: 1,
+    completedQsos: 0,
+    lastEncounterId: "lights-chase:story:run-1",
+  });
+  assert.equal(settled.save.qsoLogs.some(({ personId }) => personId === "person:sora"), false);
   assert.ok(settled.save.qsoLogs.every((log) => (
     log.eventId === "lights-across-air"
       && log.eventMode === "story"
       && log.onAirCallsign === "SIM5LT"
       && log.operatorCallsign === "JA1LGT"
+      && log.eventRunId === "story:run-1"
+      && log.personId.startsWith("person:procedural:N1-")
+      && log.stationId.startsWith("station:procedural:N1-")
       && log.rewardBreakdown === null
       && log.credits === 0
   )));
+  assert.equal(settled.save.eventRunArchiveVersion, EVENT_RUN_ARCHIVE_VERSION);
+  assert.equal(settled.save.eventRunArchive.storyBest.eventRunId, "story:run-1");
+  assert.equal(settled.save.eventRunArchive.storyBest.contacts.length, 7);
+  assert.deepEqual(new Set(settled.save.eventRunArchive.storyBest.contacts.map(({ timeZone }) => timeZone)), new Set([
+    "Asia/Tokyo", "America/New_York", "Asia/Shanghai", "Europe/Berlin", "Europe/Zurich", "Europe/Helsinki",
+  ]));
 });
 
 test("settlement is idempotent by run id", () => {
@@ -140,6 +173,10 @@ test("long retry identifiers remain distinct and preserve every contact", () => 
   assert.equal(second.settled, true);
   assert.equal(new Set(second.save.qsoLogs.map(({ id }) => id)).size, 14);
   assert.equal(second.save.qsoLogs.length, 14);
+  assert.deepEqual(new Set(second.save.qsoLogs.map(({ eventRunId }) => eventRunId)), new Set([
+    first.result.runId,
+    second.result.runId,
+  ]));
 });
 
 test("annual settlement grants 300 once per station year and improves the best record", () => {

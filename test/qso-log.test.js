@@ -56,13 +56,15 @@ function entry(overrides = {}) {
   };
 }
 
-test("normalizes the complete QSO log v7 schema", () => {
+test("normalizes the complete QSO log v8 schema", () => {
   const normalized = normalizeQsoLogEntry(entry());
   assert.equal(normalized.version, QSO_LOG_VERSION);
   assert.equal(normalized.startedAt, "2026-07-15T00:00:00.000Z");
   assert.equal(normalized.completedAt, "2026-07-15T00:05:00.000Z");
   assert.equal(normalized.playerCallsign, "BH1ABC");
   assert.equal(normalized.callsign, "SIM7QX");
+  assert.equal(normalized.personId, "person:legacy:SIM7QX");
+  assert.equal(normalized.stationId, "station:legacy:SIM7QX");
   assert.equal(normalized.npcLatitude, 37.77);
   assert.equal(normalized.npcLongitude, -122.42);
   assert.equal(normalized.distanceKm, 8291.5);
@@ -109,6 +111,8 @@ test("preserves bounded lights-event identity without creating ordinary rewards"
     eventRegionCode: "jp!",
     onAirCallsign: "sim5lt",
     operatorCallsign: "ja1lgt",
+    eventRunId: "story:run-identity",
+    npcId: "N1-JP-0001",
     credits: 0,
     rewardBreakdown: null,
   }));
@@ -117,12 +121,21 @@ test("preserves bounded lights-event identity without creating ordinary rewards"
   assert.equal(normalized.eventRegionCode, "JP");
   assert.equal(normalized.onAirCallsign, "SIM5LT");
   assert.equal(normalized.operatorCallsign, "JA1LGT");
+  assert.equal(normalized.eventRunId, "story:run-identity");
+  assert.equal(normalized.personId, "person:procedural:N1-JP-0001");
+  assert.equal(normalized.stationId, "station:procedural:N1-JP-0001");
   assert.equal(normalized.rewardBreakdown, null);
   assert.equal(normalized.credits, 0);
 });
 
-test("legacy v1-v6 QSO logs safely migrate to v7 defaults without retroactive rewards", () => {
-  for (const version of [1, 2, 3, 4, 5, 6]) {
+test("fixed SORA QSOs retain one person and the SIM6JP station identity", () => {
+  const normalized = normalizeQsoLogEntry(entry({ callsign: "SIM6JP" }));
+  assert.equal(normalized.personId, "person:sora");
+  assert.equal(normalized.stationId, "station:sim6jp");
+});
+
+test("legacy v1-v7 QSO logs safely migrate to current defaults without retroactive rewards", () => {
+  for (const version of [1, 2, 3, 4, 5, 6, 7]) {
     const normalized = normalizeQsoLogEntry(entry({
     version,
     accessoryId: undefined,
@@ -314,9 +327,9 @@ test("records a completed QSO atomically and idempotently", () => {
   assert.deepEqual(first.save.accessories, []);
   assert.equal(first.save.qsoLogs.length, 2);
   assert.equal(first.save.qsoLogs[0].repeatRequests, 2);
-  assert.equal(first.save.operatorRelationshipsVersion, 1);
+  assert.equal(first.save.operatorRelationshipsVersion, 2);
   assert.deepEqual(first.save.operatorRelationships, [{
-    callsign: "SIM7QX", operatorProfileId: "careful-beginner", encounterCount: 1,
+    personId: "person:legacy:SIM7QX", callsign: "SIM7QX", operatorProfileId: "careful-beginner", encounterCount: 1,
     completedQsos: 1, weakSignalRecoveries: 0, topicCounts: { location: 1 },
     firstMetAt: "2026-07-15T00:05:00.000Z", lastMetAt: "2026-07-15T00:05:00.000Z",
     lastEncounterId: "SIM7QX:2026-07-15T00:00:00.000Z",

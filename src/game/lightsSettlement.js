@@ -7,7 +7,10 @@ import {
 } from "../qso/qsoLog.js";
 import {
   OPERATOR_RELATIONSHIPS_VERSION, normalizeOperatorRelationships, recordCompletedOperatorRelationship,
+  recordOperatorEncounter,
 } from "../qso/operatorRelationships.js";
+import { EVENT_RUN_ARCHIVE_VERSION, recordEventRunArchive } from "./eventRunArchive.js";
+import { personIdForOperator, stationIdentityForCallsign } from "./personIdentity.js";
 
 export const LIGHTS_EVENT_STATE_VERSION = 1;
 const MAX_SETTLED_RUN_IDS = 200;
@@ -135,14 +138,23 @@ function normalizeContact(value, index, result) {
   const callsign = String(value.callsign ?? "").toUpperCase().replace(/[^A-Z0-9/-]/g, "").slice(0, 16);
   const eventRegionCode = String(value.eventRegionCode ?? "").toUpperCase();
   if (!callsign || !LIGHTS_EVENT_REGIONS.includes(eventRegionCode)) return null;
+  const npcId = String(value.npcId ?? value.proceduralNpcId ?? "").trim().slice(0, 64);
+  const personId = personIdForOperator({ ...value, callsign, npcId: npcId || null });
+  const station = stationIdentityForCallsign(callsign, { ...value, npcId: npcId || null });
+  if (!personId || !station) return null;
   return {
     id: compactIdentifier(value.id ?? `${result.runId}:${index}`, 96)
       || compactIdentifier(`${result.runId}:${index}`, 96),
     callsign,
+    npcId: npcId || null,
+    personId,
+    stationId: station.stationId,
     eventRegionCode,
     locationId: String(value.locationId ?? `event-${eventRegionCode.toLowerCase()}`).trim().slice(0, 64),
     operatorName: String(value.operatorName ?? "").trim().slice(0, 80),
     operatorProfileId: String(value.operatorProfileId ?? "legacy-standard").trim().slice(0, 48) || "legacy-standard",
+    timeZone: String(value.timeZone ?? "").trim().slice(0, 64) || null,
+    completedAt: iso(value.completedAt) ?? result.completedAt,
     remoteRst: /^[1-5][1-9][1-9]$/.test(String(value.remoteRst)) ? String(value.remoteRst) : "599",
     sentRst: /^[1-5][1-9][1-9]$/.test(String(value.sentRst)) ? String(value.sentRst) : "599",
     onAirCallsign: LIGHTS_EVENT.callsign,
@@ -175,6 +187,7 @@ function normalizeResult(value) {
     version: 1, runId, mode, startedAt, completedAt, playerCallsign,
     playerRegion: String(value.playerRegion ?? "").toUpperCase().slice(0, 2),
     chaseCompleted: value.chaseCompleted === true,
+    chaseEncounterId: compactIdentifier(value.chaseEncounterId ?? `lights-chase:${runId}`, 128),
     contacts,
     ...facts,
     ...scoreLightsResult(facts),
@@ -190,13 +203,17 @@ function bestResult(previous, result) {
 }
 
 function eventLog(save, result, contact, index) {
-  const completedAt = new Date(Date.parse(result.completedAt) + index).toISOString();
+  const completedAt = contact.completedAt
+    ?? new Date(Date.parse(result.completedAt) + index).toISOString();
   return normalizeQsoLogEntry({
     id: contact.id,
     startedAt: result.startedAt,
     completedAt,
     playerCallsign: result.playerCallsign,
     callsign: contact.callsign,
+    npcId: contact.npcId,
+    personId: contact.personId,
+    stationId: contact.stationId,
     frequencyMhz: 21.06,
     sent: contact.sentRst,
     received: contact.remoteRst,
@@ -214,6 +231,7 @@ function eventLog(save, result, contact, index) {
     rewardBreakdown: null,
     credits: 0,
     eventId: LIGHTS_EVENT.id,
+    eventRunId: result.runId,
     eventMode: result.mode,
     eventRegionCode: contact.eventRegionCode,
     onAirCallsign: LIGHTS_EVENT.callsign,
@@ -237,6 +255,15 @@ function recordEventContacts(save, result) {
       settledQsoIds: [...new Set([...qsoRecords.settledQsoIds, log.id])].sort(),
     };
     operatorRelationships = recordCompletedOperatorRelationship(operatorRelationships, log);
+  }
+  if (result.chaseCompleted) {
+    operatorRelationships = recordOperatorEncounter(operatorRelationships, {
+      callsign: LIGHTS_EVENT.callsign,
+      personId: "person:sora",
+      stationId: "station:lights-sim5lt",
+      operatorName: "SORA",
+      operatorProfileId: "youth-club",
+    }, result.startedAt, result.chaseEncounterId);
   }
   const settlementId = runSettlementLedgerId(result.runId);
   if (!qsoRecords.settledQsoIds.includes(settlementId)) {
@@ -331,6 +358,10 @@ export function settleLightsRun(save, candidate, { observedAt = null, now = null
     practiceRecords,
   });
   const contacts = recordEventContacts(save, result);
+  const eventRunArchive = recordEventRunArchive(save.eventRunArchive, result, {
+    stationTimeZone: timeZone,
+    stamp: annualStamp ?? "none",
+  });
   if (practiceRewardMarker && !contacts.qsoRecords.settledQsoIds.includes(practiceRewardMarker)) {
     contacts.qsoRecords = {
       ...contacts.qsoRecords,
@@ -343,6 +374,8 @@ export function settleLightsRun(save, candidate, { observedAt = null, now = null
     worldCalendarState,
     lightsEventStateVersion: LIGHTS_EVENT_STATE_VERSION,
     lightsEventState: nextState,
+    eventRunArchiveVersion: EVENT_RUN_ARCHIVE_VERSION,
+    eventRunArchive,
     qsoLogs: contacts.qsoLogs,
     qsoRecords: contacts.qsoRecords,
     operatorRelationshipsVersion: OPERATOR_RELATIONSHIPS_VERSION,

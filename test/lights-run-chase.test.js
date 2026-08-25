@@ -15,6 +15,8 @@ function storyRun() {
 test("story chase moves through SORA call, report exchange, and final signoff", () => {
   let run = storyRun();
   assert.equal(run.phase, LIGHTS_PHASES.CHASE_CQ);
+  assert.equal(run.chase.personId, "person:sora");
+  assert.equal(run.chase.stationId, "station:lights-sim5lt");
   assert.equal(currentLightsPrompt(run), "CQ LGT CQ LGT DE SIM5LT K");
 
   run = advanceLightsPlayback(run);
