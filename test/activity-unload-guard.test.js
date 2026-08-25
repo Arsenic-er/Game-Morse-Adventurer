@@ -1,8 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { createLightsRun, LIGHTS_PHASES } from "../src/game/lightsRun.js";
-import { activityUnloadRisk } from "../src/game/lightsUiModel.js";
+import { activityUnloadRisk, createActivityPlaybackLifecycle } from "../src/game/lightsUiModel.js";
 import { createQso, QSO_PHASES } from "../src/qso/qsoEngine.js";
 import { qsoExitRisk } from "../src/qso/qsoExitGuard.js";
 
@@ -20,10 +19,35 @@ test("generic activity unload guard protects live and completed-unsettled lights
   assert.equal(activityUnloadRisk({ activity: "home" }), "none");
 });
 
-test("ordinary QSO visibility loss stops all playback and receiver noise", () => {
-  const source = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
-  const stationScreen = source.slice(source.indexOf("function StationScreen"), source.indexOf("export function App"));
-  assert.match(stationScreen, /function onVisibilityChange\(\)\s*\{[\s\S]*document\.visibilityState === "hidden"[\s\S]*cw\.stopAll\(\)[\s\S]*cw\.stopListening\(\)/);
-  assert.match(stationScreen, /document\.addEventListener\("visibilitychange", onVisibilityChange\)/);
-  assert.match(stationScreen, /document\.removeEventListener\("visibilitychange", onVisibilityChange\)/);
+test("ordinary QSO playback cancels while hidden, stops audio, and resumes exactly once when visible", () => {
+  const callbacks = new Map();
+  let nextTimerId = 0;
+  let stopAllCalls = 0;
+  let stopListeningCalls = 0;
+  let playCalls = 0;
+  const lifecycle = createActivityPlaybackLifecycle({
+    setTimeoutFn: (callback) => {
+      const id = ++nextTimerId;
+      callbacks.set(id, callback);
+      return id;
+    },
+    clearTimeoutFn: (id) => callbacks.delete(id),
+    stopAll: () => { stopAllCalls += 1; },
+    stopListening: () => { stopListeningCalls += 1; },
+  });
+
+  lifecycle.requestPlayback(250, () => { playCalls += 1; });
+  const staleCallback = callbacks.get(1);
+  lifecycle.setVisible(false);
+  assert.equal(stopAllCalls, 1);
+  assert.equal(stopListeningCalls, 1);
+  assert.equal(callbacks.size, 0);
+  staleCallback();
+  assert.equal(playCalls, 0);
+
+  lifecycle.setVisible(true);
+  lifecycle.setVisible(true);
+  assert.equal(callbacks.size, 1);
+  callbacks.get(2)();
+  assert.equal(playCalls, 1);
 });

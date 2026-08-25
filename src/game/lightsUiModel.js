@@ -50,6 +50,70 @@ export function advanceLightsActiveClock(clock, monotonicNow) {
   };
 }
 
+export function createActivityPlaybackLifecycle({
+  setTimeoutFn = globalThis.setTimeout,
+  clearTimeoutFn = globalThis.clearTimeout,
+  stopAll = () => {},
+  stopListening = () => {},
+} = {}) {
+  let visible = true;
+  let pending = null;
+  let request = null;
+  let audioControls = { stopAll, stopListening };
+
+  function cancelPendingPlayback() {
+    if (!pending) return;
+    clearTimeoutFn(pending.timer);
+    pending = null;
+  }
+
+  function schedulePendingPlayback() {
+    if (!visible || !request || pending) return;
+    const scheduledRequest = request;
+    const token = {};
+    const timer = setTimeoutFn(() => {
+      if (!visible || pending?.token !== token || request !== scheduledRequest) return;
+      pending = null;
+      request = null;
+      scheduledRequest.callback();
+    }, scheduledRequest.delay);
+    pending = { token, timer };
+  }
+
+  return {
+    setAudioControls(controls = {}) {
+      audioControls = {
+        stopAll: typeof controls.stopAll === "function" ? controls.stopAll : () => {},
+        stopListening: typeof controls.stopListening === "function" ? controls.stopListening : () => {},
+      };
+    },
+    requestPlayback(delay, callback) {
+      cancelPendingPlayback();
+      request = typeof callback === "function" ? { delay: Math.max(0, Number(delay) || 0), callback } : null;
+      schedulePendingPlayback();
+    },
+    cancelPendingPlayback,
+    clearPlayback() {
+      cancelPendingPlayback();
+      request = null;
+    },
+    setVisible(nextVisible) {
+      const next = nextVisible !== false;
+      if (!next) {
+        visible = false;
+        cancelPendingPlayback();
+        audioControls.stopAll();
+        audioControls.stopListening();
+        return false;
+      }
+      const resumed = !visible;
+      visible = true;
+      if (resumed) schedulePendingPlayback();
+      return resumed;
+    },
+  };
+}
+
 export function lightsExitNeedsConfirmation(run, { settled = false } = {}) {
   if (!run || settled) return false;
   if (run.phase === LIGHTS_PHASES.RUN_COMPLETE) return true;

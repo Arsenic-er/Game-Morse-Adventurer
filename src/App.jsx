@@ -25,6 +25,7 @@ import { equipmentName, getTransmitter } from "./game/equipmentCatalog.js";
 import { equipOwnedItem, purchaseItem } from "./game/economy.js";
 import { settleAchievementRewards } from "./game/achievements.js";
 import { settleLightsRun } from "./game/lightsSettlement.js";
+import { createActivityPlaybackLifecycle } from "./game/lightsUiModel.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
 import {
   abandonMission, acceptMission, claimMission, targetCallsignForActiveMission,
@@ -495,6 +496,7 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
   const [npcPlaybackRetry, setNpcPlaybackRetry] = useState(0);
   const [npcPlaybackRecovering, setNpcPlaybackRecovering] = useState(false);
   const [exitRequest, setExitRequest] = useState(null);
+  const [windowActive, setWindowActive] = useState(true);
   const exitConfirmingRef = useRef(false);
   const propagationKey = `${clock.getUTCFullYear()}-${clock.getUTCMonth()}-${clock.getUTCDate()}-${clock.getUTCHours()}-${Math.floor(clock.getUTCMinutes() / 10)}`;
   const propagationMap = useMemo(() => generatePropagationMap({ playerLocation, utc: clock }), [playerLocation, propagationKey]);
@@ -528,6 +530,9 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
     automaticWpm: save.automaticKeyWpm,
     clearGestureLength: CLEAR_INPUT_GESTURE_LENGTH,
   });
+  const qsoPlaybackLifecycleRef = useRef(null);
+  if (!qsoPlaybackLifecycleRef.current) qsoPlaybackLifecycleRef.current = createActivityPlaybackLifecycle();
+  const qsoPlaybackLifecycle = qsoPlaybackLifecycleRef.current;
   const isTx = cw.isTransmitting;
   const exitRisk = qsoExitRisk(qso, {
     saved,
@@ -578,13 +583,18 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
   }, []);
 
   useEffect(() => {
-    if (!powered || exitRequest || inputBlocked) {
+    qsoPlaybackLifecycle.setAudioControls({ stopAll: cw.stopAll, stopListening: cw.stopListening });
+    return () => qsoPlaybackLifecycle.clearPlayback();
+  }, [cw.stopAll, cw.stopListening, qsoPlaybackLifecycle]);
+
+  useEffect(() => {
+    if (!powered || exitRequest || inputBlocked || !windowActive) {
       cw.stopListening();
       return undefined;
     }
     cw.startListening(receiverChannel);
     return () => cw.stopListening();
-  }, [cw.startListening, cw.stopListening, exitRequest, inputBlocked, powered, receiverChannel]);
+  }, [cw.startListening, cw.stopListening, exitRequest, inputBlocked, powered, receiverChannel, windowActive]);
 
   useEffect(() => {
     onActivityRisk?.(exitRisk);
@@ -630,7 +640,11 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
   ]);
 
   useEffect(() => {
-    if (briefingOpen || exitRequest || inputBlocked || !qsoNeedsNpcPlayback(qso) || !powered || !antennaReady) return undefined;
+    if (!windowActive) return () => qsoPlaybackLifecycle.cancelPendingPlayback();
+    if (briefingOpen || exitRequest || inputBlocked || !qsoNeedsNpcPlayback(qso) || !powered || !antennaReady) {
+      qsoPlaybackLifecycle.clearPlayback();
+      return undefined;
+    }
     const activePhase = qso.phase;
     let cancelled = false;
     let retryTimer = null;
@@ -643,7 +657,7 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
       setNpcPlaybackRetry((current) => current + 1);
     };
     const qaPlaybackDelay = qso.npcReplyDisposition === "query" ? 1600 : 60;
-    const timer = window.setTimeout(async () => {
+    qsoPlaybackLifecycle.requestPlayback(window.cwgameSystem?.qaCapture ? qaPlaybackDelay : 350, async () => {
       const forcedQaFailure = window.cwgameSystem?.consumeQaIncomingFailure?.(activePhase) ?? false;
       const played = forcedQaFailure ? false : window.cwgameSystem?.qaCapture
         ? true
@@ -661,16 +675,17 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
         current.phase === activePhase ? onNpcPlaybackFinished(current) : current
       ));
       cw.clearInput();
-    }, window.cwgameSystem?.qaCapture ? qaPlaybackDelay : 350);
+    });
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      qsoPlaybackLifecycle.cancelPendingPlayback();
       if (retryTimer) window.clearTimeout(retryTimer);
       if (focusHandler) window.removeEventListener("focus", focusHandler);
     };
   }, [
     antennaReady, briefingOpen, cw.clearInput, cw.playIncoming, exitRequest, inputBlocked, npcChannel, powered,
     npcPlaybackRetry, qso.npc.wpm, qso.npcMessage, qso.npcReplyDisposition, qso.phase, qso.replyWpm,
+    qsoPlaybackLifecycle, windowActive,
   ]);
 
   keyInputStateRef.current = {
@@ -717,13 +732,21 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
         cw.endAutomatic("-");
       }
     }
-    function onInactive() { cw.stopAll(); cw.stopListening(); }
+    function onInactive() {
+      qsoPlaybackLifecycle.setVisible(false);
+      setWindowActive(false);
+    }
     function onBlur() { onInactive(); }
     function onVisibilityChange() {
       if (document.visibilityState === "hidden") onInactive();
+      else onFocus();
     }
     function onFocus() {
-      if (powered && !exitRequest && !inputBlocked) cw.startListening(receiverChannel);
+      if (document.visibilityState !== "hidden") {
+        qsoPlaybackLifecycle.setVisible(true);
+        setWindowActive(true);
+        if (powered && !exitRequest && !inputBlocked) cw.startListening(receiverChannel);
+      }
     }
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
@@ -738,8 +761,8 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
       document.removeEventListener("visibilitychange", onVisibilityChange);
       cw.stopAll();
     };
-  }, [cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.startListening, cw.stopAll,
-    cw.stopListening, exitRequest, inputBlocked, powered, receiverChannel]);
+  }, [cw.beginAutomatic, cw.beginManual, cw.endAutomatic, cw.endManual, cw.startListening,
+    exitRequest, inputBlocked, powered, qsoPlaybackLifecycle, receiverChannel]);
 
   async function submitReply() {
     if (semanticBusy || !powered || !antennaReady || !qsoCanAcceptPlayer(qso) || retryRequired || !cw.analysis.pulseCount || cw.isPlaying || cw.isKeying) return;
