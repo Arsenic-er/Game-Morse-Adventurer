@@ -149,6 +149,28 @@ jobs:
             throw "Packaged QA produced only $($screenshots.Count) screenshots"
           }
 
+          $lightsResultPath = Join-Path $qaOutput "lights-qa-result.json"
+          if (!(Test-Path -LiteralPath $lightsResultPath)) {
+            throw "Packaged QA did not produce lights-qa-result.json"
+          }
+          $lightsResult = Get-Content -LiteralPath $lightsResultPath -Raw | ConvertFrom-Json
+          $requiredLightsCheckpoints = @(
+            "story-ready", "story-launch", "chase-complete", "control-entered",
+            "escape-paused", "escape-resumed", "failed-run", "retry-control",
+            "settled", "reloaded-history", "duplicate-settlement"
+          )
+          foreach ($checkpoint in $requiredLightsCheckpoints) {
+            if ($null -eq $lightsResult.checkpoints.PSObject.Properties[$checkpoint]) {
+              throw "Packaged Lights QA result is missing checkpoint '$checkpoint'"
+            }
+          }
+          foreach ($evidence in @("chase", "control", "result", "reloaded-history")) {
+            $matches = @(Get-ChildItem -LiteralPath $qaOutput -Filter "lights-$evidence-*.png" -File)
+            if ($matches.Count -lt 1) {
+              throw "Packaged Lights QA did not capture required $evidence evidence"
+            }
+          }
+
           $consoleLog = Join-Path $qaOutput "runtime-console-errors.json"
           if (!(Test-Path -LiteralPath $consoleLog)) {
             throw "Packaged QA did not produce the runtime console report"
@@ -159,7 +181,7 @@ jobs:
             throw "Packaged QA recorded renderer warnings or errors"
           }
 
-          "Packaged QA captured $($screenshots.Count) verified screens." |
+          "Packaged QA captured $($screenshots.Count) verified screens and all Lights gameplay checkpoints." |
             Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
 
       - name: Verify executable and write checksum

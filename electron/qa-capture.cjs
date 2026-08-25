@@ -1,6 +1,21 @@
 const fs = require("fs/promises");
 const path = require("path");
 
+function buildLightsQaPlan({ suffix = "qa" } = {}) {
+  const screenshot = (name) => `lights-${name}-${suffix}.png`;
+  return {
+    checkpoints: [
+      "story-ready", "story-launch", "chase-complete", "control-entered", "escape-paused",
+      "escape-resumed", "failed-run", "retry-control", "settled", "reloaded-history", "duplicate-settlement",
+    ].map((id) => ({ id })),
+    screenshots: [
+      screenshot("story-launch"), screenshot("chase"), screenshot("control"), screenshot("failed"),
+      screenshot("result"), screenshot("reloaded-history"),
+    ],
+    resultFile: "lights-qa-result.json",
+  };
+}
+
 async function waitFor(window, selector, timeout = 10000) {
   const source = `new Promise((resolve, reject) => {
     const started = Date.now();
@@ -279,6 +294,225 @@ async function capture(window, outputDir, filename) {
   await new Promise((resolve) => setTimeout(resolve, 150));
   const image = await window.webContents.capturePage();
   await fs.writeFile(path.join(outputDir, filename), image.toPNG());
+}
+
+async function pressKey(window, { key, code }) {
+  await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keydown", {
+    key: ${JSON.stringify(key)}, code: ${JSON.stringify(code)}, bubbles: true, cancelable: true,
+  }))`, true);
+}
+
+async function waitForLightsPhase(window, phase) {
+  await waitFor(window, `.lights-event-screen[data-event-phase="${phase}"]`);
+}
+
+async function advanceLightsClockToTimeout(window) {
+  const installed = await window.webContents.executeJavaScript(`(() => {
+    const original = window.__cwgameQaOriginalPerformanceNow ?? performance.now.bind(performance);
+    window.__cwgameQaOriginalPerformanceNow = original;
+    Object.defineProperty(performance, "now", {
+      configurable: true,
+      value: () => original() + 481000,
+    });
+    return performance.now() - original() >= 480000;
+  })()`, true);
+  if (!installed) throw new Error("Could not install the deterministic Lights QA clock");
+  await waitForLightsPhase(window, "RUN_COMPLETE");
+  await window.webContents.executeJavaScript(`(() => {
+    if (!window.__cwgameQaOriginalPerformanceNow) throw new Error("Missing deterministic Lights QA clock");
+    delete performance.now;
+    delete window.__cwgameQaOriginalPerformanceNow;
+  })()`, true);
+}
+
+async function readLightsQaSave(window) {
+  return window.webContents.executeJavaScript(`(() => {
+    const saves = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1") || "[]");
+    const save = saves.find((candidate) => candidate.id === "qa-lights-save");
+    if (!save) throw new Error("Missing seeded Lights QA save");
+    return {
+      id: save.id,
+      callsign: save.callsign,
+      claimedMissionIds: save.missionState?.claimedMissionIds ?? [],
+      activeMissionIds: (save.missionState?.activeMissions ?? []).map(({ id }) => id),
+      settledRunIds: save.lightsEventState?.settledRunIds ?? [],
+      storyBest: save.lightsEventState?.storyBest ?? null,
+      qsoLogCount: (save.qsoLogs ?? []).length,
+      money: Number(save.money ?? 0),
+    };
+  })()`, true);
+}
+
+async function transmitLightsText(window, text) {
+  await sendAutomaticLightsText(window, text);
+  await waitFor(window, '[data-action="lights-transmit"]:not([disabled])');
+  await click(window, '[data-action="lights-transmit"]');
+}
+
+async function sendAutomaticLightsText(window, text, wpm = 18) {
+  const dotMs = 1200 / wpm;
+  const words = String(text).toUpperCase().trim().split(/\s+/);
+  for (let wordIndex = 0; wordIndex < words.length; wordIndex += 1) {
+    const characters = [...words[wordIndex]];
+    for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
+      const pattern = MORSE[characters[characterIndex]];
+      if (!pattern) continue;
+      for (const symbol of pattern) {
+        const keyCode = symbol === "." ? "KeyZ" : "KeyX";
+        const key = symbol === "." ? "z" : "x";
+        await window.webContents.executeJavaScript(`(() => {
+          window.dispatchEvent(new KeyboardEvent("keydown", { code: ${JSON.stringify(keyCode)}, key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }));
+          window.dispatchEvent(new KeyboardEvent("keyup", { code: ${JSON.stringify(keyCode)}, key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }));
+        })()`, true);
+        // This is CW element duration plus its mandated inter-element gap, not an arbitrary UI wait.
+        await delay(dotMs * (symbol === "." ? 2 : 4) + 12);
+      }
+      if (characterIndex < characters.length - 1) await delay(dotMs * 3 + 25);
+    }
+    if (wordIndex < words.length - 1) await delay(dotMs * 7 + 25);
+  }
+  await waitFor(window, '.lights-tx-line strong:not(:empty)');
+}
+
+async function seedLightsQaSave(window) {
+  await window.webContents.executeJavaScript(`(() => {
+    const save = {
+      id: "qa-lights-save",
+      callsign: "QA5LGT",
+      locationId: "china-beijing-outskirts",
+      keyType: "automatic",
+      automaticKeyWpm: 18,
+      qsoGuidance: "full",
+      missionState: {
+        claimedMissionIds: ["story-01", "story-02", "story-03", "story-04"],
+        activeMissions: [],
+        history: [],
+      },
+      qsoLogs: [],
+      qsoRecords: { total: 0, settledQsoIds: [] },
+      lightsEventState: { settledRunIds: [], storyBest: null, lifetimeGradePaid: 0, practiceRecords: [] },
+      createdAt: "2026-05-05T08:00:00.000Z",
+      updatedAt: "2026-05-05T08:00:00.000Z",
+    };
+    localStorage.setItem("game-morse-adventurer.saves.v1", JSON.stringify([save]));
+    localStorage.setItem("game-morse-adventurer.active-save.v1", save.id);
+  })()`, true);
+}
+
+async function runLightsQaCapture(window, outputDir, suffix) {
+  const plan = buildLightsQaPlan({ suffix });
+  const facts = { checkpoints: {} };
+  const checkpoint = (id, value) => { facts.checkpoints[id] = value; };
+
+  await seedLightsQaSave(window);
+  await window.reload();
+  await waitFor(window, ".start-screen");
+  await click(window, ".menu-primary");
+  await waitFor(window, ".save-select-screen");
+  await click(window, ".save-primary-action");
+  await waitFor(window, ".home-screen");
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-05"][data-mission-status="available"]');
+  await click(window, '[data-action="accept-mission"][data-mission-action-id="story-05"]');
+  await waitFor(window, '[data-mission-id="story-05"][data-mission-status="active"]');
+  const prepared = await readLightsQaSave(window);
+  if (!prepared.claimedMissionIds.includes("story-04") || !prepared.activeMissionIds.includes("story-05")) {
+    throw new Error(`Lights story preparation did not produce an active story-05 mission: ${JSON.stringify(prepared)}`);
+  }
+  checkpoint("story-ready", { prerequisiteClaimed: true, story05Active: true });
+
+  await click(window, '[data-action="launch-lights-story"]');
+  await waitFor(window, ".lights-event-screen");
+  await waitForLightsPhase(window, "CHASE_PLAYER_CALL");
+  await capture(window, outputDir, plan.screenshots[0]);
+  checkpoint("story-launch", { phase: "CHASE_PLAYER_CALL", mode: "story" });
+
+  await transmitLightsText(window, "SIM5LT DE QA5LGT K");
+  await waitForLightsPhase(window, "CHASE_PLAYER_REPORT");
+  await capture(window, outputDir, plan.screenshots[1]);
+  await transmitLightsText(window, "SIM5LT DE QA5LGT RST 579 CN K");
+  await waitForLightsPhase(window, "CONTROL_CQ");
+  checkpoint("chase-complete", { phase: "CONTROL_CQ", completed: true });
+  await capture(window, outputDir, plan.screenshots[2]);
+  checkpoint("control-entered", { phase: "CONTROL_CQ" });
+
+  await pressKey(window, { key: "Escape", code: "Escape" });
+  await waitFor(window, ".settings-modal");
+  const pausedPhase = await window.webContents.executeJavaScript(
+    'document.querySelector(".lights-event-screen")?.dataset.eventPhase ?? null', true,
+  );
+  if (pausedPhase !== "CONTROL_CQ") throw new Error(`Escape did not pause Lights in control: ${pausedPhase}`);
+  checkpoint("escape-paused", { phase: pausedPhase, settingsVisible: true });
+  await pressKey(window, { key: "Escape", code: "Escape" });
+  await waitForMissing(window, ".settings-modal");
+  await waitForLightsPhase(window, "CONTROL_CQ");
+  checkpoint("escape-resumed", { phase: "CONTROL_CQ", settingsVisible: false });
+
+  await advanceLightsClockToTimeout(window);
+  await waitFor(window, '[data-action="lights-retry-control"]');
+  await capture(window, outputDir, plan.screenshots[3]);
+  const failed = await window.webContents.executeJavaScript(`(() => ({
+    phase: document.querySelector(".lights-event-screen")?.dataset.eventPhase ?? null,
+    grade: document.querySelector("[data-lights-grade]")?.dataset.lightsGrade ?? null,
+  }))()`, true);
+  if (failed.phase !== "RUN_COMPLETE" || failed.grade !== "none") throw new Error(`Lights QA failed-run checkpoint is invalid: ${JSON.stringify(failed)}`);
+  checkpoint("failed-run", failed);
+
+  await click(window, '[data-action="lights-retry-control"]');
+  await waitForLightsPhase(window, "CONTROL_CQ");
+  const afterRetry = await readLightsQaSave(window);
+  if (afterRetry.settledRunIds.length !== 1) throw new Error(`Failed run was not settled exactly once before retry: ${JSON.stringify(afterRetry)}`);
+  checkpoint("retry-control", { phase: "CONTROL_CQ", failedRunSettlementCount: afterRetry.settledRunIds.length });
+
+  await advanceLightsClockToTimeout(window);
+  await waitFor(window, '[data-action="lights-settle"]:not([disabled])');
+  await click(window, '[data-action="lights-settle"]');
+  await waitFor(window, ".lights-settlement-banner");
+  await capture(window, outputDir, plan.screenshots[4]);
+  const settled = await readLightsQaSave(window);
+  if (settled.settledRunIds.length !== 2) throw new Error(`Lights settlement did not persist the retry run: ${JSON.stringify(settled)}`);
+  checkpoint("settled", { settledRunIds: settled.settledRunIds, storyBestGrade: settled.storyBest?.grade ?? null });
+
+  await click(window, '[data-action="lights-settle"]');
+  const duplicate = await readLightsQaSave(window);
+  if (JSON.stringify(duplicate.settledRunIds) !== JSON.stringify(settled.settledRunIds)
+    || duplicate.money !== settled.money || duplicate.qsoLogCount !== settled.qsoLogCount) {
+    throw new Error(`Duplicate Lights settlement changed the save: ${JSON.stringify({ settled, duplicate })}`);
+  }
+  checkpoint("duplicate-settlement", {
+    noOp: true,
+    settledRunIds: duplicate.settledRunIds,
+    money: duplicate.money,
+    qsoLogCount: duplicate.qsoLogCount,
+  });
+
+  await window.reload();
+  await waitFor(window, ".start-screen");
+  await click(window, ".menu-primary");
+  await waitFor(window, ".save-select-screen");
+  await click(window, ".save-primary-action");
+  await waitFor(window, ".home-screen");
+  await capture(window, outputDir, plan.screenshots[5]);
+  const reloaded = await readLightsQaSave(window);
+  if (JSON.stringify(reloaded.settledRunIds) !== JSON.stringify(settled.settledRunIds)
+    || reloaded.money !== settled.money || reloaded.qsoLogCount !== settled.qsoLogCount) {
+    throw new Error(`Lights settlement history did not survive reload: ${JSON.stringify({ settled, reloaded })}`);
+  }
+  checkpoint("reloaded-history", {
+    settledRunIds: reloaded.settledRunIds,
+    storyBestGrade: reloaded.storyBest?.grade ?? null,
+    money: reloaded.money,
+  });
+
+  const result = {
+    schemaVersion: 1,
+    activity: "lights-across-air",
+    resultFile: plan.resultFile,
+    screenshots: plan.screenshots,
+    ...facts,
+  };
+  await fs.writeFile(path.join(outputDir, plan.resultFile), `${JSON.stringify(result, null, 2)}\n`, "utf8");
+  return result;
 }
 
 async function runQaCapture(window) {
@@ -1932,6 +2166,8 @@ async function runQaCapture(window) {
   }
   await capture(window, outputDir, shot("reload-without-achievement-repeat"));
 
+  const lightsQaResult = await runLightsQaCapture(window, outputDir, suffix);
+
   await fs.writeFile(
     path.join(outputDir, "runtime-console-errors.json"),
     `${JSON.stringify(consoleErrors, null, 2)}\n`,
@@ -1952,7 +2188,8 @@ async function runQaCapture(window) {
       "warehouse-accessory-selected", "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped", "achievements-populated", "home-log-populated",
       "home-log-detail-second", "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary", "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered", "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded", "practice-callsign-region-selected", "practice-callsign-region-locked", "practice-callsign-region-reloaded", "qso-duty-briefing", "station-listening", "station-radio-tx", "qso-leave-active", "station-input-cleared", "qso-npc-query", "qso-blind-copy", "qso-specific-error", "qso-agn-repeat", "qso-optional-query", "qso-result-unsaved", "qso-leave-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved", "home-log-after-qso", "home-log-operation-review", "propagation-map", "world-map", "reload-without-achievement-repeat",
     ].map(shot), ...languageCaptures, ...manualCaptures],
+    lightsQaResult,
   };
 }
 
-module.exports = { runQaCapture };
+module.exports = { buildLightsQaPlan, runQaCapture };
