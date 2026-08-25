@@ -253,7 +253,8 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
         <button className="lights-settle" data-action="lights-settle" onClick={settle} disabled={!model.canSettle || Boolean(settlement)}><FloppyDisk size={20} weight="fill" />{settlement ? t.settled : t.settle}</button>
         {model.result?.grade === "none" && <button data-action="lights-retry-control" onClick={retryControl}><Repeat size={19} />{t.retryControl}</button>}
       </footer>
-      {settlement && <div className="lights-settlement-banner" role="status"><Trophy size={24} weight="fill" /><strong>{model.gradeLabel}</strong><span>+{settlement.moneyAwarded}</span>{annualStampLabel && <span data-annual-stamp={settlement.annualStamp}>{annualStampLabel}</span>}</div>}
+      {settlement && <div className="lights-settlement-banner" role="status"
+        data-lights-money-awarded={settlement.moneyAwarded}><Trophy size={24} weight="fill" /><strong>{model.gradeLabel}</strong><span>+{settlement.moneyAwarded}</span>{annualStampLabel && <span data-annual-stamp={settlement.annualStamp}>{annualStampLabel}</span>}</div>}
     </main>
   );
 }

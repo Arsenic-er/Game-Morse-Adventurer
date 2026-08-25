@@ -18,65 +18,275 @@ function buildLightsQaPlan({ suffix = "qa" } = {}) {
   };
 }
 
+function isPlainObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function requirePlainObject(value, label) {
+  if (!isPlainObject(value)) throw new Error(`Lights QA ${label} must be a plain object`);
+  return value;
+}
+
+function requireNonNegativeInteger(value, label) {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error(`Lights QA ${label} must be a finite nonnegative integer`);
+  return value;
+}
+
+function requireStringArray(value, label, { allowEmpty = false } = {}) {
+  if (!Array.isArray(value) || (!allowEmpty && value.length === 0)
+    || value.some((item) => typeof item !== "string" || !item.trim())
+    || new Set(value).size !== value.length) {
+    throw new Error(`Lights QA ${label} must be a${allowEmpty ? " unique" : " nonempty unique"} string array`);
+  }
+  return value;
+}
+
+function validateDurableLightsSnapshot(value, label, { allowEmptyRunIds = false } = {}) {
+  const snapshot = requirePlainObject(value, label);
+  requireNonNegativeInteger(snapshot.money, `${label}.money`);
+  requireNonNegativeInteger(snapshot.qsoLogCount, `${label}.qsoLogCount`);
+  requireNonNegativeInteger(snapshot.eventQsoCredits, `${label}.eventQsoCredits`);
+  requireStringArray(snapshot.settledRunIds, `${label}.settledRunIds`, { allowEmpty: allowEmptyRunIds });
+  requireStringArray(snapshot.claimedAchievementRewards, `${label}.claimedAchievementRewards`, { allowEmpty: true });
+  return snapshot;
+}
+
+function sameStringArray(left, right) {
+  return Array.isArray(left) && Array.isArray(right)
+    && left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function sameDurableLightsSnapshot(left, right) {
+  return left.money === right.money
+    && left.qsoLogCount === right.qsoLogCount
+    && left.eventQsoCredits === right.eventQsoCredits
+    && sameStringArray(left.settledRunIds, right.settledRunIds)
+    && sameStringArray(left.claimedAchievementRewards, right.claimedAchievementRewards);
+}
+
+function stringArrayDifference(after, before) {
+  const previous = new Set(before);
+  return after.filter((value) => !previous.has(value));
+}
+
+function durableLightsQaSnapshot(value) {
+  return {
+    money: value.money,
+    qsoLogCount: value.qsoLogCount,
+    eventQsoCredits: value.eventQsoCredits,
+    settledRunIds: [...value.settledRunIds],
+    claimedAchievementRewards: [...value.claimedAchievementRewards],
+  };
+}
+
+function buildLightsQaMoneyFlow({
+  seed, beforeBaseClick, afterAchievementSettlement, afterMissionClaim, gradeMoneyAwarded,
+}) {
+  const seedSnapshot = durableLightsQaSnapshot(seed);
+  const beforeSnapshot = durableLightsQaSnapshot(beforeBaseClick);
+  const achievementSnapshot = durableLightsQaSnapshot(afterAchievementSettlement);
+  const missionSnapshot = durableLightsQaSnapshot(afterMissionClaim);
+  const missionMoneyAwarded = afterMissionClaim.story05MissionMoneyAwarded;
+  const missionStageMoneyAwarded = missionSnapshot.money - achievementSnapshot.money;
+  return {
+    seed: seedSnapshot,
+    beforeBaseClick: beforeSnapshot,
+    baseSettlement: {
+      gradeMoneyAwarded,
+      eventQsoCreditsAwarded: achievementSnapshot.eventQsoCredits - beforeSnapshot.eventQsoCredits,
+      qsoLogDelta: achievementSnapshot.qsoLogCount - beforeSnapshot.qsoLogCount,
+      settledRunIdDelta: achievementSnapshot.settledRunIds.length - beforeSnapshot.settledRunIds.length,
+    },
+    afterAchievementSettlement: {
+      ...achievementSnapshot,
+      achievementMoneyAwarded: achievementSnapshot.money - beforeSnapshot.money - gradeMoneyAwarded,
+      newlyClaimedAchievementRewards: stringArrayDifference(
+        achievementSnapshot.claimedAchievementRewards, beforeSnapshot.claimedAchievementRewards,
+      ),
+    },
+    missionClaim: {
+      missionMoneyAwarded,
+      achievementMoneyAwarded: missionStageMoneyAwarded - missionMoneyAwarded,
+      totalMoneyAwarded: missionStageMoneyAwarded,
+      newlyClaimedAchievementRewards: stringArrayDifference(
+        missionSnapshot.claimedAchievementRewards, achievementSnapshot.claimedAchievementRewards,
+      ),
+      after: missionSnapshot,
+    },
+  };
+}
+
 function validateLightsQaEvidence(result) {
-  if (result?.schemaVersion !== 1 || result?.activity !== "lights-across-air") {
+  requirePlainObject(result, "evidence");
+  if (result.schemaVersion !== 1 || result.activity !== "lights-across-air"
+    || result.resultFile !== "lights-qa-result.json") {
     throw new Error("Lights QA evidence has an unsupported schema");
   }
-  const screenshots = Array.isArray(result.screenshots) ? result.screenshots : [];
-  for (const name of ["chase", "control", "result", "reloaded-history"]) {
+  const screenshots = requireStringArray(result.screenshots, "screenshots");
+  if (screenshots.length !== 6) throw new Error("Lights QA evidence must name exactly six screenshots");
+  for (const name of ["story-launch", "chase", "control", "failed", "result", "reloaded-history"]) {
     if (!screenshots.some((filename) => new RegExp(`^lights-${name}-.*\\.png$`).test(filename))) {
       throw new Error(`Lights QA evidence is missing ${name} screenshot`);
     }
   }
-  const checkpoints = result.checkpoints ?? {};
+
+  const checkpoints = requirePlainObject(result.checkpoints, "checkpoints");
   const required = [
     "story-ready", "keying-probe", "story-launch", "chase-complete", "control-entered", "escape-paused",
     "escape-resumed", "failed-run", "retry-control", "settled", "duplicate-settlement", "reloaded-history",
   ];
   for (const id of required) {
-    if (!checkpoints[id]) throw new Error(`Lights QA evidence is missing ${id} checkpoint`);
+    if (!Object.hasOwn(checkpoints, id)) throw new Error(`Lights QA evidence is missing ${id} checkpoint`);
+    requirePlainObject(checkpoints[id], `${id} checkpoint`);
   }
-  if (!checkpoints["story-ready"].prerequisiteClaimed || !checkpoints["story-ready"].story05Active) {
-    throw new Error("Lights QA did not activate story-05");
+
+  const storyReady = checkpoints["story-ready"];
+  if (storyReady.prerequisiteClaimed !== true || storyReady.story05Active !== true) {
+    throw new Error("Lights QA story-ready checkpoint did not activate story-05");
   }
   const keyingProbe = checkpoints["keying-probe"];
   if (keyingProbe.text !== "RRR RST" || keyingProbe.wpm !== LIGHTS_QA_WPM || keyingProbe.exact !== true) {
-    throw new Error("Lights QA did not prove the exact repeated-R keying probe");
+    throw new Error("Lights QA keying-probe checkpoint did not prove exact repeated-R input");
   }
   const expectedPhases = {
-    "story-launch": "CHASE_PLAYER_CALL",
-    "chase-complete": "CONTROL_CQ",
-    "control-entered": "CONTROL_CQ",
-    "escape-paused": "CONTROL_CQ",
-    "escape-resumed": "CONTROL_CQ",
-    "failed-run": "RUN_COMPLETE",
+    "story-launch": "CHASE_PLAYER_CALL", "chase-complete": "CONTROL_CQ", "control-entered": "CONTROL_CQ",
+    "escape-paused": "CONTROL_CQ", "escape-resumed": "CONTROL_CQ", "failed-run": "RUN_COMPLETE",
     "retry-control": "CONTROL_CQ",
   };
   for (const [id, phase] of Object.entries(expectedPhases)) {
     if (checkpoints[id].phase !== phase) throw new Error(`Lights QA ${id} phase is not ${phase}`);
   }
-  const settled = checkpoints.settled;
-  if (settled.grade !== "base"
-    || !Number.isInteger(settled.validQsoCount) || settled.validQsoCount < 3
-    || !Number.isInteger(settled.distinctRegionCount) || settled.distinctRegionCount < 2
-    || !Number.isInteger(settled.resolvedPileupCount) || settled.resolvedPileupCount < 1) {
-    throw new Error("Lights QA did not settle a Base-grade overlapping pile-up run");
+  if (checkpoints["story-launch"].mode !== "story") throw new Error("Lights QA story-launch mode is not story");
+  if (checkpoints["chase-complete"].completed !== true) throw new Error("Lights QA chase-complete fact is false");
+  if (checkpoints["escape-paused"].settingsVisible !== true) throw new Error("Lights QA escape-paused settingsVisible is not true");
+  if (checkpoints["escape-resumed"].settingsVisible !== false) throw new Error("Lights QA escape-resumed settingsVisible is not false");
+  if (checkpoints["failed-run"].grade !== "none") throw new Error("Lights QA failed-run grade is not none");
+  if (checkpoints["retry-control"].failedRunSettlementCount !== 1) {
+    throw new Error("Lights QA retry-control failedRunSettlementCount is not 1");
   }
-  if (!(settled.moneyDelta > 0)) throw new Error("Lights QA settlement did not produce a positive money delta");
-  if (!(settled.qsoLogDelta >= 3)) throw new Error("Lights QA settlement did not produce the expected QSO log delta");
+
+  const settled = checkpoints.settled;
+  requireNonNegativeInteger(settled.contacts, "settled.contacts");
+  requireNonNegativeInteger(settled.validQsoCount, "settled.validQsoCount");
+  requireNonNegativeInteger(settled.distinctRegionCount, "settled.distinctRegionCount");
+  requireNonNegativeInteger(settled.resolvedPileupCount, "settled.resolvedPileupCount");
+  if (settled.phase !== "RUN_COMPLETE" || settled.grade !== "base" || settled.contacts < 3
+    || settled.validQsoCount < 3 || settled.distinctRegionCount < 2 || settled.resolvedPileupCount < 1) {
+    throw new Error("Lights QA settled checkpoint did not prove a Base-grade overlapping pile-up run");
+  }
+  if (!Array.isArray(settled.selectedContacts) || settled.selectedContacts.length < 3
+    || settled.selectedContacts.some((contact) => !isPlainObject(contact)
+      || typeof contact.callsign !== "string" || !contact.callsign.trim()
+      || typeof contact.regionCode !== "string" || !contact.regionCode.trim())) {
+    throw new Error("Lights QA settled.selectedContacts are malformed");
+  }
+  const selectedRegions = new Set(settled.selectedContacts.map(({ regionCode }) => regionCode));
+  if (selectedRegions.size < 2 || settled.selectedContacts.length !== settled.validQsoCount
+    || selectedRegions.size !== settled.distinctRegionCount || settled.contacts !== settled.validQsoCount) {
+    throw new Error("Lights QA settled.selectedContacts do not match the QSO and region facts");
+  }
+
+  const moneyFlow = requirePlainObject(settled.moneyFlow, "settled.moneyFlow");
+  const seed = validateDurableLightsSnapshot(moneyFlow.seed, "settled.moneyFlow.seed", { allowEmptyRunIds: true });
+  const storySeed = validateDurableLightsSnapshot(storyReady.seed, "story-ready.seed", { allowEmptyRunIds: true });
+  const beforeBase = validateDurableLightsSnapshot(moneyFlow.beforeBaseClick, "settled.moneyFlow.beforeBaseClick");
+  const baseSettlement = requirePlainObject(moneyFlow.baseSettlement, "settled.moneyFlow.baseSettlement");
+  const afterAchievement = validateDurableLightsSnapshot(
+    moneyFlow.afterAchievementSettlement, "settled.moneyFlow.afterAchievementSettlement",
+  );
+  const missionClaim = requirePlainObject(moneyFlow.missionClaim, "settled.moneyFlow.missionClaim");
+  const afterMissionClaim = validateDurableLightsSnapshot(missionClaim.after, "settled.moneyFlow.missionClaim.after");
+  const final = validateDurableLightsSnapshot(settled.final, "settled.final");
+
+  if (!sameDurableLightsSnapshot(seed, storySeed) || seed.money !== 0 || seed.qsoLogCount !== 0
+    || seed.eventQsoCredits !== 0 || seed.settledRunIds.length !== 0
+    || seed.claimedAchievementRewards.length !== 0) {
+    throw new Error("Lights QA seed snapshot is not the isolated zero baseline");
+  }
+  if (beforeBase.money !== seed.money || beforeBase.qsoLogCount !== seed.qsoLogCount
+    || beforeBase.eventQsoCredits !== seed.eventQsoCredits || beforeBase.settledRunIds.length !== 1
+    || !sameStringArray(beforeBase.claimedAchievementRewards, seed.claimedAchievementRewards)) {
+    throw new Error("Lights QA beforeBaseClick snapshot is inconsistent with the failed retry baseline");
+  }
+  for (const field of ["gradeMoneyAwarded", "eventQsoCreditsAwarded", "qsoLogDelta", "settledRunIdDelta"]) {
+    requireNonNegativeInteger(baseSettlement[field], `settled.moneyFlow.baseSettlement.${field}`);
+  }
+  if (baseSettlement.gradeMoneyAwarded !== 0) throw new Error("Lights QA baseSettlement.gradeMoneyAwarded is not zero");
+  if (baseSettlement.eventQsoCreditsAwarded !== 0 || afterAchievement.eventQsoCredits !== 0) {
+    throw new Error("Lights QA baseSettlement eventQsoCredits are not zero");
+  }
+  if (baseSettlement.qsoLogDelta !== settled.validQsoCount
+    || afterAchievement.qsoLogCount - beforeBase.qsoLogCount !== baseSettlement.qsoLogDelta) {
+    throw new Error("Lights QA baseSettlement qsoLogDelta is inconsistent");
+  }
+  if (baseSettlement.settledRunIdDelta !== 1
+    || afterAchievement.settledRunIds.length - beforeBase.settledRunIds.length !== 1
+    || !sameStringArray(afterAchievement.settledRunIds.slice(0, -1), beforeBase.settledRunIds)) {
+    throw new Error("Lights QA baseSettlement settledRunIds are inconsistent");
+  }
+  requireNonNegativeInteger(afterAchievement.achievementMoneyAwarded, "settled.moneyFlow.afterAchievementSettlement.achievementMoneyAwarded");
+  const newlySettledAchievements = requireStringArray(
+    afterAchievement.newlyClaimedAchievementRewards,
+    "settled.moneyFlow.afterAchievementSettlement.newlyClaimedAchievementRewards",
+  );
+  if (afterAchievement.achievementMoneyAwarded !== 420
+    || afterAchievement.money - beforeBase.money !== afterAchievement.achievementMoneyAwarded
+    || !sameStringArray(newlySettledAchievements, ["first-qso", "regions-3"])
+    || !sameStringArray(
+      stringArrayDifference(afterAchievement.claimedAchievementRewards, beforeBase.claimedAchievementRewards),
+      newlySettledAchievements,
+    )) {
+    throw new Error("Lights QA achievement settlement did not account for the 420 balance increase");
+  }
+
   const duplicate = checkpoints["duplicate-settlement"];
   if (duplicate.noOp !== true) throw new Error("Lights QA duplicate settlement no-op is false");
-  if (JSON.stringify(duplicate.before?.settledRunIds) !== JSON.stringify(duplicate.after?.settledRunIds)
-    || duplicate.before?.money !== duplicate.after?.money || duplicate.before?.qsoLogCount !== duplicate.after?.qsoLogCount) {
+  const duplicateBefore = validateDurableLightsSnapshot(duplicate.before, "duplicate settlement before");
+  const duplicateAfter = validateDurableLightsSnapshot(duplicate.after, "duplicate settlement after");
+  if (!sameDurableLightsSnapshot(duplicateBefore, duplicateAfter)
+    || !sameDurableLightsSnapshot(duplicateBefore, afterAchievement)) {
     throw new Error("Lights QA duplicate settlement changed durable facts");
   }
-  const reloaded = checkpoints["reloaded-history"];
-  if (JSON.stringify(reloaded.settledRunIds) !== JSON.stringify(settled.settledRunIds)
-    || reloaded.money !== settled.money || reloaded.qsoLogCount !== settled.qsoLogCount) {
-    throw new Error(`Lights QA reload did not preserve settlement facts: ${JSON.stringify({
-      settled: { settledRunIds: settled.settledRunIds, money: settled.money, qsoLogCount: settled.qsoLogCount },
-      reloaded: { settledRunIds: reloaded.settledRunIds, money: reloaded.money, qsoLogCount: reloaded.qsoLogCount },
-    })}`);
+
+  for (const field of ["missionMoneyAwarded", "achievementMoneyAwarded", "totalMoneyAwarded"]) {
+    requireNonNegativeInteger(missionClaim[field], `settled.moneyFlow.missionClaim.${field}`);
+  }
+  const newlyClaimedAchievements = requireStringArray(
+    missionClaim.newlyClaimedAchievementRewards, "settled.moneyFlow.missionClaim.newlyClaimedAchievementRewards",
+  );
+  if (missionClaim.missionMoneyAwarded !== 500) throw new Error("Lights QA missionMoneyAwarded is not the story-05 reward");
+  if (missionClaim.achievementMoneyAwarded !== 100
+    || !sameStringArray(newlyClaimedAchievements, ["first-name"])) {
+    throw new Error("Lights QA mission claim achievement award is not the first-name reward");
+  }
+  if (missionClaim.totalMoneyAwarded !== 600
+    || missionClaim.totalMoneyAwarded !== missionClaim.missionMoneyAwarded + missionClaim.achievementMoneyAwarded
+    || afterMissionClaim.money - duplicateAfter.money !== missionClaim.totalMoneyAwarded) {
+    throw new Error("Lights QA mission claim total money is inconsistent");
+  }
+  if (afterMissionClaim.qsoLogCount !== duplicateAfter.qsoLogCount
+    || afterMissionClaim.eventQsoCredits !== duplicateAfter.eventQsoCredits
+    || !sameStringArray(afterMissionClaim.settledRunIds, duplicateAfter.settledRunIds)
+    || !sameStringArray(
+      afterMissionClaim.claimedAchievementRewards,
+      [...duplicateAfter.claimedAchievementRewards, ...newlyClaimedAchievements],
+    )
+    || !sameStringArray(
+      stringArrayDifference(afterMissionClaim.claimedAchievementRewards, duplicateAfter.claimedAchievementRewards),
+      newlyClaimedAchievements,
+    )) {
+    throw new Error("Lights QA mission claim changed unrelated settlement facts");
+  }
+  if (!sameDurableLightsSnapshot(final, afterMissionClaim)) throw new Error("Lights QA final snapshot is inconsistent");
+
+  const reloaded = validateDurableLightsSnapshot(checkpoints["reloaded-history"], "reloaded-history");
+  if (checkpoints["reloaded-history"].storyBestGrade !== "base") {
+    throw new Error("Lights QA reloaded-history storyBestGrade is not base");
+  }
+  if (!sameDurableLightsSnapshot(reloaded, final)) {
+    throw new Error(`Lights QA settled facts did not match reloaded history: ${JSON.stringify({ settled: final, reloaded })}`);
   }
   return true;
 }
@@ -529,6 +739,8 @@ async function readLightsQaSave(window) {
     const saves = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1") || "[]");
     const save = saves.find((candidate) => candidate.id === "qa-lights-save");
     if (!save) throw new Error("Missing seeded Lights QA save");
+    const qsoLogs = Array.isArray(save.qsoLogs) ? save.qsoLogs : [];
+    const story05History = (save.missionState?.history ?? []).find(({ id }) => id === "story-05");
     return {
       id: save.id,
       callsign: save.callsign,
@@ -536,7 +748,10 @@ async function readLightsQaSave(window) {
       activeMissionIds: (save.missionState?.activeMissions ?? []).map(({ id }) => id),
       settledRunIds: save.lightsEventState?.settledRunIds ?? [],
       storyBest: save.lightsEventState?.storyBest ?? null,
-      qsoLogCount: (save.qsoLogs ?? []).length,
+      qsoLogCount: qsoLogs.length,
+      eventQsoCredits: qsoLogs.reduce((total, log) => total + Number(log.credits ?? 0), 0),
+      claimedAchievementRewards: save.claimedAchievementRewards ?? [],
+      story05MissionMoneyAwarded: story05History?.moneyReward ?? null,
       money: Number(save.money ?? 0),
     };
   })()`, true);
@@ -765,7 +980,11 @@ async function runLightsQaCapture(window, outputDir, suffix) {
   if (!prepared.claimedMissionIds.includes("story-04") || !prepared.activeMissionIds.includes("story-05")) {
     throw new Error(`Lights story preparation did not produce an active story-05 mission: ${JSON.stringify(prepared)}`);
   }
-  checkpoint("story-ready", { prerequisiteClaimed: true, story05Active: true });
+  checkpoint("story-ready", {
+    prerequisiteClaimed: true,
+    story05Active: true,
+    seed: durableLightsQaSnapshot(prepared),
+  });
 
   await markStep("launch-story-lights");
   await click(window, '[data-action="launch-lights-story"]');
@@ -845,24 +1064,30 @@ async function runLightsQaCapture(window, outputDir, suffix) {
     || resultFacts.validQsoCount < 3 || resultFacts.distinctRegionCount < 2 || resultFacts.resolvedPileupCount < 1) {
     throw new Error(`Lights retry did not reach the required Base result: ${JSON.stringify(resultFacts)}`);
   }
+  const beforeBaseClick = await readLightsQaSave(window);
   await click(window, '[data-action="lights-settle"]');
   await waitFor(window, ".lights-settlement-banner");
+  const gradeMoneyAwarded = await window.webContents.executeJavaScript(
+    'Number(document.querySelector(".lights-settlement-banner")?.dataset.lightsMoneyAwarded)', true,
+  );
   await capture(window, outputDir, plan.screenshots[4]);
-  const settledBeforeClaim = await readLightsQaSave(window);
-  if (settledBeforeClaim.settledRunIds.length !== 2 || settledBeforeClaim.qsoLogCount !== 3) {
-    throw new Error(`Lights settlement did not persist the Base retry run: ${JSON.stringify(settledBeforeClaim)}`);
+  const afterAchievementSettlement = await readLightsQaSave(window);
+  if (afterAchievementSettlement.settledRunIds.length !== 2 || afterAchievementSettlement.qsoLogCount !== 3
+    || gradeMoneyAwarded !== 0 || afterAchievementSettlement.eventQsoCredits !== 0) {
+    throw new Error(`Lights Base and achievement settlement facts are invalid: ${JSON.stringify({ gradeMoneyAwarded, afterAchievementSettlement })}`);
   }
 
   await click(window, '[data-action="lights-settle"]');
   const duplicate = await readLightsQaSave(window);
-  if (JSON.stringify(duplicate.settledRunIds) !== JSON.stringify(settledBeforeClaim.settledRunIds)
-    || duplicate.money !== settledBeforeClaim.money || duplicate.qsoLogCount !== settledBeforeClaim.qsoLogCount) {
-    throw new Error(`Duplicate Lights settlement changed the save: ${JSON.stringify({ settledBeforeClaim, duplicate })}`);
+  if (!sameDurableLightsSnapshot(
+    durableLightsQaSnapshot(duplicate), durableLightsQaSnapshot(afterAchievementSettlement),
+  )) {
+    throw new Error(`Duplicate Lights settlement changed the save: ${JSON.stringify({ afterAchievementSettlement, duplicate })}`);
   }
   checkpoint("duplicate-settlement", {
     noOp: true,
-    before: { settledRunIds: settledBeforeClaim.settledRunIds, money: settledBeforeClaim.money, qsoLogCount: settledBeforeClaim.qsoLogCount },
-    after: { settledRunIds: duplicate.settledRunIds, money: duplicate.money, qsoLogCount: duplicate.qsoLogCount },
+    before: durableLightsQaSnapshot(afterAchievementSettlement),
+    after: durableLightsQaSnapshot(duplicate),
   });
 
   await click(window, ".lights-event-header button");
@@ -871,20 +1096,26 @@ async function runLightsQaCapture(window, outputDir, suffix) {
   await waitFor(window, '[data-mission-id="story-05"][data-mission-status="ready"]');
   await click(window, '[data-action="claim-mission"][data-mission-action-id="story-05"]');
   await waitFor(window, '[data-mission-id="story-05"][data-mission-status="claimed"]');
-  const settled = await readLightsQaSave(window);
-  const moneyDelta = settled.money - afterRetry.money;
-  const qsoLogDelta = settled.qsoLogCount - afterRetry.qsoLogCount;
-  if (moneyDelta <= 0 || qsoLogDelta < 3 || settled.storyBest?.grade !== "base") {
-    throw new Error(`Lights Base settlement and mission claim did not pay once: ${JSON.stringify({ afterRetry, settled, moneyDelta, qsoLogDelta })}`);
+  const afterMissionClaim = await readLightsQaSave(window);
+  const moneyFlow = buildLightsQaMoneyFlow({
+    seed: prepared,
+    beforeBaseClick,
+    afterAchievementSettlement,
+    afterMissionClaim,
+    gradeMoneyAwarded,
+  });
+  if (moneyFlow.afterAchievementSettlement.achievementMoneyAwarded !== 420
+    || moneyFlow.missionClaim.missionMoneyAwarded !== 500
+    || moneyFlow.missionClaim.achievementMoneyAwarded !== 100
+    || moneyFlow.missionClaim.totalMoneyAwarded !== 600
+    || afterMissionClaim.storyBest?.grade !== "base") {
+    throw new Error(`Lights staged reward accounting is invalid: ${JSON.stringify({ moneyFlow, afterMissionClaim })}`);
   }
   checkpoint("settled", {
     ...resultFacts,
     selectedContacts: completedContacts,
-    moneyDelta,
-    qsoLogDelta,
-    settledRunIds: settled.settledRunIds,
-    money: settled.money,
-    qsoLogCount: settled.qsoLogCount,
+    moneyFlow,
+    final: durableLightsQaSnapshot(afterMissionClaim),
   });
   await click(window, '[data-action="close-missions-footer"]');
   await waitForMissing(window, '[data-testid="mission-center-modal"]');
@@ -897,15 +1128,14 @@ async function runLightsQaCapture(window, outputDir, suffix) {
   await waitFor(window, ".home-screen");
   await capture(window, outputDir, plan.screenshots[5]);
   const reloaded = await readLightsQaSave(window);
-  if (JSON.stringify(reloaded.settledRunIds) !== JSON.stringify(settled.settledRunIds)
-    || reloaded.money !== settled.money || reloaded.qsoLogCount !== settled.qsoLogCount) {
-    throw new Error(`Lights settlement history did not survive reload: ${JSON.stringify({ settled, reloaded })}`);
+  if (!sameDurableLightsSnapshot(
+    durableLightsQaSnapshot(reloaded), durableLightsQaSnapshot(afterMissionClaim),
+  )) {
+    throw new Error(`Lights settlement history did not survive reload: ${JSON.stringify({ afterMissionClaim, reloaded })}`);
   }
   checkpoint("reloaded-history", {
-    settledRunIds: reloaded.settledRunIds,
+    ...durableLightsQaSnapshot(reloaded),
     storyBestGrade: reloaded.storyBest?.grade ?? null,
-    money: reloaded.money,
-    qsoLogCount: reloaded.qsoLogCount,
   });
 
   const result = {
@@ -2602,7 +2832,7 @@ async function runQaCapture(window) {
 
 module.exports = {
   automaticQaGapAfterElement, automaticQaShouldWaitForIdleAfterSymbol,
-  buildLightsQaPlan, formatLightsWaitFailure, LIGHTS_QA_WPM, runLightsQaCapture, runQaCapture,
+  buildLightsQaMoneyFlow, buildLightsQaPlan, formatLightsWaitFailure, LIGHTS_QA_WPM, runLightsQaCapture, runQaCapture,
   lightsKeyInputForSymbol, selectLightsCallerFromRuntimeSnapshot,
   sendAutomaticLightsText, validateLightsQaEvidence, validateStationEntryProbe,
 };

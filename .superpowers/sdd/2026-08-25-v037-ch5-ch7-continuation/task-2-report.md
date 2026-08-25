@@ -21,8 +21,17 @@ Final contract result:
 
 ```text
 node --test test/packaged-lights-qa-contract.test.cjs
-tests 15 / pass 15 / fail 0
+tests 18 / pass 18 / fail 0
 ```
+
+The review hardening was also TDD-driven. Negative fixtures first demonstrated that
+missing or false protocol facts and malformed ledgers could pass the old validator.
+The validator now requires a complete plain-object schema, all protocol checkpoints,
+three well-formed selected contacts across at least two regions, non-empty string run
+IDs, finite nonnegative integer counters, duplicate/reload equality, and the complete
+staged money flow. Helper behavior tests replaced two source-regex assertions; the
+remaining source checks cover only the packaged main-process wiring and read-only DOM
+surface that cannot be exercised by the CommonJS helper tests.
 
 ## Direct Electron evidence
 
@@ -55,8 +64,8 @@ Artifact:
 
 ```text
 release\CWGame-latest.exe
-147,812,327 bytes
-2026-08-26 01:21:42 local time
+147,811,304 bytes
+2026-08-26 01:52:51.956 +09:00
 ```
 
 The generated EXE was run as:
@@ -65,10 +74,18 @@ The generated EXE was run as:
 release\CWGame-latest.exe --qa-lights-capture
 ```
 
-Complete evidence directory:
+The first review-round run was retained as a hard failure rather than discarded:
 
 ```text
-C:\Users\jiang\AppData\Local\Temp\cwgame-lights-portable-final-20260826-012150945
+C:\Users\jiang\AppData\Local\Temp\cwgame-lights-portable-round2-20260826-015303265
+```
+
+It failed during real keying because `SIM5LT` decoded as `SIM5EDT` while the document
+was focused and visible. No new timing assumption was added. An unchanged, clean-TEMP
+rerun of the same rebuilt EXE completed at:
+
+```text
+C:\Users\jiang\AppData\Local\Temp\cwgame-lights-portable-round2-final-20260826-015443749
 ```
 
 Independent post-run validation returned true and found exactly six screenshots. Literal result facts were:
@@ -79,26 +96,36 @@ validQsoCount=3
 distinctRegionCount=3
 resolvedPileupCount=3
 selected regions=JP, US, CN
-qsoLogDelta=3
-duplicate settlement: settledRunIds/money/qsoLogCount unchanged at money=420, qsoLogCount=3
-after story-05 claim: money=1020, qsoLogCount=3
-after reload: money=1020, qsoLogCount=3, identical settledRunIds
+seed: money=0, qsoLogCount=0, eventQsoCredits=0, settledRunIds=[]
+before Base click: money=0, qsoLogCount=0, eventQsoCredits=0, one failed settledRunId
+Base grade award=0; event QSO credits=0; qsoLogDelta=3; settledRunIdDelta=1
+after achievement settlement: money=420 from first-qso=120 + regions-3=300
+duplicate settlement: all durable facts unchanged at money=420, qsoLogCount=3
+mission claim stage: story-05 mission=500 + first-name achievement=100; total=600
+final: money=1020, qsoLogCount=3, eventQsoCredits=0
+after reload: money=1020 with identical QSO count, run IDs, and claimed-achievement IDs; storyBestGrade=base
 live QA processes after completion=0
 ```
 
-The `420 -> 1020` transition is intentional: the Base run settlement first records three event QSOs and their ordinary QSO rewards (balance 420); claiming the ready story-05 mission then adds its 600 mission reward (balance 1020). Duplicate settlement is checked before the mission claim and changes neither balance nor logs. The reported positive `moneyDelta=1020` spans the isolated seed balance of zero through both the real settlement and the real mission claim.
+The `420 -> 1020` transition is intentional but is not a Lights settlement reward.
+Story Base has a grade award of zero and event QSO records carry zero credits. The
+balance first reaches 420 only because settling three event QSOs unlocks the
+`first-qso` (120) and `regions-3` (300) achievements. Claiming story-05 then pays its
+500 mission reward and unlocks `first-name` for another 100, so that claim stage adds
+600 and produces the final 1020 balance. Duplicate settlement is checked at the 420
+stage and is a full durable-state no-op.
 
 ## Final verification
 
 ```text
 node --test test/packaged-lights-qa-contract.test.cjs test/lights-event-acceptance.test.js
-tests 18 / pass 18 / fail 0
+tests 21 / pass 21 / fail 0
 
 pnpm test
-tests 374 / pass 374 / fail 0
+tests 377 / pass 377 / fail 0
 
 pnpm build
-exit 0; 4628 modules transformed; built in 13.60s
+exit 0; 4628 modules transformed; built in 11.61s
 ```
 
 Vite emitted its existing chunk-size warning for the roughly 982 kB main JavaScript chunk. No test or build failure was present.
@@ -107,9 +134,9 @@ Vite emitted its existing chunk-size warning for the roughly 982 kB main JavaScr
 
 - `.github/workflows/windows-portable.yml`: runs the literal JSON validator before accepting packaged evidence.
 - `electron/main.cjs` and `electron/preload.cjs`: independent Lights CLI mode, QA focus/show behavior, and disabled background throttling for QA.
-- `electron/qa-capture.cjs`: real held-paddle Z/X transmission, live pile-up selection, phase diagnostics, Base/overlap/idempotency/reload evidence, and schema validation.
+- `electron/qa-capture.cjs`: real held-paddle Z/X transmission, live pile-up selection, phase diagnostics, fail-closed evidence schema, staged reward accounting, Base/overlap/idempotency/reload evidence.
 - `src/App.jsx`: restores the missing `QSO_EXIT_RISKS` import that blocked station entry.
-- `src/screens/LightsEventScreen.jsx`: read-only pulse/decoded/result fact projections consumed by QA.
-- `test/packaged-lights-qa-contract.test.cjs`: executable contracts for the independent runner, timing boundary, evidence schema, focus, dynamic callers, and reload diagnostics.
+- `src/screens/LightsEventScreen.jsx`: read-only pulse/decoded/result/settlement fact projections consumed by QA.
+- `test/packaged-lights-qa-contract.test.cjs`: executable contracts and negative fixtures for the independent runner, timing boundary, complete evidence schema, staged money semantics, focus, dynamic callers, and reload diagnostics.
 
 No push was performed.
