@@ -49,8 +49,9 @@ export function emptyWorldCalendarState() {
   };
 }
 
-export function normalizeWorldCalendarState(value) {
+export function normalizeWorldCalendarState(value, { anchorYear = null } = {}) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const lastTrustedAt = normalizeIso(source.lastTrustedAt);
   const recordsByYear = new Map();
   const recordSource = Array.isArray(source.annualRecords)
     ? source.annualRecords.slice(-MAX_ANNUAL_RECORD_INPUTS) : [];
@@ -66,11 +67,13 @@ export function normalizeWorldCalendarState(value) {
         ? record.bestGrade : previous.bestGrade,
     } : record);
   }
+  const trustedYear = validDate(lastTrustedAt)?.getUTCFullYear() ?? null;
+  const retentionYear = Number.isInteger(anchorYear) ? anchorYear : trustedYear;
   return {
     version: WORLD_CALENDAR_VERSION,
-    lastTrustedAt: normalizeIso(source.lastTrustedAt),
+    lastTrustedAt,
     rollbackGuardUntil: normalizeIso(source.rollbackGuardUntil),
-    annualRecords: [...recordsByYear.values()].sort((a, b) => a.year - b.year).slice(-MAX_ANNUAL_RECORDS),
+    annualRecords: retainAnnualRecords([...recordsByYear.values()], retentionYear),
   };
 }
 
@@ -114,8 +117,8 @@ export function stationCalendarDate(value = new Date(), requestedTimeZone = "UTC
   };
 }
 
-function updateTrustedClock(value, now) {
-  const state = normalizeWorldCalendarState(value);
+function updateTrustedClock(value, now, anchorYear) {
+  const state = normalizeWorldCalendarState(value, { anchorYear });
   const nowIso = now.toISOString();
   const nowMs = now.getTime();
   const lastTrustedMs = validDate(state.lastTrustedAt)?.getTime() ?? null;
@@ -153,8 +156,8 @@ export function evaluateLightsAvailability({
   now = new Date(), timeZone = "UTC", storyCompleted = false, state = null,
 } = {}) {
   const instant = validDate(now) ?? new Date(0);
-  const clock = updateTrustedClock(state, instant);
   const stationDate = stationCalendarDate(instant, timeZone);
+  const clock = updateTrustedClock(state, instant, stationDate.year);
   const storyAvailable = storyCompleted !== true;
   const annualAvailable = storyCompleted === true
     && stationDate.month === LIGHTS_ANNUAL_MONTH

@@ -161,6 +161,24 @@ test("future-year poisoning cannot evict the settlement year or repeat its rewar
   assert.equal(repeated.record.bestScore, 5);
 });
 
+test("future-year poisoning cannot erase an existing claim before settlement", () => {
+  const poisoned = {
+    lastTrustedAt: "2026-05-05T10:00:00.000Z",
+    annualRecords: [
+      { year: 2026, rewardClaimed: true, bestScore: 3, bestGrade: "base" },
+      ...Array.from({ length: 20 }, (_, index) => ({
+        year: 9980 + index, rewardClaimed: true, bestScore: 7, bestGrade: "gold",
+      })),
+    ],
+  };
+  const result = recordLightsAnnualResult(poisoned, {
+    now: "2026-05-05T12:00:00.000Z", timeZone: "UTC", storyCompleted: true, score: 5, grade: "silver",
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.rewardGranted, false);
+  assert.deepEqual(result.record, { year: 2026, rewardClaimed: true, bestScore: 5, bestGrade: "silver" });
+});
+
 test("annual settlement rejects years outside the persisted record domain", () => {
   const beforeDomain = recordLightsAnnualResult(null, {
     now: "1969-05-05T12:00:00.000Z", timeZone: "UTC", storyCompleted: true, score: 3, grade: "base",
