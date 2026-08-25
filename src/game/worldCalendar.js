@@ -4,6 +4,7 @@ export const LIGHTS_ANNUAL_FIRST_DAY = 1;
 export const LIGHTS_ANNUAL_LAST_DAY = 7;
 export const LIGHTS_SPECIAL_DAY = 5;
 export const CLOCK_ROLLBACK_TOLERANCE_MS = 5 * 60 * 1000;
+export const WORLD_CALENDAR_HEARTBEAT_MS = 60 * 1000;
 
 const MAX_ANNUAL_RECORDS = 20;
 const MAX_ANNUAL_RECORD_INPUTS = MAX_ANNUAL_RECORDS * 4;
@@ -152,12 +153,18 @@ function updateTrustedClock(value, now, anchorYear) {
   };
 }
 
+export function advanceWorldCalendarState(value, { now = new Date(), timeZone = "UTC" } = {}) {
+  const instant = validDate(now) ?? new Date(0);
+  const stationDate = stationCalendarDate(instant, timeZone);
+  const clock = updateTrustedClock(value, instant, stationDate.year);
+  return { ...clock, stationDate };
+}
+
 export function evaluateLightsAvailability({
   now = new Date(), timeZone = "UTC", storyCompleted = false, state = null,
 } = {}) {
-  const instant = validDate(now) ?? new Date(0);
-  const stationDate = stationCalendarDate(instant, timeZone);
-  const clock = updateTrustedClock(state, instant, stationDate.year);
+  const clock = advanceWorldCalendarState(state, { now, timeZone });
+  const stationDate = clock.stationDate;
   const storyAvailable = storyCompleted !== true;
   const annualAvailable = storyCompleted === true
     && stationDate.month === LIGHTS_ANNUAL_MONTH

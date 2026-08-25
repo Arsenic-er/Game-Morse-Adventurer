@@ -19,7 +19,7 @@ import {
   MISSION_STATE_VERSION, emptyMissionState, normalizeMissionState,
 } from "./missionSystem.js";
 import {
-  WORLD_CALENDAR_VERSION, emptyWorldCalendarState, normalizeWorldCalendarState,
+  WORLD_CALENDAR_VERSION, advanceWorldCalendarState, emptyWorldCalendarState, normalizeWorldCalendarState,
 } from "./worldCalendar.js";
 
 export const SAVE_STORAGE_KEY = "game-morse-adventurer.saves.v1";
@@ -208,6 +208,19 @@ export function normalizeSave(save) {
         qsoLogs: Array.isArray(qsoLogSource) ? qsoLogSource : [],
       });
   return normalized;
+}
+
+export function touchSaveWorldCalendar(save, now = new Date()) {
+  if (!save || typeof save !== "object" || Array.isArray(save)) return save;
+  const timeZone = getLocation(save.locationId).timeZone;
+  const advanced = advanceWorldCalendarState(save.worldCalendarState, { now, timeZone });
+  const canonicalState = JSON.stringify(save.worldCalendarState) === JSON.stringify(advanced.state);
+  if (save.worldCalendarVersion === WORLD_CALENDAR_VERSION && canonicalState) return save;
+  return {
+    ...save,
+    worldCalendarVersion: WORLD_CALENDAR_VERSION,
+    worldCalendarState: advanced.state,
+  };
 }
 
 export function loadSaves(storage = globalThis.localStorage) {

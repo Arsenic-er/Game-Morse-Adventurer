@@ -30,8 +30,9 @@ import {
 } from "./game/missionSystem.js";
 import { unlockTechnology } from "./game/technologyTree.js";
 import {
-  loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves,
+  loadActiveSaveId, loadSaves, persistActiveSaveId, persistSaves, touchSaveWorldCalendar,
 } from "./game/saveStore.js";
+import { WORLD_CALENDAR_HEARTBEAT_MS } from "./game/worldCalendar.js";
 import { PracticeScreen } from "./practice/PracticeScreen.jsx";
 import { practiceStatsByMode, recordPracticeAttempt, updatePracticePreference } from "./practice/practiceRecords.js";
 import { PropagationMap } from "./propagation/PropagationMap.jsx";
@@ -1194,6 +1195,23 @@ export function App() {
     setSaves(stored);
     return stored;
   }
+
+  useEffect(() => {
+    if (!activeSaveId || !["home", "station", "practice"].includes(screen)) return undefined;
+    function touchActiveWorldCalendar() {
+      let changed = false;
+      const nextSaves = savesRef.current.map((save) => {
+        if (save.id !== activeSaveId) return save;
+        const touched = touchSaveWorldCalendar(save, new Date());
+        if (touched !== save) changed = true;
+        return touched;
+      });
+      if (changed) commitSaves(nextSaves);
+    }
+    touchActiveWorldCalendar();
+    const timer = window.setInterval(touchActiveWorldCalendar, WORLD_CALENDAR_HEARTBEAT_MS);
+    return () => window.clearInterval(timer);
+  }, [activeSaveId, screen]);
 
   function selectSave(saveId) {
     const selected = savesRef.current.find((save) => save.id === saveId);
