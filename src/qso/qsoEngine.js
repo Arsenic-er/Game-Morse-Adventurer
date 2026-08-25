@@ -24,6 +24,12 @@ function normalizeCallsign(value) {
   return normalizeCwText(value).replace(/[^A-Z0-9]/g, "");
 }
 
+function boundedProceduralNpcId(value) {
+  if (typeof value !== "string" || value.length > 64) return null;
+  const normalized = value.trim();
+  return normalized && /^[A-Za-z0-9:_-]+$/.test(normalized) ? normalized : null;
+}
+
 function tokenized(value) {
   return normalizeCwText(value).split(" ").filter(Boolean);
 }
@@ -863,6 +869,7 @@ export function createQsoLogEntry(qso, {
     completedAt: completed.toISOString(),
     playerCallsign: qso.playerCallsign,
     callsign: qso.npc.callsign,
+    npcId: boundedProceduralNpcId(qso.npc.proceduralNpcId),
     frequencyMhz,
     mode: "CW",
     sent: qso.sentRst,

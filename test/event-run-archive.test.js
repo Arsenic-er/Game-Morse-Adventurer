@@ -82,6 +82,52 @@ test("weather and message facts are deterministic across normalization and JSON 
   assert.deepEqual(normalizeEventRunArchive(roundTrip), roundTrip);
 });
 
+test("reload preserves validated archived contact facts across JSON round trips", () => {
+  const stored = JSON.parse(JSON.stringify(recordEventRunArchive(null, createEventRunSnapshot(result(), {
+    stationTimeZone: "Asia/Tokyo",
+    stamp: "special",
+  }))));
+  Object.assign(stored.storyBest.contacts[0], {
+    timeZone: "Pacific/Auckland",
+    weatherCode: "snow",
+    messageKey: "lights.archive.message.return",
+  });
+
+  const reloaded = normalizeEventRunArchive(stored);
+
+  assert.deepEqual({
+    timeZone: reloaded.storyBest.contacts[0].timeZone,
+    weatherCode: reloaded.storyBest.contacts[0].weatherCode,
+    messageKey: reloaded.storyBest.contacts[0].messageKey,
+  }, {
+    timeZone: "Pacific/Auckland",
+    weatherCode: "snow",
+    messageKey: "lights.archive.message.return",
+  });
+  assert.deepEqual(normalizeEventRunArchive(JSON.parse(JSON.stringify(reloaded))), reloaded);
+});
+
+test("inherited archive fact fields are ignored instead of becoming persisted data", () => {
+  const input = result();
+  input.contacts = [Object.assign(Object.create({
+    timeZone: "Pacific/Auckland",
+    weatherCode: "snow",
+    messageKey: "lights.archive.message.return",
+  }), input.contacts[0])];
+
+  const snapshot = createEventRunSnapshot(input, { stationTimeZone: "Asia/Tokyo" });
+
+  assert.deepEqual({
+    timeZone: snapshot.contacts[0].timeZone,
+    weatherCode: snapshot.contacts[0].weatherCode,
+    messageKey: snapshot.contacts[0].messageKey,
+  }, {
+    timeZone: "Asia/Tokyo",
+    weatherCode: "rain",
+    messageKey: "lights.archive.message.shared-sky",
+  });
+});
+
 test("archive retains the story best, twenty recent annual bests, and thirty-one recent practice-day bests", () => {
   let archive = emptyEventRunArchive();
   archive = recordEventRunArchive(archive, result({ runId: "story:base", score: 3, grade: "base", contacts: false }), { stationTimeZone: "UTC" });
@@ -158,6 +204,7 @@ test("hostile archive inputs are bounded, reject invalid snapshots, and never re
   suppliedProse.contacts[0].operatorName = "PLAYER SUPPLIED PROSE";
   suppliedProse.contacts[0].weatherCode = "real-weather";
   suppliedProse.contacts[0].messageKey = "<script>";
+  suppliedProse.contacts[0].timeZone = "<script>";
   suppliedProse.contacts.push(...Array.from({ length: 100 }, () => suppliedProse.contacts[0]));
   const snapshot = createEventRunSnapshot(suppliedProse, { stationTimeZone: "Asia/Tokyo" });
   assert.equal(snapshot.contacts.length, 7);

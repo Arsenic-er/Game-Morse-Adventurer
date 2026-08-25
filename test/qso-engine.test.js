@@ -6,6 +6,7 @@ import {
   restartQso, submitPlayerMessage, validatePlayerMessage,
 } from "../src/qso/qsoEngine.js";
 import { MAX_QSO_ATTEMPT_HISTORY, QSO_LOG_VERSION } from "../src/qso/qsoLog.js";
+import { generateProceduralNpcAt, proceduralNpcToStation } from "../src/qso/proceduralNpc.js";
 import { interpretCwTraffic } from "../src/qso/semanticInterpreter.js";
 
 const npc = {
@@ -342,6 +343,27 @@ test("only completed QSOs with chronological timestamps can be logged", () => {
     completedAt: "2026-07-15T00:05:00.000Z",
   };
   assert.throws(() => createQsoLogEntry(invalid), /chronological timestamps/);
+});
+
+test("createQsoLogEntry retains the production procedural NPC identity", () => {
+  const profile = generateProceduralNpcAt({ worldSeed: "qso-log-identity", globalIndex: 0 });
+  const station = proceduralNpcToStation(profile);
+  const qso = {
+    ...createQso({
+      npc: station,
+      playerCallsign: "JA1LGT",
+      startedAt: "2026-07-15T00:00:00.000Z",
+    }),
+    phase: QSO_PHASES.QSO_COMPLETE,
+    completedAt: "2026-07-15T00:05:00.000Z",
+    sentRst: "559",
+    receivedRst: "579",
+  };
+
+  assert.equal(qso.npc.proceduralNpcId, "N1-JP-0000");
+  const log = createQsoLogEntry(qso);
+  assert.equal(log.personId, "person:procedural:N1-JP-0000");
+  assert.equal(log.stationId, "station:procedural:N1-JP-0000");
 });
 
 test("malformed CQ is transmitted on air and resolved by the remote copy model", () => {

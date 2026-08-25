@@ -25,6 +25,9 @@ export const LIGHTS_ARCHIVE_MESSAGE_KEYS = Object.freeze([
   "lights.archive.message.signal",
   "lights.archive.message.return",
 ]);
+const FICTIONAL_WEATHER_CODE_SET = new Set(FICTIONAL_WEATHER_CODES);
+const LIGHTS_ARCHIVE_MESSAGE_KEY_SET = new Set(LIGHTS_ARCHIVE_MESSAGE_KEYS);
+const MAX_TIME_ZONE_LENGTH = 64;
 
 function hash32(value) {
   let hash = 2166136261;
@@ -76,6 +79,22 @@ function eventRegionCode(value) {
   return ["JP", "US", "CN", "GE", "CH", "FI"].includes(normalized) ? normalized : null;
 }
 
+function ownValue(candidate, key) {
+  return Object.hasOwn(candidate, key) ? candidate[key] : undefined;
+}
+
+function validTimeZone(value) {
+  if (typeof value !== "string" || value.length > MAX_TIME_ZONE_LENGTH) return null;
+  const normalized = value.trim();
+  if (!normalized || !/^(?:UTC|[A-Za-z][A-Za-z0-9._+-]*(?:\/[A-Za-z0-9][A-Za-z0-9._+-]*)+)$/.test(normalized)) return null;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: normalized }).format(0);
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeContact(candidate, eventRunId, fallbackCompletedAt) {
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return null;
   const location = LOCATIONS.find(({ id }) => id === String(candidate.locationId ?? ""));
@@ -86,16 +105,22 @@ function normalizeContact(candidate, eventRunId, fallbackCompletedAt) {
   const regionCode = eventRegionCode(candidate.eventRegionCode ?? candidate.regionCode);
   if (!location || !completedAt || !personId || !station || !regionCode) return null;
   const factSeed = `${eventRunId}|${personId}|${completedAt}`;
+  const suppliedWeatherCode = ownValue(candidate, "weatherCode");
+  const suppliedMessageKey = ownValue(candidate, "messageKey");
   return {
     personId,
     stationId: station.stationId,
     onAirCallsign: station.callsign,
     eventRegionCode: regionCode,
     locationId: location.id,
-    timeZone: location.timeZone,
+    timeZone: validTimeZone(ownValue(candidate, "timeZone")) ?? location.timeZone,
     completedAt,
-    weatherCode: FICTIONAL_WEATHER_CODES[hash32(factSeed) % FICTIONAL_WEATHER_CODES.length],
-    messageKey: LIGHTS_ARCHIVE_MESSAGE_KEYS[hash32(`${factSeed}:message`) % LIGHTS_ARCHIVE_MESSAGE_KEYS.length],
+    weatherCode: FICTIONAL_WEATHER_CODE_SET.has(suppliedWeatherCode)
+      ? suppliedWeatherCode
+      : FICTIONAL_WEATHER_CODES[hash32(factSeed) % FICTIONAL_WEATHER_CODES.length],
+    messageKey: LIGHTS_ARCHIVE_MESSAGE_KEY_SET.has(suppliedMessageKey)
+      ? suppliedMessageKey
+      : LIGHTS_ARCHIVE_MESSAGE_KEYS[hash32(`${factSeed}:message`) % LIGHTS_ARCHIVE_MESSAGE_KEYS.length],
   };
 }
 
