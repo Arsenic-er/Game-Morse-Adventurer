@@ -53,6 +53,13 @@ export function lightsRunSeed({ saveId, mode, stationDate, startedAt } = {}) {
   return `${id}:practice:${String(stationDate?.dateKey ?? "1970-01-01")}:${suffix}`;
 }
 
+export function lightsAnnualStampLabel(settlement, language = "en") {
+  const stamp = settlement?.annualStamp;
+  if (stamp !== "standard" && stamp !== "special") return null;
+  const t = lightsText(language);
+  return stamp === "special" ? t.stampSpecial : t.stampStandard;
+}
+
 function timerText(elapsedMs) {
   const seconds = Math.ceil(Math.max(0, LIGHTS_RUN_DURATION_MS - Number(elapsedMs || 0)) / 1000);
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;

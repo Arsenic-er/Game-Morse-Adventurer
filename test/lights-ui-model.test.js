@@ -5,7 +5,7 @@ import {
   LIGHTS_PHASES, advanceLightsPlayback, createLightsRun, submitLightsTransmission, tickLightsRun,
 } from "../src/game/lightsRun.js";
 import {
-  lightsExitNeedsConfirmation, lightsRunSeed, lightsTimerShouldRun, lightsUiModel,
+  lightsAnnualStampLabel, lightsExitNeedsConfirmation, lightsRunSeed, lightsTimerShouldRun, lightsUiModel,
 } from "../src/game/lightsUiModel.js";
 import { LIGHTS_TEXT } from "../src/screens/lightsEventText.js";
 
@@ -114,4 +114,11 @@ test("story rosters stay fixed, annual rosters rotate by station year, and pract
     lightsRunSeed({ saveId: "save-1", mode: "practice", stationDate: first, startedAt: "2026-05-01T00:00:00Z" }),
     lightsRunSeed({ saveId: "save-1", mode: "practice", stationDate: first, startedAt: "2026-05-01T00:01:00Z" }),
   );
+});
+
+test("annual stamp copy is hidden when rollback withheld the stamp", () => {
+  assert.equal(lightsAnnualStampLabel({ annualStamp: "none" }, "en"), null);
+  assert.equal(lightsAnnualStampLabel({ annualStamp: null }, "en"), null);
+  assert.equal(lightsAnnualStampLabel({ annualStamp: "standard" }, "en"), LIGHTS_TEXT.en.stampStandard);
+  assert.equal(lightsAnnualStampLabel({ annualStamp: "special" }, "zh-CN"), LIGHTS_TEXT["zh-CN"].stampSpecial);
 });

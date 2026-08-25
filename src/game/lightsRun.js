@@ -30,6 +30,22 @@ function iso(value) {
   return Number.isFinite(date.getTime()) ? date.toISOString() : new Date(0).toISOString();
 }
 
+function stableIdToken(value) {
+  let left = 2166136261;
+  let right = 5381;
+  for (const character of String(value)) {
+    const code = character.charCodeAt(0);
+    left = Math.imul(left ^ code, 16777619);
+    right = Math.imul(right, 33) ^ code;
+  }
+  return `${(left >>> 0).toString(16).padStart(8, "0")}${(right >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function boundedSeed(value) {
+  const seed = String(value);
+  return seed.length <= 64 ? seed : `seed:${stableIdToken(seed)}`;
+}
+
 function recoveryAction(message) {
   const normalized = normalizeCwText(message);
   if (/^(AGN|QRZ) K$/.test(normalized)) return "repeat";
@@ -52,11 +68,12 @@ export function createLightsRun({
   if (!callsign) throw new Error("PLAYER_CALLSIGN_REQUIRED");
   if (!LIGHTS_EVENT_REGIONS.includes(region)) throw new Error("PLAYER_REGION_REQUIRED");
   const started = iso(startedAt);
+  const normalizedSeed = boundedSeed(seed);
   return {
     version: 1,
-    runId: `${normalizedMode}:${String(seed)}:${started}`,
+    runId: `${normalizedMode}:${stableIdToken(normalizedSeed)}:${started}`,
     mode: normalizedMode,
-    seed: String(seed),
+    seed: normalizedSeed,
     startedAt: started,
     completedAt: null,
     playerCallsign: callsign,
@@ -70,7 +87,7 @@ export function createLightsRun({
       region: "JP",
       rst: "599",
       operatorName: "SORA",
-      channelSeed: `${String(seed)}:sora`,
+      channelSeed: `${normalizedSeed}:sora`,
     }),
     lastError: null,
     recoveryRequests: 0,
@@ -288,13 +305,14 @@ export function tickLightsRun(run, elapsedMs, completedAt = new Date()) {
 
 export function restartLightsControl(run, { startedAt = new Date(), seed = null } = {}) {
   if (!run || run.phase !== LIGHTS_PHASES.RUN_COMPLETE) return run;
+  const retryStartedAt = iso(startedAt);
   const retry = createLightsRun({
     mode: run.mode,
     playerCallsign: run.playerCallsign,
     playerRegion: run.playerRegion,
     guidance: run.guidance,
-    seed: seed ?? `${run.seed}:retry:${run.runId}`,
-    startedAt,
+    seed: seed ?? `retry:${stableIdToken(run.runId)}:${retryStartedAt}`,
+    startedAt: retryStartedAt,
   });
   return {
     ...retry,

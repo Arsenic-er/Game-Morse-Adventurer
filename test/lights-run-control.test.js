@@ -148,3 +148,25 @@ test("a failed story slot can retry the control stage without repeating the chas
   assert.equal(retry.elapsedMs, 0);
   assert.notEqual(retry.runId, completed.runId);
 });
+
+test("repeated control retries keep bounded unique run and contact ids", () => {
+  const initial = {
+    ...controlRun({
+      mode: "story",
+      seed: "save-12345678-1234-1234-1234-123456789abc:story",
+    }),
+    phase: LIGHTS_PHASES.RUN_COMPLETE,
+    chaseCompleted: true,
+    elapsedMs: 480_000,
+    completedAt: "2026-05-05T09:08:00.000Z",
+  };
+  const first = restartLightsControl(initial, { startedAt: "2026-05-05T09:09:00.000Z" });
+  const failedAgain = tickLightsRun(first, 480_000, "2026-05-05T09:17:00.000Z");
+  let second = restartLightsControl(failedAgain, { startedAt: "2026-05-05T09:18:00.000Z" });
+  while (second.phase !== LIGHTS_PHASES.RUN_COMPLETE) second = completeRound(second).run;
+  const result = lightsRunResult(second);
+  assert.equal(new Set([initial.runId, first.runId, second.runId]).size, 3);
+  assert.ok([initial.runId, first.runId, second.runId].every((id) => id.length <= 96));
+  assert.equal(new Set(result.contacts.map(({ id }) => id)).size, 7);
+  assert.ok(result.contacts.every(({ id }) => id.length <= 96));
+});

@@ -124,6 +124,24 @@ test("settlement is idempotent by run id", () => {
   assert.equal(repeated.moneyAwarded, 0);
 });
 
+test("long retry identifiers remain distinct and preserve every contact", () => {
+  const prefix = `story:${"retry-chain-".repeat(20)}`;
+  const firstResult = result({ runId: `${prefix}:first` });
+  firstResult.contacts = firstResult.contacts.map((entry, index) => ({
+    ...entry, id: `${prefix}:first:${index}`,
+  }));
+  const secondResult = result({ runId: `${prefix}:second` });
+  secondResult.contacts = secondResult.contacts.map((entry, index) => ({
+    ...entry, id: `${prefix}:second:${index}`,
+  }));
+  const first = settleLightsRun(createSave({ callsign: "JA1LGT", locationId: "japan-tokyo-kanto" }), firstResult);
+  const second = settleLightsRun(first.save, secondResult);
+  assert.equal(first.settled, true);
+  assert.equal(second.settled, true);
+  assert.equal(new Set(second.save.qsoLogs.map(({ id }) => id)).size, 14);
+  assert.equal(second.save.qsoLogs.length, 14);
+});
+
 test("annual settlement grants 300 once per station year and improves the best record", () => {
   const save = saveWithStoryComplete();
   const first = settleLightsRun(save, result({ mode: "annual", count: 5, runId: "annual:first" }), {
@@ -200,7 +218,7 @@ test("evicted recent run ids remain permanently idempotent through the QSO ledge
   assert.equal(replay.reason, "already-settled");
 });
 
-test("clock rollback cannot replay a pruned daily practice reward", () => {
+test("practice rewards stay available during rollback while pruned daily rewards remain durable", () => {
   let save = saveWithStoryComplete();
   for (let index = 0; index < 35; index += 1) {
     const day = new Date(Date.UTC(2026, 5, 1 + index, 12));
@@ -212,5 +230,11 @@ test("clock rollback cannot replay a pruned daily practice reward", () => {
     mode: "practice", count: 3, runId: "practice:old-date-new-run",
   }), { now: "2026-06-01T12:00:00.000Z" });
   assert.equal(replay.moneyAwarded, 0);
-  assert.equal(replay.reason, "clock-rollback");
+  assert.equal(replay.reason, null);
+
+  const newDay = settleLightsRun(save, result({
+    mode: "practice", count: 5, runId: "practice:rollback-new-day",
+  }), { now: "2026-06-02T12:00:00.000Z" });
+  assert.equal(newDay.moneyAwarded, 120);
+  assert.equal(newDay.reason, null);
 });

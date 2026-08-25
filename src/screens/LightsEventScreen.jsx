@@ -13,7 +13,7 @@ import {
   restartLightsControl, submitLightsTransmission, tickLightsRun,
 } from "../game/lightsRun.js";
 import {
-  lightsExitNeedsConfirmation, lightsRunSeed, lightsTimerShouldRun, lightsUiModel,
+  lightsAnnualStampLabel, lightsExitNeedsConfirmation, lightsRunSeed, lightsTimerShouldRun, lightsUiModel,
 } from "../game/lightsUiModel.js";
 import { lightsText } from "./lightsEventText.js";
 
@@ -46,6 +46,7 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
   const playbackKeyRef = useRef(null);
   const inputRef = useRef(null);
   const model = useMemo(() => lightsUiModel(run, language), [language, run]);
+  const annualStampLabel = lightsAnnualStampLabel(settlement, language);
   const targetText = expectedPlayerText(run);
   const cw = useCwCore({
     targetText,
@@ -216,7 +217,7 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
         <button className="lights-settle" data-action="lights-settle" onClick={settle} disabled={!model.canSettle || Boolean(settlement)}><FloppyDisk size={20} weight="fill" />{settlement ? t.settled : t.settle}</button>
         {model.result?.grade === "none" && <button data-action="lights-retry-control" onClick={retryControl}><Repeat size={19} />{t.retryControl}</button>}
       </footer>
-      {settlement && <div className="lights-settlement-banner" role="status"><Trophy size={24} weight="fill" /><strong>{model.gradeLabel}</strong><span>+{settlement.moneyAwarded}</span>{settlement.annualStamp && <span data-annual-stamp={settlement.annualStamp}>{settlement.annualStamp === "special" ? t.stampSpecial : t.stampStandard}</span>}</div>}
+      {settlement && <div className="lights-settlement-banner" role="status"><Trophy size={24} weight="fill" /><strong>{model.gradeLabel}</strong><span>+{settlement.moneyAwarded}</span>{annualStampLabel && <span data-annual-stamp={settlement.annualStamp}>{annualStampLabel}</span>}</div>}
     </main>
   );
 }

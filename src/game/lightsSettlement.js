@@ -98,9 +98,36 @@ export function normalizeLightsEventState(value) {
   };
 }
 
+function identifierHash(value) {
+  let left = 2166136261;
+  let right = 5381;
+  for (const character of String(value)) {
+    const code = character.charCodeAt(0);
+    left = Math.imul(left ^ code, 16777619);
+    right = Math.imul(right, 33) ^ code;
+  }
+  return `${(left >>> 0).toString(16).padStart(8, "0")}${(right >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function compactIdentifier(value, maximum) {
+  const normalized = String(value ?? "").trim();
+  if (normalized.length <= maximum) return normalized;
+  const suffix = `:${identifierHash(normalized)}`;
+  return `${normalized.slice(0, maximum - suffix.length)}${suffix}`;
+}
+
 function runSettlementLedgerId(runId) {
-  const value = `lights-run:${String(runId ?? "")}`;
-  return value.length <= 96 ? value : `${value.slice(0, 55)}:${value.slice(-40)}`;
+  return compactIdentifier(`lights-run:${String(runId ?? "")}`, 96);
+}
+
+function practiceRewardLedgerId(dateKey, grade) {
+  return `lights-practice:${dateKey}:${grade}`;
+}
+
+function durablePracticeReward(records, dateKey) {
+  return Object.entries(PRACTICE_REWARD).reduce((best, [grade, reward]) => (
+    records.settledQsoIds.includes(practiceRewardLedgerId(dateKey, grade)) ? Math.max(best, reward) : best
+  ), 0);
 }
 
 function normalizeContact(value, index, result) {
@@ -109,7 +136,8 @@ function normalizeContact(value, index, result) {
   const eventRegionCode = String(value.eventRegionCode ?? "").toUpperCase();
   if (!callsign || !LIGHTS_EVENT_REGIONS.includes(eventRegionCode)) return null;
   return {
-    id: String(value.id ?? `${result.runId}:${index}`).trim().slice(0, 96) || `${result.runId}:${index}`,
+    id: compactIdentifier(value.id ?? `${result.runId}:${index}`, 96)
+      || compactIdentifier(`${result.runId}:${index}`, 96),
     callsign,
     eventRegionCode,
     locationId: String(value.locationId ?? `event-${eventRegionCode.toLowerCase()}`).trim().slice(0, 64),
@@ -125,7 +153,7 @@ function normalizeContact(value, index, result) {
 
 function normalizeResult(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const runId = String(value.runId ?? "").trim().slice(0, 128);
+  const runId = compactIdentifier(value.runId, 128);
   const mode = RUN_MODES.has(value.mode) ? value.mode : null;
   const startedAt = iso(value.startedAt);
   const completedAt = iso(value.completedAt);
@@ -242,6 +270,7 @@ export function settleLightsRun(save, candidate, { now = new Date() } = {}) {
   let modeMoney = 0;
   let practiceRecords = state.practiceRecords;
   let rewardsPaused = false;
+  let practiceRewardMarker = null;
   let annualStamp = null;
   let annualStampGranted = false;
 
@@ -261,18 +290,18 @@ export function settleLightsRun(save, candidate, { now = new Date() } = {}) {
   } else if (result.mode === "practice") {
     const calendar = advanceWorldCalendarState(worldCalendarState, { now, timeZone });
     worldCalendarState = calendar.state;
-    rewardsPaused = calendar.annualRewardsPaused;
-    reason = rewardsPaused ? "clock-rollback" : null;
     const dateKey = calendar.stationDate.dateKey;
     const previous = practiceRecords.find((record) => record.dateKey === dateKey)
       ?? { dateKey, bestScore: 0, bestGrade: "none", moneyPaid: 0 };
     const targetReward = PRACTICE_REWARD[result.grade];
-    modeMoney = rewardsPaused ? 0 : Math.max(0, targetReward - previous.moneyPaid);
+    const previousPaid = Math.max(previous.moneyPaid, durablePracticeReward(qsoRecords, dateKey));
+    modeMoney = Math.max(0, targetReward - previousPaid);
+    practiceRewardMarker = targetReward > 0 ? practiceRewardLedgerId(dateKey, result.grade) : null;
     const record = {
       dateKey,
       bestScore: Math.max(previous.bestScore, result.score),
       bestGrade: betterGrade(previous.bestGrade, result.grade),
-      moneyPaid: rewardsPaused ? previous.moneyPaid : Math.max(previous.moneyPaid, targetReward),
+      moneyPaid: Math.max(previousPaid, targetReward),
     };
     practiceRecords = practiceRecords.filter((candidateRecord) => candidateRecord.dateKey !== dateKey)
       .concat(record).sort((a, b) => a.dateKey.localeCompare(b.dateKey)).slice(-MAX_PRACTICE_RECORDS);
@@ -289,6 +318,12 @@ export function settleLightsRun(save, candidate, { now = new Date() } = {}) {
     practiceRecords,
   });
   const contacts = recordEventContacts(save, result);
+  if (practiceRewardMarker && !contacts.qsoRecords.settledQsoIds.includes(practiceRewardMarker)) {
+    contacts.qsoRecords = {
+      ...contacts.qsoRecords,
+      settledQsoIds: [...contacts.qsoRecords.settledQsoIds, practiceRewardMarker].sort(),
+    };
+  }
   const nextSave = {
     ...save,
     money: integer(save.money ?? save.credits, Number.MAX_SAFE_INTEGER) + moneyAwarded,
