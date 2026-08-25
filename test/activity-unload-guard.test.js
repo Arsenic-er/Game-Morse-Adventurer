@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createLightsRun, LIGHTS_PHASES } from "../src/game/lightsRun.js";
 import {
-  activityUnloadRisk, createActivityPlaybackLifecycle, registerActivityPlaybackVisibility,
+  activityPlaybackIsActive, activityUnloadRisk, createActivityPlaybackLifecycle,
+  registerActivityPlaybackVisibility,
 } from "../src/game/lightsUiModel.js";
 import { createQso, QSO_PHASES } from "../src/qso/qsoEngine.js";
 import { qsoExitRisk } from "../src/qso/qsoExitGuard.js";
@@ -119,10 +120,21 @@ test("activity visibility listeners wait for focus, handle mount-hidden, and cle
     stopAll: () => { stopCalls += 1; },
     stopListening: () => { stopCalls += 1; },
   });
-  hiddenLifecycle.requestPlayback(250, () => { playCalls += 1; });
+  assert.equal(activityPlaybackIsActive(hiddenDocument), false);
   const cleanupHidden = registerActivityPlaybackVisibility({
     windowTarget: eventTarget(), documentTarget: hiddenDocument, lifecycle: hiddenLifecycle,
   });
+  hiddenLifecycle.requestPlayback(250, () => { playCalls += 1; });
   assert.equal(callbacks.size, 0);
+  hiddenDocument.visibilityState = "visible";
+  hiddenDocument.emit("visibilitychange");
+  assert.equal(activityPlaybackIsActive(hiddenDocument), false);
+  assert.equal(callbacks.size, 0);
+  hiddenDocument.focused = true;
+  hiddenDocument.emit("visibilitychange");
+  assert.equal(activityPlaybackIsActive(hiddenDocument), true);
+  assert.equal(callbacks.size, 1);
+  callbacks.get(3)();
+  assert.equal(playCalls, 2);
   cleanupHidden();
 });

@@ -114,14 +114,18 @@ export function createActivityPlaybackLifecycle({
   };
 }
 
+export function activityPlaybackIsActive(documentTarget = globalThis.document) {
+  return documentTarget?.visibilityState !== "hidden"
+    && (typeof documentTarget?.hasFocus !== "function" || documentTarget.hasFocus());
+}
+
 export function registerActivityPlaybackVisibility({
   windowTarget = globalThis.window,
   documentTarget = globalThis.document,
   lifecycle,
   onActiveChange = () => {},
 } = {}) {
-  const isActive = () => documentTarget?.visibilityState !== "hidden"
-    && (typeof documentTarget?.hasFocus !== "function" || documentTarget.hasFocus());
+  const isActive = () => activityPlaybackIsActive(documentTarget);
   const applyActiveState = (active) => {
     lifecycle?.setVisible?.(active);
     onActiveChange(active);

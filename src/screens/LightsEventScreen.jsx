@@ -13,7 +13,9 @@ import {
   restartLightsControl, submitLightsTransmission, tickLightsRun,
 } from "../game/lightsRun.js";
 import {
-  activityUnloadRisk, advanceLightsActiveClock, lightsAnnualStampLabel, lightsExitNeedsConfirmation, lightsRunSeed, lightsTimerShouldRun, lightsUiModel,
+  activityPlaybackIsActive, activityUnloadRisk, advanceLightsActiveClock,
+  createActivityPlaybackLifecycle, lightsAnnualStampLabel, lightsExitNeedsConfirmation,
+  lightsRunSeed, lightsTimerShouldRun, lightsUiModel, registerActivityPlaybackVisibility,
 } from "../game/lightsUiModel.js";
 import { lightsText } from "./lightsEventText.js";
 
@@ -42,8 +44,11 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
   });
   const [playbackRetry, setPlaybackRetry] = useState(0);
   const [settlement, setSettlement] = useState(null);
-  const [windowActive, setWindowActive] = useState(true);
+  const [windowActive, setWindowActive] = useState(() => activityPlaybackIsActive(document));
   const playbackKeyRef = useRef(null);
+  const playbackLifecycleRef = useRef(null);
+  if (!playbackLifecycleRef.current) playbackLifecycleRef.current = createActivityPlaybackLifecycle();
+  const playbackLifecycle = playbackLifecycleRef.current;
   const activeClockRef = useRef({ elapsedMs: 0, monotonicNow: null, active: false });
   const inputRef = useRef(null);
   const model = useMemo(() => lightsUiModel(run, language), [language, run]);
@@ -57,6 +62,24 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
   });
 
   useEffect(() => {
+    playbackLifecycle.setAudioControls({ stopAll: cw.stopAll, stopListening: cw.stopListening });
+    return () => playbackLifecycle.clearPlayback();
+  }, [cw.stopAll, cw.stopListening, playbackLifecycle]);
+
+  useEffect(() => registerActivityPlaybackVisibility({
+    windowTarget: window,
+    documentTarget: document,
+    lifecycle: playbackLifecycle,
+    onActiveChange: (active) => {
+      if (!active) {
+        playbackKeyRef.current = null;
+        playbackLifecycle.clearPlayback();
+      }
+      setWindowActive(active);
+    },
+  }), [playbackLifecycle]);
+
+  useEffect(() => {
     if (inputBlocked || !windowActive) return undefined;
     cw.startListening({ noiseGain: 0.06, noiseFilterCenterHz: 650, noiseFilterQ: 1.4 });
     return () => cw.stopListening();
@@ -65,8 +88,10 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
   useEffect(() => {
     if (!inputBlocked) return;
     playbackKeyRef.current = null;
+    playbackLifecycle.clearPlayback();
     cw.stopAll();
-  }, [cw.stopAll, inputBlocked]);
+    cw.stopListening();
+  }, [cw.stopAll, cw.stopListening, inputBlocked, playbackLifecycle]);
 
   useEffect(() => {
     onActivityRisk?.(unloadRisk);
@@ -80,7 +105,7 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
     if (playbackKeyRef.current === playbackKey) return undefined;
     playbackKeyRef.current = playbackKey;
     let cancelled = false;
-    const timer = window.setTimeout(async () => {
+    playbackLifecycle.requestPlayback(window.cwgameSystem?.qaCapture ? 20 : 260, async () => {
       const played = window.cwgameSystem?.qaCapture ? true : model.needsLayeredPlayback
         ? await cw.playIncomingLayers(lightsPileupPlaybackLayers(currentLightsPileup(run)))
         : await cw.playIncoming(model.incomingText, run.phase.startsWith("CHASE") ? run.chaseWpm : 18, {
@@ -94,10 +119,10 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
       }
       setRun((current) => current.phase === activePhase ? advanceLightsPlayback(current) : current);
       cw.clearInput();
-    }, window.cwgameSystem?.qaCapture ? 20 : 260);
-    return () => { cancelled = true; window.clearTimeout(timer); };
+    });
+    return () => { cancelled = true; playbackLifecycle.clearPlayback(); };
   }, [cw.clearInput, cw.playIncoming, cw.playIncomingLayers, inputBlocked, model.incomingText,
-    model.needsLayeredPlayback, model.needsPlayback, playbackRetry, run, windowActive]);
+    model.needsLayeredPlayback, model.needsPlayback, playbackLifecycle, playbackRetry, run, windowActive]);
 
   useEffect(() => {
     const active = lightsTimerShouldRun({ phase: run.phase, inputBlocked, windowActive });
@@ -120,29 +145,6 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
     }, 250);
     return () => window.clearInterval(timer);
   }, [inputBlocked, run.phase, windowActive]);
-
-  useEffect(() => {
-    function onFocus() {
-      if (document.visibilityState !== "hidden") setWindowActive(true);
-    }
-    function onInactive() {
-      playbackKeyRef.current = null;
-      setWindowActive(false);
-      cw.stopAll();
-    }
-    function onVisibilityChange() {
-      if (document.visibilityState === "hidden") onInactive();
-      else if (document.hasFocus()) onFocus();
-    }
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("blur", onInactive);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("blur", onInactive);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [cw.stopAll]);
 
   const transmit = useCallback(() => {
     if (!model.canTransmit || !cw.analysis.pulseCount || cw.isKeying || cw.isPlaying || inputBlocked) return;
