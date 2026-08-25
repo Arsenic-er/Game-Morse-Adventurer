@@ -20,6 +20,29 @@ export function receiverSignalProfileForChannel(channel = {}) {
   };
 }
 
+export function normalizePlaybackLayers(layers) {
+  if (!Array.isArray(layers)) return [];
+  return layers.map((layer) => {
+    const events = Array.isArray(layer?.events)
+      ? layer.events.filter((event) => Number.isFinite(event?.durationMs) && event.durationMs > 0)
+        .map((event) => ({ ...event }))
+      : [];
+    if (!events.length) return null;
+    const startOffsetMs = Math.min(5000, Math.max(0, Number(layer?.startOffsetMs) || 0));
+    const eventDuration = events.reduce((sum, event) => sum + event.durationMs, 0);
+    return {
+      events,
+      startOffsetMs,
+      durationMs: startOffsetMs + eventDuration,
+      channel: {
+        toneHz: Math.min(1200, Math.max(300, Number(layer?.channel?.toneHz) || FIXED_TONE_HZ)),
+        signalGain: Math.min(2, Math.max(0, Number(layer?.channel?.signalGain) || 0)),
+        qsbDepth: Math.min(.95, Math.max(0, Number(layer?.channel?.qsbDepth) || 0)),
+      },
+    };
+  }).filter(Boolean);
+}
+
 export class CwAudioEngine {
   constructor() {
     this.context = null;
@@ -148,6 +171,92 @@ export class CwAudioEngine {
       const finishTimer = window.setTimeout(complete, 100 + cursorMs);
       oscillator.addEventListener("ended", complete, { once: true });
       this.playback = { oscillator, sources, gain, timers, finishTimer, onTone, onFinish, resolve, complete };
+    });
+  }
+
+  async playLayers(layers, { onTone, onFinish } = {}) {
+    this.stopPlayback();
+    const normalized = normalizePlaybackLayers(layers);
+    if (!normalized.length) return { stopped: false, durationMs: 0 };
+    const durationMs = Math.max(...normalized.map((layer) => layer.durationMs));
+    const context = await this.resume();
+    if (context.state !== "running") return this.playLayersTimerFallback(normalized, { onTone, onFinish });
+
+    const startAt = context.currentTime + .035;
+    const sources = [];
+    for (const layer of normalized) {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const channelGain = context.createGain();
+      const profile = receiverSignalProfileForChannel(layer.channel);
+      oscillator.type = "sine";
+      oscillator.frequency.value = layer.channel.toneHz;
+      gain.gain.value = 0;
+      channelGain.gain.value = profile.carrierGain;
+      oscillator.connect(gain).connect(channelGain).connect(context.destination);
+      sources.push(oscillator);
+
+      if (profile.qsbDepth > 0) {
+        const lfo = context.createOscillator();
+        const lfoGain = context.createGain();
+        lfo.type = "sine";
+        lfo.frequency.value = .3;
+        lfoGain.gain.value = profile.qsbSwing;
+        lfo.connect(lfoGain).connect(channelGain.gain);
+        sources.push(lfo);
+        lfo.start(startAt + layer.startOffsetMs / 1000);
+        lfo.stop(startAt + layer.durationMs / 1000 + .02);
+      }
+
+      let cursorMs = layer.startOffsetMs;
+      gain.gain.setValueAtTime(0, startAt + cursorMs / 1000);
+      for (const event of layer.events) {
+        const eventStart = startAt + cursorMs / 1000;
+        const eventEnd = eventStart + event.durationMs / 1000;
+        if (event.type === "tone") {
+          const attackEnd = Math.min(eventEnd, eventStart + .004);
+          const releaseStart = Math.max(attackEnd, eventEnd - .004);
+          gain.gain.setValueAtTime(0, eventStart);
+          gain.gain.linearRampToValueAtTime(.18, attackEnd);
+          gain.gain.setValueAtTime(.18, releaseStart);
+          gain.gain.linearRampToValueAtTime(0, eventEnd);
+        }
+        cursorMs += event.durationMs;
+      }
+      oscillator.start(startAt + layer.startOffsetMs / 1000);
+      oscillator.stop(startAt + layer.durationMs / 1000 + .02);
+    }
+
+    onTone?.(true);
+    return new Promise((resolve) => {
+      const finishTimer = window.setTimeout(() => {
+        if (this.playback?.sources !== sources) return;
+        this.playback = null;
+        onTone?.(false);
+        onFinish?.();
+        resolve({ stopped: false, durationMs });
+      }, durationMs + 100);
+      this.playback = {
+        oscillator: sources[0], sources, timers: [], finishTimer, onTone, onFinish, resolve,
+      };
+    });
+  }
+
+  playLayersTimerFallback(layers, { onTone, onFinish } = {}) {
+    const durationMs = Math.max(...layers.map((layer) => layer.durationMs));
+    const token = {};
+    onTone?.(true);
+    return new Promise((resolve) => {
+      const finishTimer = window.setTimeout(() => {
+        if (this.playback?.token !== token) return;
+        this.playback = null;
+        onTone?.(false);
+        onFinish?.();
+        resolve({ stopped: false, durationMs, silentFallback: true });
+      }, durationMs + 30);
+      this.playback = {
+        token, oscillator: null, sources: [], timers: [], finishTimer, onTone, onFinish, resolve,
+      };
     });
   }
 

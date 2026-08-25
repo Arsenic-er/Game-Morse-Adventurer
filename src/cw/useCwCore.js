@@ -169,6 +169,26 @@ export function useCwCore({ targetText = "CQ", automaticWpm = 18, clearGestureLe
     return playEvents(sequence.events, "rx", channel);
   }, [playEvents]);
 
+  const playIncomingLayers = useCallback(async (layers) => {
+    if (!Array.isArray(layers) || !layers.length) return false;
+    if (manualStartRef.current !== null) endManual();
+    automaticKeyerRef.current?.stop();
+    setPlaybackMode("rx");
+    setIsPlaying(true);
+    setToneActive(false);
+    try {
+      const result = await engine().playLayers(layers, {
+        onTone: setToneActive,
+        onFinish: () => { setIsPlaying(false); setToneActive(false); },
+      });
+      return !result?.stopped;
+    } catch {
+      setIsPlaying(false);
+      setToneActive(false);
+      return false;
+    }
+  }, [endManual, engine]);
+
   const replayInput = useCallback(() => playEvents(pulsesToPlaybackEvents(pulsesRef.current), "tx"), [playEvents]);
 
   const startListening = useCallback(async (channel) => {
@@ -241,6 +261,7 @@ export function useCwCore({ targetText = "CQ", automaticWpm = 18, clearGestureLe
     isPlaying,
     isTransmitting: toneActive && (isKeying || (isPlaying && playbackMode === "tx")),
     playIncoming,
+    playIncomingLayers,
     replayInput,
     status,
     startListening,
