@@ -39,8 +39,7 @@ function recoveryAction(message) {
 
 function validChaseCall(message, playerCallsign) {
   const compact = normalizeCwText(message).replace(/\s/g, "");
-  return compact === `${LIGHTS_EVENT.callsign}DE${playerCallsign}K`
-    || compact === `${LIGHTS_EVENT.callsign}DE${playerCallsign}KN`;
+  return new RegExp(`^${LIGHTS_EVENT.callsign}DE${playerCallsign}(?:PSE)?K(?:N)?$`).test(compact);
 }
 
 export function createLightsRun({

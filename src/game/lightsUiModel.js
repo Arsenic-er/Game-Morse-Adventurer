@@ -43,7 +43,7 @@ function errorKey(reason) {
   if (reason === "partialAmbiguous") return "errorPartialAmbiguous";
   if (reason === "callsignMisidentified") return "errorCallsignMisidentified";
   if (reason === "partialNoMatch") return "errorPartialNoMatch";
-  if (reason === "unsafeSemanticCommit") return "errorUnsafe";
+  if (["unsafeSemanticCommit", "unsafeSemanticResult"].includes(reason)) return "errorUnsafe";
   return reason ? "errorGeneric" : null;
 }
 

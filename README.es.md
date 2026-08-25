@@ -8,7 +8,7 @@
 
 [**Modelo semántico y datos de entrenamiento**](https://github.com/Arsenic-er/cwformer)
 
-**v0.35.0**: cwformer funciona mediante un proveedor INT8 ONNX local real y combina la semántica con la habilidad, personalidad y tolerancia de cada NPC; `safeToCommit` impide avanzar con contenido incierto. Los informes aceptan CW válido y flexible, mientras que catálogos dinámicos limitados siguen al operador, lugar, radio y antena actuales. Las misiones añaden el capítulo 4, contratos de comunicación congelados, eventos QSO atómicos, diez tipos de ADN diario con prevención de repeticiones recientes y una progresión calibrada de dinero y puntos tecnológicos.
+**v0.36.0**: Añade el evento jugable del capítulo 5, «Luces a través del aire». Primero se persigue a SORA en la estación especial ficticia `SIM5LT`; después se toma el control durante pile-ups CW deterministas de dos a cuatro estaciones. La historia, la repetición anual según la fecha local de la estación (1–7 de mayo) y la práctica permanente comparten intercambios flexibles de indicativo/RST/código regional, recuperación con `AGN`, `QRS` o indicativos parciales, puntuación de ocho minutos, grados Base/Plata/Oro, recompensas idempotentes, registros de carrera y relaciones con NPC. La interfaz del evento está localizada en los siete idiomas; el mapa de luces para los resultados queda planificado para más adelante.
 
 
 [![Windows portable](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml/badge.svg)](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml)

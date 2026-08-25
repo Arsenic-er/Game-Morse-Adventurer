@@ -8,7 +8,7 @@
 
 [**Semantikmodell und Trainingsdaten**](https://github.com/Arsenic-er/cwformer)
 
-**v0.35.0**: cwformer läuft über einen echten lokalen INT8-ONNX-Provider und verbindet die Semantik mit Können, Persönlichkeit und Toleranz jedes NPC; `safeToCommit` verhindert Fortschritt mit unsicheren Inhalten. Gültige, flexible CW-Berichte werden akzeptiert, während begrenzte dynamische Kataloge den aktuellen Operator, Standort, Funkgerät und die Antenne abbilden. Missionen ergänzen Kapitel 4, eingefrorene Kommunikationsverträge, atomare QSO-Ereignisse, zehn tägliche Missions-DNA-Typen mit Schutz vor jüngsten Wiederholungen sowie einen kalibrierten Geld- und Technologiepunktefortschritt.
+**v0.36.0**: Ergänzt das spielbare Kapitel-5-Ereignis „Lichter über den Äther“. Zuerst wird SORA an der fiktiven Sonderstation `SIM5LT` gejagt, danach übernimmt der Spieler die Station in deterministischen CW-Pile-ups mit zwei bis vier Stationen. Handlung, jährliche Wiederholung nach Ortsdatum der Station (1.–7. Mai) und ganzjähriges Training teilen flexible Rufzeichen-/RST-/Regionscode-Wechsel, Wiederherstellung mit `AGN`, `QRS` oder Teilrufzeichen, eine achtminütige Wertung, Basis-/Silber-/Gold-Ränge, idempotente Belohnungen, Karriereprotokolle und NPC-Beziehungen. Die Ereignisoberfläche ist in allen sieben Sprachen lokalisiert; die spätere Ergebnisdarstellung als Lichterkarte bleibt geplant.
 
 
 [![Windows portable](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml/badge.svg)](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml)

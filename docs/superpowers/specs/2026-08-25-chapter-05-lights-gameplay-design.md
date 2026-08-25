@@ -2,7 +2,7 @@
 
 ## Status
 
-Approved design for Chapter 5 gameplay steps 1–10. This specification builds on the dual-calendar and active-save clock contracts already implemented in `worldCalendar.js` and `worldCalendarHeartbeat.js`. The pixel-art lights map, full narrative dialogue, and seven-language UI rollout remain later work.
+Implemented as the v0.36.0 Chapter 5 vertical slice. This specification builds on the dual-calendar and active-save clock contracts in `worldCalendar.js` and `worldCalendarHeartbeat.js`; its chase, pile-up, exchange, scoring, settlement, mission, economy, save, and seven-language UI contracts are now executable and covered by automated acceptance tests. The pixel-art lights-map result presentation and full narrative dialogue remain later work.
 
 ## 1. Purpose and boundaries
 

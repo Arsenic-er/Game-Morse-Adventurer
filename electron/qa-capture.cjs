@@ -306,7 +306,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.35.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.36.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
   const languageStorageKey = "game-morse-adventurer.language.v1";

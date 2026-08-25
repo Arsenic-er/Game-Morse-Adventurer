@@ -8,7 +8,7 @@
 
 [**Semantic model and training data**](https://github.com/Arsenic-er/cwformer)
 
-**v0.35.0**: Runs cwformer through a real local INT8 ONNX provider, then combines its semantics with each NPC's skill, personality, and tolerance; `safeToCommit` blocks uncertain turns. Reports accept valid flexible CW, while bounded dynamic catalogs follow the current operator, location, radio, and antenna. Missions now include Chapter 4, frozen communication contracts, atomic QSO events, ten daily mission-DNA types with recent-repeat avoidance, and calibrated money/technology-point progression.
+**v0.36.0**: Adds the playable Chapter 5 event “Lights Across the Air.” Chase SORA at the fictional `SIM5LT` event station, then take control through deterministic two-to-four-station CW pile-ups. Story, station-local annual replay (May 1–7), and year-round practice share tolerant callsign/RST/region exchanges, `AGN`/`QRS` and partial-call recovery, eight-minute scoring, Base/Silver/Gold grades, idempotent rewards, career logs, and NPC relationships. The event UI is localized in all seven interface languages; the later lights-map result presentation remains planned.
 
 
 [![Windows portable](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml/badge.svg)](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml)
