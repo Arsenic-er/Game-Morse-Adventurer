@@ -6,6 +6,7 @@ export const LIGHTS_SPECIAL_DAY = 5;
 export const CLOCK_ROLLBACK_TOLERANCE_MS = 5 * 60 * 1000;
 
 const MAX_ANNUAL_RECORDS = 20;
+const MAX_ANNUAL_RECORD_INPUTS = MAX_ANNUAL_RECORDS * 4;
 const MAX_ANNUAL_SCORE = 999;
 const GRADE_RANK = Object.freeze({ none: 0, base: 1, silver: 2, gold: 3 });
 
@@ -51,7 +52,9 @@ export function emptyWorldCalendarState() {
 export function normalizeWorldCalendarState(value) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const recordsByYear = new Map();
-  for (const candidate of Array.isArray(source.annualRecords) ? source.annualRecords : []) {
+  const recordSource = Array.isArray(source.annualRecords)
+    ? source.annualRecords.slice(-MAX_ANNUAL_RECORD_INPUTS) : [];
+  for (const candidate of recordSource) {
     const record = normalizeAnnualRecord(candidate);
     if (!record) continue;
     const previous = recordsByYear.get(record.year);
@@ -69,6 +72,18 @@ export function normalizeWorldCalendarState(value) {
     rollbackGuardUntil: normalizeIso(source.rollbackGuardUntil),
     annualRecords: [...recordsByYear.values()].sort((a, b) => a.year - b.year).slice(-MAX_ANNUAL_RECORDS),
   };
+}
+
+function retainAnnualRecords(records, requiredYear) {
+  const sorted = [...records].sort((a, b) => a.year - b.year);
+  if (sorted.length <= MAX_ANNUAL_RECORDS) return sorted;
+  const required = sorted.find((record) => record.year === requiredYear);
+  if (!required) return sorted.slice(-MAX_ANNUAL_RECORDS);
+  const nearest = sorted.filter((record) => record.year !== requiredYear)
+    .sort((a, b) => Math.abs(a.year - requiredYear) - Math.abs(b.year - requiredYear)
+      || b.year - a.year)
+    .slice(0, MAX_ANNUAL_RECORDS - 1);
+  return nearest.concat(required).sort((a, b) => a.year - b.year);
 }
 
 export function stationCalendarDate(value = new Date(), requestedTimeZone = "UTC") {
@@ -169,8 +184,8 @@ export function recordLightsAnnualResult(value, {
   if (!availability.annualAvailable) {
     return { accepted: false, rewardGranted: false, reason: "annual-closed", record: null, state: availability.state };
   }
-  if (availability.annualRewardsPaused) {
-    return { accepted: false, rewardGranted: false, reason: "clock-rollback", record: null, state: availability.state };
+  if (availability.stationDate.year < 1970 || availability.stationDate.year > 9999) {
+    return { accepted: false, rewardGranted: false, reason: "unsupported-year", record: null, state: availability.state };
   }
 
   const year = availability.stationDate.year;
@@ -180,17 +195,18 @@ export function recordLightsAnnualResult(value, {
   const nextGrade = normalizeGrade(grade);
   const record = {
     year,
-    rewardClaimed: true,
+    rewardClaimed: previous.rewardClaimed || !availability.annualRewardsPaused,
     bestScore: Math.max(previous.bestScore, normalizeScore(score)),
     bestGrade: GRADE_RANK[nextGrade] > GRADE_RANK[previous.bestGrade] ? nextGrade : previous.bestGrade,
   };
-  const annualRecords = availability.state.annualRecords
-    .filter((candidate) => candidate.year !== year).concat(record)
-    .sort((a, b) => a.year - b.year).slice(-MAX_ANNUAL_RECORDS);
+  const annualRecords = retainAnnualRecords(
+    availability.state.annualRecords.filter((candidate) => candidate.year !== year).concat(record),
+    year,
+  );
   return {
     accepted: true,
-    rewardGranted: !previous.rewardClaimed,
-    reason: null,
+    rewardGranted: !previous.rewardClaimed && !availability.annualRewardsPaused,
+    reason: availability.annualRewardsPaused ? "clock-rollback" : null,
     record,
     state: { ...availability.state, annualRecords },
   };

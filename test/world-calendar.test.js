@@ -122,20 +122,57 @@ test("annual reward is granted once per year while the best result can improve",
   assert.equal(nextYear.state.annualRecords.length, 2);
 });
 
-test("annual result rejects closed dates, incomplete story, and rollback reward attempts", () => {
+test("annual result rejects closed dates and incomplete stories", () => {
   assert.equal(recordLightsAnnualResult(null, {
     now: "2026-06-01T12:00:00.000Z", timeZone: "UTC", storyCompleted: true, score: 7, grade: "gold",
   }).reason, "annual-closed");
   assert.equal(recordLightsAnnualResult(null, {
     now: "2026-05-05T12:00:00.000Z", timeZone: "UTC", storyCompleted: false, score: 7, grade: "gold",
   }).reason, "story-incomplete");
+});
 
+test("clock rollback records an improved result but never grants the annual reward", () => {
   const trusted = evaluateLightsAvailability({ now: "2026-05-05T12:00:00.000Z", timeZone: "UTC", storyCompleted: true });
-  const rejected = recordLightsAnnualResult(trusted.state, {
+  const recorded = recordLightsAnnualResult(trusted.state, {
     now: "2026-05-05T10:00:00.000Z", timeZone: "UTC", storyCompleted: true, score: 7, grade: "gold",
   });
-  assert.equal(rejected.accepted, false);
-  assert.equal(rejected.reason, "clock-rollback");
+  assert.equal(recorded.accepted, true);
+  assert.equal(recorded.rewardGranted, false);
+  assert.equal(recorded.reason, "clock-rollback");
+  assert.deepEqual(recorded.record, { year: 2026, rewardClaimed: false, bestScore: 7, bestGrade: "gold" });
+});
+
+test("future-year poisoning cannot evict the settlement year or repeat its reward", () => {
+  const poisoned = normalizeWorldCalendarState({
+    annualRecords: Array.from({ length: 20 }, (_, index) => ({
+      year: 9980 + index, rewardClaimed: true, bestScore: 7, bestGrade: "gold",
+    })),
+  });
+  const first = recordLightsAnnualResult(poisoned, {
+    now: "2026-05-05T12:00:00.000Z", timeZone: "UTC", storyCompleted: true, score: 3, grade: "base",
+  });
+  assert.equal(first.rewardGranted, true);
+  assert.equal(first.state.annualRecords.some(({ year }) => year === 2026), true);
+
+  const repeated = recordLightsAnnualResult(first.state, {
+    now: "2026-05-06T12:00:00.000Z", timeZone: "UTC", storyCompleted: true, score: 5, grade: "silver",
+  });
+  assert.equal(repeated.rewardGranted, false);
+  assert.equal(repeated.record.bestScore, 5);
+});
+
+test("annual settlement rejects years outside the persisted record domain", () => {
+  const beforeDomain = recordLightsAnnualResult(null, {
+    now: "1969-05-05T12:00:00.000Z", timeZone: "UTC", storyCompleted: true, score: 3, grade: "base",
+  });
+  assert.equal(beforeDomain.accepted, false);
+  assert.equal(beforeDomain.reason, "unsupported-year");
+
+  const afterDomain = recordLightsAnnualResult(null, {
+    now: "+010000-05-05T12:00:00.000Z", timeZone: "UTC", storyCompleted: true, score: 3, grade: "base",
+  });
+  assert.equal(afterDomain.accepted, false);
+  assert.equal(afterDomain.reason, "unsupported-year");
 });
 
 test("calendar normalization bounds hostile state and keeps valid recent annual records", () => {
@@ -153,4 +190,14 @@ test("calendar normalization bounds hostile state and keeps valid recent annual 
   assert.equal(state.annualRecords[0].year, 2010);
   assert.equal(state.annualRecords.at(-1).year, 2029);
   assert.equal(state.annualRecords.at(-1).bestScore, 999);
+});
+
+test("calendar normalization bounds the amount of hostile input it examines", () => {
+  const hostile = Array.from({ length: 10_000 }, (_, index) => ({
+    year: 1970 + (index % 100), rewardClaimed: true, bestScore: 1, bestGrade: "base",
+  }));
+  Object.defineProperty(hostile[0], "year", {
+    get() { throw new Error("unbounded-normalization"); },
+  });
+  assert.doesNotThrow(() => normalizeWorldCalendarState({ annualRecords: hostile }));
 });
