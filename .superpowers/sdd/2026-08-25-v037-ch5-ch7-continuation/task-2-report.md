@@ -6,6 +6,12 @@ Task 2 now has a real independent `--qa-lights-capture` entry point. It seeds on
 
 The capture never writes decoded text, run state, settlement state, or `document.hasFocus`. QA-only DOM fields are read-only projections of the live keyer/result state.
 
+Every QA CLI mode now selects an isolated `userData` directory before Electron's
+single-instance lock and before `app.ready`. When `CWGAME_QA_OUTPUT` is omitted,
+the main process creates a dedicated `cwgame-qa-*` temporary directory and exports
+it as the output directory; QA can no longer open, clear, or overwrite the default
+player profile.
+
 ## TDD and diagnosis
 
 - Initial audit: `node --test test/packaged-lights-qa-contract.test.cjs` passed 13/13 for the inherited repair draft.
@@ -17,11 +23,25 @@ The capture never writes decoded text, run state, settlement state, or `document
 - The first portable run then produced a hard failure at `pulseCount=18` while using quick-tap queueing. A renderer-idle-after-every-element hypothesis was disproved by the short direct probe (`RRR RST` split into individual E/T symbols).
 - Final RED/GREEN: each real paddle keydown is held until the corresponding DOM pulse count increments, with keyup guaranteed in `finally`; idle is awaited only at character boundaries and the remaining 2/6 dot character/word gap is applied in the renderer. The final short direct probe passed before the portable rebuild.
 
-Final contract result:
+Round-three review repair used two explicit timing hypotheses. Hypothesis #1 made a
+character atomic but measured its separator from the dispatch deadline. Its first
+portable cold start failed as `SIM?T DE ??GT K`, so that hypothesis was rejected
+without retrying the run. Instrumented direct and portable traces then showed exact
+100/300 ms dot/dash pulses but only about 20 ms of decoder margin at some character
+boundaries: chained `AutomaticKeyer` timers had consumed the dispatch-anchored gap.
+
+The final hypothesis was first captured as a RED model with +30 ms drift on every
+real keyer timer: `QA5L` merged across character boundaries. The GREEN implementation
+queues each character through real Z/X keydown/up events, waits for all live pulses
+and the actual enabled/idle state, and only then applies the remaining 2/6-dot
+separator. It does not change decoder thresholds, add a retry, or write decoded text.
+The same model also preserves `LT` with a 150 ms delayed DOM projection.
+
+Final round-three contract result:
 
 ```text
 node --test test/packaged-lights-qa-contract.test.cjs
-tests 18 / pass 18 / fail 0
+tests 21 / pass 21 / fail 0
 ```
 
 The review hardening was also TDD-driven. Negative fixtures first demonstrated that
@@ -51,6 +71,16 @@ C:\Users\jiang\AppData\Local\Temp\cwgame-lights-probe-20260826-011601047
 
 `RRR RST` decoded exactly, the flow advanced through the full chase, and both story-launch and chase screenshots were generated. This probe-only process was then deliberately terminated with SIGINT before rebuilding the portable artifact; it is not represented as a complete result run.
 
+After the round-three idle-anchored change, a fresh direct short probe passed both
+chase transmissions and reached the control/failed-run checkpoints at:
+
+```text
+C:\Users\jiang\AppData\Local\Temp\cwgame-lights-round3-h2-direct-20260826-023852268
+```
+
+It produced four screenshots and no failure file before deliberate termination. It
+is likewise recorded only as a probe, not as a complete evidence run.
+
 ## Portable EXE evidence
 
 Build command:
@@ -64,8 +94,9 @@ Artifact:
 
 ```text
 release\CWGame-latest.exe
-147,811,304 bytes
-2026-08-26 01:52:51.956 +09:00
+147,813,547 bytes
+2026-08-26 02:46:08.921 +09:00
+SHA-256 0665FD051ED735210F20D950A4DCF7DA97ADF69DA5E005A81BDB54F87B7E9A58
 ```
 
 The generated EXE was run as:
@@ -88,7 +119,21 @@ rerun of the same rebuilt EXE completed at:
 C:\Users\jiang\AppData\Local\Temp\cwgame-lights-portable-round2-final-20260826-015443749
 ```
 
-Independent post-run validation returned true and found exactly six screenshots. Literal result facts were:
+The fail/green pair demonstrated the review's intermittent boundary fault; the green
+rerun is retained as historical evidence but is not counted toward the final gate.
+After the idle-anchored repair, the final portable EXE identified above completed
+three consecutive fresh-TEMP cold starts. There was no failed-run retry:
+
+```text
+C:\Users\jiang\AppData\Local\Temp\cwgame-lights-round3-h2-portable-1-20260826-024630469
+C:\Users\jiang\AppData\Local\Temp\cwgame-lights-round3-h2-portable-2-20260826-025210160
+C:\Users\jiang\AppData\Local\Temp\cwgame-lights-round3-h2-portable-3-20260826-025812409
+```
+
+Each directory independently passed the current `validateLightsQaEvidence`, contains
+12 protocol checkpoints and exactly six PNG screenshots, and has no `qa-failure.txt`.
+All CWGame processes had exited after the third run. Literal result facts in every run
+were:
 
 ```text
 grade=base
@@ -119,13 +164,13 @@ stage and is a full durable-state no-op.
 
 ```text
 node --test test/packaged-lights-qa-contract.test.cjs test/lights-event-acceptance.test.js
-tests 21 / pass 21 / fail 0
+tests 24 / pass 24 / fail 0
 
 pnpm test
-tests 377 / pass 377 / fail 0
+tests 380 / pass 380 / fail 0
 
 pnpm build
-exit 0; 4628 modules transformed; built in 11.61s
+exit 0; 4628 modules transformed; built in 13.77s
 ```
 
 Vite emitted its existing chunk-size warning for the roughly 982 kB main JavaScript chunk. No test or build failure was present.

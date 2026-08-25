@@ -772,20 +772,13 @@ async function sendAutomaticLightsText(window, text, wpm = LIGHTS_QA_WPM) {
     for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
       const pattern = MORSE[characters[characterIndex]];
       if (!pattern) continue;
-      for (let symbolIndex = 0; symbolIndex < pattern.length; symbolIndex += 1) {
-        const symbol = pattern[symbolIndex];
-        const input = lightsKeyInputForSymbol(symbol);
-        const lastSymbol = automaticQaShouldWaitForIdleAfterSymbol(symbolIndex, pattern.length);
-        const lastCharacter = characterIndex === characters.length - 1;
-        const lastWord = wordIndex === words.length - 1;
-        steps.push({
-          keyCode: input.keyCode,
-          waitForIdle: lastSymbol,
-          gapMs: lastSymbol && !lastCharacter
-            ? automaticQaGapAfterElement("character", wpm)
-            : lastSymbol && !lastWord ? automaticQaGapAfterElement("word", wpm) : 0,
-        });
-      }
+      const lastCharacter = characterIndex === characters.length - 1;
+      const lastWord = wordIndex === words.length - 1;
+      const separator = !lastCharacter ? "character" : !lastWord ? "word" : null;
+      steps.push({
+        keyCodes: [...pattern].map((symbol) => lightsKeyInputForSymbol(symbol).keyCode),
+        gapMs: separator ? automaticQaGapAfterElement(separator, wpm) : 0,
+      });
     }
   }
   const expected = String(text).toUpperCase().trim().replace(/\s+/g, " ");
@@ -812,24 +805,35 @@ async function sendAutomaticLightsText(window, text, wpm = LIGHTS_QA_WPM) {
     if (!Number.isFinite(pulseCount())) throw new Error("Lights input DOM state is unavailable");
     for (const step of steps) {
       const before = pulseCount();
-      const code = "Key" + step.keyCode;
-      window.dispatchEvent(new KeyboardEvent("keydown", {
-        code, key: step.keyCode.toLowerCase(), bubbles: true, cancelable: true,
-      }));
+      const heldCodes = new Set();
       try {
-        await waitUntil(() => pulseCount() >= before + 1, "Lights automatic-key pulse was not observed for " + code);
+        for (const keyCode of step.keyCodes) {
+          const code = "Key" + keyCode;
+          window.dispatchEvent(new KeyboardEvent("keydown", {
+            code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true,
+          }));
+          heldCodes.add(code);
+          window.dispatchEvent(new KeyboardEvent("keyup", {
+            code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true,
+          }));
+          heldCodes.delete(code);
+        }
       } finally {
-        window.dispatchEvent(new KeyboardEvent("keyup", {
-          code, key: step.keyCode.toLowerCase(), bubbles: true, cancelable: true,
-        }));
+        for (const code of heldCodes) {
+          window.dispatchEvent(new KeyboardEvent("keyup", {
+            code, key: code.slice(3).toLowerCase(), bubbles: true, cancelable: true,
+          }));
+        }
       }
-      if (step.waitForIdle) {
-        await waitUntil(
-          () => Boolean(document.querySelector('[data-action="lights-transmit"]:not([disabled])')),
-          "Lights automatic keyer did not become idle",
-        );
-      }
-      if (step.gapMs) await delay(step.gapMs);
+      await waitUntil(
+        () => pulseCount() >= before + step.keyCodes.length,
+        "Lights automatic-key character pulses were not observed",
+      );
+      await waitUntil(
+        () => Boolean(document.querySelector('[data-action="lights-transmit"]:not([disabled])')),
+        "Lights automatic keyer did not become idle",
+      );
+      if (step.gapMs > 0) await delay(step.gapMs);
     }
     await waitUntil(() => decoded() === expected, "Lights automatic input decoded '" + decoded() + "' instead of '" + expected + "'");
     return { decoded: decoded(), pulseCount: pulseCount() };

@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain } = require("electron");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { runLightsQaCapture, runQaCapture } = require("./qa-capture.cjs");
 const { readWindowsWifiStatus } = require("./network-status.cjs");
@@ -13,8 +14,13 @@ const qaWidth = Math.max(1280, Number(process.env.CWGAME_QA_WIDTH) || 1672);
 const qaHeight = Math.max(720, Number(process.env.CWGAME_QA_HEIGHT) || 941);
 if (qaCaptureMode) app.disableHardwareAcceleration();
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
-if (qaCaptureMode && process.env.CWGAME_QA_OUTPUT) {
-  const qaUserData = path.join(process.env.CWGAME_QA_OUTPUT, "electron-user-data");
+if (qaCaptureMode) {
+  const qaOutputDir = process.env.CWGAME_QA_OUTPUT
+    ? path.resolve(process.env.CWGAME_QA_OUTPUT)
+    : fs.mkdtempSync(path.join(os.tmpdir(), "cwgame-qa-"));
+  process.env.CWGAME_QA_OUTPUT = qaOutputDir;
+  fs.mkdirSync(qaOutputDir, { recursive: true });
+  const qaUserData = path.join(qaOutputDir, "electron-user-data");
   fs.mkdirSync(qaUserData, { recursive: true });
   app.setPath("userData", qaUserData);
 }

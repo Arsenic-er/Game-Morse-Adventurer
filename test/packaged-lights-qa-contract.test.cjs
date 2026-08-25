@@ -1,7 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const Module = require("node:module");
+const os = require("node:os");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const {
   automaticQaGapAfterElement, automaticQaShouldWaitForIdleAfterSymbol,
@@ -74,6 +77,80 @@ function validLightsEvidence() {
         noOp: true, before: afterAchievementSettlement, after: afterAchievementSettlement,
       },
       "reloaded-history": { ...afterMissionClaim, storyBestGrade: "base" },
+    },
+  };
+}
+
+async function delayedLightsRenderer({ keyerTimerLagMs = 0, projectionDelayMs = 150, wpm = 12 } = {}) {
+  const [{ AutomaticKeyer }, { analyzeKeying }] = await Promise.all([
+    import("../src/cw/automaticKeyer.js"),
+    import("../src/cw/inputAnalyzer.js"),
+  ]);
+  const pulses = [];
+  const projectionTimers = new Set();
+  let projectedPulseCount = 0;
+  let projectedDecoded = "";
+  let keyerActive = false;
+  const keyer = new AutomaticKeyer({
+    getWpm: () => wpm,
+    now: () => performance.now(),
+    setTimer: (callback, delay) => setTimeout(callback, delay + keyerTimerLagMs),
+    onSessionChange: (active) => { keyerActive = active; },
+    onPulse: (pulse) => {
+      pulses.push(pulse);
+      const snapshot = [...pulses];
+      const timer = setTimeout(() => {
+        projectionTimers.delete(timer);
+        projectedPulseCount = snapshot.length;
+        projectedDecoded = analyzeKeying(snapshot, { fallbackWpm: wpm }).decoded;
+      }, projectionDelayMs);
+      projectionTimers.add(timer);
+    },
+  });
+  class FakeKeyboardEvent {
+    constructor(type, options) {
+      this.type = type;
+      Object.assign(this, options);
+    }
+  }
+  const document = {
+    visibilityState: "visible",
+    hasFocus: () => true,
+    querySelector(selector) {
+      if (selector === ".lights-event-screen") {
+        return { dataset: { eventPhase: "CHASE_PLAYER_CALL", pulseCount: String(projectedPulseCount) } };
+      }
+      if (selector === ".lights-tx-line strong") return { textContent: projectedDecoded || "_" };
+      if (selector === '[data-action="lights-transmit"]:not([disabled])') return keyerActive ? null : {};
+      return null;
+    },
+  };
+  const rendererWindow = {
+    dispatchEvent(event) {
+      const symbol = event.code === "KeyZ" ? "." : event.code === "KeyX" ? "-" : null;
+      if (!symbol) return false;
+      if (event.type === "keydown") keyer.begin(symbol);
+      if (event.type === "keyup") keyer.end(symbol);
+      return true;
+    },
+  };
+  const context = {
+    Boolean, Date, Error, JSON, KeyboardEvent: FakeKeyboardEvent, Number, Promise,
+    clearInterval, clearTimeout, document, performance, setInterval, setTimeout, window: rendererWindow,
+  };
+  return {
+    decoded: () => projectedDecoded,
+    pulses,
+    window: {
+      webContents: {
+        executeJavaScript(source) {
+          return vm.runInNewContext(source, context);
+        },
+      },
+    },
+    cleanup() {
+      keyer.stop();
+      for (const timer of projectionTimers) clearTimeout(timer);
     },
   };
 }
@@ -225,6 +302,50 @@ test("Lights capture runner is independently callable by the packaged CLI", () =
   assert.equal(typeof runLightsQaCapture, "function");
 });
 
+test("QA startup isolates userData before the Electron instance lock when output is omitted", () => {
+  const originalArgv = process.argv;
+  const originalOutput = process.env.CWGAME_QA_OUTPUT;
+  const originalLoad = Module._load;
+  const mainPath = require.resolve("../electron/main.cjs");
+  const calls = [];
+  let outputDir;
+  try {
+    process.argv = [originalArgv[0], mainPath, "--qa-lights-capture"];
+    delete process.env.CWGAME_QA_OUTPUT;
+    Module._load = function load(request, parent, isMain) {
+      if (request !== "electron") return originalLoad.call(this, request, parent, isMain);
+      return {
+        app: {
+          commandLine: { appendSwitch: () => {} },
+          disableHardwareAcceleration: () => {},
+          quit: () => { calls.push(["quit"]); },
+          requestSingleInstanceLock: () => { calls.push(["lock"]); return false; },
+          setPath: (name, value) => { calls.push(["setPath", name, value]); },
+        },
+      };
+    };
+    delete require.cache[mainPath];
+    require(mainPath);
+    outputDir = process.env.CWGAME_QA_OUTPUT;
+
+    const isolation = calls.find(([name]) => name === "setPath");
+    assert.ok(outputDir, "QA startup must choose an isolated output directory");
+    assert.deepEqual(isolation?.slice(0, 2), ["setPath", "userData"]);
+    assert.equal(path.dirname(isolation[2]), outputDir);
+    assert.equal(path.basename(isolation[2]), "electron-user-data");
+    assert.equal(fs.existsSync(isolation[2]), true);
+    assert.ok(calls.findIndex(([name]) => name === "setPath") < calls.findIndex(([name]) => name === "lock"));
+    assert.ok(path.resolve(outputDir).startsWith(path.resolve(os.tmpdir())));
+  } finally {
+    delete require.cache[mainPath];
+    Module._load = originalLoad;
+    process.argv = originalArgv;
+    if (originalOutput === undefined) delete process.env.CWGAME_QA_OUTPUT;
+    else process.env.CWGAME_QA_OUTPUT = originalOutput;
+    if (outputDir && fs.existsSync(outputDir)) fs.rmSync(outputDir, { recursive: true, force: true });
+  }
+});
+
 test("Lights QA selects the current rendered pile-up caller instead of a seeded callsign", () => {
   const caller = selectLightsCallerFromRuntimeSnapshot({
     phase: "CONTROL_SELECTION",
@@ -274,7 +395,7 @@ test("automatic Lights typing waits for idle only at character boundaries", () =
   assert.equal(automaticQaShouldWaitForIdleAfterSymbol(2, 3), true);
 });
 
-test("automatic Lights typing runs one renderer-side loop for the repeated-R timing probe", async () => {
+test("automatic Lights typing queues each character before observing its DOM pulse projection", async () => {
   let executions = 0;
   let script = "";
   const window = {
@@ -290,9 +411,30 @@ test("automatic Lights typing runs one renderer-side loop for the repeated-R tim
   await sendAutomaticLightsText(window, "RRR RST", 12);
   assert.equal(executions, 1);
   const keyDownAt = script.indexOf('new KeyboardEvent("keydown"');
-  const pulseAt = script.indexOf('await waitUntil(() => pulseCount() >= before + 1');
+  const pulseAt = script.indexOf("pulseCount() >= before");
   const keyUpAt = script.indexOf('new KeyboardEvent("keyup"');
-  assert.ok(keyDownAt >= 0 && keyDownAt < pulseAt && pulseAt < keyUpAt);
+  assert.ok(keyDownAt >= 0 && keyDownAt < keyUpAt && keyUpAt < pulseAt);
+});
+
+test("automatic Lights typing preserves character boundaries when DOM pulse projection is delayed", async () => {
+  const renderer = await delayedLightsRenderer({ projectionDelayMs: 150, wpm: 12 });
+  try {
+    await sendAutomaticLightsText(renderer.window, "LT", 12);
+    assert.equal(renderer.decoded(), "LT");
+    assert.deepEqual(renderer.pulses.map(({ symbol }) => symbol), [".", "-", ".", ".", "-"]);
+  } finally {
+    renderer.cleanup();
+  }
+});
+
+test("automatic Lights typing preserves long-character boundaries when keyer timer chains drift", async () => {
+  const renderer = await delayedLightsRenderer({ keyerTimerLagMs: 30, projectionDelayMs: 50, wpm: 12 });
+  try {
+    await sendAutomaticLightsText(renderer.window, "QA5L", 12);
+    assert.equal(renderer.decoded(), "QA5L");
+  } finally {
+    renderer.cleanup();
+  }
 });
 
 test("Lights QA drives the real Z/X input path", () => {
