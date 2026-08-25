@@ -24,6 +24,7 @@ import { getAntenna } from "./game/antennaCatalog.js";
 import { equipmentName, getTransmitter } from "./game/equipmentCatalog.js";
 import { equipOwnedItem, purchaseItem } from "./game/economy.js";
 import { settleAchievementRewards } from "./game/achievements.js";
+import { settleLightsRun } from "./game/lightsSettlement.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
 import {
   abandonMission, acceptMission, claimMission, targetCallsignForActiveMission,
@@ -54,6 +55,7 @@ import {
 } from "./qso/operatorRelationships.js";
 import { QSO_EXIT_RISKS, qsoExitRisk } from "./qso/qsoExitGuard.js";
 import { HomeScreen } from "./screens/HomeScreen.jsx";
+import { LightsEventScreen } from "./screens/LightsEventScreen.jsx";
 import { QsoLeaveConfirmModal } from "./screens/QsoLeaveConfirmModal.jsx";
 import { QsoResultModal } from "./screens/QsoResultModal.jsx";
 import { SaveSelectScreen } from "./screens/SaveSelectScreen.jsx";
@@ -1160,6 +1162,7 @@ export function App() {
   const [qsoGuidance, setQsoGuidance] = useState("full");
   const [screen, setScreen] = useState("start");
   const [practiceReturnScreen, setPracticeReturnScreen] = useState("start");
+  const [lightsMode, setLightsMode] = useState("story");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [achievementQueue, setAchievementQueue] = useState([]);
@@ -1344,6 +1347,22 @@ export function App() {
     return transaction;
   }
 
+  function settleLightsForActiveSave(result) {
+    if (!activeSaveId) return null;
+    let transaction = null;
+    let achievementSettlement = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      transaction = settleLightsRun(save, result, { now: result?.completedAt });
+      if (!transaction.settled) return save;
+      achievementSettlement = settleAchievementRewards(transaction.save);
+      transaction = { ...transaction, save: achievementSettlement.save };
+      return { ...achievementSettlement.save, updatedAt: new Date().toISOString() };
+    }));
+    enqueueAchievementAwards(achievementSettlement?.newlyAwarded);
+    return transaction;
+  }
+
 
   function applySettings(next) {
     const nextWpm = normalizeAutomaticKeyWpm(next.automaticKeyWpm);
@@ -1351,7 +1370,7 @@ export function App() {
     setKeyType(next.keyType);
     setAutomaticKeyWpm(nextWpm);
     setQsoGuidance(normalizeQsoGuidance(next.qsoGuidance));
-    if (activeSave && ["home", "station"].includes(screen)) {
+    if (activeSave && ["home", "station", "lights"].includes(screen)) {
       updateActiveSave({ keyType: next.keyType, automaticKeyWpm: nextWpm, qsoGuidance: normalizeQsoGuidance(next.qsoGuidance) });
     }
   }
@@ -1376,10 +1395,15 @@ export function App() {
     setScreen(practiceReturnScreen === "home" && activeSave ? "home" : "start");
   }
 
+  function enterLights(mode) {
+    setLightsMode(["story", "annual", "practice"].includes(mode) ? mode : "story");
+    setScreen("lights");
+  }
+
   let currentScreen;
   if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => enterPractice("start")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onAcceptMission={acceptMissionForActiveSave} onClaimMission={claimMissionForActiveSave} onAbandonMission={abandonMissionForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onAcceptMission={acceptMissionForActiveSave} onClaimMission={claimMissionForActiveSave} onAbandonMission={abandonMissionForActiveSave} onEnterLights={enterLights} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") {
     const persistentStats = practiceStatsByMode(activeSave?.practiceRecords);
     if (activeSave?.practiceRecords) {
@@ -1400,6 +1424,15 @@ export function App() {
       onBack={leavePractice}
     />;
   }
+  else if (screen === "lights" && activeSave) currentScreen = <LightsEventScreen
+    key={`${activeSave.id}:${lightsMode}`}
+    language={language}
+    mode={lightsMode}
+    save={activeSave}
+    inputBlocked={settingsOpen}
+    onSettle={settleLightsForActiveSave}
+    onBack={() => setScreen("home")}
+  />;
   else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
   else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   return <>
@@ -1414,9 +1447,9 @@ export function App() {
     {manualOpen && <StationManualModal language={language} onClose={() => setManualOpen(false)} />}
     {settingsOpen && <SettingsModal
       language={language}
-      keyType={activeSave && ["home", "station"].includes(screen) ? activeSave.keyType : keyType}
-      automaticKeyWpm={activeSave && ["home", "station"].includes(screen) ? activeSave.automaticKeyWpm : automaticKeyWpm}
-      qsoGuidance={activeSave && ["home", "station"].includes(screen) ? activeSave.qsoGuidance : qsoGuidance}
+      keyType={activeSave && ["home", "station", "lights"].includes(screen) ? activeSave.keyType : keyType}
+      automaticKeyWpm={activeSave && ["home", "station", "lights"].includes(screen) ? activeSave.automaticKeyWpm : automaticKeyWpm}
+      qsoGuidance={activeSave && ["home", "station", "lights"].includes(screen) ? activeSave.qsoGuidance : qsoGuidance}
       onApply={applySettings}
       onClose={() => setSettingsOpen(false)}
     />}

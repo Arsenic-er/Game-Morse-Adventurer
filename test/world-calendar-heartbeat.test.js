@@ -50,6 +50,7 @@ test("save heartbeat persists rollback protection and clears it only after catch
 test("standalone practice never inherits a previously active save heartbeat", () => {
   assert.equal(isWorldCalendarGameplayActive({ activeSaveId: "save-1", screen: "home", practiceReturnScreen: "start" }), true);
   assert.equal(isWorldCalendarGameplayActive({ activeSaveId: "save-1", screen: "station", practiceReturnScreen: "start" }), true);
+  assert.equal(isWorldCalendarGameplayActive({ activeSaveId: "save-1", screen: "lights", practiceReturnScreen: "start" }), true);
   assert.equal(isWorldCalendarGameplayActive({ activeSaveId: "save-1", screen: "practice", practiceReturnScreen: "home" }), true);
   assert.equal(isWorldCalendarGameplayActive({ activeSaveId: "save-1", screen: "practice", practiceReturnScreen: "start" }), false);
   assert.equal(isWorldCalendarGameplayActive({ activeSaveId: null, screen: "home", practiceReturnScreen: "home" }), false);

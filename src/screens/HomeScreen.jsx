@@ -518,7 +518,7 @@ function WarehouseModal({ language, save, onEquipItem, onUnlockTechnology, onClo
   );
 }
 
-export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onAcceptMission, onClaimMission, onAbandonMission, onEnterStation, onEnterPractice, onBack, onSettings }) {
+export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onAcceptMission, onClaimMission, onAbandonMission, onEnterLights, onEnterStation, onEnterPractice, onBack, onSettings }) {
   const t = TEXT[language] ?? TEXT.en;
   const location = getLocation(save.locationId);
   const practiceProgress = summarizePracticeProgress(save.practiceRecords);
@@ -569,7 +569,7 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
       {panel === "store" && <StoreModal language={language} save={save} onPurchase={onPurchase} onClose={() => setPanel(null)} />}
       {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
       {panel === "achievements" && <AchievementsModal language={language} save={save} onClose={() => setPanel(null)} />}
-      {panel === "missions" && <MissionCenterModal language={language} save={save} onAccept={onAcceptMission} onClaim={onClaimMission} onAbandon={onAbandonMission} onClose={() => setPanel(null)} />}
+      {panel === "missions" && <MissionCenterModal language={language} save={save} onAccept={onAcceptMission} onClaim={onClaimMission} onAbandon={onAbandonMission} onLaunchLights={onEnterLights} onClose={() => setPanel(null)} />}
       {panel && !["warehouse", "store", "log", "achievements", "missions"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
     </main>
   );

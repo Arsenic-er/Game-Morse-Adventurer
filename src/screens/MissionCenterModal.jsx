@@ -4,6 +4,7 @@ import {
   LockKey, Play, SealCheck, Trash, X,
 } from "@phosphor-icons/react";
 import { MAX_ACTIVE_DAILY_MISSIONS, missionBoard, missionSummary } from "../game/missionSystem.js";
+import { lightsEntryModes } from "../game/lightsEventCatalog.js";
 
 const TEXT = {
   "zh-CN": {
@@ -13,7 +14,7 @@ const TEXT = {
     storyProgress: "日志进度", dailyNote: "每天根据呼号生成三份委托；最多同时进行两份，已接受的不会在换日时消失。",
     limit: "常规委托栏已满", targetCallsign: "优先监听", propagation: "只有当前传播允许时，目标台才会回应。",
     brief: "任务简报", debrief: "结算记录", contractClues: "通联合同", requiredPropagation: "传播", requiredTopics: "必需话题", recoveryActions: "恢复操作",
-    relationship: "目标台关系", completedQsos: "已完成 QSO", weakSignalRecoveries: "弱信号恢复",
+    relationship: "目标台关系", completedQsos: "已完成 QSO", weakSignalRecoveries: "弱信号恢复", launchEvent: "进入活动台", annualReplay: "年度复刻", practiceRun: "活动练习",
     story01Title: "第一次开机", story01Description: "陌生人的一句“听见你了”，让这间沉默的房间重新有了声音。", story01Objective: "完成并保存第一次 QSO。",
     story02Title: "纸页上的呼号", story02Description: "褪色日志里圈着 SIM3RA。对方是否还记得这本没有写完的日志？", story02Objective: "与 SIM3RA 完成 QSO，并在通联中至少使用一次 AGN K。",
     story03Title: "不同的节奏", story03Description: "有人谨慎，有人急促，也有人需要更慢的速度。先学会听见差异。", story03Objective: "完成来自三种不同操作员风格的 QSO。",
@@ -21,6 +22,7 @@ const TEXT = {
     story02Brief: "旧日志只留下 SIM3RA 和一段缺口。若信号没抄全，就用 AGN K 请对方再发一次。", story02Debrief: "一次请求重发没有切断联系，反而让那张旧纸终于等到了完整的回音。",
     story03Brief: "别只听点划，也听每个人停顿、确认和等待的方式。完成三种不同风格的通联。", story03Debrief: "三个不同的节奏，背后是三个不同的人。电波开始不再只是分数和字符。",
     story04Title: "雨幕另一边", story04Description: "雨声盖过窗外，SIM2DX 的天气报告在衰落中断断续续。", story04Objective: "在 P0–P2 与 SIM2DX 完成 WEATHER 交换，并用 AGN 或 QRS 从误抄中恢复。", story04Brief: "守住微弱信号，问清天气；听不清就用 AGN，请求过快就用 QRS。不要让雨幕吞掉消息。", story04Debrief: "天气报告被完整抄下。隔着雨和噪声，两间遥远的房间短暂地亮在同一条电波上。",
+    story05Title: "空中灯火", story05Description: "五月的纪念呼号在夜色里亮起。SORA 把 SIM5LT 的电键交到你手中。", story05Objective: "完成空中灯火主线活动并至少取得基础评级。", story05Brief: "先追呼 SORA 操作的 SIM5LT，完成交换后接管活动台，在八分钟内从 pile-up 中逐个抄出呼号、RST 与地区。", story05Debrief: "最后一个 73 消失在底噪里。六个方向的灯火没有同处一地，却在你的日志上连成了同一晚。",
     weatherTitle: "空中天气簿", weatherDescription: "替台站收下一份来自远方的天气记录。", weatherObjective: "完成一次 WEATHER 问答并让对方确认抄收。",
     relayTitle: "衰落中的接力", relayDescription: "信号跌入噪声时，耐心比功率更重要。", relayObjective: "在 P0–P2 完成一次使用 AGN 或 QRS 恢复的 QSO。",
     equipmentTitle: "设备试航", equipmentDescription: "让新电台或配件在真实通联里留下第一条记录。", equipmentObjective: "使用非初始电台或已安装配件完成一次 QSO。",
@@ -39,7 +41,7 @@ const TEXT = {
     storyProgress: "日誌進度", dailyNote: "每天依呼號生成三份委託；最多同時進行兩份，已接受的任務不會在換日時消失。",
     limit: "常規委託欄已滿", targetCallsign: "優先監聽", propagation: "只有目前傳播允許時，目標臺才會回應。",
     brief: "任務簡報", debrief: "結算記錄", contractClues: "通聯條件", requiredPropagation: "傳播", requiredTopics: "必要話題", recoveryActions: "恢復操作",
-    relationship: "目標臺關係", completedQsos: "已完成 QSO", weakSignalRecoveries: "弱訊號恢復",
+    relationship: "目標臺關係", completedQsos: "已完成 QSO", weakSignalRecoveries: "弱訊號恢復", launchEvent: "進入活動臺", annualReplay: "年度復刻", practiceRun: "活動練習",
     story01Title: "第一次開機", story01Description: "陌生人的一句「聽見你了」，讓沉默的房間重新有了聲音。", story01Objective: "完成並儲存第一次 QSO。",
     story02Title: "紙頁上的呼號", story02Description: "褪色日誌裡圈著 SIM3RA。對方是否還記得這本未完成的日誌？", story02Objective: "與 SIM3RA 完成 QSO，並在通聯中至少使用一次 AGN K。",
     story03Title: "不同的節奏", story03Description: "有人謹慎，有人急促，也有人需要更慢的速度。先學會聽見差異。", story03Objective: "完成來自三種不同操作員風格的 QSO。",
@@ -47,6 +49,7 @@ const TEXT = {
     story02Brief: "舊日誌只留下 SIM3RA 和一段缺口。若訊號沒有抄全，就用 AGN K 請對方重發。", story02Debrief: "一次請求重發沒有切斷聯繫，反而讓那張舊紙終於等到完整的回音。",
     story03Brief: "別只聽點劃，也聽每個人停頓、確認和等待的方式。完成三種不同風格的通聯。", story03Debrief: "三個不同的節奏，背後是三個不同的人。電波開始不再只是分數和字元。",
     story04Title: "雨幕另一邊", story04Description: "雨聲蓋過窗外，SIM2DX 的天氣報告在衰落中斷斷續續。", story04Objective: "在 P0–P2 與 SIM2DX 完成 WEATHER 交換，並用 AGN 或 QRS 從誤抄中恢復。", story04Brief: "守住微弱訊號，問清天氣；聽不清就用 AGN，速度過快就用 QRS。別讓雨幕吞掉消息。", story04Debrief: "天氣報告被完整抄下。隔著雨和雜訊，兩間遙遠的房間短暫亮在同一條電波上。",
+    story05Title: "空中燈火", story05Description: "五月的紀念呼號在夜色裡亮起。SORA 把 SIM5LT 的電鍵交到你手中。", story05Objective: "完成空中燈火主線活動並至少取得基礎評級。", story05Brief: "先追呼 SORA 操作的 SIM5LT，完成交換後接管活動臺，在八分鐘內從 pile-up 中逐一抄出呼號、RST 與地區。", story05Debrief: "最後一個 73 消失在底噪裡。六個方向的燈火沒有同處一地，卻在你的日誌上連成同一晚。",
     weatherTitle: "空中天氣簿", weatherDescription: "替臺站收下一份來自遠方的天氣記錄。", weatherObjective: "完成一次 WEATHER 問答並讓對方確認抄收。",
     relayTitle: "衰落中的接力", relayDescription: "訊號跌入雜訊時，耐心比功率更重要。", relayObjective: "在 P0–P2 完成一次使用 AGN 或 QRS 恢復的 QSO。",
     equipmentTitle: "設備試航", equipmentDescription: "讓新電臺或配件在真實通聯裡留下第一條記錄。", equipmentObjective: "使用非初始電臺或已安裝配件完成一次 QSO。",
@@ -65,7 +68,7 @@ const TEXT = {
     storyProgress: "ログ進捗", dailyNote: "コールサインを基に毎日3件生成。通常依頼は同時に2件までで、受注済みの依頼は日付が変わっても残ります。",
     limit: "通常依頼枠が満杯です", targetCallsign: "優先受信", propagation: "現在の伝搬が届く場合だけ対象局が応答します。",
     brief: "ミッション概要", debrief: "完了報告", contractClues: "交信条件", requiredPropagation: "伝搬", requiredTopics: "必須話題", recoveryActions: "復旧操作",
-    relationship: "対象局との関係", completedQsos: "完了した QSO", weakSignalRecoveries: "弱信号からの復帰",
+    relationship: "対象局との関係", completedQsos: "完了した QSO", weakSignalRecoveries: "弱信号からの復帰", launchEvent: "記念局へ", annualReplay: "年次再演", practiceRun: "イベント練習",
     story01Title: "初めての電源", story01Description: "見知らぬ誰かの「聞こえた」が、静かな部屋にもう一度音を戻します。", story01Objective: "最初のQSOを完了し、ログに保存する。",
     story02Title: "紙に残ったコール", story02Description: "色あせたログにはSIM3RAが囲まれています。相手は未完のログを覚えているでしょうか。", story02Objective: "SIM3RAとQSOし、交信中にAGN Kを1回以上使用する。",
     story03Title: "それぞれのリズム", story03Description: "慎重な人、速い人、ゆっくりでなければ聞けない人。まず違いを聞き分けます。", story03Objective: "3種類のオペレータースタイルとQSOする。",
@@ -73,6 +76,7 @@ const TEXT = {
     story02Brief: "古いログには SIM3RA と欠けた記録だけが残っています。取り切れなければ AGN K で再送を頼みましょう。", story02Debrief: "再送のお願いはつながりを切らず、古い紙にようやく完全な返事を残しました。",
     story03Brief: "短点と長点だけでなく、間、確認、待ち方にも耳を澄ませ、三つの異なる運用スタイルと交信します。", story03Debrief: "三つの異なるリズムの向こうに、三人の異なる人がいました。電波はもう点数と文字だけではありません。",
     story04Title: "雨幕の向こう", story04Description: "窓を打つ雨の中、SIM2DX の気象報告がフェージングで途切れています。", story04Objective: "P0–P2 で SIM2DX と WEATHER を交換し、AGN または QRS で誤受信から復帰する。", story04Brief: "弱い信号を保ち、天気を聞き取ります。取れなければ AGN、速すぎれば QRS。雨に報告を消させないでください。", story04Debrief: "気象報告は最後まで記録されました。雨と雑音を越え、遠い二つの部屋が同じ電波に短く灯りました。",
+    story05Title: "空をつなぐ灯", story05Description: "五月の記念コールが夜に灯り、SORA は SIM5LT のキーをあなたへ渡します。", story05Objective: "記念イベント本編を完走し、基礎以上の評価を得る。", story05Brief: "SORA の SIM5LT を追い、交換後に記念局を引き継ぎます。8分間の pile-up からコール、RST、地域を一局ずつ取ってください。", story05Debrief: "最後の 73 が底雑音へ消えました。別々の場所の灯が、あなたのログで同じ夜につながりました。",
     weatherTitle: "空の気象ログ", weatherDescription: "遠方から届く気象記録を局のログに残します。", weatherObjective: "WEATHER の質問と回答を完了し、相手に受信を確認してもらう。",
     relayTitle: "フェージング・リレー", relayDescription: "信号が雑音へ沈むとき、出力より忍耐が役立ちます。", relayObjective: "P0–P2 で AGN または QRS を使って復帰し、QSOを完了する。",
     equipmentTitle: "機材の実地試験", equipmentDescription: "新しい無線機や付属品で最初の実交信を記録します。", equipmentObjective: "初期機以外の無線機、または装着した付属品を使ってQSOする。",
@@ -91,7 +95,7 @@ const TEXT = {
     storyProgress: "Log Progress", dailyNote: "Three commissions are generated daily from your station seed. Up to two may be active; accepted work survives the day change.",
     limit: "Regular commission slots are full", targetCallsign: "Priority Listener", propagation: "The target station answers only when current propagation reaches it.",
     brief: "Mission Brief", debrief: "Debrief", contractClues: "Contact Contract", requiredPropagation: "Propagation", requiredTopics: "Required Topics", recoveryActions: "Recovery Actions",
-    relationship: "Target Relationship", completedQsos: "Completed QSOs", weakSignalRecoveries: "Weak-Signal Recoveries",
+    relationship: "Target Relationship", completedQsos: "Completed QSOs", weakSignalRecoveries: "Weak-Signal Recoveries", launchEvent: "Enter Event Station", annualReplay: "Annual Replay", practiceRun: "Event Practice",
     story01Title: "First Power-On", story01Description: "A stranger's “I hear you” brings sound back into the silent room.", story01Objective: "Complete and save your first QSO.",
     story02Title: "The Callsign on Paper", story02Description: "SIM3RA is circled in the faded log. Does that operator still remember the unfinished page?", story02Objective: "Complete a QSO with SIM3RA and use AGN K at least once during the contact.",
     story03Title: "Different Rhythms", story03Description: "Some operators are cautious, some rush, and some need a slower pace. Learn to hear the difference.", story03Objective: "Complete QSOs with three distinct operator styles.",
@@ -99,6 +103,7 @@ const TEXT = {
     story02Brief: "Only SIM3RA and a gap remain in the old log. If the signal is incomplete, ask for it again with AGN K.", story02Debrief: "A request for repetition did not break the contact. It finally gave the old page a complete reply.",
     story03Brief: "Listen beyond dots and dashes to how each person pauses, confirms, and waits. Contact three different operating styles.", story03Debrief: "Three different rhythms belonged to three different people. Radio is no longer only scores and characters.",
     story04Title: "Beyond the Rain Curtain", story04Description: "Rain fills the window while SIM2DX's weather report breaks apart in the fading.", story04Objective: "Exchange WEATHER with SIM2DX at P0–P2 and recover a missed copy with AGN or QRS.", story04Brief: "Hold the weak signal and copy the weather. Use AGN when words are lost and QRS when the sending is too fast. Do not let the rain take the message.", story04Debrief: "The weather report is complete. Across rain and noise, two distant rooms briefly shared the same signal.",
+    story05Title: "Lights Across the Air", story05Description: "A May memorial call lights the dark. SORA places the SIM5LT key in your hands.", story05Objective: "Complete the story event and earn at least the Base grade.", story05Brief: "First chase SORA at SIM5LT. After the exchange, take over the event station and pull callsigns, RSTs, and regions from an eight-minute pile-up.", story05Debrief: "The final 73 fades into receiver noise. Lights in six directions never shared a field, yet met on one page of your log.",
     weatherTitle: "Weather on the Air", weatherDescription: "Add one distant weather observation to the station log.", weatherObjective: "Complete a WEATHER question and answer that the other station acknowledges.",
     relayTitle: "Relay Through the Fade", relayDescription: "When a signal falls into noise, patience matters more than power.", relayObjective: "At P0–P2, recover with AGN or QRS and complete the QSO.",
     equipmentTitle: "Equipment Shakedown", equipmentDescription: "Give a new radio or accessory its first record in a real contact.", equipmentObjective: "Complete a QSO with a non-starter radio or an installed accessory.",
@@ -117,7 +122,7 @@ const TEXT = {
     storyProgress: "Progreso del registro", dailyNote: "Cada día se generan tres encargos según tu estación. Puedes mantener dos activos; los aceptados no desaparecen al cambiar el día.",
     limit: "Los espacios de encargos están llenos", targetCallsign: "Escucha prioritaria", propagation: "La estación objetivo solo responderá si la propagación actual la alcanza.",
     brief: "Informe de misión", debrief: "Informe final", contractClues: "Condiciones del contacto", requiredPropagation: "Propagación", requiredTopics: "Temas obligatorios", recoveryActions: "Maniobras de recuperación",
-    relationship: "Relación con la estación", completedQsos: "QSO completados", weakSignalRecoveries: "Recuperaciones con señal débil",
+    relationship: "Relación con la estación", completedQsos: "QSO completados", weakSignalRecoveries: "Recuperaciones con señal débil", launchEvent: "Entrar en la estación", annualReplay: "Repetición anual", practiceRun: "Práctica del evento",
     story01Title: "Primer encendido", story01Description: "El «te escucho» de un desconocido devuelve el sonido a la habitación silenciosa.", story01Objective: "Completa y guarda tu primer QSO.",
     story02Title: "El indicativo en el papel", story02Description: "SIM3RA está rodeado en el registro descolorido. ¿Recordará aún esa página inacabada?", story02Objective: "Completa un QSO con SIM3RA y usa AGN K al menos una vez.",
     story03Title: "Ritmos diferentes", story03Description: "Algunos son prudentes, otros rápidos y otros necesitan más calma. Aprende a oír la diferencia.", story03Objective: "Completa QSO con tres estilos de operador distintos.",
@@ -125,6 +130,7 @@ const TEXT = {
     story02Brief: "Solo quedan SIM3RA y un hueco en el registro antiguo. Si falta parte de la señal, pide repetir con AGN K.", story02Debrief: "Pedir una repetición no rompió el contacto; por fin dio una respuesta completa a la página antigua.",
     story03Brief: "Escucha más allá de puntos y rayas: las pausas, confirmaciones y esperas. Contacta con tres estilos distintos.", story03Debrief: "Tres ritmos distintos pertenecían a tres personas distintas. La radio ya no es solo puntuación y caracteres.",
     story04Title: "Al otro lado de la cortina de lluvia", story04Description: "La lluvia cubre la ventana mientras el informe meteorológico de SIM2DX se rompe con el desvanecimiento.", story04Objective: "Intercambia WEATHER con SIM2DX en P0–P2 y recupera una copia perdida con AGN o QRS.", story04Brief: "Mantén la señal débil y copia el tiempo. Usa AGN si faltan palabras y QRS si transmite demasiado rápido. No dejes que la lluvia se lleve el mensaje.", story04Debrief: "El informe meteorológico está completo. Entre lluvia y ruido, dos habitaciones lejanas compartieron por un instante la misma señal.",
+    story05Title: "Luces en el aire", story05Description: "Un indicativo conmemorativo de mayo ilumina la noche. SORA pone la llave de SIM5LT en tus manos.", story05Objective: "Completa el evento de historia y consigue al menos el nivel Base.", story05Brief: "Primero llama a SORA en SIM5LT. Después toma la estación y extrae indicativos, RST y regiones de un pile-up de ocho minutos.", story05Debrief: "El último 73 se pierde en el ruido. Luces de seis direcciones se encuentran en una misma página de tu registro.",
     weatherTitle: "El tiempo en el aire", weatherDescription: "Añade al registro una observación meteorológica llegada desde lejos.", weatherObjective: "Completa una pregunta y respuesta WEATHER que la otra estación confirme.",
     relayTitle: "Relevo entre desvanecimientos", relayDescription: "Cuando la señal cae en el ruido, la paciencia importa más que la potencia.", relayObjective: "En P0–P2, recupérate con AGN o QRS y completa el QSO.",
     equipmentTitle: "Prueba de equipo", equipmentDescription: "Da a una radio o accesorio nuevo su primer contacto real.", equipmentObjective: "Completa un QSO con una radio distinta de la inicial o un accesorio instalado.",
@@ -143,7 +149,7 @@ const TEXT = {
     storyProgress: "Logbuchfortschritt", dailyNote: "Täglich entstehen drei Aufträge aus deinem Stations-Seed. Zwei dürfen gleichzeitig aktiv sein; angenommene Aufträge bleiben über den Tageswechsel erhalten.",
     limit: "Alle regulären Auftragsplätze sind belegt", targetCallsign: "Prioritätsempfang", propagation: "Die Zielstation antwortet nur, wenn die aktuelle Ausbreitung sie erreicht.",
     brief: "Missionsbriefing", debrief: "Abschlussbericht", contractClues: "Funkbedingungen", requiredPropagation: "Ausbreitung", requiredTopics: "Pflichtthemen", recoveryActions: "Wiederherstellung",
-    relationship: "Beziehung zur Zielstation", completedQsos: "Abgeschlossene QSOs", weakSignalRecoveries: "Schwachsignal-Rettungen",
+    relationship: "Beziehung zur Zielstation", completedQsos: "Abgeschlossene QSOs", weakSignalRecoveries: "Schwachsignal-Rettungen", launchEvent: "Sonderstation betreten", annualReplay: "Jährliche Wiederholung", practiceRun: "Event-Übung",
     story01Title: "Erstes Einschalten", story01Description: "Das „Ich höre dich“ eines Fremden bringt Klang in den stillen Raum zurück.", story01Objective: "Das erste QSO abschließen und speichern.",
     story02Title: "Das Rufzeichen auf Papier", story02Description: "SIM3RA ist im verblichenen Log eingekreist. Erinnert sich der Operator noch an die unvollendete Seite?", story02Objective: "Ein QSO mit SIM3RA abschließen und dabei mindestens einmal AGN K verwenden.",
     story03Title: "Verschiedene Rhythmen", story03Description: "Manche funken vorsichtig, manche schnell, andere brauchen mehr Ruhe. Höre zuerst den Unterschied.", story03Objective: "QSOs mit drei unterschiedlichen Operatorstilen abschließen.",
@@ -151,6 +157,7 @@ const TEXT = {
     story02Brief: "Im alten Log blieben nur SIM3RA und eine Lücke. Fehlt ein Teil des Signals, bitte mit AGN K um Wiederholung.", story02Debrief: "Die Bitte um Wiederholung unterbrach die Verbindung nicht, sondern gab der alten Seite endlich eine vollständige Antwort.",
     story03Brief: "Höre nicht nur Punkte und Striche, sondern auch Pausen, Bestätigungen und Geduld. Kontaktiere drei Betriebsstile.", story03Debrief: "Drei verschiedene Rhythmen gehörten zu drei verschiedenen Menschen. Funk ist nicht mehr nur Wertung und Zeichen.",
     story04Title: "Hinter dem Regenvorhang", story04Description: "Regen füllt das Fenster, während der Wetterbericht von SIM2DX im Schwund zerbricht.", story04Objective: "Mit SIM2DX bei P0–P2 WEATHER austauschen und Fehlstellen mit AGN oder QRS beheben.", story04Brief: "Halte das schwache Signal und nimm das Wetter auf. Nutze AGN bei Lücken und QRS bei zu hohem Tempo. Lass den Regen die Nachricht nicht verschlucken.", story04Debrief: "Der Wetterbericht ist vollständig. Durch Regen und Rauschen teilten zwei ferne Räume kurz dasselbe Signal.",
+    story05Title: "Lichter über Funk", story05Description: "Ein Gedenkruf im Mai leuchtet in der Nacht. SORA legt dir die Taste von SIM5LT in die Hand.", story05Objective: "Den Story-Event abschließen und mindestens die Basisstufe erreichen.", story05Brief: "Rufe zuerst SORA bei SIM5LT. Übernimm danach die Sonderstation und nimm in acht Minuten Rufzeichen, RST und Regionen aus dem Pile-up auf.", story05Debrief: "Das letzte 73 verschwindet im Rauschen. Lichter aus sechs Richtungen treffen sich auf einer Seite deines Logs.",
     weatherTitle: "Wetter über Funk", weatherDescription: "Füge dem Stationslog eine Wetterbeobachtung aus der Ferne hinzu.", weatherObjective: "Einen bestätigten WEATHER-Frage-und-Antwort-Austausch abschließen.",
     relayTitle: "Staffel durch den Schwund", relayDescription: "Sinkt das Signal ins Rauschen, zählt Geduld mehr als Leistung.", relayObjective: "Bei P0–P2 mit AGN oder QRS zurückfinden und das QSO abschließen.",
     equipmentTitle: "Geräteerprobung", equipmentDescription: "Gib einem neuen Funkgerät oder Zubehör den ersten echten Kontakt.", equipmentObjective: "Ein QSO mit einem anderen als dem Startgerät oder mit montiertem Zubehör abschließen.",
@@ -169,7 +176,7 @@ const TEXT = {
     storyProgress: "Прогресс журнала", dailyNote: "Каждый день создаются три поручения по данным станции. Одновременно активны не более двух; принятые поручения сохраняются после смены дня.",
     limit: "Все места обычных поручений заняты", targetCallsign: "Приоритетный приём", propagation: "Целевая станция ответит, только если текущая трасса распространения её достигает.",
     brief: "Сводка задания", debrief: "Итоговый отчёт", contractClues: "Условия связи", requiredPropagation: "Прохождение", requiredTopics: "Обязательные темы", recoveryActions: "Восстановление связи",
-    relationship: "Связь с целевой станцией", completedQsos: "Завершённые QSO", weakSignalRecoveries: "Восстановления слабого сигнала",
+    relationship: "Связь с целевой станцией", completedQsos: "Завершённые QSO", weakSignalRecoveries: "Восстановления слабого сигнала", launchEvent: "Войти на спецстанцию", annualReplay: "Ежегодный повтор", practiceRun: "Практика события",
     story01Title: "Первое включение", story01Description: "Слова незнакомца «я вас слышу» возвращают звук в тихую комнату.", story01Objective: "Завершите и сохраните первое QSO.",
     story02Title: "Позывной на бумаге", story02Description: "SIM3RA обведён в выцветшем журнале. Помнит ли оператор незавершённую страницу?", story02Objective: "Проведите QSO с SIM3RA и хотя бы один раз используйте AGN K.",
     story03Title: "Разные ритмы", story03Description: "Кто-то осторожен, кто-то спешит, кому-то нужен медленный темп. Научитесь слышать различия.", story03Objective: "Проведите QSO с тремя разными стилями операторов.",
@@ -177,6 +184,7 @@ const TEXT = {
     story02Brief: "В старом журнале остались только SIM3RA и пробел. Если сигнал принят не полностью, попросите повторить через AGN K.", story02Debrief: "Просьба повторить не оборвала связь, а наконец дала старой странице полный ответ.",
     story03Brief: "Слушайте не только точки и тире, но и паузы, подтверждения и ожидание. Свяжитесь с тремя стилями работы.", story03Debrief: "За тремя разными ритмами оказались три разных человека. Радио — уже не только очки и знаки.",
     story04Title: "По ту сторону дождя", story04Description: "Дождь заполняет окно, а метеосводка SIM2DX распадается в замираниях.", story04Objective: "Обменяться WEATHER с SIM2DX при P0–P2 и восстановить пропуск командой AGN или QRS.", story04Brief: "Удержите слабый сигнал и примите погоду. При пропусках используйте AGN, при высокой скорости — QRS. Не дайте дождю унести сообщение.", story04Debrief: "Метеосводка записана полностью. Сквозь дождь и шум две далёкие комнаты ненадолго разделили один сигнал.",
+    story05Title: "Огни в эфире", story05Description: "Майский памятный позывной загорается в ночи. SORA передаёт вам ключ SIM5LT.", story05Objective: "Завершите сюжетное событие и получите не ниже базового уровня.", story05Brief: "Сначала вызовите SORA на SIM5LT. Затем примите спецстанцию и за восемь минут разберите позывные, RST и регионы из pile-up.", story05Debrief: "Последнее 73 растворяется в шуме. Огни с шести направлений встречаются на одной странице вашего журнала.",
     weatherTitle: "Погода в эфире", weatherDescription: "Добавьте в журнал станции наблюдение погоды издалека.", weatherObjective: "Завершите вопрос и ответ WEATHER с подтверждением другой станции.",
     relayTitle: "Эстафета сквозь замирания", relayDescription: "Когда сигнал тонет в шуме, терпение важнее мощности.", relayObjective: "При P0–P2 восстановите связь через AGN или QRS и завершите QSO.",
     equipmentTitle: "Испытание аппаратуры", equipmentDescription: "Дайте новой радиостанции или аксессуару первый настоящий контакт.", equipmentObjective: "Проведите QSO не на начальной станции или с установленным аксессуаром.",
@@ -221,7 +229,7 @@ function missionContractClues(mission, t) {
   ].filter(Boolean);
 }
 
-function MissionCard({ mission, t, dailyLimitReached, onAccept, onClaim, onAbandon }) {
+function MissionCard({ mission, t, dailyLimitReached, lightsModes, onAccept, onClaim, onAbandon, onLaunchLights }) {
   const ready = mission.status === "ready";
   const active = mission.status === "active";
   const available = mission.status === "available";
@@ -264,18 +272,24 @@ function MissionCard({ mission, t, dailyLimitReached, onAccept, onClaim, onAband
       <div className="mission-reward"><Coins size={17} weight="fill" /><span>+{mission.moneyReward} {t.money}</span>{mission.technologyPointsReward > 0 && <em>+{mission.technologyPointsReward} TP</em>}</div>
       <div className="mission-actions">
         {available && <button data-action="accept-mission" data-mission-action-id={mission.id} disabled={acceptDisabled} onClick={() => onAccept(mission.id)}><Play size={17} weight="fill" />{acceptDisabled ? t.limit : t.accept}</button>}
+        {mission.id === "story-05" && active && <button data-action="launch-lights-story" onClick={() => onLaunchLights("story")}><Play size={17} weight="fill" />{t.launchEvent}</button>}
         {active && <button className="mission-abandon" data-action="abandon-mission" data-mission-action-id={mission.id} onClick={() => onAbandon(mission.id)}><Trash size={17} />{t.abandon}</button>}
         {ready && <button className="mission-claim" data-action="claim-mission" data-mission-action-id={mission.id} onClick={() => onClaim(mission.id)}><CheckCircle size={17} weight="fill" />{t.claim}</button>}
+        {mission.id === "story-05" && mission.status === "claimed" && <>
+          <button data-action="launch-lights-annual" disabled={!lightsModes?.annualAvailable} onClick={() => onLaunchLights("annual")}><CalendarDots size={17} weight="fill" />{t.annualReplay}</button>
+          <button data-action="launch-lights-practice" disabled={!lightsModes?.practiceAvailable} onClick={() => onLaunchLights("practice")}><Play size={17} weight="fill" />{t.practiceRun}</button>
+        </>}
       </div>
     </article>
   );
 }
 
-export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onClose }) {
+export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onLaunchLights, onClose }) {
   const t = TEXT[language] ?? TEXT.en;
   const [tab, setTab] = useState("story");
   const board = useMemo(() => missionBoard(save), [save]);
   const summary = useMemo(() => missionSummary(save), [save]);
+  const lightsModes = useMemo(() => lightsEntryModes(save, new Date()), [save]);
   const activeDaily = board.daily.filter(({ status }) => ["active", "ready"].includes(status)).length;
   const missions = tab === "story" ? board.story : board.daily;
 
@@ -301,7 +315,7 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
         <div className="mission-center-body">
           {tab === "daily" && <p className="mission-daily-note">{t.dailyNote}</p>}
           <div className="mission-list">
-            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} />)}
+            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} />)}
           </div>
         </div>
         <footer><span>{save.callsign} // {summary.ready} {t.ready}</span><button data-action="close-missions-footer" onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.close}</button></footer>
