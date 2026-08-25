@@ -1,12 +1,13 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain } = require("electron");
 const fs = require("fs");
 const path = require("path");
-const { runQaCapture } = require("./qa-capture.cjs");
+const { runLightsQaCapture, runQaCapture } = require("./qa-capture.cjs");
 const { readWindowsWifiStatus } = require("./network-status.cjs");
 const { qsoExitDialogOptions } = require("./qso-exit-dialog.cjs");
 const { createSemanticRuntime, sanitizeSemanticPayload } = require("./semantic-runtime.cjs");
 
-const qaCaptureMode = process.argv.includes("--qa-capture");
+const lightsQaCaptureMode = process.argv.includes("--qa-lights-capture");
+const qaCaptureMode = process.argv.includes("--qa-capture") || lightsQaCaptureMode;
 const semanticSmokeMode = process.argv.includes("--semantic-smoke");
 const qaWidth = Math.max(1280, Number(process.env.CWGAME_QA_WIDTH) || 1672);
 const qaHeight = Math.max(720, Number(process.env.CWGAME_QA_HEIGHT) || 941);
@@ -99,6 +100,7 @@ if (!gotLock) {
       backgroundColor: "#02090e",
       title: "CWGame",
       webPreferences: {
+        backgroundThrottling: !qaCaptureMode,
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
@@ -114,9 +116,18 @@ if (!gotLock) {
       if (choice === 1) event.preventDefault();
     });
     if (qaCaptureMode) {
+      mainWindow.show();
+      mainWindow.focus();
       mainWindow.webContents.once("did-finish-load", async () => {
         try {
-          const result = await runQaCapture(mainWindow);
+          const [captureWidth, captureHeight] = mainWindow.getContentSize();
+          const result = lightsQaCaptureMode
+            ? await runLightsQaCapture(
+              mainWindow,
+              process.env.CWGAME_QA_OUTPUT || path.join(process.cwd(), "qa-artifacts"),
+              process.env.CWGAME_QA_SUFFIX || `${captureWidth}x${captureHeight}`,
+            )
+            : await runQaCapture(mainWindow);
           process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
           app.exit(0);
         } catch (error) {

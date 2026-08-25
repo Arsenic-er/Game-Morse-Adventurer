@@ -154,8 +154,12 @@ jobs:
             throw "Packaged QA did not produce lights-qa-result.json"
           }
           $lightsResult = Get-Content -LiteralPath $lightsResultPath -Raw | ConvertFrom-Json
+          node -e "const fs = require('fs'); const { validateLightsQaEvidence } = require('./electron/qa-capture.cjs'); validateLightsQaEvidence(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')));" $lightsResultPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "Packaged Lights QA result failed its literal gameplay fact/schema validation"
+          }
           $requiredLightsCheckpoints = @(
-            "story-ready", "story-launch", "chase-complete", "control-entered",
+            "story-ready", "keying-probe", "story-launch", "chase-complete", "control-entered",
             "escape-paused", "escape-resumed", "failed-run", "retry-control",
             "settled", "reloaded-history", "duplicate-settlement"
           )

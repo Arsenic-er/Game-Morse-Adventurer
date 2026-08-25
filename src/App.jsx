@@ -54,7 +54,7 @@ import { recordCompletedQso } from "./qso/qsoLog.js";
 import {
   OPERATOR_RELATIONSHIPS_VERSION, operatorEncounterId, recordOperatorEncounter,
 } from "./qso/operatorRelationships.js";
-import { qsoExitRisk } from "./qso/qsoExitGuard.js";
+import { QSO_EXIT_RISKS, qsoExitRisk } from "./qso/qsoExitGuard.js";
 import { HomeScreen } from "./screens/HomeScreen.jsx";
 import { LightsEventScreen } from "./screens/LightsEventScreen.jsx";
 import { QsoLeaveConfirmModal } from "./screens/QsoLeaveConfirmModal.jsx";

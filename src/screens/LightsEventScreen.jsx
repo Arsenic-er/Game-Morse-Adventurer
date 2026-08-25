@@ -213,7 +213,11 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
   const visibleIncoming = save.qsoGuidance === "full" ? model.incomingText
     : save.qsoGuidance === "hints" && model.needsPlayback ? model.callerHint || "••• CW •••" : "";
   return (
-    <main className="screen lights-event-screen" data-event-mode={mode} data-event-phase={run.phase}>
+    <main className="screen lights-event-screen" data-event-mode={mode} data-event-phase={run.phase}
+      data-pulse-count={cw.analysis.pulseCount} data-decoded={cw.analysis.decoded}
+      data-valid-qso-count={model.result?.validQsoCount ?? ""}
+      data-distinct-region-count={model.result?.distinctRegionCount ?? ""}
+      data-resolved-pileup-count={model.result?.resolvedPileupCount ?? ""}>
       <header className="lights-event-header">
         <div><small>{t.kicker}</small><h1>{t.title}</h1></div>
         <span className="lights-mode-badge">{model.modeLabel}</span>

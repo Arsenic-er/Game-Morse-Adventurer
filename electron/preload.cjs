@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-const qaCapture = process.argv.includes("--qa-capture") || Boolean(process.env.CWGAME_QA_OUTPUT);
+const qaCapture = process.argv.includes("--qa-capture") || process.argv.includes("--qa-lights-capture") || Boolean(process.env.CWGAME_QA_OUTPUT);
 const failedIncomingPhases = new Set();
 
 contextBridge.exposeInMainWorld("cwgameSystem", {

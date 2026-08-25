@@ -1,11 +1,13 @@
 const fs = require("fs/promises");
 const path = require("path");
 
+const LIGHTS_QA_WPM = 12;
+
 function buildLightsQaPlan({ suffix = "qa" } = {}) {
   const screenshot = (name) => `lights-${name}-${suffix}.png`;
   return {
     checkpoints: [
-      "story-ready", "story-launch", "chase-complete", "control-entered", "escape-paused",
+      "story-ready", "keying-probe", "story-launch", "chase-complete", "control-entered", "escape-paused",
       "escape-resumed", "failed-run", "retry-control", "settled", "reloaded-history", "duplicate-settlement",
     ].map((id) => ({ id })),
     screenshots: [
@@ -14,6 +16,88 @@ function buildLightsQaPlan({ suffix = "qa" } = {}) {
     ],
     resultFile: "lights-qa-result.json",
   };
+}
+
+function validateLightsQaEvidence(result) {
+  if (result?.schemaVersion !== 1 || result?.activity !== "lights-across-air") {
+    throw new Error("Lights QA evidence has an unsupported schema");
+  }
+  const screenshots = Array.isArray(result.screenshots) ? result.screenshots : [];
+  for (const name of ["chase", "control", "result", "reloaded-history"]) {
+    if (!screenshots.some((filename) => new RegExp(`^lights-${name}-.*\\.png$`).test(filename))) {
+      throw new Error(`Lights QA evidence is missing ${name} screenshot`);
+    }
+  }
+  const checkpoints = result.checkpoints ?? {};
+  const required = [
+    "story-ready", "keying-probe", "story-launch", "chase-complete", "control-entered", "escape-paused",
+    "escape-resumed", "failed-run", "retry-control", "settled", "duplicate-settlement", "reloaded-history",
+  ];
+  for (const id of required) {
+    if (!checkpoints[id]) throw new Error(`Lights QA evidence is missing ${id} checkpoint`);
+  }
+  if (!checkpoints["story-ready"].prerequisiteClaimed || !checkpoints["story-ready"].story05Active) {
+    throw new Error("Lights QA did not activate story-05");
+  }
+  const keyingProbe = checkpoints["keying-probe"];
+  if (keyingProbe.text !== "RRR RST" || keyingProbe.wpm !== LIGHTS_QA_WPM || keyingProbe.exact !== true) {
+    throw new Error("Lights QA did not prove the exact repeated-R keying probe");
+  }
+  const expectedPhases = {
+    "story-launch": "CHASE_PLAYER_CALL",
+    "chase-complete": "CONTROL_CQ",
+    "control-entered": "CONTROL_CQ",
+    "escape-paused": "CONTROL_CQ",
+    "escape-resumed": "CONTROL_CQ",
+    "failed-run": "RUN_COMPLETE",
+    "retry-control": "CONTROL_CQ",
+  };
+  for (const [id, phase] of Object.entries(expectedPhases)) {
+    if (checkpoints[id].phase !== phase) throw new Error(`Lights QA ${id} phase is not ${phase}`);
+  }
+  const settled = checkpoints.settled;
+  if (settled.grade !== "base"
+    || !Number.isInteger(settled.validQsoCount) || settled.validQsoCount < 3
+    || !Number.isInteger(settled.distinctRegionCount) || settled.distinctRegionCount < 2
+    || !Number.isInteger(settled.resolvedPileupCount) || settled.resolvedPileupCount < 1) {
+    throw new Error("Lights QA did not settle a Base-grade overlapping pile-up run");
+  }
+  if (!(settled.moneyDelta > 0)) throw new Error("Lights QA settlement did not produce a positive money delta");
+  if (!(settled.qsoLogDelta >= 3)) throw new Error("Lights QA settlement did not produce the expected QSO log delta");
+  const duplicate = checkpoints["duplicate-settlement"];
+  if (duplicate.noOp !== true) throw new Error("Lights QA duplicate settlement no-op is false");
+  if (JSON.stringify(duplicate.before?.settledRunIds) !== JSON.stringify(duplicate.after?.settledRunIds)
+    || duplicate.before?.money !== duplicate.after?.money || duplicate.before?.qsoLogCount !== duplicate.after?.qsoLogCount) {
+    throw new Error("Lights QA duplicate settlement changed durable facts");
+  }
+  const reloaded = checkpoints["reloaded-history"];
+  if (JSON.stringify(reloaded.settledRunIds) !== JSON.stringify(settled.settledRunIds)
+    || reloaded.money !== settled.money || reloaded.qsoLogCount !== settled.qsoLogCount) {
+    throw new Error(`Lights QA reload did not preserve settlement facts: ${JSON.stringify({
+      settled: { settledRunIds: settled.settledRunIds, money: settled.money, qsoLogCount: settled.qsoLogCount },
+      reloaded: { settledRunIds: reloaded.settledRunIds, money: reloaded.money, qsoLogCount: reloaded.qsoLogCount },
+    })}`);
+  }
+  return true;
+}
+
+function validateStationEntryProbe(report) {
+  if (report?.passed !== true || report?.afterClick?.stationPresent !== true || (report?.consoleErrors ?? []).length !== 0) {
+    throw new Error(`Station entry probe failed: ${JSON.stringify(report)}`);
+  }
+  return true;
+}
+
+function selectLightsCallerFromRuntimeSnapshot(snapshot) {
+  const caller = snapshot?.phase === "CONTROL_SELECTION"
+    ? snapshot?.pileup?.callers?.find((candidate) => typeof candidate?.callsign === "string" && candidate.callsign)
+    : null;
+  if (!caller) throw new Error(`Lights QA could not read the current caller from rendered pile-up state: ${JSON.stringify(snapshot)}`);
+  return caller.callsign;
+}
+
+function formatLightsWaitFailure(context, phase, snapshot) {
+  return `Lights QA phase wait failed ${context}; expected ${phase}; rendered state: ${JSON.stringify(snapshot)}`;
 }
 
 async function waitFor(window, selector, timeout = 10000) {
@@ -167,6 +251,23 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function automaticQaGapAfterElement(separator, wpm = 18) {
+  const dotMs = 1200 / wpm;
+  if (separator === "character") return dotMs * 2;
+  if (separator === "word") return dotMs * 6;
+  throw new Error(`Unsupported automatic QA separator: ${separator}`);
+}
+
+function automaticQaShouldWaitForIdleAfterSymbol(symbolIndex, symbolCount) {
+  return symbolIndex === symbolCount - 1;
+}
+
+function lightsKeyInputForSymbol(symbol) {
+  if (symbol === ".") return { keyCode: "Z" };
+  if (symbol === "-") return { keyCode: "X" };
+  throw new Error(`Unsupported Lights QA key symbol: ${symbol}`);
+}
+
 async function sendAutomaticText(window, text, wpm = 18) {
   const dotMs = 1200 / wpm;
   const words = String(text).toUpperCase().trim().split(/\s+/);
@@ -296,14 +397,112 @@ async function capture(window, outputDir, filename) {
   await fs.writeFile(path.join(outputDir, filename), image.toPNG());
 }
 
+async function clickAt(window, selector) {
+  const point = await window.webContents.executeJavaScript(`(() => {
+    const node = document.querySelector(${JSON.stringify(selector)});
+    if (!node) throw new Error(${JSON.stringify("Missing click target: ")} + ${JSON.stringify(selector)});
+    const rect = node.getBoundingClientRect();
+    return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+  })()`, true);
+  window.webContents.sendInputEvent({ type: "mouseDown", x: point.x, y: point.y, button: "left", clickCount: 1 });
+  window.webContents.sendInputEvent({ type: "mouseUp", x: point.x, y: point.y, button: "left", clickCount: 1 });
+}
+
 async function pressKey(window, { key, code }) {
   await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keydown", {
     key: ${JSON.stringify(key)}, code: ${JSON.stringify(code)}, bubbles: true, cancelable: true,
   }))`, true);
 }
 
-async function waitForLightsPhase(window, phase) {
-  await waitFor(window, `.lights-event-screen[data-event-phase="${phase}"]`);
+async function lightsQaPhaseDiagnostics(window) {
+  const dom = await window.webContents.executeJavaScript(`(() => ({
+    phase: document.querySelector(".lights-event-screen")?.dataset.eventPhase ?? null,
+    expectedText: document.querySelector(".lights-tx-line strong")?.textContent ?? null,
+    errorText: document.querySelector(".lights-error")?.textContent ?? null,
+    documentHasFocus: document.hasFocus(),
+    visibilityState: document.visibilityState,
+  }))()`, true);
+  try {
+    return { ...dom, run: await readRenderedLightsRunSnapshot(window) };
+  } catch (error) {
+    return { ...dom, runReadError: error.message };
+  }
+}
+
+async function waitForLightsPhase(window, phase, context = "while advancing Lights") {
+  try {
+    await focusLightsQaWindow(window, context);
+    await waitFor(window, `.lights-event-screen[data-event-phase="${phase}"]`);
+  } catch (error) {
+    const diagnostics = await lightsQaPhaseDiagnostics(window);
+    throw new Error(formatLightsWaitFailure(context, phase, diagnostics));
+  }
+}
+
+async function focusLightsQaWindow(window, context) {
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  window.webContents.focus();
+  try {
+    await window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+      const started = Date.now();
+      const timer = setInterval(() => {
+        if (document.hasFocus()) { clearInterval(timer); resolve(true); }
+        else if (Date.now() - started > 3000) { clearInterval(timer); reject(new Error("renderer did not gain focus")); }
+      }, 20);
+    })`, true);
+  } catch (error) {
+    const state = await window.webContents.executeJavaScript(`({ hasFocus: document.hasFocus(), visibilityState: document.visibilityState })`, true).catch(() => null);
+    throw new Error(`Lights QA could not focus the real renderer ${context}: ${JSON.stringify({ state, error: error.message })}`);
+  }
+}
+
+async function readRenderedLightsRunSnapshot(window) {
+  return window.webContents.executeJavaScript(`(() => {
+    const screen = document.querySelector(".lights-event-screen");
+    if (!screen) throw new Error("Lights event screen is not mounted");
+    const fiberKey = Object.keys(screen).find((key) => key.startsWith("__reactFiber$"));
+    if (!fiberKey) throw new Error("Could not locate the rendered Lights React fiber");
+    const visited = new Set();
+    for (let fiber = screen[fiberKey]; fiber && !visited.has(fiber); fiber = fiber.return) {
+      visited.add(fiber);
+      for (let hook = fiber.memoizedState; hook; hook = hook.next) {
+        const run = hook.memoizedState;
+        if (!run || typeof run !== "object" || typeof run.phase !== "string" || !Array.isArray(run.contacts)) continue;
+        return {
+          phase: run.phase,
+          lastError: run.lastError ?? null,
+          pileup: run.pileup ? { callers: (run.pileup.callers ?? []).map(({ callsign, regionCode }) => ({ callsign, regionCode })) } : null,
+          selectedCaller: run.selectedCaller ? { callsign: run.selectedCaller.callsign, regionCode: run.selectedCaller.regionCode } : null,
+          contacts: run.contacts.map(({ callsign, eventRegionCode }) => ({ callsign, eventRegionCode })),
+        };
+      }
+    }
+    throw new Error("Could not locate the rendered Lights run state");
+  })()`, true);
+}
+
+async function waitForStationAfterLog(window) {
+  try {
+    await waitFor(window, ".station-screen");
+  } catch (error) {
+    const diagnostics = await window.webContents.executeJavaScript(`(() => {
+      const stationButton = document.querySelector(".hotspot-station");
+      const screen = document.querySelector("main.screen");
+      return {
+        screenClass: screen?.className ?? null,
+        stationButton: stationButton ? {
+          disabled: Boolean(stationButton.disabled),
+          connected: stationButton.isConnected,
+          bounds: stationButton.getBoundingClientRect().toJSON(),
+        } : null,
+        qsoLogVisible: Boolean(document.querySelector(".qso-log-modal")),
+        modalCount: document.querySelectorAll('[aria-modal="true"]').length,
+      };
+    })()`, true);
+    throw new Error(`Station did not mount after log return: ${JSON.stringify(diagnostics)}; ${error.message}`);
+  }
 }
 
 async function advanceLightsClockToTimeout(window) {
@@ -317,7 +516,7 @@ async function advanceLightsClockToTimeout(window) {
     return performance.now() - original() >= 480000;
   })()`, true);
   if (!installed) throw new Error("Could not install the deterministic Lights QA clock");
-  await waitForLightsPhase(window, "RUN_COMPLETE");
+  await waitForLightsPhase(window, "RUN_COMPLETE", "after deterministic active clock advance");
   await window.webContents.executeJavaScript(`(() => {
     if (!window.__cwgameQaOriginalPerformanceNow) throw new Error("Missing deterministic Lights QA clock");
     delete performance.now;
@@ -344,34 +543,98 @@ async function readLightsQaSave(window) {
 }
 
 async function transmitLightsText(window, text) {
+  await focusLightsQaWindow(window, `before transmitting ${text}`);
   await sendAutomaticLightsText(window, text);
   await waitFor(window, '[data-action="lights-transmit"]:not([disabled])');
   await click(window, '[data-action="lights-transmit"]');
 }
 
-async function sendAutomaticLightsText(window, text, wpm = 18) {
-  const dotMs = 1200 / wpm;
+async function sendAutomaticLightsText(window, text, wpm = LIGHTS_QA_WPM) {
   const words = String(text).toUpperCase().trim().split(/\s+/);
+  const steps = [];
   for (let wordIndex = 0; wordIndex < words.length; wordIndex += 1) {
     const characters = [...words[wordIndex]];
     for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
       const pattern = MORSE[characters[characterIndex]];
       if (!pattern) continue;
-      for (const symbol of pattern) {
-        const keyCode = symbol === "." ? "KeyZ" : "KeyX";
-        const key = symbol === "." ? "z" : "x";
-        await window.webContents.executeJavaScript(`(() => {
-          window.dispatchEvent(new KeyboardEvent("keydown", { code: ${JSON.stringify(keyCode)}, key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }));
-          window.dispatchEvent(new KeyboardEvent("keyup", { code: ${JSON.stringify(keyCode)}, key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }));
-        })()`, true);
-        // This is CW element duration plus its mandated inter-element gap, not an arbitrary UI wait.
-        await delay(dotMs * (symbol === "." ? 2 : 4) + 12);
+      for (let symbolIndex = 0; symbolIndex < pattern.length; symbolIndex += 1) {
+        const symbol = pattern[symbolIndex];
+        const input = lightsKeyInputForSymbol(symbol);
+        const lastSymbol = automaticQaShouldWaitForIdleAfterSymbol(symbolIndex, pattern.length);
+        const lastCharacter = characterIndex === characters.length - 1;
+        const lastWord = wordIndex === words.length - 1;
+        steps.push({
+          keyCode: input.keyCode,
+          waitForIdle: lastSymbol,
+          gapMs: lastSymbol && !lastCharacter
+            ? automaticQaGapAfterElement("character", wpm)
+            : lastSymbol && !lastWord ? automaticQaGapAfterElement("word", wpm) : 0,
+        });
       }
-      if (characterIndex < characters.length - 1) await delay(dotMs * 3 + 25);
     }
-    if (wordIndex < words.length - 1) await delay(dotMs * 7 + 25);
   }
-  await waitFor(window, '.lights-tx-line strong:not(:empty)');
+  const expected = String(text).toUpperCase().trim().replace(/\s+/g, " ");
+  return window.webContents.executeJavaScript(`(async () => {
+    const steps = ${JSON.stringify(steps)};
+    const expected = ${JSON.stringify(expected)};
+    const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+    const pulseCount = () => Number(document.querySelector(".lights-event-screen")?.dataset.pulseCount);
+    const decoded = () => document.querySelector(".lights-tx-line strong")?.textContent?.trim() || "";
+    const waitUntil = (predicate, description) => new Promise((resolve, reject) => {
+      const started = Date.now();
+      const timer = setInterval(() => {
+        if (predicate()) { clearInterval(timer); resolve(true); }
+        else if (Date.now() - started > 3000) {
+          clearInterval(timer);
+          reject(new Error(description + "; rendered state: " + JSON.stringify({
+            phase: document.querySelector(".lights-event-screen")?.dataset.eventPhase ?? null,
+            pulseCount: pulseCount(), decoded: decoded(), documentHasFocus: document.hasFocus(),
+            visibilityState: document.visibilityState,
+          })));
+        }
+      }, 20);
+    });
+    if (!Number.isFinite(pulseCount())) throw new Error("Lights input DOM state is unavailable");
+    for (const step of steps) {
+      const before = pulseCount();
+      const code = "Key" + step.keyCode;
+      window.dispatchEvent(new KeyboardEvent("keydown", {
+        code, key: step.keyCode.toLowerCase(), bubbles: true, cancelable: true,
+      }));
+      try {
+        await waitUntil(() => pulseCount() >= before + 1, "Lights automatic-key pulse was not observed for " + code);
+      } finally {
+        window.dispatchEvent(new KeyboardEvent("keyup", {
+          code, key: step.keyCode.toLowerCase(), bubbles: true, cancelable: true,
+        }));
+      }
+      if (step.waitForIdle) {
+        await waitUntil(
+          () => Boolean(document.querySelector('[data-action="lights-transmit"]:not([disabled])')),
+          "Lights automatic keyer did not become idle",
+        );
+      }
+      if (step.gapMs) await delay(step.gapMs);
+    }
+    await waitUntil(() => decoded() === expected, "Lights automatic input decoded '" + decoded() + "' instead of '" + expected + "'");
+    return { decoded: decoded(), pulseCount: pulseCount() };
+  })()`, true);
+}
+
+async function completeLightsControlRound(window) {
+  await transmitLightsText(window, "CQ LGT CQ LGT DE SIM5LT K");
+  await waitForLightsPhase(window, "CONTROL_SELECTION", "after control CQ transmission");
+  const pileup = await readRenderedLightsRunSnapshot(window);
+  const callsign = selectLightsCallerFromRuntimeSnapshot(pileup);
+  await transmitLightsText(window, `${callsign} DE SIM5LT KN`);
+  await waitForLightsPhase(window, "CONTROL_PLAYER_REPORT", `after selecting rendered caller ${callsign}`);
+  const selected = await readRenderedLightsRunSnapshot(window);
+  if (selected.selectedCaller?.callsign !== callsign || selected.lastError) {
+    throw new Error(`Lights QA selection feedback did not confirm ${callsign}: ${JSON.stringify(selected)}`);
+  }
+  await transmitLightsText(window, `${callsign} DE SIM5LT RST 579 CN K`);
+  await waitForLightsPhase(window, "CONTROL_CQ", `after reporting to rendered caller ${callsign}`);
+  return { callsign, regionCode: pileup.pileup.callers.find((caller) => caller.callsign === callsign)?.regionCode ?? null };
 }
 
 async function seedLightsQaSave(window) {
@@ -381,7 +644,7 @@ async function seedLightsQaSave(window) {
       callsign: "QA5LGT",
       locationId: "china-beijing-outskirts",
       keyType: "automatic",
-      automaticKeyWpm: 18,
+      automaticKeyWpm: ${LIGHTS_QA_WPM},
       qsoGuidance: "full",
       missionState: {
         claimedMissionIds: ["story-01", "story-02", "story-03", "story-04"],
@@ -399,11 +662,44 @@ async function seedLightsQaSave(window) {
   })()`, true);
 }
 
-async function runLightsQaCapture(window, outputDir, suffix) {
-  const plan = buildLightsQaPlan({ suffix });
-  const facts = { checkpoints: {} };
-  const checkpoint = (id, value) => { facts.checkpoints[id] = value; };
+async function stationEntryDiagnostics(window) {
+  return window.webContents.executeJavaScript(`(() => {
+    const hotspot = document.querySelector(".hotspot-station");
+    const active = document.activeElement;
+    const rect = hotspot?.getBoundingClientRect();
+    return {
+      screenClass: document.querySelector("main.screen")?.className ?? null,
+      hotspot: hotspot ? {
+        disabled: Boolean(hotspot.disabled),
+        connected: hotspot.isConnected,
+        bounds: rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null,
+      } : null,
+      openModals: Array.from(document.querySelectorAll('[aria-modal="true"]'), (node) => node.className),
+      visibilityState: document.visibilityState,
+      documentHasFocus: document.hasFocus(),
+      activeElement: active ? { tag: active.tagName, className: active.className, action: active.dataset?.action ?? null } : null,
+      stationPresent: Boolean(document.querySelector(".station-screen")),
+    };
+  })()`, true);
+}
 
+async function runStationEntryProbe(window) {
+  const consoleErrors = [];
+  const onConsoleMessage = (_event, levelOrDetails, message) => {
+    const details = typeof levelOrDetails === "object" ? levelOrDetails : { level: levelOrDetails, message };
+    if (details.level === 2 || details.level === 3 || details.level === "warning" || details.level === "error") {
+      consoleErrors.push({ level: details.level, message: details.message || message || "" });
+    }
+  };
+  window.webContents.on("console-message", onConsoleMessage);
+  try {
+  await window.webContents.session.clearStorageData();
+  await window.reload();
+  await waitFor(window, ".start-screen");
+  await click(window, ".start-actions button:nth-child(2)");
+  await waitFor(window, ".practice-screen");
+  await click(window, '[data-action="practice-back"]');
+  await waitFor(window, ".start-screen");
   await seedLightsQaSave(window);
   await window.reload();
   await waitFor(window, ".start-screen");
@@ -411,27 +707,92 @@ async function runLightsQaCapture(window, outputDir, suffix) {
   await waitFor(window, ".save-select-screen");
   await click(window, ".save-primary-action");
   await waitFor(window, ".home-screen");
+  const before = await stationEntryDiagnostics(window);
+  await click(window, ".hotspot-station");
+  const afterClick = await stationEntryDiagnostics(window);
+  let error = null;
+  try {
+    await waitFor(window, ".station-screen");
+  } catch (failure) {
+    error = { message: failure.message, afterTimeout: await stationEntryDiagnostics(window) };
+  }
+  const report = { before, afterClick, error, consoleErrors, passed: error === null };
+  await fs.writeFile(path.join(process.env.CWGAME_QA_OUTPUT, "station-entry-probe.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  validateStationEntryProbe(report);
+  return report;
+  } finally {
+    window.webContents.removeListener("console-message", onConsoleMessage);
+  }
+}
+
+async function runLightsQaCapture(window, outputDir, suffix) {
+  const plan = buildLightsQaPlan({ suffix });
+  const facts = { checkpoints: {} };
+  const checkpoint = (id, value) => { facts.checkpoints[id] = value; };
+  await fs.mkdir(outputDir, { recursive: true });
+  const markStep = async (step) => fs.writeFile(
+    path.join(outputDir, "qa-step.txt"),
+    `${JSON.stringify({ step, at: new Date().toISOString() })}\n`,
+    "utf8",
+  );
+
+  await markStep("focus-renderer");
+  window.webContents.focus();
+  await markStep("seed-save");
+  await seedLightsQaSave(window);
+  await markStep("reload-start");
+  await window.reload();
+  await markStep("wait-start");
+  await waitFor(window, ".start-screen");
+  await markStep("open-saves");
+  await click(window, ".menu-primary");
+  await markStep("wait-save-select");
+  await waitFor(window, ".save-select-screen");
+  await markStep("select-save");
+  await click(window, ".save-primary-action");
+  await markStep("wait-home");
+  await waitFor(window, ".home-screen");
+  await markStep("open-missions");
   await click(window, '[data-action="open-missions"]');
+  await markStep("wait-story05-available");
   await waitFor(window, '[data-mission-id="story-05"][data-mission-status="available"]');
+  await markStep("accept-story05");
   await click(window, '[data-action="accept-mission"][data-mission-action-id="story-05"]');
+  await markStep("wait-story05-active");
   await waitFor(window, '[data-mission-id="story-05"][data-mission-status="active"]');
+  await markStep("read-prepared-save");
   const prepared = await readLightsQaSave(window);
   if (!prepared.claimedMissionIds.includes("story-04") || !prepared.activeMissionIds.includes("story-05")) {
     throw new Error(`Lights story preparation did not produce an active story-05 mission: ${JSON.stringify(prepared)}`);
   }
   checkpoint("story-ready", { prerequisiteClaimed: true, story05Active: true });
 
+  await markStep("launch-story-lights");
   await click(window, '[data-action="launch-lights-story"]');
+  await markStep("wait-lights-screen");
   await waitFor(window, ".lights-event-screen");
-  await waitForLightsPhase(window, "CHASE_PLAYER_CALL");
+  await markStep("wait-chase-player-call");
+  await waitForLightsPhase(window, "CHASE_PLAYER_CALL", "after story Lights launch");
+  await markStep("keying-probe-RRR-RST");
+  await focusLightsQaWindow(window, "before keying probe");
+  await sendAutomaticLightsText(window, "RRR RST");
+  checkpoint("keying-probe", { text: "RRR RST", wpm: LIGHTS_QA_WPM, exact: true });
+  await click(window, ".lights-event-controls button:nth-child(2)");
+  await window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if ((document.querySelector(".lights-tx-line strong")?.textContent || "").trim() === "_") { clearInterval(timer); resolve(true); }
+      else if (Date.now() - started > 3000) { clearInterval(timer); reject(new Error("Lights keying probe did not clear its input")); }
+    }, 20);
+  })`, true);
   await capture(window, outputDir, plan.screenshots[0]);
   checkpoint("story-launch", { phase: "CHASE_PLAYER_CALL", mode: "story" });
 
   await transmitLightsText(window, "SIM5LT DE QA5LGT K");
-  await waitForLightsPhase(window, "CHASE_PLAYER_REPORT");
+  await waitForLightsPhase(window, "CHASE_PLAYER_REPORT", "after player chase call");
   await capture(window, outputDir, plan.screenshots[1]);
   await transmitLightsText(window, "SIM5LT DE QA5LGT RST 579 CN K");
-  await waitForLightsPhase(window, "CONTROL_CQ");
+  await waitForLightsPhase(window, "CONTROL_CQ", "after chase report");
   checkpoint("chase-complete", { phase: "CONTROL_CQ", completed: true });
   await capture(window, outputDir, plan.screenshots[2]);
   checkpoint("control-entered", { phase: "CONTROL_CQ" });
@@ -445,7 +806,7 @@ async function runLightsQaCapture(window, outputDir, suffix) {
   checkpoint("escape-paused", { phase: pausedPhase, settingsVisible: true });
   await pressKey(window, { key: "Escape", code: "Escape" });
   await waitForMissing(window, ".settings-modal");
-  await waitForLightsPhase(window, "CONTROL_CQ");
+  await waitForLightsPhase(window, "CONTROL_CQ", "after Escape resumes control");
   checkpoint("escape-resumed", { phase: "CONTROL_CQ", settingsVisible: false });
 
   await advanceLightsClockToTimeout(window);
@@ -459,32 +820,74 @@ async function runLightsQaCapture(window, outputDir, suffix) {
   checkpoint("failed-run", failed);
 
   await click(window, '[data-action="lights-retry-control"]');
-  await waitForLightsPhase(window, "CONTROL_CQ");
+  await waitForLightsPhase(window, "CONTROL_CQ", "after retrying failed run");
   const afterRetry = await readLightsQaSave(window);
   if (afterRetry.settledRunIds.length !== 1) throw new Error(`Failed run was not settled exactly once before retry: ${JSON.stringify(afterRetry)}`);
   checkpoint("retry-control", { phase: "CONTROL_CQ", failedRunSettlementCount: afterRetry.settledRunIds.length });
 
+  // Caller selection reads the live React run state mounted by the real renderer. That
+  // makes the DOM-driving workflow follow the actual pile-up, rather than assuming a seed roster.
+  const completedContacts = [];
+  completedContacts.push(await completeLightsControlRound(window));
+  completedContacts.push(await completeLightsControlRound(window));
+  completedContacts.push(await completeLightsControlRound(window));
   await advanceLightsClockToTimeout(window);
   await waitFor(window, '[data-action="lights-settle"]:not([disabled])');
+  const resultFacts = await window.webContents.executeJavaScript(`(() => ({
+    phase: document.querySelector(".lights-event-screen")?.dataset.eventPhase ?? null,
+    grade: document.querySelector("[data-lights-grade]")?.dataset.lightsGrade ?? null,
+    contacts: Number(document.querySelector(".lights-event-meter div:nth-child(2) strong")?.textContent.split("/")[0] ?? 0),
+    validQsoCount: Number(document.querySelector(".lights-event-screen")?.dataset.validQsoCount),
+    distinctRegionCount: Number(document.querySelector(".lights-event-screen")?.dataset.distinctRegionCount),
+    resolvedPileupCount: Number(document.querySelector(".lights-event-screen")?.dataset.resolvedPileupCount),
+  }))()`, true);
+  if (resultFacts.phase !== "RUN_COMPLETE" || resultFacts.grade !== "base" || resultFacts.contacts < 3
+    || resultFacts.validQsoCount < 3 || resultFacts.distinctRegionCount < 2 || resultFacts.resolvedPileupCount < 1) {
+    throw new Error(`Lights retry did not reach the required Base result: ${JSON.stringify(resultFacts)}`);
+  }
   await click(window, '[data-action="lights-settle"]');
   await waitFor(window, ".lights-settlement-banner");
   await capture(window, outputDir, plan.screenshots[4]);
-  const settled = await readLightsQaSave(window);
-  if (settled.settledRunIds.length !== 2) throw new Error(`Lights settlement did not persist the retry run: ${JSON.stringify(settled)}`);
-  checkpoint("settled", { settledRunIds: settled.settledRunIds, storyBestGrade: settled.storyBest?.grade ?? null });
+  const settledBeforeClaim = await readLightsQaSave(window);
+  if (settledBeforeClaim.settledRunIds.length !== 2 || settledBeforeClaim.qsoLogCount !== 3) {
+    throw new Error(`Lights settlement did not persist the Base retry run: ${JSON.stringify(settledBeforeClaim)}`);
+  }
 
   await click(window, '[data-action="lights-settle"]');
   const duplicate = await readLightsQaSave(window);
-  if (JSON.stringify(duplicate.settledRunIds) !== JSON.stringify(settled.settledRunIds)
-    || duplicate.money !== settled.money || duplicate.qsoLogCount !== settled.qsoLogCount) {
-    throw new Error(`Duplicate Lights settlement changed the save: ${JSON.stringify({ settled, duplicate })}`);
+  if (JSON.stringify(duplicate.settledRunIds) !== JSON.stringify(settledBeforeClaim.settledRunIds)
+    || duplicate.money !== settledBeforeClaim.money || duplicate.qsoLogCount !== settledBeforeClaim.qsoLogCount) {
+    throw new Error(`Duplicate Lights settlement changed the save: ${JSON.stringify({ settledBeforeClaim, duplicate })}`);
   }
   checkpoint("duplicate-settlement", {
     noOp: true,
-    settledRunIds: duplicate.settledRunIds,
-    money: duplicate.money,
-    qsoLogCount: duplicate.qsoLogCount,
+    before: { settledRunIds: settledBeforeClaim.settledRunIds, money: settledBeforeClaim.money, qsoLogCount: settledBeforeClaim.qsoLogCount },
+    after: { settledRunIds: duplicate.settledRunIds, money: duplicate.money, qsoLogCount: duplicate.qsoLogCount },
   });
+
+  await click(window, ".lights-event-header button");
+  await waitFor(window, ".home-screen");
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-05"][data-mission-status="ready"]');
+  await click(window, '[data-action="claim-mission"][data-mission-action-id="story-05"]');
+  await waitFor(window, '[data-mission-id="story-05"][data-mission-status="claimed"]');
+  const settled = await readLightsQaSave(window);
+  const moneyDelta = settled.money - afterRetry.money;
+  const qsoLogDelta = settled.qsoLogCount - afterRetry.qsoLogCount;
+  if (moneyDelta <= 0 || qsoLogDelta < 3 || settled.storyBest?.grade !== "base") {
+    throw new Error(`Lights Base settlement and mission claim did not pay once: ${JSON.stringify({ afterRetry, settled, moneyDelta, qsoLogDelta })}`);
+  }
+  checkpoint("settled", {
+    ...resultFacts,
+    selectedContacts: completedContacts,
+    moneyDelta,
+    qsoLogDelta,
+    settledRunIds: settled.settledRunIds,
+    money: settled.money,
+    qsoLogCount: settled.qsoLogCount,
+  });
+  await click(window, '[data-action="close-missions-footer"]');
+  await waitForMissing(window, '[data-testid="mission-center-modal"]');
 
   await window.reload();
   await waitFor(window, ".start-screen");
@@ -502,6 +905,7 @@ async function runLightsQaCapture(window, outputDir, suffix) {
     settledRunIds: reloaded.settledRunIds,
     storyBestGrade: reloaded.storyBest?.grade ?? null,
     money: reloaded.money,
+    qsoLogCount: reloaded.qsoLogCount,
   });
 
   const result = {
@@ -512,6 +916,7 @@ async function runLightsQaCapture(window, outputDir, suffix) {
     ...facts,
   };
   await fs.writeFile(path.join(outputDir, plan.resultFile), `${JSON.stringify(result, null, 2)}\n`, "utf8");
+  validateLightsQaEvidence(result);
   return result;
 }
 
@@ -519,6 +924,7 @@ async function runQaCapture(window) {
   const outputDir = process.env.CWGAME_QA_OUTPUT || path.join(process.cwd(), "qa-artifacts");
   const [captureWidth, captureHeight] = window.getContentSize();
   const suffix = process.env.CWGAME_QA_SUFFIX || `${captureWidth}x${captureHeight}`;
+  if (process.env.CWGAME_QA_SCOPE === "station-entry") return runStationEntryProbe(window);
   const shot = (stem) => `${stem}-${suffix}.png`;
   const manualCaptures = [];
   const languageCaptures = [];
@@ -2079,8 +2485,10 @@ async function runQaCapture(window) {
   }
   await capture(window, outputDir, shot("home-log-operation-review"));
   await click(window, ".qso-log-return");
-  await click(window, ".hotspot-station");
-  await waitFor(window, ".station-screen");
+  await waitForMissing(window, ".qso-log-modal");
+  await waitFor(window, ".home-screen");
+  await clickAt(window, ".hotspot-station");
+  await waitForStationAfterLog(window);
 
   await click(window, ".map-preview");
   await waitFor(window, ".map-modal");
@@ -2192,4 +2600,9 @@ async function runQaCapture(window) {
   };
 }
 
-module.exports = { buildLightsQaPlan, runQaCapture };
+module.exports = {
+  automaticQaGapAfterElement, automaticQaShouldWaitForIdleAfterSymbol,
+  buildLightsQaPlan, formatLightsWaitFailure, LIGHTS_QA_WPM, runLightsQaCapture, runQaCapture,
+  lightsKeyInputForSymbol, selectLightsCallerFromRuntimeSnapshot,
+  sendAutomaticLightsText, validateLightsQaEvidence, validateStationEntryProbe,
+};
