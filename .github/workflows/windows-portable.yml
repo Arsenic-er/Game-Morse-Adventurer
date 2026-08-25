@@ -12,7 +12,7 @@ on:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: windows-portable-${{ github.ref }}
@@ -28,16 +28,16 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Configure pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
         with:
           version: 10.12.1
           run_install: false
 
       - name: Configure Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: pnpm
@@ -93,6 +93,19 @@ jobs:
       - name: Build portable executable
         run: pnpm run desktop:build
 
+      - name: Verify build-size report
+        shell: pwsh
+        run: |
+          $reportPath = "dist/build-size-report.json"
+          if (!(Test-Path -LiteralPath $reportPath)) {
+            throw "Build did not produce build-size-report.json"
+          }
+          $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+          if (!$report.passed -or $report.largestOwnedJsChunk.bytes -gt 512000) {
+            $report | ConvertTo-Json -Depth 5
+            throw "Owned JavaScript chunk budget exceeded 500 KiB"
+          }
+
       - name: Smoke-test packaged semantic model
         shell: pwsh
         run: |
@@ -121,38 +134,29 @@ jobs:
         run: |
           $qaOutput = Join-Path $env:RUNNER_TEMP "cwgame-qa"
           New-Item -ItemType Directory -Force -Path $qaOutput | Out-Null
-          $env:CWGAME_QA_OUTPUT = $qaOutput
-          $stdout = Join-Path $qaOutput "stdout.log"
-          $stderr = Join-Path $qaOutput "stderr.log"
-          $process = Start-Process `
-            -FilePath "release/CWGame-latest.exe" `
-            -ArgumentList "--qa-capture" `
-            -WindowStyle Hidden `
-            -RedirectStandardOutput $stdout `
-            -RedirectStandardError $stderr `
-            -PassThru `
-            -Wait
+          $exe = (Resolve-Path "release/CWGame-latest.exe").Path
+          node scripts/run-packaged-qa.cjs --exe $exe --output $qaOutput
+          if ($LASTEXITCODE -ne 0) {
+            throw "Segmented packaged CWGame QA failed with exit code $LASTEXITCODE"
+          }
 
-          $failure = Join-Path $qaOutput "qa-failure.txt"
-          if ($process.ExitCode -ne 0 -or (Test-Path -LiteralPath $failure)) {
-            if (Test-Path -LiteralPath $failure) {
-              Get-Content -LiteralPath $failure
+          $resultPath = Join-Path $qaOutput "qa-result.json"
+          if (!(Test-Path -LiteralPath $resultPath)) {
+            throw "Packaged QA did not produce qa-result.json"
+          }
+          $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+          if ($result.totalPhysicalCaptures -ne 91 -or @($result.captures).Count -ne 91) {
+            $result | ConvertTo-Json -Depth 5
+            throw "Packaged QA manifest did not name exactly 91 physical screenshots"
+          }
+          foreach ($relativeCapture in $result.captures) {
+            $capturePath = Join-Path $qaOutput $relativeCapture
+            if (!(Test-Path -LiteralPath $capturePath) -or (Get-Item -LiteralPath $capturePath).Length -eq 0) {
+              throw "Packaged QA manifest screenshot is missing or empty: $relativeCapture"
             }
-            if (Test-Path -LiteralPath $stderr) {
-              Get-Content -LiteralPath $stderr
-            }
-            throw "Packaged CWGame QA failed with exit code $($process.ExitCode)"
           }
 
-          $screenshots = @(Get-ChildItem -LiteralPath $qaOutput -Filter "*.png" -File)
-          if ($screenshots.Count -lt 23) {
-            throw "Packaged QA produced only $($screenshots.Count) screenshots"
-          }
-
-          $lightsResultPath = Join-Path $qaOutput "lights-qa-result.json"
-          if (!(Test-Path -LiteralPath $lightsResultPath)) {
-            throw "Packaged QA did not produce lights-qa-result.json"
-          }
+          $lightsResultPath = Join-Path $qaOutput $result.lightsResult
           $lightsResult = Get-Content -LiteralPath $lightsResultPath -Raw | ConvertFrom-Json
           node -e "const fs = require('fs'); const { validateLightsQaEvidence } = require('./electron/qa-capture.cjs'); validateLightsQaEvidence(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')));" $lightsResultPath
           if ($LASTEXITCODE -ne 0) {
@@ -168,13 +172,6 @@ jobs:
               throw "Packaged Lights QA result is missing checkpoint '$checkpoint'"
             }
           }
-          foreach ($evidence in @("chase", "control", "result", "reloaded-history")) {
-            $matches = @(Get-ChildItem -LiteralPath $qaOutput -Filter "lights-$evidence-*.png" -File)
-            if ($matches.Count -lt 1) {
-              throw "Packaged Lights QA did not capture required $evidence evidence"
-            }
-          }
-
           $consoleLog = Join-Path $qaOutput "runtime-console-errors.json"
           if (!(Test-Path -LiteralPath $consoleLog)) {
             throw "Packaged QA did not produce the runtime console report"
@@ -185,7 +182,7 @@ jobs:
             throw "Packaged QA recorded renderer warnings or errors"
           }
 
-          "Packaged QA captured $($screenshots.Count) verified screens and all Lights gameplay checkpoints." |
+          "Packaged QA captured 91 exact segmented screens and all Lights gameplay checkpoints." |
             Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
 
       - name: Verify executable and write checksum
@@ -220,18 +217,51 @@ jobs:
           "@ | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
 
       - name: Upload portable artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: CWGame-Windows-x64-portable
           path: |
             release/CWGame-latest.exe
             release/CWGame-latest.sha256
+            dist/build-size-report.json
           if-no-files-found: error
           retention-days: 30
 
+      - name: Publish durable tag release
+        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $notes = "release/CWGame-release-notes.md"
+          @"
+          ## CWGame Windows portable
+
+          This is an **unsigned prototype build**. Windows may display an Unknown Publisher or SmartScreen warning. Verify the attached SHA-256 file before running it.
+
+          The repository is **source-available for review under a proprietary license**. No open-source license is granted for the original game code or artwork. Third-party components retain their own licenses.
+
+          - Commit: ``${{ github.sha }}``
+          - Platform: Windows x64 portable
+          - Attachments: ``CWGame-latest.exe`` and ``CWGame-latest.sha256``
+          "@ | Set-Content -LiteralPath $notes -Encoding utf8
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag "release/CWGame-latest.exe" "release/CWGame-latest.sha256" --clobber
+            gh release edit $tag --title "CWGame $tag" --notes-file $notes
+          } else {
+            gh release create $tag `
+              "release/CWGame-latest.exe" `
+              "release/CWGame-latest.sha256" `
+              --verify-tag `
+              --title "CWGame $tag" `
+              --notes-file $notes
+          }
+
       - name: Upload QA evidence on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: CWGame-Windows-QA-failure
           path: ${{ runner.temp }}/cwgame-qa

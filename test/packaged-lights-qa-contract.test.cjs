@@ -8,10 +8,111 @@ const vm = require("node:vm");
 
 const {
   automaticQaGapAfterElement, automaticQaShouldWaitForIdleAfterSymbol,
-  buildLightsQaMoneyFlow, buildLightsQaPlan, formatLightsWaitFailure, lightsKeyInputForSymbol, LIGHTS_QA_WPM,
-  runLightsQaCapture, selectLightsCallerFromRuntimeSnapshot, sendAutomaticLightsText,
+  buildLightsQaMoneyFlow, buildLightsQaPlan, capturePageWithVizRetry, formatLightsWaitFailure,
+  lightsKeyInputForSymbol, LIGHTS_QA_WPM,
+  QA_QSO_LOG_VERSION, runLightsQaCapture, selectLightsCallerFromRuntimeSnapshot, sendAutomaticLightsText,
+  startGuidedQaWatch,
   validateLightsQaEvidence, validateStationEntryProbe,
 } = require("../electron/qa-capture.cjs");
+
+test("capturePage retries only bounded UnknownViz compositor failures", async () => {
+  let attempts = 0;
+  const expectedImage = { toPNG: () => Buffer.from("image") };
+  const recovered = await capturePageWithVizRetry({
+    async capturePage() {
+      attempts += 1;
+      if (attempts < 3) throw new Error("UnknownVizError");
+      return expectedImage;
+    },
+  }, { maxAttempts: 3, retryDelayMs: 0 });
+  assert.equal(recovered, expectedImage);
+  assert.equal(attempts, 3);
+
+  let nonVizAttempts = 0;
+  await assert.rejects(() => capturePageWithVizRetry({
+    async capturePage() {
+      nonVizAttempts += 1;
+      throw new Error("RendererCrashed");
+    },
+  }, { maxAttempts: 3, retryDelayMs: 0 }), /RendererCrashed/);
+  assert.equal(nonVizAttempts, 1);
+
+  let exhaustedAttempts = 0;
+  await assert.rejects(() => capturePageWithVizRetry({
+    async capturePage() {
+      exhaustedAttempts += 1;
+      throw new Error("UnknownVizError");
+    },
+  }, { maxAttempts: 3, retryDelayMs: 0 }), /UnknownVizError/);
+  assert.equal(exhaustedAttempts, 3);
+});
+
+test("capturePage bounds compositor calls that never settle", async () => {
+  let attempts = 0;
+  const capture = capturePageWithVizRetry({
+    capturePage() {
+      attempts += 1;
+      return new Promise(() => {});
+    },
+  }, { maxAttempts: 2, retryDelayMs: 0, captureTimeoutMs: 10 });
+  const outerTimeout = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error("TEST_TIMEOUT")), 250);
+  });
+
+  await assert.rejects(() => Promise.race([capture, outerTimeout]), /capturePage timed out after 10ms/);
+  assert.equal(attempts, 2);
+});
+
+test("packaged QA refocuses the real renderer before starting a guided QSO watch", async () => {
+  const calls = [];
+  let focused = false;
+  const qaWindow = {
+    isMinimized: () => true,
+    restore() { calls.push("restore"); },
+    show() { calls.push("show"); },
+    focus() { calls.push("window-focus"); focused = true; },
+    webContents: {
+      focus() { calls.push("renderer-focus"); focused = true; },
+      async executeJavaScript(source) {
+        if (source.includes("document.hasFocus()")) {
+          calls.push("renderer-focus-check");
+          assert.equal(focused, true);
+          return true;
+        }
+        if (source.includes('data-action=\\"start-guided-watch\\"')) {
+          calls.push("guided-watch-click");
+          assert.equal(focused, true);
+          return true;
+        }
+        if (source.includes('data-testid=\\"qso-briefing-modal\\"')) return true;
+        if (source.includes('data-qso-phase=\\"PLAYER_CQ\\"')) return true;
+        throw new Error(`Unexpected QA script: ${source}`);
+      },
+    },
+  };
+
+  await startGuidedQaWatch(qaWindow);
+
+  assert.deepEqual(calls, [
+    "restore", "show", "window-focus", "renderer-focus", "renderer-focus-check", "guided-watch-click",
+  ]);
+});
+
+test("packaged QA follows the production QSO log schema version", async () => {
+  const { normalizeQsoLogEntry, QSO_LOG_VERSION } = await import("../src/qso/qsoLog.js");
+  const normalized = normalizeQsoLogEntry({
+    startedAt: "2026-08-25T00:00:00.000Z",
+    completedAt: "2026-08-25T00:01:00.000Z",
+    playerCallsign: "BH1ABC",
+    callsign: "SIM5TU",
+  });
+
+  assert.equal(normalized.version, 8);
+  assert.equal(QA_QSO_LOG_VERSION, QSO_LOG_VERSION);
+  const qaSource = fs.readFileSync(path.join(__dirname, "..", "electron", "qa-capture.cjs"), "utf8");
+  assert.match(qaSource, /savedEquipmentSnapshot\.version !== QA_QSO_LOG_VERSION/);
+  assert.doesNotMatch(qaSource, /savedEquipmentSnapshot\.version !== 7/);
+});
 
 function durableSnapshot({ money, qsoLogCount, settledRunIds, claimedAchievementRewards = [] }) {
   return { money, qsoLogCount, eventQsoCredits: 0, settledRunIds, claimedAchievementRewards };
@@ -302,47 +403,96 @@ test("Lights capture runner is independently callable by the packaged CLI", () =
   assert.equal(typeof runLightsQaCapture, "function");
 });
 
-test("QA startup isolates userData before the Electron instance lock when output is omitted", () => {
+test("Lights capture runner reaches its keying probe through the shared renderer focus boundary", async () => {
+  const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), "cwgame-lights-focus-runner-"));
+  const preparedSave = {
+    id: "qa-lights-save",
+    callsign: "QA5LGT",
+    claimedMissionIds: ["story-04"],
+    activeMissionIds: ["story-05"],
+    settledRunIds: [],
+    storyBest: null,
+    qsoLogCount: 0,
+    eventQsoCredits: 0,
+    claimedAchievementRewards: [],
+    story05MissionMoneyAwarded: null,
+    money: 0,
+  };
+  const qaWindow = {
+    isMinimized: () => false,
+    show() {},
+    focus() {},
+    async reload() {},
+    webContents: {
+      focus() {},
+      async executeJavaScript(source) {
+        if (source.includes("story05MissionMoneyAwarded")) return preparedSave;
+        if (source.includes('expected = "RRR RST"')) throw new Error("KEYING_PROBE_REACHED");
+        return true;
+      },
+    },
+  };
+
+  try {
+    await assert.rejects(
+      () => runLightsQaCapture(qaWindow, outputDir, "focus-contract"),
+      /KEYING_PROBE_REACHED/,
+    );
+  } finally {
+    fs.rmSync(outputDir, { recursive: true, force: true });
+  }
+});
+
+test("every segmented QA startup isolates userData before the Electron instance lock", () => {
   const originalArgv = process.argv;
   const originalOutput = process.env.CWGAME_QA_OUTPUT;
+  const originalScope = process.env.CWGAME_QA_SCOPE;
   const originalLoad = Module._load;
   const mainPath = require.resolve("../electron/main.cjs");
-  const calls = [];
-  let outputDir;
+  const outputDirs = [];
   try {
-    process.argv = [originalArgv[0], mainPath, "--qa-lights-capture"];
-    delete process.env.CWGAME_QA_OUTPUT;
-    Module._load = function load(request, parent, isMain) {
-      if (request !== "electron") return originalLoad.call(this, request, parent, isMain);
-      return {
-        app: {
-          commandLine: { appendSwitch: () => {} },
-          disableHardwareAcceleration: () => {},
-          quit: () => { calls.push(["quit"]); },
-          requestSingleInstanceLock: () => { calls.push(["lock"]); return false; },
-          setPath: (name, value) => { calls.push(["setPath", name, value]); },
-        },
+    for (const scope of ["bootstrap", "inventory", "equipment", "practice", "qso", "lights"]) {
+      const calls = [];
+      process.argv = [originalArgv[0], mainPath, scope === "lights" ? "--qa-lights-capture" : "--qa-capture"];
+      process.env.CWGAME_QA_SCOPE = scope;
+      delete process.env.CWGAME_QA_OUTPUT;
+      Module._load = function load(request, parent, isMain) {
+        if (request !== "electron") return originalLoad.call(this, request, parent, isMain);
+        return {
+          app: {
+            commandLine: { appendSwitch: () => {} },
+            disableHardwareAcceleration: () => {},
+            quit: () => { calls.push(["quit"]); },
+            requestSingleInstanceLock: () => { calls.push(["lock"]); return false; },
+            setPath: (name, value) => { calls.push(["setPath", name, value]); },
+          },
+        };
       };
-    };
-    delete require.cache[mainPath];
-    require(mainPath);
-    outputDir = process.env.CWGAME_QA_OUTPUT;
+      delete require.cache[mainPath];
+      require(mainPath);
+      const outputDir = process.env.CWGAME_QA_OUTPUT;
+      outputDirs.push(outputDir);
 
-    const isolation = calls.find(([name]) => name === "setPath");
-    assert.ok(outputDir, "QA startup must choose an isolated output directory");
-    assert.deepEqual(isolation?.slice(0, 2), ["setPath", "userData"]);
-    assert.equal(path.dirname(isolation[2]), outputDir);
-    assert.equal(path.basename(isolation[2]), "electron-user-data");
-    assert.equal(fs.existsSync(isolation[2]), true);
-    assert.ok(calls.findIndex(([name]) => name === "setPath") < calls.findIndex(([name]) => name === "lock"));
-    assert.ok(path.resolve(outputDir).startsWith(path.resolve(os.tmpdir())));
+      const isolation = calls.find(([name]) => name === "setPath");
+      assert.ok(outputDir, `${scope} QA startup must choose an isolated output directory`);
+      assert.deepEqual(isolation?.slice(0, 2), ["setPath", "userData"]);
+      assert.equal(path.dirname(isolation[2]), outputDir);
+      assert.equal(path.basename(isolation[2]), "electron-user-data");
+      assert.equal(fs.existsSync(isolation[2]), true);
+      assert.ok(calls.findIndex(([name]) => name === "setPath") < calls.findIndex(([name]) => name === "lock"));
+      assert.ok(path.resolve(outputDir).startsWith(path.resolve(os.tmpdir())));
+    }
   } finally {
     delete require.cache[mainPath];
     Module._load = originalLoad;
     process.argv = originalArgv;
     if (originalOutput === undefined) delete process.env.CWGAME_QA_OUTPUT;
     else process.env.CWGAME_QA_OUTPUT = originalOutput;
-    if (outputDir && fs.existsSync(outputDir)) fs.rmSync(outputDir, { recursive: true, force: true });
+    if (originalScope === undefined) delete process.env.CWGAME_QA_SCOPE;
+    else process.env.CWGAME_QA_SCOPE = originalScope;
+    for (const outputDir of outputDirs) {
+      if (outputDir && fs.existsSync(outputDir)) fs.rmSync(outputDir, { recursive: true, force: true });
+    }
   }
 });
 

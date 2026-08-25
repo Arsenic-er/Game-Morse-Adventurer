@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowCounterClockwise, ArrowLeft, BookOpenText, Broadcast, Check, FloppyDisk, GearSix,
   GlobeHemisphereWest, GridFour, Lightning, MapTrifold, Play,
@@ -38,7 +38,6 @@ import { WORLD_CALENDAR_HEARTBEAT_MS } from "./game/worldCalendar.js";
 import {
   isWorldCalendarGameplayActive, touchActiveWorldCalendarSaves,
 } from "./game/worldCalendarHeartbeat.js";
-import { PracticeScreen } from "./practice/PracticeScreen.jsx";
 import { practiceStatsByMode, recordPracticeAttempt, updatePracticePreference } from "./practice/practiceRecords.js";
 import { PropagationMap } from "./propagation/PropagationMap.jsx";
 import {
@@ -55,14 +54,22 @@ import {
   OPERATOR_RELATIONSHIPS_VERSION, operatorEncounterId, recordOperatorEncounter,
 } from "./qso/operatorRelationships.js";
 import { QSO_EXIT_RISKS, qsoExitRisk } from "./qso/qsoExitGuard.js";
-import { HomeScreen } from "./screens/HomeScreen.jsx";
-import { LightsEventScreen } from "./screens/LightsEventScreen.jsx";
 import { QsoLeaveConfirmModal } from "./screens/QsoLeaveConfirmModal.jsx";
 import { QsoResultModal } from "./screens/QsoResultModal.jsx";
-import { SaveSelectScreen } from "./screens/SaveSelectScreen.jsx";
-import { StationManualModal } from "./screens/StationManualModal.jsx";
-import { AchievementNotification } from "./screens/AchievementsModal.jsx";
 import { LANGUAGES, loadLanguagePreference, persistLanguagePreference } from "./i18n/languageRegistry.js";
+
+const PracticeScreen = lazy(() => import("./practice/PracticeScreen.jsx")
+  .then(({ PracticeScreen: component }) => ({ default: component })));
+const HomeScreen = lazy(() => import("./screens/HomeScreen.jsx")
+  .then(({ HomeScreen: component }) => ({ default: component })));
+const LightsEventScreen = lazy(() => import("./screens/LightsEventScreen.jsx")
+  .then(({ LightsEventScreen: component }) => ({ default: component })));
+const SaveSelectScreen = lazy(() => import("./screens/SaveSelectScreen.jsx")
+  .then(({ SaveSelectScreen: component }) => ({ default: component })));
+const StationManualModal = lazy(() => import("./screens/StationManualModal.jsx")
+  .then(({ StationManualModal: component }) => ({ default: component })));
+const AchievementNotification = lazy(() => import("./screens/AchievementsModal.jsx")
+  .then(({ AchievementNotification: component }) => ({ default: component })));
 
 const ASSETS = {
   room: "./assets/radio-room-bg.png",
@@ -1473,15 +1480,17 @@ export function App() {
   else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onActivityRisk={setActivityRisk} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
   else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   return <>
-    {currentScreen}
+    <Suspense fallback={<main className="screen route-loading-screen" aria-busy="true" />}>
+      {currentScreen}
+    </Suspense>
     <NetworkIndicator language={language} />
-    <AchievementNotification
-      language={language}
-      activeAchievement={achievementQueue[0] ?? null}
-      queueSize={achievementQueue.length}
-      onDismiss={() => setAchievementQueue((current) => current.slice(1))}
-    />
-    {manualOpen && <StationManualModal language={language} onClose={() => setManualOpen(false)} />}
+    <Suspense fallback={null}><AchievementNotification
+        language={language}
+        activeAchievement={achievementQueue[0] ?? null}
+        queueSize={achievementQueue.length}
+        onDismiss={() => setAchievementQueue((current) => current.slice(1))}
+      /></Suspense>
+    {manualOpen && <Suspense fallback={null}><StationManualModal language={language} onClose={() => setManualOpen(false)} /></Suspense>}
     {settingsOpen && <SettingsModal
       language={language}
       keyType={activeSave && ["home", "station", "lights"].includes(screen) ? activeSave.keyType : keyType}

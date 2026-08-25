@@ -2,7 +2,7 @@ const { app, BrowserWindow, Menu, dialog, ipcMain } = require("electron");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { runLightsQaCapture, runQaCapture } = require("./qa-capture.cjs");
+const { runLightsQaCapture, runLightsQaSegment, runQaCapture } = require("./qa-capture.cjs");
 const { readWindowsWifiStatus } = require("./network-status.cjs");
 const { qsoExitDialogOptions } = require("./qso-exit-dialog.cjs");
 const { createSemanticRuntime, sanitizeSemanticPayload } = require("./semantic-runtime.cjs");
@@ -105,6 +105,7 @@ if (!gotLock) {
       autoHideMenuBar: true,
       backgroundColor: "#02090e",
       title: "CWGame",
+      icon: path.join(__dirname, "..", "build", "icon.ico"),
       webPreferences: {
         backgroundThrottling: !qaCaptureMode,
         contextIsolation: true,
@@ -128,7 +129,7 @@ if (!gotLock) {
         try {
           const [captureWidth, captureHeight] = mainWindow.getContentSize();
           const result = lightsQaCaptureMode
-            ? await runLightsQaCapture(
+            ? await (process.env.CWGAME_QA_SCOPE === "lights" ? runLightsQaSegment : runLightsQaCapture)(
               mainWindow,
               process.env.CWGAME_QA_OUTPUT || path.join(process.cwd(), "qa-artifacts"),
               process.env.CWGAME_QA_SUFFIX || `${captureWidth}x${captureHeight}`,

@@ -28,6 +28,8 @@
 
 Game-Morse-Adventurer is a local Windows game prototype for learning and using Morse code in a fictional amateur-radio station. Enter the station to open the receiver and hear live background noise, call CQ with a straight key or automatic paddle, wait for a propagation-dependent fictional response, complete the QSO, and explore conditions across an offline world map.
 
+> The Windows portable is an **unsigned prototype build**; Windows may show an Unknown Publisher or SmartScreen warning. Verify the attached SHA-256 before running it. This repository is **source-available** for public review under a **proprietary** license; the original game code and artwork are not open source.
+
 ## Highlights
 
 - Hard-edged dark pixel UI using Fusion Bold Pixel for English, Chinese, and Japanese, plus Press Start 2P for Spanish, German, and Russian.

@@ -28,6 +28,8 @@
 
 Game-Morse-Adventurer ist ein lokal ausgeführter Windows-Spielprototyp zum Erlernen und Anwenden des Morsecodes an einer fiktiven Amateurfunkstation. Betritt die Station, um den Empfänger zu öffnen und laufendes Hintergrundrauschen zu hören, rufe mit einer Handtaste oder einem Automatik-Paddle CQ, warte auf eine ausbreitungsabhängige Antwort einer fiktiven Station, schließe das QSO ab und erkunde die Bedingungen auf einer Offline-Weltkarte.
 
+> Der portable Windows-Build ist ein **nicht signierter Prototyp**; Windows kann eine Warnung zu einem unbekannten Herausgeber oder SmartScreen anzeigen. Prüfe vor dem Start die beigefügte SHA-256-Datei. Der **Quellcode ist einsehbar** zur öffentlichen Prüfung, steht aber unter einer **proprietären** Lizenz; der ursprüngliche Spielcode und die Grafiken sind keine Open-Source-Software.
+
 ## Höhepunkte
 
 - Kantige, dunkle Pixeloberfläche mit Fusion Bold Pixel für Englisch, Chinesisch und Japanisch sowie Press Start 2P für Spanisch, Deutsch und Russisch.

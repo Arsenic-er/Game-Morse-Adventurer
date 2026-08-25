@@ -9,7 +9,9 @@ node_modules/
 *.key
 *.pfx
 dist/
-runtime-models/
+runtime-models/*
+!runtime-models/qso-semanticformer-v0.4.int8.onnx
+!runtime-models/qso-semanticformer-v0.4.runtime-contract.json
 release/
 release-v*/
 design-references/

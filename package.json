@@ -12,7 +12,8 @@
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && pnpm build:size",
+    "build:size": "node scripts/report-build-size.mjs",
     "preview": "vite preview",
     "test": "node --test",
     "npc:generate": "node scripts/generate-npc-roster.mjs",
@@ -20,8 +21,9 @@
     "qso:calibrate": "node scripts/calibrate-operators.mjs",
     "mission:economy": "node scripts/simulate-mission-economy.mjs",
     "semantic:model:sync": "node scripts/sync-semantic-model.mjs",
+    "semantic:model:update": "node scripts/sync-semantic-model.mjs --update",
     "desktop:dev": "pnpm semantic:model:sync && vite build && electron .",
-    "desktop:build": "pnpm semantic:model:sync && vite build && electron-builder --win portable"
+    "desktop:build": "pnpm semantic:model:sync && pnpm build && electron-builder --win portable"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -41,6 +43,7 @@
       "package.json",
       "LICENSE",
       "THIRD_PARTY_NOTICES.md",
+      "build/icon.ico",
       "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**/*",
       "!node_modules/onnxruntime-node/bin/napi-v6/linux/**/*",
       "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**/*",
@@ -57,6 +60,7 @@
     ],
     "asar": true,
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "portable",

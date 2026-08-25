@@ -1,6 +1,6 @@
 @font-face {
   font-family: "Fusion Bold Pixel Hans";
-  src: url("./assets/fonts/fusion-bold-pixel-12px-proportional-zh_hans.ttf") format("truetype");
+  src: url("./assets/fonts/fusion-bold-pixel-12px-proportional-zh_hans.woff2") format("woff2");
   font-style: normal;
   font-weight: 700;
   font-display: swap;
@@ -8,7 +8,7 @@
 
 @font-face {
   font-family: "Fusion Bold Pixel Hant";
-  src: url("./assets/fonts/fusion-bold-pixel-12px-proportional-zh_hant.ttf") format("truetype");
+  src: url("./assets/fonts/fusion-bold-pixel-12px-proportional-zh_hant.woff2") format("woff2");
   font-style: normal;
   font-weight: 700;
   font-display: swap;
@@ -16,7 +16,7 @@
 
 @font-face {
   font-family: "Fusion Bold Pixel JA";
-  src: url("./assets/fonts/fusion-bold-pixel-12px-proportional-ja.ttf") format("truetype");
+  src: url("./assets/fonts/fusion-bold-pixel-12px-proportional-ja.woff2") format("woff2");
   font-style: normal;
   font-weight: 700;
   font-display: swap;
@@ -24,7 +24,7 @@
 
 @font-face {
   font-family: "Press Start 2P";
-  src: url("./assets/fonts/press-start-2p-regular.ttf") format("truetype");
+  src: url("./assets/fonts/press-start-2p-regular.woff2") format("woff2");
   font-style: normal;
   font-weight: 700;
   font-display: swap;

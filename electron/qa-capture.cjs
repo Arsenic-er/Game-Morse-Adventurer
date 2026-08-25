@@ -2,6 +2,204 @@ const fs = require("fs/promises");
 const path = require("path");
 
 const LIGHTS_QA_WPM = 12;
+const QA_QSO_LOG_VERSION = 8;
+const QA_STORAGE_KEYS = Object.freeze([
+  "game-morse-adventurer.saves.v1",
+  "game-morse-adventurer.active-save.v1",
+  "game-morse-adventurer.language.v1",
+]);
+const QA_LANGUAGE_IDS = Object.freeze(["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"]);
+const QA_SEGMENT_PREDECESSORS = Object.freeze({
+  inventory: "bootstrap",
+  equipment: "inventory",
+  practice: "equipment",
+  qso: "practice",
+});
+
+const QA_CAPTURE_STEMS = Object.freeze({
+  bootstrap: [
+    "start", "language-start-seven", "language-settings-russian", "language-reload-spanish",
+    "station-manual-page-1", "station-manual-language-updated", "station-manual-page-2",
+    "station-manual-page-3", "station-manual-page-4", "practice-session-only", "save-create", "home",
+    "home-escape-menu", "home-motion-a", "home-motion-b", "mission-story-initial",
+    "mission-story-active", "mission-daily", "home-hover-store", "store-antenna", "store-radio",
+    "store-accessory-research",
+  ],
+  inventory: [
+    "home-hover-warehouse", "technology-tree-initial", "warehouse-radio-warmup", "warehouse-radio",
+    "warehouse-accessories", "warehouse-antenna-selected", "warehouse-antenna-equipped",
+    "home-hover-achievements", "achievements-empty", "home-log-empty-warmup", "home-log-empty", "save-loaded",
+  ],
+  equipment: [
+    "mission-story-ready", "store-accessory-owned", "store-radio-available-warmup", "store-radio-available",
+    "store-radio-owned-warmup", "store-radio-owned", "warehouse-accessory-selected",
+    "warehouse-accessory-equipped", "warehouse-radio-selected", "warehouse-radio-equipped",
+    "achievements-populated", "home-log-populated-warmup", "home-log-populated", "home-log-detail-second",
+  ],
+  practice: [
+    "home-hover-practice", "practice-overview-initial", "practice-lesson-guidance", "practice-session-summary",
+    "practice-overview-after-lesson", "practice-weak-recovery-review", "practice-weak-summary-recovered",
+    "practice-weak-cleared", "home-after-practice", "practice-weak-cleared-reloaded",
+    "practice-callsign-region-selected", "practice-callsign-region-locked", "practice-callsign-region-reloaded",
+  ],
+  qso: [
+    "qso-duty-briefing", "station-listening-warmup", "station-listening", "station-radio-tx",
+    "qso-leave-active", "station-input-cleared", "qso-npc-query", "qso-blind-copy", "qso-specific-error",
+    "qso-agn-repeat", "qso-optional-query", "qso-result-unsaved-warmup", "qso-result-unsaved",
+    "qso-leave-unsaved", "qso-operation-review", "achievement-qso-5-unlocked", "qso-result-saved",
+    "home-log-after-qso-warmup", "home-log-after-qso", "home-log-operation-review", "propagation-map",
+    "world-map", "mission-story-claimed", "reload-without-achievement-repeat",
+  ],
+});
+
+function buildQaSegmentPlan({ suffix = "qa" } = {}) {
+  const regularScopes = ["bootstrap", "inventory", "equipment", "practice", "qso"];
+  const segments = regularScopes.map((scope) => ({
+    scope,
+    mode: "qa-capture",
+    predecessor: QA_SEGMENT_PREDECESSORS[scope] ?? null,
+    timeoutMs: scope === "qso" ? 8 * 60_000 : 5 * 60_000,
+    screenshots: QA_CAPTURE_STEMS[scope].map((stem) => `${stem}-${suffix}.png`),
+  }));
+  segments.push({
+    scope: "lights",
+    mode: "qa-lights-capture",
+    predecessor: null,
+    timeoutMs: 8 * 60_000,
+    screenshots: buildLightsQaPlan({ suffix }).screenshots,
+  });
+  return { schemaVersion: 1, suffix, segments };
+}
+
+function validateQaStorage(storage) {
+  if (!isPlainObject(storage)) throw new Error("QA state storage must be a plain object");
+  const keys = Object.keys(storage);
+  if (keys.length !== QA_STORAGE_KEYS.length
+    || keys.some((key) => !QA_STORAGE_KEYS.includes(key))) {
+    throw new Error("QA state storage key allowlist was violated");
+  }
+  for (const key of QA_STORAGE_KEYS) {
+    if (!Object.hasOwn(storage, key)) throw new Error(`QA state is missing storage key ${key}`);
+  }
+  let saves;
+  try {
+    saves = JSON.parse(storage[QA_STORAGE_KEYS[0]]);
+  } catch {
+    throw new Error("QA state saves storage is not valid JSON");
+  }
+  if (!Array.isArray(saves) || saves.length === 0
+    || saves.some((save) => !isPlainObject(save) || typeof save.id !== "string" || !save.id.trim())) {
+    throw new Error("QA state saves storage must contain at least one identified save");
+  }
+  const activeId = storage[QA_STORAGE_KEYS[1]];
+  if (typeof activeId !== "string" || !saves.some((save) => save.id === activeId)) {
+    throw new Error("QA state active save does not identify a stored save");
+  }
+  const language = storage[QA_STORAGE_KEYS[2]];
+  if (language !== null && (typeof language !== "string" || !QA_LANGUAGE_IDS.includes(language))) {
+    throw new Error("QA state language is unsupported");
+  }
+  return { saves, activeSave: saves.find((save) => save.id === activeId) };
+}
+
+function validateQaFacts(facts, activeSave, producerScope) {
+  if (!isPlainObject(facts)) throw new Error("QA state facts must be a plain object");
+  const keys = Object.keys(facts);
+  if (keys.some((key) => key !== "practiceWrongTarget")) {
+    throw new Error("QA state facts contain an unsupported key");
+  }
+  const target = facts.practiceWrongTarget;
+  if (producerScope === "practice" && (typeof target !== "string" || !target.trim())) {
+    throw new Error("QA state practiceWrongTarget is required after practice");
+  }
+  if (target !== undefined) {
+    const recentTargets = activeSave?.practiceRecords?.["character-rx"]?.recentTargets;
+    if (typeof target !== "string" || !target.trim() || !Array.isArray(recentTargets)
+      || !recentTargets.includes(target)) {
+      throw new Error("QA state practiceWrongTarget is not present in character-rx recentTargets");
+    }
+  }
+}
+
+function validateQaStateShape(value) {
+  if (!isPlainObject(value)) throw new Error("QA state input must be a plain object");
+  if (value.schemaVersion !== 1) throw new Error("QA state schemaVersion is unsupported");
+  if (!["bootstrap", "inventory", "equipment", "practice", "qso"].includes(value.producerScope)) {
+    throw new Error("QA state producerScope is unsupported");
+  }
+  const { activeSave } = validateQaStorage(value.storage);
+  validateQaFacts(value.facts, activeSave, value.producerScope);
+  return value;
+}
+
+function createQaStateEnvelope({ producerScope, storage, facts = {} }) {
+  return validateQaStateShape({ schemaVersion: 1, producerScope, storage, facts });
+}
+
+function validateQaStateEnvelope(value, { consumerScope }) {
+  if (consumerScope === "bootstrap") {
+    if (value !== null && value !== undefined) throw new Error("QA bootstrap rejects state input");
+    return null;
+  }
+  if (!Object.hasOwn(QA_SEGMENT_PREDECESSORS, consumerScope)) {
+    throw new Error(`QA state consumer scope is unsupported: ${consumerScope}`);
+  }
+  const envelope = validateQaStateShape(value);
+  if (envelope.producerScope !== QA_SEGMENT_PREDECESSORS[consumerScope]) {
+    throw new Error(`QA state predecessor for ${consumerScope} must be ${QA_SEGMENT_PREDECESSORS[consumerScope]}`);
+  }
+  return envelope;
+}
+
+async function importQaStateIntoRenderer(window, value, { consumerScope }) {
+  const envelope = validateQaStateEnvelope(value, { consumerScope });
+  await window.webContents.executeJavaScript(`(() => {
+    const keys = ${JSON.stringify(QA_STORAGE_KEYS)};
+    const storage = ${JSON.stringify(envelope.storage)};
+    for (const key of keys) localStorage.removeItem(key);
+    for (const key of keys) {
+      if (storage[key] !== null) localStorage.setItem(key, storage[key]);
+    }
+  })()`, true);
+  await window.reload();
+  return envelope;
+}
+
+async function exportQaStateFromRenderer(window, { producerScope, facts = {} }) {
+  const storage = await window.webContents.executeJavaScript(`(() => {
+    const keys = ${JSON.stringify(QA_STORAGE_KEYS)};
+    return Object.fromEntries(keys.map((key) => [key, localStorage.getItem(key)]));
+  })()`, true);
+  return createQaStateEnvelope({ producerScope, storage: { ...storage }, facts });
+}
+
+async function writeQaSegmentResult(window, {
+  outputDir,
+  stateOutFile = path.join(outputDir, "qa-state-out.json"),
+  scope,
+  suffix,
+  consoleErrors,
+  facts = {},
+}) {
+  const segment = buildQaSegmentPlan({ suffix }).segments.find((candidate) => candidate.scope === scope);
+  if (!segment || scope === "lights") throw new Error(`Unsupported ordinary QA segment: ${scope}`);
+  const state = await exportQaStateFromRenderer(window, { producerScope: scope, facts });
+  await fs.writeFile(stateOutFile, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  const result = {
+    schemaVersion: 1,
+    scope,
+    captures: segment.screenshots,
+    stateOut: path.relative(outputDir, stateOutFile),
+    consoleErrorCount: consoleErrors.length,
+    completedAt: new Date().toISOString(),
+  };
+  await fs.writeFile(
+    path.join(outputDir, "qa-segment-result.json"),
+    `${JSON.stringify(result, null, 2)}\n`,
+    "utf8",
+  );
+  return result;
+}
 
 function buildLightsQaPlan({ suffix = "qa" } = {}) {
   const screenshot = (name) => `lights-${name}-${suffix}.png`;
@@ -373,9 +571,9 @@ async function assertHoverTint(window, selector) {
       viewportHeight: window.innerHeight,
     };
   })()`, true);
-  const before = await window.webContents.capturePage();
+  const before = await capturePageWithVizRetry(window.webContents);
   await hover(window, selector);
-  const after = await window.webContents.capturePage();
+  const after = await capturePageWithVizRetry(window.webContents);
   const size = before.getSize();
   const scaleX = size.width / bounds.viewportWidth;
   const scaleY = size.height / bounds.viewportHeight;
@@ -403,7 +601,7 @@ async function assertHoverTint(window, selector) {
       node?.focus({ focusVisible: true });
     })()`, true);
     await new Promise((resolve) => setTimeout(resolve, 120));
-    const focused = await window.webContents.capturePage();
+    const focused = await capturePageWithVizRetry(window.webContents);
     const focusedPixels = focused.toBitmap();
     difference = 0;
     samples = 0;
@@ -459,6 +657,40 @@ const MORSE = Object.freeze({
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function capturePageWithVizRetry(webContents, {
+  maxAttempts = 4,
+  retryDelayMs = 750,
+  captureTimeoutMs = 10_000,
+} = {}) {
+  const boundedAttempts = Math.max(1, Math.floor(Number(maxAttempts) || 1));
+  const boundedTimeout = Math.max(1, Math.floor(Number(captureTimeoutMs) || 1));
+  for (let attempt = 1; attempt <= boundedAttempts; attempt += 1) {
+    try {
+      let timeoutId;
+      try {
+        return await Promise.race([
+          Promise.resolve().then(() => webContents.capturePage()),
+          new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+              const timeout = new Error(`capturePage timed out after ${boundedTimeout}ms`);
+              timeout.code = "CWGAME_CAPTURE_TIMEOUT";
+              reject(timeout);
+            }, boundedTimeout);
+          }),
+        ]);
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    } catch (error) {
+      const unknownViz = String(error?.message ?? error).includes("UnknownVizError");
+      const captureTimeout = error?.code === "CWGAME_CAPTURE_TIMEOUT";
+      if ((!unknownViz && !captureTimeout) || attempt === boundedAttempts) throw error;
+      await delay(retryDelayMs);
+    }
+  }
+  throw new Error("capturePage retry loop exhausted unexpectedly");
 }
 
 function automaticQaGapAfterElement(separator, wpm = 18) {
@@ -593,7 +825,24 @@ async function assertHeldAutomaticKey(window, { code, key, holdMs, minimumPulses
   if (settled !== after) throw new Error(`Held ${code} continued after keyup (${after} -> ${settled})`);
 }
 
-async function capture(window, outputDir, filename) {
+async function writeQaStep(outputDir, step) {
+  const target = path.join(outputDir, "qa-step.txt");
+  const temporary = path.join(outputDir, `.qa-step-${process.pid}-${Date.now()}.tmp`);
+  try {
+    await fs.writeFile(temporary, `${JSON.stringify(step)}\n`, "utf8");
+    await fs.rename(temporary, target);
+  } finally {
+    await fs.rm(temporary, { force: true });
+  }
+}
+
+async function capture(window, outputDir, filename, { scope = process.env.CWGAME_QA_SCOPE || "full" } = {}) {
+  await writeQaStep(outputDir, {
+    scope,
+    filename,
+    phase: "capture-start",
+    at: new Date().toISOString(),
+  });
   await window.webContents.executeJavaScript(`Promise.all(Array.from(document.images).map(async (image) => {
     if (!image.complete) await new Promise((resolve) => { image.addEventListener("load", resolve, { once: true }); image.addEventListener("error", resolve, { once: true }); });
     if (image.decode) await image.decode().catch(() => {});
@@ -601,10 +850,16 @@ async function capture(window, outputDir, filename) {
   await new Promise((resolve) => setTimeout(resolve, 1000));
   // Software-rendered packaged builds can return the previous compositor frame
   // on the first capture after a large modal or route transition.
-  await window.webContents.capturePage();
+  await capturePageWithVizRetry(window.webContents);
   await new Promise((resolve) => setTimeout(resolve, 150));
-  const image = await window.webContents.capturePage();
+  const image = await capturePageWithVizRetry(window.webContents);
   await fs.writeFile(path.join(outputDir, filename), image.toPNG());
+  await writeQaStep(outputDir, {
+    scope,
+    filename,
+    phase: "capture-complete",
+    at: new Date().toISOString(),
+  });
 }
 
 async function clickAt(window, selector) {
@@ -641,7 +896,7 @@ async function lightsQaPhaseDiagnostics(window) {
 
 async function waitForLightsPhase(window, phase, context = "while advancing Lights") {
   try {
-    await focusLightsQaWindow(window, context);
+    await focusQaWindow(window, context);
     await waitFor(window, `.lights-event-screen[data-event-phase="${phase}"]`);
   } catch (error) {
     const diagnostics = await lightsQaPhaseDiagnostics(window);
@@ -649,7 +904,7 @@ async function waitForLightsPhase(window, phase, context = "while advancing Ligh
   }
 }
 
-async function focusLightsQaWindow(window, context) {
+async function focusQaWindow(window, context) {
   if (window.isMinimized()) window.restore();
   window.show();
   window.focus();
@@ -666,6 +921,13 @@ async function focusLightsQaWindow(window, context) {
     const state = await window.webContents.executeJavaScript(`({ hasFocus: document.hasFocus(), visibilityState: document.visibilityState })`, true).catch(() => null);
     throw new Error(`Lights QA could not focus the real renderer ${context}: ${JSON.stringify({ state, error: error.message })}`);
   }
+}
+
+async function startGuidedQaWatch(window) {
+  await focusQaWindow(window, "before starting the guided QSO watch");
+  await click(window, '[data-action="start-guided-watch"]');
+  await waitForMissing(window, '[data-testid="qso-briefing-modal"]');
+  await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-receiver-active="true"]', 10000);
 }
 
 async function readRenderedLightsRunSnapshot(window) {
@@ -758,7 +1020,7 @@ async function readLightsQaSave(window) {
 }
 
 async function transmitLightsText(window, text) {
-  await focusLightsQaWindow(window, `before transmitting ${text}`);
+  await focusQaWindow(window, `before transmitting ${text}`);
   await sendAutomaticLightsText(window, text);
   await waitFor(window, '[data-action="lights-transmit"]:not([disabled])');
   await click(window, '[data-action="lights-transmit"]');
@@ -997,7 +1259,7 @@ async function runLightsQaCapture(window, outputDir, suffix) {
   await markStep("wait-chase-player-call");
   await waitForLightsPhase(window, "CHASE_PLAYER_CALL", "after story Lights launch");
   await markStep("keying-probe-RRR-RST");
-  await focusLightsQaWindow(window, "before keying probe");
+  await focusQaWindow(window, "before keying probe");
   await sendAutomaticLightsText(window, "RRR RST");
   checkpoint("keying-probe", { text: "RRR RST", wpm: LIGHTS_QA_WPM, exact: true });
   await click(window, ".lights-event-controls button:nth-child(2)");
@@ -1154,11 +1416,56 @@ async function runLightsQaCapture(window, outputDir, suffix) {
   return result;
 }
 
+async function runLightsQaSegment(window, outputDir, suffix, {
+  runCaptureImpl = runLightsQaCapture,
+} = {}) {
+  const consoleErrors = [];
+  const onConsoleMessage = (_event, levelOrDetails, message) => {
+    const details = typeof levelOrDetails === "object" ? levelOrDetails : { level: levelOrDetails, message };
+    if (details.level === 2 || details.level === 3 || details.level === "warning" || details.level === "error") {
+      consoleErrors.push({ level: details.level, message: details.message || message || "" });
+    }
+  };
+  window.webContents.on("console-message", onConsoleMessage);
+  try {
+    await runCaptureImpl(window, outputDir, suffix);
+    const segment = buildQaSegmentPlan({ suffix }).segments.find(({ scope }) => scope === "lights");
+    const result = {
+      schemaVersion: 1,
+      scope: "lights",
+      captures: segment.screenshots,
+      consoleErrorCount: consoleErrors.length,
+      completedAt: new Date().toISOString(),
+    };
+    await fs.writeFile(
+      path.join(outputDir, "qa-segment-result.json"),
+      `${JSON.stringify(result, null, 2)}\n`,
+      "utf8",
+    );
+    return result;
+  } finally {
+    try {
+      await fs.writeFile(
+        path.join(outputDir, "runtime-console-errors.json"),
+        `${JSON.stringify(consoleErrors, null, 2)}\n`,
+        "utf8",
+      );
+    } catch (error) {
+      process.stderr.write(`Unable to write Lights QA console evidence: ${error.stack || error}\n`);
+    }
+    window.webContents.removeListener("console-message", onConsoleMessage);
+  }
+}
+
 async function runQaCapture(window) {
   const outputDir = process.env.CWGAME_QA_OUTPUT || path.join(process.cwd(), "qa-artifacts");
   const [captureWidth, captureHeight] = window.getContentSize();
   const suffix = process.env.CWGAME_QA_SUFFIX || `${captureWidth}x${captureHeight}`;
-  if (process.env.CWGAME_QA_SCOPE === "station-entry") return runStationEntryProbe(window);
+  const scope = process.env.CWGAME_QA_SCOPE || "full";
+  if (scope === "station-entry") return runStationEntryProbe(window);
+  if (!["full", "bootstrap", "inventory", "equipment", "practice", "qso"].includes(scope)) {
+    throw new Error(`Unsupported packaged QA scope: ${scope}`);
+  }
   const shot = (stem) => `${stem}-${suffix}.png`;
   const manualCaptures = [];
   const languageCaptures = [];
@@ -1172,10 +1479,30 @@ async function runQaCapture(window) {
     }
   };
   window.webContents.on("console-message", onConsoleMessage);
-  await window.webContents.session.clearStorageData();
-  await window.reload();
-  await waitFor(window, ".start-screen");
-  await capture(window, outputDir, shot("start"));
+  const finishScope = (facts = {}) => writeQaSegmentResult(window, {
+    outputDir,
+    stateOutFile: process.env.CWGAME_QA_STATE_OUT || path.join(outputDir, "qa-state-out.json"),
+    scope,
+    suffix,
+    consoleErrors,
+    facts,
+  });
+  let wrongPracticeTarget = null;
+  try {
+    if (scope !== "full" && scope !== "bootstrap") {
+      const stateInFile = process.env.CWGAME_QA_STATE_IN;
+      if (!stateInFile) throw new Error(`${scope} requires CWGAME_QA_STATE_IN`);
+      const stateIn = JSON.parse(await fs.readFile(stateInFile, "utf8"));
+      await importQaStateIntoRenderer(window, stateIn, { consumerScope: scope });
+      wrongPracticeTarget = stateIn.facts?.practiceWrongTarget ?? null;
+      await waitFor(window, ".start-screen");
+    }
+
+    if (scope === "full" || scope === "bootstrap") {
+      await window.webContents.session.clearStorageData();
+      await window.reload();
+      await waitFor(window, ".start-screen");
+      await capture(window, outputDir, shot("start"));
   const buildTag = await window.webContents.executeJavaScript(
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
@@ -1507,9 +1834,19 @@ async function runQaCapture(window) {
   await click(window, '[data-store-category="accessories"]');
   await waitFor(window, '[data-store-item-id="cw-filter-500"][data-store-item-state="research"]');
   await capture(window, outputDir, shot("store-accessory-research"));
-  await click(window, '[data-action="close-store"]');
-  await waitFor(window, ".home-screen");
-  await clearHover(window);
+      await click(window, '[data-action="close-store"]');
+      await waitFor(window, ".home-screen");
+      await clearHover(window);
+    }
+    if (scope === "bootstrap") return finishScope();
+
+    if (scope === "inventory") {
+      await click(window, ".menu-primary");
+      await waitFor(window, ".save-select-screen");
+      await click(window, ".save-primary-action");
+      await waitFor(window, ".home-screen");
+    }
+    if (scope === "full" || scope === "inventory") {
   await hover(window, ".hotspot-warehouse");
   await capture(window, outputDir, shot("home-hover-warehouse"));
   await click(window, ".hotspot-warehouse");
@@ -1601,8 +1938,15 @@ async function runQaCapture(window) {
   await waitFor(window, ".start-screen");
   await click(window, ".menu-primary");
   await waitFor(window, ".qsl-slot.occupied");
-  await capture(window, outputDir, shot("save-loaded"));
+      await capture(window, outputDir, shot("save-loaded"));
+    }
+    if (scope === "inventory") return finishScope();
 
+    if (scope === "equipment") {
+      await click(window, ".menu-primary");
+      await waitFor(window, ".save-select-screen");
+    }
+    if (scope === "full" || scope === "equipment") {
   await click(window, ".save-primary-action");
   await waitFor(window, ".home-screen");
   await click(window, '[data-action="open-missions"]');
@@ -1701,7 +2045,16 @@ async function runQaCapture(window) {
   await click(window, ".qso-log-return");
   await waitForMissing(window, ".qso-log-modal");
   await delay(400);
+    }
+    if (scope === "equipment") return finishScope();
 
+    if (scope === "practice") {
+      await click(window, ".menu-primary");
+      await waitFor(window, ".save-select-screen");
+      await click(window, ".save-primary-action");
+      await waitFor(window, ".home-screen");
+    }
+    if (scope === "full" || scope === "practice") {
   // The Home book stack is the save-aware curriculum entrance. Its hover tint,
   // route, return route, promotion gate and persistence are all smoke-tested.
   await clearHover(window);
@@ -1790,7 +2143,7 @@ async function runQaCapture(window) {
   await capture(window, outputDir, shot("practice-lesson-guidance"));
 
   const practiceTargets = [];
-  let wrongPracticeTarget = null;
+  wrongPracticeTarget = null;
   for (let index = 0; index < 5; index += 1) {
     const question = await window.webContents.executeJavaScript(`(() => ({
       id: document.querySelector(".practice-screen")?.dataset.practiceQuestionId ?? "",
@@ -2167,6 +2520,16 @@ async function runQaCapture(window) {
     throw new Error(`Callsign region did not survive reload: ${JSON.stringify(reloadedCallsignRegion)}`);
   }
   await capture(window, outputDir, shot("practice-callsign-region-reloaded"));
+    }
+    if (scope === "practice") return finishScope({ practiceWrongTarget: wrongPracticeTarget });
+
+    if (scope === "qso") {
+      await click(window, ".start-actions button:nth-child(2)");
+      await waitFor(window, '.practice-screen[data-practice-recording="save"]');
+      await click(window, '[data-testid="practice-mode-option-callsign-rx"]');
+      await waitFor(window, '.practice-screen[data-practice-mode="callsign-rx"][data-practice-callsign-region="japan"]');
+    }
+    if (scope === "full" || scope === "qso") {
   await click(window, '[data-action="practice-back"]');
   await waitFor(window, ".start-screen");
   await click(window, ".menu-primary");
@@ -2192,9 +2555,7 @@ async function runQaCapture(window) {
   await assertNoNpcPortraitRuntime(window, "station-entry");
   await waitFor(window, '[data-testid="qso-briefing-modal"]');
   await capture(window, outputDir, shot("qso-duty-briefing"));
-  await click(window, '[data-action="start-guided-watch"]');
-  await waitForMissing(window, '[data-testid="qso-briefing-modal"]');
-  await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-receiver-active="true"]', 10000);
+  await startGuidedQaWatch(window);
   const initialReceiverState = await window.webContents.executeJavaScript(`(() => ({
     phase: document.querySelector(".station-screen")?.dataset.qsoPhase ?? null,
     receiverActive: document.querySelector(".station-screen")?.dataset.receiverActive ?? null,
@@ -2662,7 +3023,7 @@ async function runQaCapture(window) {
   const expectedWeakSignalReward = Number(savedEquipmentSnapshot.finalPropagationLevel) <= 2 ? 75 : 0;
   const expectedNewRegionReward = ["AS-JA", "EU-W"].includes(savedEquipmentSnapshot.location) ? 0 : 20;
   const expectedDistanceReward = Number(savedEquipmentSnapshot.distanceKm) > 9568.2 ? 25 : 0;
-  if (savedEquipmentSnapshot.version !== 7
+  if (savedEquipmentSnapshot.version !== QA_QSO_LOG_VERSION
     || savedEquipmentSnapshot.accessoryId !== "cw-filter-500" || savedEquipmentSnapshot.equipmentId !== "usdr-8"
     || savedEquipmentSnapshot.repeatRequests !== 2 || savedEquipmentSnapshot.copyQueries !== 1
     || !optionalPrivacyValid
@@ -2682,7 +3043,7 @@ async function runQaCapture(window) {
     || !savedAttemptResults.has("rejected") || !savedAttemptResults.has("repeat")
     || !savedEquipmentSnapshot.attemptMetricsComplete
     || savedEquipmentSnapshot.firstWatchCompleted !== true || savedEquipmentSnapshot.totalQsos !== 5) {
-    throw new Error(`QSO log v7 lost its review, operator, copy, reward, or equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
+    throw new Error(`QSO log v${QA_QSO_LOG_VERSION} lost its review, operator, copy, reward, or equipment snapshot: ${JSON.stringify(savedEquipmentSnapshot)}`);
   }
   if (savedEquipmentSnapshot.relationship?.lastQsoId !== savedEquipmentSnapshot.id
     || savedEquipmentSnapshot.relationship?.completedQsos < 1 || savedEquipmentSnapshot.relationship?.encounterCount < 1) {
@@ -2807,15 +3168,10 @@ async function runQaCapture(window) {
     throw new Error(`Reload repeated an unlock or lost durable records: ${JSON.stringify(finalReloadState)}`);
   }
   await capture(window, outputDir, shot("reload-without-achievement-repeat"));
+    }
+    if (scope === "qso") return finishScope({ practiceWrongTarget: wrongPracticeTarget });
 
   const lightsQaResult = await runLightsQaCapture(window, outputDir, suffix);
-
-  await fs.writeFile(
-    path.join(outputDir, "runtime-console-errors.json"),
-    `${JSON.stringify(consoleErrors, null, 2)}\n`,
-    "utf8",
-  );
-  window.webContents.removeListener("console-message", onConsoleMessage);
 
   return {
     outputDir,
@@ -2832,11 +3188,27 @@ async function runQaCapture(window) {
     ].map(shot), ...languageCaptures, ...manualCaptures],
     lightsQaResult,
   };
+  } finally {
+    try {
+      await fs.writeFile(
+        path.join(outputDir, "runtime-console-errors.json"),
+        `${JSON.stringify(consoleErrors, null, 2)}\n`,
+        "utf8",
+      );
+    } catch (error) {
+      process.stderr.write(`Unable to write packaged QA console evidence: ${error.stack || error}\n`);
+    }
+    window.webContents.removeListener("console-message", onConsoleMessage);
+  }
 }
 
 module.exports = {
   automaticQaGapAfterElement, automaticQaShouldWaitForIdleAfterSymbol,
-  buildLightsQaMoneyFlow, buildLightsQaPlan, formatLightsWaitFailure, LIGHTS_QA_WPM, runLightsQaCapture, runQaCapture,
-  lightsKeyInputForSymbol, selectLightsCallerFromRuntimeSnapshot,
-  sendAutomaticLightsText, validateLightsQaEvidence, validateStationEntryProbe,
+  buildLightsQaMoneyFlow, buildLightsQaPlan, buildQaSegmentPlan, capture, capturePageWithVizRetry,
+  createQaStateEnvelope, exportQaStateFromRenderer, formatLightsWaitFailure, importQaStateIntoRenderer,
+  LIGHTS_QA_WPM, QA_QSO_LOG_VERSION, QA_STORAGE_KEYS,
+  runLightsQaCapture, runLightsQaSegment, runQaCapture,
+  lightsKeyInputForSymbol, selectLightsCallerFromRuntimeSnapshot, startGuidedQaWatch,
+  sendAutomaticLightsText, validateLightsQaEvidence, validateQaStateEnvelope, validateStationEntryProbe,
+  writeQaSegmentResult,
 };
