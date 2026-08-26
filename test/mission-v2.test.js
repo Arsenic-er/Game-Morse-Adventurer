@@ -399,11 +399,89 @@ test("chapter six mission evaluation bounds hostile expedition history scans", (
       playerLocationId: "expedition:sunward-hill",
       personId: "person:sora", stationId: "station:sim6jp", isFictional: true,
     }),
-    qsoRecords: { settledQsoIds: guarded("expedition-qso:new-run") },
+    qsoRecords: { settledQsoIds: ["expedition-qso:new-run"] },
     expeditionState: {
       ...accepted.save.expeditionState,
       settledRunIds: guarded("new-run"),
       completedRuns,
     },
   }).story.at(-1).status, "ready");
+});
+
+test("chapter six locates a normalized QSO ledger id with bounded safe reads", () => {
+  const accepted = acceptMission(baseSave({
+    missionState: normalizeMissionState({
+      claimedMissionIds: ["story-01", "story-02", "story-03", "story-04", "story-05"],
+    }),
+    expeditionState: { settledRunIds: [], completedRuns: [] },
+  }), "story-06", ACCEPTED_AT).save;
+  const linked = withExpeditionEvidence(accepted, { runId: "binary-ledger-run" });
+  const targetId = "expedition-qso:binary-ledger-run";
+  const crowded = {
+    ...linked,
+    qsoRecords: {
+      ...linked.qsoRecords,
+      settledQsoIds: [
+        targetId,
+        ...Array.from({ length: 250 }, (_, index) => `z-veteran-${String(index).padStart(3, "0")}`),
+      ],
+    },
+  };
+  assert.equal(missionBoard(crowded).story.at(-1).status, "ready");
+
+  let indexedReads = 0;
+  const virtual = [];
+  virtual.length = 1_000_000;
+  const hugeSortedLedger = new Proxy(virtual, {
+    get(target, property, receiver) {
+      if (/^\d+$/.test(String(property))) {
+        indexedReads += 1;
+        if (indexedReads > 128) throw new Error("unbounded sorted-ledger read");
+        const index = Number(property);
+        return index === 0 ? targetId : `z-${String(index).padStart(9, "0")}`;
+      }
+      return Reflect.get(target, property, receiver);
+    },
+    getOwnPropertyDescriptor(target, property) {
+      if (/^\d+$/.test(String(property))) {
+        indexedReads += 1;
+        if (indexedReads > 128) throw new Error("unbounded sorted-ledger descriptor read");
+        const index = Number(property);
+        return {
+          configurable: true,
+          enumerable: true,
+          writable: false,
+          value: index === 0 ? targetId : `z-${String(index).padStart(9, "0")}`,
+        };
+      }
+      return Reflect.getOwnPropertyDescriptor(target, property);
+    },
+  });
+  assert.equal(missionBoard({
+    ...linked,
+    qsoRecords: { ...linked.qsoRecords, settledQsoIds: hugeSortedLedger },
+  }).story.at(-1).status, "ready");
+  assert.ok(indexedReads <= 128);
+
+  const sparse = Array(3);
+  sparse[0] = targetId;
+  sparse[2] = "z-veteran";
+  const throwing = new Proxy([targetId], {
+    getOwnPropertyDescriptor() { throw new Error("hostile ledger"); },
+  });
+  for (const invalidLedger of [
+    [targetId, "a-out-of-order"],
+    [targetId, targetId, "z-veteran"],
+    sparse,
+    throwing,
+  ]) {
+    assert.doesNotThrow(() => missionBoard({
+      ...linked,
+      qsoRecords: { ...linked.qsoRecords, settledQsoIds: invalidLedger },
+    }));
+    assert.equal(missionBoard({
+      ...linked,
+      qsoRecords: { ...linked.qsoRecords, settledQsoIds: invalidLedger },
+    }).story.at(-1).status, "active");
+  }
 });

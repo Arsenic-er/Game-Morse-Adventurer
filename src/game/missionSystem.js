@@ -313,6 +313,74 @@ function logsForMission(save, active) {
     && Date.parse(entry?.completedAt) >= acceptedAt);
 }
 
+function sortedOwnStringArrayContains(value, target, audit = null) {
+  if (!Array.isArray(value) || typeof target !== "string" || !target) return false;
+  const budget = audit ?? { remaining: 48, cache: new Map() };
+  try {
+    const length = own(value, "length");
+    if (!Number.isSafeInteger(length) || length <= 0 || length > 0xFFFF_FFFF) return false;
+    const read = (index) => {
+      if (!Number.isSafeInteger(index) || index < 0 || index >= length) return { valid: false };
+      if (budget.cache.has(index)) return budget.cache.get(index);
+      if (budget.remaining <= 0 || !Object.prototype.hasOwnProperty.call(value, index)) {
+        return { valid: false };
+      }
+      budget.remaining -= 1;
+      const candidate = value[index];
+      const valid = typeof candidate === "string"
+        && candidate.length > 0 && candidate.length <= 96
+        && candidate === candidate.trim()
+        && !/[\u0000-\u001F\u007F]/.test(candidate);
+      const result = valid ? { valid: true, value: candidate } : { valid: false };
+      budget.cache.set(index, result);
+      return result;
+    };
+
+    const sampleIndexes = new Set([0, length - 1]);
+    const sampleDivisions = Math.min(16, length - 1);
+    for (let step = 1; step < sampleDivisions; step += 1) {
+      sampleIndexes.add(Math.floor((length - 1) * step / sampleDivisions));
+    }
+    let previous = null;
+    for (const index of [...sampleIndexes].sort((left, right) => left - right)) {
+      const sampled = read(index);
+      if (!sampled.valid || (previous !== null && previous >= sampled.value)) return false;
+      previous = sampled.value;
+    }
+
+    let low = 0;
+    let high = length - 1;
+    let lowValue = read(low);
+    let highValue = read(high);
+    if (!lowValue.valid || !highValue.valid || (length > 1 && lowValue.value >= highValue.value)) {
+      return false;
+    }
+    while (low <= high) {
+      const middle = low + Math.floor((high - low) / 2);
+      const candidate = read(middle);
+      if (!candidate.valid
+        || (middle > low && candidate.value <= lowValue.value)
+        || (middle < high && candidate.value >= highValue.value)) return false;
+      if (candidate.value === target) {
+        const before = middle > 0 ? read(middle - 1) : null;
+        const after = middle + 1 < length ? read(middle + 1) : null;
+        return (!before || (before.valid && before.value < candidate.value))
+          && (!after || (after.valid && candidate.value < after.value));
+      }
+      if (candidate.value < target) {
+        low = middle + 1;
+        lowValue = candidate;
+      } else {
+        high = middle - 1;
+        highValue = candidate;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function verifiedExpeditionCompletion(save, active, logs) {
   const acceptedAt = Date.parse(own(active, "acceptedAt") ?? "");
   if (!Number.isFinite(acceptedAt)) return false;
@@ -326,9 +394,8 @@ function verifiedExpeditionCompletion(save, active, logs) {
     ? suppliedSettledRuns.slice(-200) : []).map((id) => String(id ?? "").trim()));
   const qsoRecords = own(save, "qsoRecords");
   const suppliedSettledQsos = own(qsoRecords, "settledQsoIds");
-  const settledQsos = new Set((Array.isArray(suppliedSettledQsos)
-    ? suppliedSettledQsos.slice(-200) : []).map((id) => String(id ?? "").trim()));
   const retainedLogs = Array.isArray(logs) ? logs.slice(-200) : [];
+  const ledgerAudit = { remaining: 48, cache: new Map() };
 
   return completedRuns.some((summary) => {
     const runId = String(own(summary, "runId") ?? "").trim().slice(0, 128);
@@ -338,7 +405,7 @@ function verifiedExpeditionCompletion(save, active, logs) {
     const stationId = String(own(summary, "stationId") ?? "").trim().slice(0, 96);
     const completedAt = Date.parse(own(summary, "completedAt") ?? "");
     if (!runId || baseline.has(runId) || !settledRuns.has(runId)
-      || !qsoId || !settledQsos.has(qsoId) || !expeditionSiteById(siteId)
+      || !qsoId || !expeditionSiteById(siteId)
       || !personId || !stationId || !Number.isFinite(completedAt) || completedAt < acceptedAt) {
       return false;
     }
@@ -360,7 +427,8 @@ function verifiedExpeditionCompletion(save, active, logs) {
       && verifiedPersonId === personId
       && verifiedStation?.stationId === stationId
       && own(log, "isFictional") === true
-      && Date.parse(own(log, "completedAt") ?? "") === completedAt;
+      && Date.parse(own(log, "completedAt") ?? "") === completedAt
+      && sortedOwnStringArrayContains(suppliedSettledQsos, qsoId, ledgerAudit);
   });
 }
 

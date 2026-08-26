@@ -164,6 +164,26 @@ test("settling the same expedition twice is an exact no-op", () => {
   assert.deepEqual(second.save, first.save);
 });
 
+test("a real expedition remains claimable when its QSO id sorts before an old ledger tail", () => {
+  const run = completedRun("old-ledger-run");
+  const oldIds = Array.from({ length: 250 }, (_, index) => `z-veteran-${String(index).padStart(3, "0")}`);
+  const initial = withActiveRun({
+    ...acceptedStorySixSave(),
+    qsoRecords: {
+      ...acceptedStorySixSave().qsoRecords,
+      settledQsoIds: oldIds,
+    },
+  }, run);
+  const settled = settleExpeditionRun(initial, run, "2026-08-25T09:06:30.000Z");
+  assert.equal(settled.settled, true);
+  assert.equal(settled.save.qsoRecords.settledQsoIds[0], "expedition-qso:old-ledger-run");
+  assert.equal(missionBoard(settled.save).story.at(-1).status, "ready");
+  const duplicate = settleExpeditionRun(settled.save, run, "2026-08-25T09:07:00.000Z");
+  assert.equal(duplicate.settled, false);
+  assert.equal(duplicate.reason, "ALREADY_SETTLED");
+  assert.deepEqual(duplicate.save, settled.save);
+});
+
 test("failed, abandoned, corrupt, and legacy-baselined runs grant no reward or ordinary QSO", () => {
   const active = beginExpeditionCq(
     advanceExpeditionSetup(
