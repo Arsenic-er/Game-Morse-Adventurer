@@ -35,6 +35,18 @@ function runSync(directory) {
   return result;
 }
 
+test("the tracked runtime contract is always checked out with LF bytes", () => {
+  const result = spawnSync(
+    "git",
+    ["check-attr", "text", "eol", "--", path.posix.join("runtime-models", contractName)],
+    { cwd: projectRoot, encoding: "utf8" },
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /: text: set(?:\r?\n|$)/);
+  assert.match(result.stdout, /: eol: lf(?:\r?\n|$)/);
+});
+
 test("tracked semantic runtime verifies successfully with all network access denied", () => {
   const result = runSync(assetDirectory);
 
