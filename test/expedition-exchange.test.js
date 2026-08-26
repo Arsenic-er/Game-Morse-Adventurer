@@ -79,3 +79,30 @@ test("hostile and oversized exchange input is bounded and rejected", () => {
   assert.equal(oversized.accepted, false);
   assert.ok(oversized.errors.includes("UNSAFE_INPUT"));
 });
+
+test("compact exchange grammar rejects extra, reordered, and conflicting hard-field candidates", () => {
+  for (const message of [
+    "LAKEVIEW SUNWARD 5W WIRE",
+    "SUNWARD 5W EFHW WIRE",
+    "SUNWARD 50W 5W WIRE",
+    "WIRE 5W SUNWARD",
+  ]) {
+    const parsed = parseExpeditionExchange(message, EXPECTED);
+    assert.equal(parsed.accepted, false, message);
+    assert.ok(parsed.errors.length > 0, message);
+  }
+});
+
+test("labelled exchange grammar rejects duplicate hard fields even when one value is correct", () => {
+  const cases = [
+    ["QTH LAKEVIEW QTH SUNWARD PWR 5W ANT WIRE", "DUPLICATE_QTH"],
+    ["QTH SUNWARD PWR 50W PWR 5W ANT WIRE", "DUPLICATE_POWER"],
+    ["QTH SUNWARD PWR 5W ANT EFHW ANT WIRE", "DUPLICATE_ANTENNA"],
+    ["QTH SUNWARD QTH SUNWARD PWR 5W ANT WIRE", "DUPLICATE_QTH"],
+  ];
+  for (const [message, reason] of cases) {
+    const parsed = parseExpeditionExchange(message, EXPECTED);
+    assert.equal(parsed.accepted, false, message);
+    assert.ok(parsed.errors.includes(reason), message);
+  }
+});

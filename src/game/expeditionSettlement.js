@@ -1,3 +1,4 @@
+import { createExpeditionLoadout } from "./expeditionCatalog.js";
 import { normalizeExpeditionRun, normalizeExpeditionState } from "./expeditionRun.js";
 import { recordCompletedQso } from "../qso/qsoLog.js";
 
@@ -11,6 +12,14 @@ function boundedNumber(value, maximum = Number.MAX_SAFE_INTEGER) {
 
 function boundedAdd(left, right, maximum = Number.MAX_SAFE_INTEGER) {
   return Math.min(maximum, boundedNumber(left, maximum) + boundedNumber(right, maximum));
+}
+
+function own(value, key) {
+  return value && Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined;
+}
+
+function sameNormalizedValue(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function iso(value) {
@@ -102,8 +111,18 @@ export function settleExpeditionRun(save, runValue, settledAtValue) {
   if (!settledAt || run.status !== "completed" || run.result?.outcome !== "success" || run.contacts.length === 0) {
     return zeroResult(save, "RUN_NOT_SUCCESSFUL");
   }
-  const expeditionState = normalizeExpeditionState(save.expeditionState);
+  const expeditionState = normalizeExpeditionState(own(save, "expeditionState"));
   if (expeditionState.settledRunIds.includes(run.runId)) return zeroResult(save, "ALREADY_SETTLED");
+  const activeRun = expeditionState.activeRun;
+  if (!activeRun || activeRun.runId !== run.runId || !sameNormalizedValue(activeRun, run)) {
+    return zeroResult(save, "RUN_STATE_MISMATCH");
+  }
+  const playerCallsign = String(own(save, "callsign") ?? "").trim().toUpperCase();
+  const verifiedLoadout = createExpeditionLoadout(save, run.loadout);
+  if (run.playerCallsign !== playerCallsign || !verifiedLoadout
+    || !sameNormalizedValue(verifiedLoadout, run.loadout)) {
+    return zeroResult(save, "RUN_STATE_MISMATCH");
+  }
   const contact = run.contacts[0];
   const qsoId = qsoIdForRun(run.runId);
   const completedRun = {

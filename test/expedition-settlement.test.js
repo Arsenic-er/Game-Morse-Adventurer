@@ -3,10 +3,12 @@ import test from "node:test";
 
 import { createExpeditionLoadout } from "../src/game/expeditionCatalog.js";
 import {
+  abandonExpeditionRun,
   advanceExpeditionSetup,
   beginExpeditionCq,
   createExpeditionRun,
   emptyExpeditionState,
+  normalizeExpeditionState,
   receiveExpeditionContact,
   selectExpeditionSite,
   submitExpeditionExchange,
@@ -91,8 +93,19 @@ function acceptedStorySixSave() {
   return accepted.save;
 }
 
+function withActiveRun(save, run) {
+  return {
+    ...save,
+    expeditionState: normalizeExpeditionState({
+      ...save.expeditionState,
+      activeRun: run,
+    }),
+  };
+}
+
 test("successful expedition settlement is atomic and links QSO, SORA relationship, and mission progress", () => {
-  const initial = acceptedStorySixSave();
+  const run = completedRun();
+  const initial = withActiveRun(acceptedStorySixSave(), run);
   const permanent = {
     locationId: initial.locationId,
     equipmentId: initial.equipmentId,
@@ -101,7 +114,7 @@ test("successful expedition settlement is atomic and links QSO, SORA relationshi
     ownedAntennas: initial.ownedAntennas,
     accessories: initial.accessories,
   };
-  const settled = settleExpeditionRun(initial, completedRun(), "2026-08-25T09:06:30.000Z");
+  const settled = settleExpeditionRun(initial, run, "2026-08-25T09:06:30.000Z");
 
   assert.equal(settled.settled, true);
   assert.equal(settled.expeditionMoneyAwarded, EXPEDITION_MONEY_REWARD);
@@ -128,8 +141,11 @@ test("successful expedition settlement is atomic and links QSO, SORA relationshi
 });
 
 test("settling the same expedition twice is an exact no-op", () => {
-  const first = settleExpeditionRun(acceptedStorySixSave(), completedRun(), "2026-08-25T09:06:30.000Z");
-  const second = settleExpeditionRun(first.save, completedRun(), "2026-08-25T09:07:00.000Z");
+  const run = completedRun();
+  const first = settleExpeditionRun(
+    withActiveRun(acceptedStorySixSave(), run), run, "2026-08-25T09:06:30.000Z",
+  );
+  const second = settleExpeditionRun(first.save, run, "2026-08-25T09:07:00.000Z");
   assert.equal(second.settled, false);
   assert.equal(second.reason, "ALREADY_SETTLED");
   assert.equal(second.qsoMoneyAwarded, 0);
@@ -162,6 +178,12 @@ test("failed, abandoned, corrupt, and legacy-baselined runs grant no reward or o
   assert.equal(rejected.reason, "RUN_NOT_SUCCESSFUL");
   assert.deepEqual(rejected.save, initial);
 
+  const abandoned = abandonExpeditionRun(active, "2026-08-25T10:00:00.000Z");
+  const abandonedAttempt = settleExpeditionRun(initial, abandoned, "2026-08-25T10:00:01.000Z");
+  assert.equal(abandonedAttempt.settled, false);
+  assert.equal(abandonedAttempt.reason, "RUN_NOT_SUCCESSFUL");
+  assert.deepEqual(abandonedAttempt.save, initial);
+
   const legacy = baseSave({
     expeditionState: {
       completedRuns: [{ runId: "legacy-run", completedAt: "2025-01-01T00:00:00Z", siteId: "sunward-hill" }],
@@ -176,13 +198,51 @@ test("failed, abandoned, corrupt, and legacy-baselined runs grant no reward or o
 });
 
 test("settlement reward counters saturate at safe integer bounds", () => {
-  const initial = acceptedStorySixSave();
+  const run = completedRun("bounded-run");
+  const initial = withActiveRun(acceptedStorySixSave(), run);
   const settled = settleExpeditionRun({
     ...initial,
     money: Number.MAX_SAFE_INTEGER,
     technologyPoints: Number.MAX_SAFE_INTEGER,
-  }, completedRun("bounded-run"), "2026-08-25T09:06:30.000Z");
+  }, run, "2026-08-25T09:06:30.000Z");
   assert.equal(settled.settled, true);
   assert.equal(settled.save.money, Number.MAX_SAFE_INTEGER);
   assert.equal(settled.save.technologyPoints, Number.MAX_SAFE_INTEGER);
+});
+
+test("settlement rejects isolated, mismatched, corrupt, and inherited successes without side effects", () => {
+  const valid = completedRun("trusted-run");
+  const initial = acceptedStorySixSave();
+  const isolated = settleExpeditionRun(initial, valid, "2026-08-25T09:06:30.000Z");
+  assert.equal(isolated.settled, false);
+  assert.equal(isolated.reason, "RUN_STATE_MISMATCH");
+  assert.deepEqual(isolated.save, initial);
+
+  const active = withActiveRun(initial, valid);
+  const forged = {
+    ...valid,
+    setup: { antenna: false, power: true },
+    contacts: valid.contacts.map((contact) => ({
+      ...contact,
+      topics: ["QTH", "POWER", "ANTENNA"],
+    })),
+  };
+  const corrupt = settleExpeditionRun(active, forged, "2026-08-25T09:06:30.000Z");
+  assert.equal(corrupt.settled, false);
+  assert.equal(corrupt.reason, "RUN_NOT_SUCCESSFUL");
+  assert.deepEqual(corrupt.save, active);
+
+  const inherited = Object.create(valid);
+  const inheritedAttempt = settleExpeditionRun(active, inherited, "2026-08-25T09:06:30.000Z");
+  assert.equal(inheritedAttempt.settled, false);
+  assert.equal(inheritedAttempt.reason, "RUN_NOT_SUCCESSFUL");
+  assert.deepEqual(inheritedAttempt.save, active);
+
+  const different = completedRun("different-run");
+  const mismatched = settleExpeditionRun(active, different, "2026-08-25T09:06:30.000Z");
+  assert.equal(mismatched.settled, false);
+  assert.equal(mismatched.reason, "RUN_STATE_MISMATCH");
+  assert.deepEqual(mismatched.save, active);
+  assert.deepEqual(active.qsoLogs, []);
+  assert.deepEqual(active.operatorRelationships, []);
 });

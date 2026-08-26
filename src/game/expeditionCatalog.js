@@ -4,6 +4,10 @@ function deepFreeze(value) {
   return Object.freeze(value);
 }
 
+function own(value, key) {
+  return value && Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined;
+}
+
 function boundedNumber(value, minimum, maximum, fallback) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? Math.min(maximum, Math.max(minimum, numeric)) : fallback;
@@ -53,22 +57,23 @@ export function expeditionSiteById(value) {
 
 export function normalizeExpeditionLoadout(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const source = value.source === "owned" ? "owned" : value.source === "loan" ? "loan" : null;
-  const radioId = boundedId(value.radioId);
-  const antennaId = boundedId(value.antennaId);
-  const batteryId = boundedId(value.batteryId);
-  const antennaCode = boundedCode(value.antennaCode);
+  const suppliedSource = own(value, "source");
+  const source = suppliedSource === "owned" ? "owned" : suppliedSource === "loan" ? "loan" : null;
+  const radioId = boundedId(own(value, "radioId"));
+  const antennaId = boundedId(own(value, "antennaId"));
+  const batteryId = boundedId(own(value, "batteryId"));
+  const antennaCode = boundedCode(own(value, "antennaCode"));
   if (!source || !radioId || !antennaId || !batteryId || !antennaCode) return null;
   const loadout = {
     source,
     radioId,
     antennaId,
     batteryId,
-    outputPowerWatts: boundedNumber(value.outputPowerWatts, 1, 100, 5),
-    receiveDrawWatts: boundedNumber(value.receiveDrawWatts, 0.1, 100, 2),
-    transmitDrawWatts: boundedNumber(value.transmitDrawWatts, 0.1, 500, 12),
+    outputPowerWatts: boundedNumber(own(value, "outputPowerWatts"), 1, 100, 5),
+    receiveDrawWatts: boundedNumber(own(value, "receiveDrawWatts"), 0.1, 100, 2),
+    transmitDrawWatts: boundedNumber(own(value, "transmitDrawWatts"), 0.1, 500, 12),
     antennaCode,
-    capacityWh: boundedNumber(value.capacityWh, 1, 2_000, 96),
+    capacityWh: boundedNumber(own(value, "capacityWh"), 1, 2_000, 96),
   };
   if (source === "loan") {
     const canonical = {
@@ -88,7 +93,7 @@ export function normalizeExpeditionLoadout(value) {
 }
 
 export function createExpeditionLoadout(save, choice = {}) {
-  const source = choice?.source === "owned" ? "owned" : "loan";
+  const source = own(choice, "source") === "owned" ? "owned" : "loan";
   if (source === "loan") {
     return normalizeExpeditionLoadout({
       source,
@@ -105,9 +110,9 @@ export function createExpeditionLoadout(save, choice = {}) {
   const normalized = normalizeExpeditionLoadout({ ...choice, source: "owned" });
   if (!normalized) return null;
   const recentOwned = (value) => Array.isArray(value) ? value.slice(-1_000) : [];
-  const ownedEquipment = new Set(recentOwned(save?.ownedEquipment));
-  const ownedAntennas = new Set(recentOwned(save?.ownedAntennas));
-  const ownedAccessories = new Set(recentOwned(save?.accessories));
+  const ownedEquipment = new Set(recentOwned(own(save, "ownedEquipment")));
+  const ownedAntennas = new Set(recentOwned(own(save, "ownedAntennas")));
+  const ownedAccessories = new Set(recentOwned(own(save, "accessories")));
   return ownedEquipment.has(normalized.radioId)
     && ownedAntennas.has(normalized.antennaId)
     && ownedAccessories.has(normalized.batteryId)

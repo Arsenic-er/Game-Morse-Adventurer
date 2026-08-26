@@ -252,6 +252,44 @@ test("chapter six acceptance freezes prior expedition ids and completion unlocks
   assert.equal(claimed.save.expeditionState.expeditionTreeUnlocked, true);
 });
 
+test("story-six and earlier mission claims saturate integer rewards safely", () => {
+  const earlierReady = {
+    ...storyFourSave(),
+    money: Number.MAX_SAFE_INTEGER,
+    technologyPoints: Number.MAX_SAFE_INTEGER,
+    qsoLogs: [rainLog()],
+  };
+  const earlierClaim = claimMission(earlierReady, "story-04", "2026-08-12T10:05:00.000Z");
+  assert.equal(earlierClaim.claimed, true);
+  assert.equal(earlierClaim.save.money, Number.MAX_SAFE_INTEGER);
+  assert.equal(earlierClaim.save.technologyPoints, Number.MAX_SAFE_INTEGER);
+
+  const accepted = acceptMission(baseSave({
+    money: Number.MAX_SAFE_INTEGER,
+    technologyPoints: Number.MAX_SAFE_INTEGER,
+    missionState: normalizeMissionState({
+      claimedMissionIds: ["story-01", "story-02", "story-03", "story-04", "story-05"],
+    }),
+    expeditionState: { settledRunIds: [], completedRuns: [] },
+  }), "story-06", ACCEPTED_AT).save;
+  const ready = {
+    ...accepted,
+    expeditionState: {
+      ...accepted.expeditionState,
+      settledRunIds: ["bounded-story-six"],
+      completedRuns: [{
+        runId: "bounded-story-six", completedAt: "2026-08-12T10:00:00.000Z",
+        siteId: "sunward-hill", qsoId: "expedition-qso:bounded-story-six",
+      }],
+    },
+  };
+  const storySixClaim = claimMission(ready, "story-06", "2026-08-12T10:05:00.000Z");
+  assert.equal(storySixClaim.claimed, true);
+  assert.equal(storySixClaim.save.money, Number.MAX_SAFE_INTEGER);
+  assert.equal(storySixClaim.save.technologyPoints, Number.MAX_SAFE_INTEGER);
+  assert.equal(storySixClaim.save.expeditionState.expeditionTreeUnlocked, true);
+});
+
 test("chapter six mission evaluation bounds hostile expedition history scans", () => {
   const guarded = (tail) => new Proxy(
     [...Array(9_999).fill("old"), tail],

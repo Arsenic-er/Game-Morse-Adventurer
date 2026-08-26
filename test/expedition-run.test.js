@@ -6,6 +6,7 @@ import {
   EXPEDITION_RUN_VERSION,
   abandonExpeditionRun,
   advanceExpeditionSetup,
+  attemptExpeditionSetup,
   beginExpeditionCq,
   createExpeditionRun,
   emptyExpeditionState,
@@ -92,6 +93,43 @@ test("CQ freezes one propagation snapshot and later transitions never reroll it"
   assert.ok(first.power.remainingWh < prepared.power.remainingWh);
 });
 
+test("invalid field wiring has a bounded temporary penalty and correct setup can recover", () => {
+  const selected = selectExpeditionSite(fresh(), "sunward-hill", "2026-08-25T09:01:00.000Z");
+  const mistaken = attemptExpeditionSetup(
+    selected,
+    "antenna",
+    { valid: false, errorCode: "INVALID_WIRING" },
+    "2026-08-25T09:01:30.000Z",
+  );
+  assert.equal(mistaken.status, "setup");
+  assert.deepEqual(mistaken.setup, { antenna: false, power: false });
+  assert.equal(mistaken.setupMistakes, 1);
+  assert.equal(mistaken.setupPropagationPenalty, 1);
+  assert.equal(mistaken.elapsedMilliseconds, 30_000);
+  assert.ok(mistaken.power.remainingWh < 96);
+  assert.equal(mistaken.loadout.radioId, "loan-portable-cw");
+
+  const antenna = advanceExpeditionSetup(mistaken, "antenna", "2026-08-25T09:02:00.000Z");
+  const corrected = advanceExpeditionSetup(antenna, "power", "2026-08-25T09:02:30.000Z");
+  assert.equal(corrected.status, "ready");
+  assert.deepEqual(corrected.setup, { antenna: true, power: true });
+  const calling = beginExpeditionCq(corrected, {
+    observedAt: "2026-08-25T09:03:00.000Z",
+    propagationSnapshot: { level: 3, noise: 1, capturedAt: "2026-08-25T09:03:00.000Z" },
+  });
+  assert.equal(calling.propagationSnapshot.level, 2);
+
+  const abandoned = abandonExpeditionRun(calling, "2026-08-25T09:03:30.000Z");
+  const retried = retryExpeditionRun(abandoned, {
+    runId: "expedition:story-06:setup-retry",
+    startedAt: "2026-08-25T10:00:00.000Z",
+  });
+  assert.equal(retried.setupMistakes, 0);
+  assert.equal(retried.setupPropagationPenalty, 0);
+  assert.equal(retried.power.remainingWh, 96);
+  assert.equal(retried.loadout.radioId, "loan-portable-cw");
+});
+
 test("a complete hard-field exchange closes a normal expedition contact", () => {
   const inExchange = exchanging();
   const completed = submitExpeditionExchange(
@@ -105,6 +143,34 @@ test("a complete hard-field exchange closes a normal expedition contact", () => 
   assert.equal(completed.contacts.length, 1);
   assert.equal(completed.contacts[0].personId, "person:sora");
   assert.deepEqual(completed.contacts[0].topics, ["QTH", "POWER", "ANTENNA"]);
+});
+
+test("completed runs fail closed when any trusted completion invariant is absent", () => {
+  const valid = submitExpeditionExchange(
+    exchanging(),
+    "QTH SUNWARD PWR 5W ANT WIRE K",
+    { safeToCommit: true },
+    "2026-08-25T09:06:00.000Z",
+  );
+  const variants = [
+    { ...valid, setup: { antenna: false, power: true } },
+    { ...valid, propagationSnapshot: null },
+    { ...valid, lastExchange: { accepted: false, errors: [] } },
+    { ...valid, result: { ...valid.result, contactCount: 0 } },
+    { ...valid, contacts: valid.contacts.map((contact) => ({ ...contact, topics: ["QTH", "POWER"] })) },
+    { ...valid, contacts: valid.contacts.map((contact) => ({
+      ...contact, exchange: { ...contact.exchange, qthCode: "LAKEVIEW" },
+    })) },
+    { ...valid, loadout: { ...valid.loadout, antennaCode: "EFHW" } },
+    Object.create(valid),
+  ];
+  for (const variant of variants) {
+    const normalized = normalizeExpeditionRun(variant);
+    assert.equal(normalized.status, "failed");
+    assert.equal(normalized.result.outcome, "failed");
+    assert.equal(normalized.failureReason, "CORRUPT_RUN");
+    assert.equal(normalizeExpeditionRun(normalized).status, "failed");
+  }
 });
 
 test("a weak link requires AGN or QRS recovery without changing its frozen propagation", () => {
@@ -164,6 +230,29 @@ test("power and elapsed time are bounded, while timeout and abandon produce no c
   assert.equal(abandoned.status, "abandoned");
   assert.equal(abandoned.result.outcome, "abandoned");
   assert.deepEqual(abandoned.contacts, []);
+});
+
+test("subsecond ticks accumulate exactly like one 900-second tick", () => {
+  const calling = beginExpeditionCq(ready(), { observedAt: "2026-08-25T09:04:00.000Z" });
+  let incremental = calling;
+  for (let index = 0; index < 1_800; index += 1) {
+    incremental = tickExpeditionRun(
+      incremental,
+      { seconds: 0.5, transmitting: false },
+      "2026-08-25T09:19:00.000Z",
+    );
+  }
+  const single = tickExpeditionRun(
+    calling,
+    { seconds: 900, transmitting: false },
+    "2026-08-25T09:19:00.000Z",
+  );
+  assert.equal(incremental.status, "failed");
+  assert.equal(incremental.failureReason, "TIMED_OUT");
+  assert.equal(incremental.elapsedMilliseconds, 900_000);
+  assert.equal(incremental.elapsedSeconds, 900);
+  assert.deepEqual(incremental.power, single.power);
+  assert.equal(incremental.elapsedMilliseconds, single.elapsedMilliseconds);
 });
 
 test("retry resets temporary work without duplicating the loan kit or stale propagation", () => {
@@ -260,6 +349,25 @@ test("run normalization bounds hostile nested topic and recovery scans", () => {
   assert.deepEqual(normalized.recoveryActions, ["AGN", "QRS"]);
   assert.deepEqual(normalized.contacts[0].topics, ["QTH", "POWER", "ANTENNA"]);
   assert.deepEqual(normalized.contacts[0].recoveryActions, ["AGN", "QRS"]);
+});
+
+test("run normalization bounds hostile last-exchange error scans", () => {
+  const errors = new Proxy(
+    [...Array(9_990).fill("ancient-error"), ...Array(10).fill("RECENT_ERROR")],
+    {
+      get(target, property, receiver) {
+        if (/^\d+$/.test(String(property)) && Number(property) < 9_000) {
+          throw new Error("unbounded last-exchange scan");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    },
+  );
+  const normalized = normalizeExpeditionRun({
+    ...completedRunFixture(),
+    lastExchange: { accepted: false, errors },
+  });
+  assert.deepEqual(normalized.lastExchange.errors, Array(8).fill("RECENT_ERROR"));
 });
 
 function completedRunFixture() {

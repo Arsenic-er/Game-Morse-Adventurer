@@ -93,6 +93,10 @@ function safeInteger(value, maximum = Number.MAX_SAFE_INTEGER) {
   return Number.isFinite(numeric) ? Math.min(maximum, Math.max(0, Math.floor(numeric))) : 0;
 }
 
+function safeAdd(left, right, maximum = Number.MAX_SAFE_INTEGER) {
+  return Math.min(maximum, safeInteger(left, maximum) + safeInteger(right, maximum));
+}
+
 function normalizeIso(value, fallback = null) {
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date.toISOString() : fallback;
@@ -499,8 +503,8 @@ export function claimMission(save, missionId, claimedAt = new Date().toISOString
       ...save,
       missionStateVersion: MISSION_STATE_VERSION,
       missionState,
-      money: safeInteger(save?.money) + moneyAwarded,
-      technologyPoints: safeInteger(save?.technologyPoints) + technologyPointsAwarded,
+      money: safeAdd(save?.money, moneyAwarded),
+      technologyPoints: safeAdd(save?.technologyPoints, technologyPointsAwarded),
       ...(knownOperatorNames ? { knownOperatorNames } : {}),
       ...(expeditionState ? { expeditionState } : {}),
     },

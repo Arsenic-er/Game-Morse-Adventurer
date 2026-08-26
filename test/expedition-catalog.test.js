@@ -115,3 +115,18 @@ test("owned-loadout validation inspects only bounded recent inventory entries", 
   });
   assert.equal(loadout.radioId, "usdx-01");
 });
+
+test("loadout validation never trusts inherited equipment fields", () => {
+  const inheritedLoan = Object.create(createExpeditionLoadout({}, { source: "loan" }));
+  assert.equal(normalizeExpeditionLoadout(inheritedLoan), null);
+
+  const inheritedInventory = Object.create({
+    ownedEquipment: ["usdx-01"], ownedAntennas: ["endfed"], accessories: ["field-battery"],
+  });
+  const owned = {
+    source: "owned", radioId: "usdx-01", antennaId: "endfed", batteryId: "field-battery",
+    outputPowerWatts: 8, receiveDrawWatts: 3, transmitDrawWatts: 18,
+    antennaCode: "EFHW", capacityWh: 72,
+  };
+  assert.equal(createExpeditionLoadout(inheritedInventory, owned), null);
+});
