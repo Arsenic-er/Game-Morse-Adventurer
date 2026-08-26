@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createSave } from "../src/game/saveStore.js";
 import { acceptMission, claimMission, missionBoard, normalizeMissionState } from "../src/game/missionSystem.js";
 import { settleLightsRun } from "../src/game/lightsSettlement.js";
+import { lightsEntryModes } from "../src/game/lightsEventCatalog.js";
 import {
   LIGHTS_PHASES, advanceLightsPlayback, createLightsRun, currentLightsPileup,
   lightsRunResult, submitLightsTransmission,
@@ -114,4 +115,28 @@ test("annual and practice acceptance keep rewards idempotent across repeat settl
   const repeated = settleLightsRun(first.save, result, { now: "2026-05-05T09:08:00.000Z" });
   assert.equal(repeated.settled, false);
   assert.equal(repeated.moneyAwarded, 0);
+});
+
+test("a China save enters and settles the same Tokyo May 5 special window", () => {
+  const completed = chapterFiveSave();
+  completed.missionState = normalizeMissionState({
+    claimedMissionIds: ["story-01", "story-02", "story-03", "story-04", "story-05"],
+  });
+  const enteredAt = "2026-05-04T15:30:00.000Z";
+  const availability = lightsEntryModes(completed, enteredAt);
+  assert.equal(availability.annualAvailable, true);
+  assert.equal(availability.specialDay, true);
+  const candidate = {
+    ...lightsRunResult({
+      ...createLightsRun({ mode: "annual", playerCallsign: "BH1ABC", playerRegion: "CN", seed: "tokyo-may5", startedAt: enteredAt }),
+      phase: LIGHTS_PHASES.RUN_COMPLETE,
+      completedAt: "2026-05-04T15:38:00.000Z",
+      contacts: [],
+    }),
+    contacts: [],
+  };
+  const settled = settleLightsRun(completed, candidate, { observedAt: candidate.completedAt });
+  assert.equal(settled.settled, true);
+  assert.equal(settled.annualStamp, "special");
+  assert.equal(settled.save.eventRunArchive.annualBests[0].stationDate, "2026-05-05");
 });

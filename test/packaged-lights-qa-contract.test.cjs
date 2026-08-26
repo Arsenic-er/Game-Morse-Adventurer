@@ -124,12 +124,12 @@ function validLightsEvidence() {
   const seed = durableSnapshot({ money: 0, qsoLogCount: 0, settledRunIds: [] });
   const beforeBaseClick = durableSnapshot({ money: 0, qsoLogCount: 0, settledRunIds: ["failed"] });
   const afterAchievementSettlement = durableSnapshot({
-    money: 420, qsoLogCount: 3, settledRunIds: ["failed", "base"],
-    claimedAchievementRewards: ["first-qso", "regions-3"],
+    money: 540, qsoLogCount: 3, settledRunIds: ["failed", "base"],
+    claimedAchievementRewards: ["first-qso", "regions-3", "lights-base"],
   });
   const afterMissionClaim = durableSnapshot({
-    money: 1020, qsoLogCount: 3, settledRunIds: ["failed", "base"],
-    claimedAchievementRewards: ["first-qso", "regions-3", "first-name"],
+    money: 1140, qsoLogCount: 3, settledRunIds: ["failed", "base"],
+    claimedAchievementRewards: ["first-qso", "regions-3", "first-name", "lights-base"],
   });
   return {
     schemaVersion: 1,
@@ -167,8 +167,8 @@ function validLightsEvidence() {
           },
           afterAchievementSettlement: {
             ...afterAchievementSettlement,
-            achievementMoneyAwarded: 420,
-            newlyClaimedAchievementRewards: ["first-qso", "regions-3"],
+            achievementMoneyAwarded: 540,
+            newlyClaimedAchievementRewards: ["first-qso", "regions-3", "lights-base"],
           },
           missionClaim: {
             missionMoneyAwarded: 500, achievementMoneyAwarded: 100, totalMoneyAwarded: 600,
@@ -360,10 +360,13 @@ test("Lights evidence validator enforces the staged zero-credit and achievement 
   const mutations = [
     ["Base grade bonus", (value) => { value.checkpoints.settled.moneyFlow.baseSettlement.gradeMoneyAwarded = 1; }, /gradeMoneyAwarded/],
     ["event QSO credits", (value) => { value.checkpoints.settled.moneyFlow.baseSettlement.eventQsoCreditsAwarded = 3; }, /eventQsoCredits/],
-    ["achievement award", (value) => { value.checkpoints.settled.moneyFlow.afterAchievementSettlement.achievementMoneyAwarded = 419; }, /achievement/],
+    ["achievement award", (value) => { value.checkpoints.settled.moneyFlow.afterAchievementSettlement.achievementMoneyAwarded = 539; }, /achievement/],
+    ["activity achievement id", (value) => {
+      value.checkpoints.settled.moneyFlow.afterAchievementSettlement.newlyClaimedAchievementRewards = ["first-qso", "regions-3"];
+    }, /achievement/],
     ["mission award", (value) => { value.checkpoints.settled.moneyFlow.missionClaim.missionMoneyAwarded = 600; }, /mission/],
     ["claim total", (value) => { value.checkpoints.settled.moneyFlow.missionClaim.totalMoneyAwarded = 500; }, /mission claim/],
-    ["final balance", (value) => { value.checkpoints.settled.final.money = 1019; }, /mission claim|final/],
+    ["final balance", (value) => { value.checkpoints.settled.final.money = 1139; }, /mission claim|final/],
   ];
   for (const [name, mutate, expected] of mutations) {
     const candidate = structuredClone(valid);
@@ -376,13 +379,13 @@ test("Lights money-flow helper separates Base, achievement, and mission claim aw
   const seed = durableSnapshot({ money: 0, qsoLogCount: 0, settledRunIds: [] });
   const beforeBaseClick = durableSnapshot({ money: 0, qsoLogCount: 0, settledRunIds: ["failed"] });
   const afterAchievementSettlement = durableSnapshot({
-    money: 420, qsoLogCount: 3, settledRunIds: ["failed", "base"],
-    claimedAchievementRewards: ["first-qso", "regions-3"],
+    money: 540, qsoLogCount: 3, settledRunIds: ["failed", "base"],
+    claimedAchievementRewards: ["first-qso", "regions-3", "lights-base"],
   });
   const afterMissionClaim = {
     ...durableSnapshot({
-      money: 1020, qsoLogCount: 3, settledRunIds: ["failed", "base"],
-      claimedAchievementRewards: ["first-qso", "regions-3", "first-name"],
+      money: 1140, qsoLogCount: 3, settledRunIds: ["failed", "base"],
+      claimedAchievementRewards: ["first-qso", "regions-3", "first-name", "lights-base"],
     }),
     story05MissionMoneyAwarded: 500,
   };

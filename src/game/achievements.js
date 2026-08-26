@@ -1,6 +1,6 @@
 import { normalizeQsoLogEntry } from "../qso/qsoLog.js";
 
-export const ACHIEVEMENT_REWARDS_VERSION = 1;
+export const ACHIEVEMENT_REWARDS_VERSION = 2;
 
 export const ACHIEVEMENT_CATALOG = Object.freeze([
   { id: "first-qso", category: "contact", metric: "total", target: 1, tier: "bronze", moneyReward: 120, technologyPointsReward: 0 },
@@ -14,9 +14,16 @@ export const ACHIEVEMENT_CATALOG = Object.freeze([
   { id: "antenna-upgrade", category: "equipment", metric: "antennas", target: 2, tier: "bronze", moneyReward: 200, technologyPointsReward: 0 },
   { id: "first-accessory", category: "equipment", metric: "accessories", target: 1, tier: "bronze", moneyReward: 150, technologyPointsReward: 0 },
   { id: "first-name", category: "people", metric: "knownNames", target: 1, tier: "bronze", moneyReward: 100, technologyPointsReward: 0 },
+  { id: "lights-base", category: "event", metric: "lightsGrade", target: 1, tier: "bronze", moneyReward: 120, technologyPointsReward: 0 },
+  { id: "lights-silver", category: "event", metric: "lightsGrade", target: 2, tier: "silver", moneyReward: 180, technologyPointsReward: 0 },
+  { id: "lights-gold", category: "event", metric: "lightsGrade", target: 3, tier: "gold", moneyReward: 260, technologyPointsReward: 1 },
+  { id: "lights-annual", category: "event", metric: "lightsAnnual", target: 1, tier: "silver", moneyReward: 160, technologyPointsReward: 0 },
+  { id: "lights-may5", category: "event", metric: "lightsMay5", target: 1, tier: "gold", moneyReward: 220, technologyPointsReward: 1 },
 ]);
 
 const ACHIEVEMENT_IDS = new Set(ACHIEVEMENT_CATALOG.map(({ id }) => id));
+const LIGHTS_ACHIEVEMENT_IDS = new Set(["lights-base", "lights-silver", "lights-gold", "lights-annual", "lights-may5"]);
+const LIGHTS_GRADE_RANK = Object.freeze({ none: 0, base: 1, silver: 2, gold: 3 });
 
 function nonNegativeNumber(value) {
   const numeric = Number(value);
@@ -65,6 +72,17 @@ function achievementMetrics(save) {
     return Number.isFinite(level) && level >= 0 && level <= 2;
   }).length;
   const independent = logs.filter(({ normalized }) => normalized.independentWatch).length;
+  const archive = save?.eventRunArchive && typeof save.eventRunArchive === "object" ? save.eventRunArchive : {};
+  const eventRuns = [
+    archive.storyBest,
+    ...(Array.isArray(archive.annualBests) ? archive.annualBests : []),
+    ...(Array.isArray(archive.practiceBests) ? archive.practiceBests : []),
+  ].filter((run) => run && typeof run === "object" && !Array.isArray(run));
+  const lightsGrade = eventRuns.reduce((best, run) => Math.max(best, LIGHTS_GRADE_RANK[run.grade] ?? 0), 0);
+  const lightsAnnual = eventRuns.some(({ mode }) => mode === "annual") ? 1 : 0;
+  const lightsMay5 = eventRuns.some(({ mode, stamp, stationDate }) => (
+    mode === "annual" && stamp === "special" && /^\d{4}-05-05$/.test(String(stationDate ?? ""))
+  )) ? 1 : 0;
 
   return {
     total,
@@ -76,6 +94,9 @@ function achievementMetrics(save) {
     antennas: new Set(Array.isArray(save?.ownedAntennas) ? save.ownedAntennas : []).size,
     accessories: new Set(Array.isArray(save?.accessories) ? save.accessories : []).size,
     knownNames: uniqueKnownNames(save),
+    lightsGrade,
+    lightsAnnual,
+    lightsMay5,
   };
 }
 
@@ -103,6 +124,15 @@ export function baselineAchievementRewardIds(save) {
   return evaluateAchievements(save).filter(({ unlocked }) => unlocked).map(({ id }) => id);
 }
 
+export function migrateAchievementRewardIds(save, values, sourceVersion = 0) {
+  const claimed = normalizeClaimedAchievementRewards(values);
+  if (Number(sourceVersion) >= ACHIEVEMENT_REWARDS_VERSION) return claimed;
+  const historicalLights = evaluateAchievements(save)
+    .filter(({ id, unlocked }) => unlocked && LIGHTS_ACHIEVEMENT_IDS.has(id))
+    .map(({ id }) => id);
+  return normalizeClaimedAchievementRewards([...claimed, ...historicalLights]);
+}
+
 export function findNewlyUnlockedAchievements(previousSave, nextSave) {
   const previousById = new Map(evaluateAchievements(previousSave).map((item) => [item.id, item]));
   return evaluateAchievements(nextSave).filter((item) => item.unlocked && !previousById.get(item.id)?.unlocked);
@@ -111,7 +141,11 @@ export function findNewlyUnlockedAchievements(previousSave, nextSave) {
 /** Atomically claims all currently eligible achievement rewards exactly once. */
 export function settleAchievementRewards(save) {
   if (!save || typeof save !== "object") throw new TypeError("A save record is required.");
-  const claimed = normalizeClaimedAchievementRewards(save.claimedAchievementRewards);
+  const claimed = migrateAchievementRewardIds(
+    save,
+    save.claimedAchievementRewards,
+    Number(save.achievementRewardsVersion) || ACHIEVEMENT_REWARDS_VERSION,
+  );
   const claimedSet = new Set(claimed);
   const newlyAwarded = evaluateAchievements(save)
     .filter(({ id, unlocked }) => unlocked && ACHIEVEMENT_IDS.has(id) && !claimedSet.has(id));

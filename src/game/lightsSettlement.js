@@ -1,5 +1,4 @@
-import { getLocation } from "./locations.js";
-import { LIGHTS_EVENT, LIGHTS_EVENT_REGIONS } from "./lightsEventCatalog.js";
+import { LIGHTS_ACTIVITY_RULES, LIGHTS_EVENT, LIGHTS_EVENT_REGIONS } from "./lightsEventCatalog.js";
 import { scoreLightsResult } from "./lightsScoring.js";
 import { advanceWorldCalendarState, recordLightsAnnualResult, stationCalendarDate } from "./worldCalendar.js";
 import {
@@ -291,7 +290,7 @@ export function settleLightsRun(save, candidate, { observedAt = null, now = null
   if (result.mode !== "story" && !storyCompleted) {
     return { save, result, settled: false, reason: "story-incomplete", moneyAwarded: 0, technologyPointsAwarded: 0 };
   }
-  const timeZone = getLocation(save.locationId).timeZone;
+  const timeZone = LIGHTS_ACTIVITY_RULES.timeZone;
   const observedIso = iso(observedAt ?? now ?? new Date()) ?? result.completedAt;
   const observedInstant = new Date(observedIso);
   const completionInstant = new Date(result.completedAt);

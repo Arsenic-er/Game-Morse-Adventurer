@@ -133,6 +133,11 @@ const ACHIEVEMENT_EXTRA_TEXT = {
     "antenna-upgrade": { title: "天线试验场", description: "拥有至少 2 种不同的天线。" },
     "first-accessory": { title: "工作台扩展", description: "获得第一件台站配件。" },
     "first-name": { title: "记住你的名字", description: "在通联故事中得知第一位操作员的姓名。" },
+    "lights-base": { title: "点亮第一盏灯", description: "在空中灯火活动中达到基础评级。" },
+    "lights-silver": { title: "灯火相连", description: "在空中灯火活动中达到银级评级。" },
+    "lights-gold": { title: "照亮六方", description: "在空中灯火活动中达到金级评级。" },
+    "lights-annual": { title: "又见五月", description: "完成一次空中灯火年度复刻。" },
+    "lights-may5": { title: "五月五日金边章", description: "在 5 月 5 日完成年度复刻并获得特别章。" },
   },
   "zh-TW": {
     "independent-watch": { title: "獨立值守", description: "關閉引導且不使用視覺輔助完成一次通聯。" },
@@ -140,6 +145,11 @@ const ACHIEVEMENT_EXTRA_TEXT = {
     "antenna-upgrade": { title: "天線試驗場", description: "擁有至少 2 種不同的天線。" },
     "first-accessory": { title: "工作臺擴充", description: "獲得第一件臺站配件。" },
     "first-name": { title: "記住你的名字", description: "在通聯故事中得知第一位操作員的姓名。" },
+    "lights-base": { title: "點亮第一盞燈", description: "在空中燈火活動中達到基礎評級。" },
+    "lights-silver": { title: "燈火相連", description: "在空中燈火活動中達到銀級評級。" },
+    "lights-gold": { title: "照亮六方", description: "在空中燈火活動中達到金級評級。" },
+    "lights-annual": { title: "又見五月", description: "完成一次空中燈火年度復刻。" },
+    "lights-may5": { title: "五月五日金邊章", description: "在 5 月 5 日完成年度復刻並取得特別章。" },
   },
   ja: {
     "independent-watch": { title: "単独運用", description: "ガイドと視覚補助を使わずに交信を完了する。" },
@@ -147,6 +157,11 @@ const ACHIEVEMENT_EXTRA_TEXT = {
     "antenna-upgrade": { title: "アンテナ実験場", description: "異なるアンテナを 2 種類以上所有する。" },
     "first-accessory": { title: "作業台の拡張", description: "初めての局用アクセサリーを入手する。" },
     "first-name": { title: "名前を覚えて", description: "交信の物語で最初のオペレーター名を知る。" },
+    "lights-base": { title: "最初の灯", description: "「空をつなぐ灯」で基礎評価に到達する。" },
+    "lights-silver": { title: "つながる灯", description: "「空をつなぐ灯」で銀評価に到達する。" },
+    "lights-gold": { title: "六方を照らす", description: "「空をつなぐ灯」で金評価に到達する。" },
+    "lights-annual": { title: "五月に再会", description: "年次の「空をつなぐ灯」を完了する。" },
+    "lights-may5": { title: "五月五日の金縁章", description: "5 月 5 日の年次運用を完了し、特別章を得る。" },
   },
   en: {
     "independent-watch": { title: "Independent Watch", description: "Complete a QSO with guidance off and no visual assistance." },
@@ -154,6 +169,11 @@ const ACHIEVEMENT_EXTRA_TEXT = {
     "antenna-upgrade": { title: "Antenna Test Range", description: "Own at least 2 different antennas." },
     "first-accessory": { title: "Workbench Expansion", description: "Acquire your first station accessory." },
     "first-name": { title: "Remember My Name", description: "Learn the first operator name through a contact story." },
+    "lights-base": { title: "Light the First Lamp", description: "Earn the Base grade in Lights Across the Air." },
+    "lights-silver": { title: "Lights Connected", description: "Earn the Silver grade in Lights Across the Air." },
+    "lights-gold": { title: "Light in Six Directions", description: "Earn the Gold grade in Lights Across the Air." },
+    "lights-annual": { title: "May We Meet Again", description: "Complete an annual Lights Across the Air replay." },
+    "lights-may5": { title: "May 5 Gold Border", description: "Complete the May 5 annual replay and receive its special stamp." },
   },
   es: {
     "independent-watch": { title: "Guardia independiente", description: "Completa un QSO sin guía ni ayuda visual." },
@@ -161,6 +181,11 @@ const ACHIEVEMENT_EXTRA_TEXT = {
     "antenna-upgrade": { title: "Campo de antenas", description: "Posee al menos 2 antenas diferentes." },
     "first-accessory": { title: "Ampliación del banco", description: "Consigue tu primer accesorio de estación." },
     "first-name": { title: "Recuerda mi nombre", description: "Descubre el nombre del primer operador en una historia de contacto." },
+    "lights-base": { title: "Enciende la primera luz", description: "Alcanza el nivel Base en Luces en el aire." },
+    "lights-silver": { title: "Luces conectadas", description: "Alcanza el nivel Plata en Luces en el aire." },
+    "lights-gold": { title: "Luz en seis direcciones", description: "Alcanza el nivel Oro en Luces en el aire." },
+    "lights-annual": { title: "Nos vemos en mayo", description: "Completa una repetición anual de Luces en el aire." },
+    "lights-may5": { title: "Borde dorado del 5 de mayo", description: "Completa la repetición del 5 de mayo y recibe su sello especial." },
   },
   de: {
     "independent-watch": { title: "Selbstständige Wache", description: "Schließe ein QSO ohne Führung und visuelle Hilfe ab." },
@@ -168,6 +193,11 @@ const ACHIEVEMENT_EXTRA_TEXT = {
     "antenna-upgrade": { title: "Antennen-Testfeld", description: "Besitze mindestens 2 verschiedene Antennen." },
     "first-accessory": { title: "Werkbank-Erweiterung", description: "Erhalte dein erstes Stationszubehör." },
     "first-name": { title: "Erinnere dich an meinen Namen", description: "Erfahre in einer Kontaktgeschichte den ersten Operatornamen." },
+    "lights-base": { title: "Das erste Licht", description: "Erreiche die Basisstufe bei Lichter über Funk." },
+    "lights-silver": { title: "Verbundene Lichter", description: "Erreiche die Silberstufe bei Lichter über Funk." },
+    "lights-gold": { title: "Licht aus sechs Richtungen", description: "Erreiche die Goldstufe bei Lichter über Funk." },
+    "lights-annual": { title: "Wiedersehen im Mai", description: "Schließe eine jährliche Wiederholung von Lichter über Funk ab." },
+    "lights-may5": { title: "Goldrand am 5. Mai", description: "Schließe die Wiederholung am 5. Mai ab und erhalte den Sonderstempel." },
   },
   ru: {
     "independent-watch": { title: "Самостоятельная вахта", description: "Завершите QSO без подсказок и визуальной помощи." },
@@ -175,17 +205,22 @@ const ACHIEVEMENT_EXTRA_TEXT = {
     "antenna-upgrade": { title: "Антенный полигон", description: "Получите как минимум 2 разные антенны." },
     "first-accessory": { title: "Расширение верстака", description: "Получите первый аксессуар станции." },
     "first-name": { title: "Запомни моё имя", description: "Узнайте имя первого оператора в истории связи." },
+    "lights-base": { title: "Зажечь первый огонь", description: "Получите базовый уровень в событии «Огни в эфире»." },
+    "lights-silver": { title: "Связанные огни", description: "Получите серебряный уровень в событии «Огни в эфире»." },
+    "lights-gold": { title: "Свет с шести сторон", description: "Получите золотой уровень в событии «Огни в эфире»." },
+    "lights-annual": { title: "До встречи в мае", description: "Завершите ежегодный повтор события «Огни в эфире»." },
+    "lights-may5": { title: "Золотая кайма 5 мая", description: "Завершите повтор 5 мая и получите особый штамп." },
   },
 };
 
 const REWARD_TEXT = {
-  "zh-CN": { reward: "奖励", money: "金钱", tp: "技术点", categories: { contact: "通联", expedition: "远征", operation: "操作", equipment: "设备", people: "人物" } },
-  "zh-TW": { reward: "獎勵", money: "金錢", tp: "技術點", categories: { contact: "通聯", expedition: "遠征", operation: "操作", equipment: "設備", people: "人物" } },
-  ja: { reward: "報酬", money: "所持金", tp: "技術ポイント", categories: { contact: "交信", expedition: "遠征", operation: "運用", equipment: "装備", people: "人物" } },
-  en: { reward: "Reward", money: "Money", tp: "Technology Point", categories: { contact: "Contact", expedition: "Expedition", operation: "Operation", equipment: "Equipment", people: "People" } },
-  es: { reward: "Recompensa", money: "Dinero", tp: "Punto tecnológico", categories: { contact: "Contacto", expedition: "Expedición", operation: "Operación", equipment: "Equipo", people: "Personas" } },
-  de: { reward: "Belohnung", money: "Geld", tp: "Technologiepunkt", categories: { contact: "Kontakt", expedition: "Expedition", operation: "Betrieb", equipment: "Ausrüstung", people: "Personen" } },
-  ru: { reward: "Награда", money: "Деньги", tp: "Очко технологий", categories: { contact: "Связь", expedition: "Экспедиция", operation: "Работа", equipment: "Оборудование", people: "Люди" } },
+  "zh-CN": { reward: "奖励", money: "金钱", tp: "技术点", categories: { contact: "通联", expedition: "远征", operation: "操作", equipment: "设备", people: "人物", event: "活动" } },
+  "zh-TW": { reward: "獎勵", money: "金錢", tp: "技術點", categories: { contact: "通聯", expedition: "遠征", operation: "操作", equipment: "設備", people: "人物", event: "活動" } },
+  ja: { reward: "報酬", money: "所持金", tp: "技術ポイント", categories: { contact: "交信", expedition: "遠征", operation: "運用", equipment: "装備", people: "人物", event: "イベント" } },
+  en: { reward: "Reward", money: "Money", tp: "Technology Point", categories: { contact: "Contact", expedition: "Expedition", operation: "Operation", equipment: "Equipment", people: "People", event: "Event" } },
+  es: { reward: "Recompensa", money: "Dinero", tp: "Punto tecnológico", categories: { contact: "Contacto", expedition: "Expedición", operation: "Operación", equipment: "Equipo", people: "Personas", event: "Evento" } },
+  de: { reward: "Belohnung", money: "Geld", tp: "Technologiepunkt", categories: { contact: "Kontakt", expedition: "Expedition", operation: "Betrieb", equipment: "Ausrüstung", people: "Personen", event: "Event" } },
+  ru: { reward: "Награда", money: "Деньги", tp: "Очко технологий", categories: { contact: "Связь", expedition: "Экспедиция", operation: "Работа", equipment: "Оборудование", people: "Люди", event: "Событие" } },
 };
 
 function achievementCopy(t, language, id) {
@@ -204,6 +239,11 @@ const ACHIEVEMENT_ICONS = {
   "first-name": Trophy,
   "weak-signal": ShieldCheck,
   "regions-3": GlobeHemisphereEast,
+  "lights-base": Trophy,
+  "lights-silver": Trophy,
+  "lights-gold": Trophy,
+  "lights-annual": GlobeHemisphereEast,
+  "lights-may5": Trophy,
 };
 
 const NOTIFICATION_TEXT = {

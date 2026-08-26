@@ -235,7 +235,7 @@ test("annual settlement rejects closed dates and pauses all money during rollbac
   assert.equal(rollback.annualStampGranted, false);
 });
 
-test("delayed annual settlement keeps Tokyo, New York, and Rhine event dates while observation controls rollback", () => {
+test("delayed annual settlement uses SIM5LT station time for every player location while observation controls rollback", () => {
   const cases = [
     {
       name: "Tokyo closes at the end of the May 7 station day",
@@ -243,14 +243,14 @@ test("delayed annual settlement keeps Tokyo, New York, and Rhine event dates whi
       completedAt: "2026-05-07T14:59:00.000Z",
     },
     {
-      name: "New York remains open late on the May 7 station day",
+      name: "New York player opens with the Tokyo May 1 station day",
       locationId: "usa-new-england",
-      completedAt: "2026-05-08T03:59:00.000Z",
+      completedAt: "2026-04-30T15:01:00.000Z",
     },
     {
-      name: "Rhine opens at the start of the May 1 station day",
+      name: "Rhine player remains open through the Tokyo May 7 station day",
       locationId: "europe-rhine-valley",
-      completedAt: "2026-04-30T22:30:00.000Z",
+      completedAt: "2026-05-07T14:59:00.000Z",
     },
   ];
   for (const { name, locationId, completedAt } of cases) {
@@ -266,7 +266,7 @@ test("delayed annual settlement keeps Tokyo, New York, and Rhine event dates whi
     };
     const settled = settleLightsRun(save, {
       ...result({ mode: "annual", count: 3, runId: `boundary:${locationId}` }),
-      startedAt: "2026-04-30T22:00:00.000Z",
+      startedAt: new Date(Date.parse(completedAt) - 8 * 60_000).toISOString(),
       completedAt,
     }, { observedAt: "2026-06-01T12:00:00.000Z" });
     assert.equal(settled.settled, true, name);
@@ -275,6 +275,7 @@ test("delayed annual settlement keeps Tokyo, New York, and Rhine event dates whi
     assert.equal(settled.save.worldCalendarState.lastTrustedAt, "2026-06-02T12:00:00.000Z", name);
     assert.equal(settled.save.worldCalendarState.rollbackGuardUntil, "2026-06-02T12:00:00.000Z", name);
     assert.equal(settled.save.worldCalendarState.annualRecords[0].year, 2026, name);
+    assert.match(settled.save.eventRunArchive.annualBests[0].stationDate, /^2026-05-0[17]$/, name);
   }
 });
 

@@ -153,6 +153,8 @@ test("every interface dictionary has the same non-empty shape in all seven langu
     ["src/propagation/StationLocationModal.jsx", "TEXT"],
     ["src/screens/AchievementsModal.jsx", "TEXT"],
     ["src/screens/AchievementsModal.jsx", "NOTIFICATION_TEXT"],
+    ["src/screens/AchievementsModal.jsx", "ACHIEVEMENT_EXTRA_TEXT"],
+    ["src/screens/AchievementsModal.jsx", "REWARD_TEXT"],
     ["src/screens/HomeScreen.jsx", "TEXT"],
     ["src/screens/HomeScreen.jsx", "WAREHOUSE_TEXT"],
     ["src/screens/HomeScreen.jsx", "QSO_LOG_TEXT"],
@@ -169,6 +171,38 @@ test("every interface dictionary has the same non-empty shape in all seven langu
   for (const [relativePath, constantName] of dictionaries) {
     assertSevenLanguageDictionary(relativePath, constantName);
   }
+});
+
+test("chapter five achievements have localized display copy instead of raw ids", () => {
+  const source = read("src/screens/AchievementsModal.jsx");
+  const extra = readLiteral(source, "ACHIEVEMENT_EXTRA_TEXT", "{", "}");
+  const ids = ["lights-base", "lights-silver", "lights-gold", "lights-annual", "lights-may5"];
+  for (const language of SUPPORTED_LANGUAGES) {
+    for (const id of ids) {
+      assert.equal(typeof extra[language]?.[id]?.title, "string", `${language}.${id}.title`);
+      assert.ok(extra[language][id].title.trim());
+      assert.notEqual(extra[language][id].title, id);
+      assert.ok(extra[language][id].description.trim(), `${language}.${id}.description`);
+    }
+  }
+});
+
+test("chapter five presentation stays archive-backed, portrait-free on air, and responsive", () => {
+  const eventScreen = read("src/screens/LightsEventScreen.jsx");
+  const mapPanel = read("src/screens/LightsMapPanel.jsx");
+  const historyPanel = read("src/screens/LightsHistoryPanel.jsx");
+  const missionCenter = read("src/screens/MissionCenterModal.jsx");
+  const css = read("src/pixel-theme.css");
+  assert.match(eventScreen, /<LightsMapPanel archive=\{save\.eventRunArchive\}/);
+  assert.match(eventScreen, /<LightsHistoryPanel archive=\{save\.eventRunArchive\}/);
+  assert.match(eventScreen, /data-portrait-visible="false"/);
+  assert.doesNotMatch(eventScreen, /<img[^>]+portrait/i);
+  assert.match(mapPanel, /buildLightsMapModel\(archive/);
+  assert.doesNotMatch(mapPanel, /\b(?:hash32|Math\.random|randomUUID)\b/);
+  assert.match(historyPanel, /buildLightsHistoryModel\(archive\)/);
+  assert.match(missionCenter, /data-lights-narrative-key/);
+  assert.match(css, /@media \(max-width: 820px\)/);
+  assert.match(css, /\.lights-event-console \{ overflow: auto; \}/);
 });
 
 test("equipment and location catalogs provide non-empty names in all seven languages", () => {

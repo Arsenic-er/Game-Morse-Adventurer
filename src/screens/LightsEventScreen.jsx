@@ -18,6 +18,9 @@ import {
   lightsRunSeed, lightsTimerShouldRun, lightsUiModel, registerActivityPlaybackVisibility,
 } from "../game/lightsUiModel.js";
 import { lightsText } from "./lightsEventText.js";
+import { lightsNarrativeBeat } from "../game/lightsNarrative.js";
+import { LightsMapPanel } from "./LightsMapPanel.jsx";
+import { LightsHistoryPanel } from "./LightsHistoryPanel.jsx";
 
 function expectedPlayerText(run) {
   if (run.phase === LIGHTS_PHASES.CHASE_PLAYER_CALL) return `SIM5LT DE ${run.playerCallsign} K`;
@@ -52,6 +55,11 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
   const activeClockRef = useRef({ elapsedMs: 0, monotonicNow: null, active: false });
   const inputRef = useRef(null);
   const model = useMemo(() => lightsUiModel(run, language), [language, run]);
+  const narrativeBeat = useMemo(() => lightsNarrativeBeat({
+    phase: run.phase,
+    chaseCompleted: run.chaseCompleted,
+    result: model.result,
+  }), [model.result, run.chaseCompleted, run.phase]);
   const unloadRisk = activityUnloadRisk({ activity: "lights", run, settled: Boolean(settlement) });
   const annualStampLabel = lightsAnnualStampLabel(settlement, language);
   const targetText = expectedPlayerText(run);
@@ -233,16 +241,24 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
         </aside>
         <article className={`lights-event-receiver ${cw.isListening ? "listening" : ""} ${cw.isPlaying ? "playing" : ""}`}>
           <div className="lights-receiver-status"><Headphones size={23} weight="fill" /><span>{model.needsPlayback ? t.incoming : t.awaiting}</span><i /></div>
+          <div className="lights-narrative-line" data-lights-narrative-key={narrativeBeat.textKey}
+            data-lights-narrative-speaker={narrativeBeat.speaker} data-portrait-visible="false">
+            <span>{t[narrativeBeat.textKey]}</span>
+          </div>
           <p className="lights-instruction">{model.instruction}</p>
           <div className="lights-rx-line" data-testid="lights-rx-line">{visibleIncoming || "· · ·"}</div>
           {model.callerHint && <small className="lights-caller-hint">{model.callerHint}</small>}
           <div className="lights-tx-line"><small>{save.keyType === "automatic" ? "Z · / X —" : "SPACE"}</small><strong>{cw.analysis.decoded || "_"}</strong><span>{cw.analysis.wpm} WPM</span></div>
           {model.errorText && <p className="lights-error" role="alert">{model.errorText}</p>}
         </article>
-        <aside className="lights-event-score">
-          <Trophy size={30} weight="fill" />
-          <span>{t.grade}</span><strong data-lights-grade={model.grade}>{model.gradeLabel}</strong>
-          <small>{t.score} {model.score}</small>
+        <aside className="lights-event-side">
+          <div className="lights-event-score">
+            <Trophy size={24} weight="fill" />
+            <span>{t.grade}</span><strong data-lights-grade={model.grade}>{model.gradeLabel}</strong>
+            <small>{t.score} {model.score}</small>
+          </div>
+          <LightsMapPanel archive={save.eventRunArchive} eventRunId={settlement?.result?.runId ?? null} t={t} />
+          <LightsHistoryPanel archive={save.eventRunArchive} save={save} t={t} />
         </aside>
       </section>
 

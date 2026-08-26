@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  ACHIEVEMENT_REWARDS_VERSION,
   evaluateAchievements,
   findNewlyUnlockedAchievements,
   settleAchievementRewards,
@@ -30,8 +31,9 @@ test("returns the complete locked achievement catalog for an empty or malformed 
     assert.deepEqual(achievements.map(({ id }) => id), [
       "first-qso", "qso-5", "qso-10", "dx-5000", "weak-signal", "regions-3",
       "independent-watch", "radio-upgrade", "antenna-upgrade", "first-accessory", "first-name",
+      "lights-base", "lights-silver", "lights-gold", "lights-annual", "lights-may5",
     ]);
-    assert.equal(achievements.length, 11);
+    assert.equal(achievements.length, 16);
     for (const achievement of achievements) {
       assert.equal(achievement.current, 0);
       assert.equal(achievement.unlocked, false);
@@ -212,4 +214,61 @@ test("equipment and people achievements use inventory and discovered-name state"
   const achievements = evaluateAchievements({ ownedEquipment: ["squid-01", "usdr-8"], ownedAntennas: ["dipole", "vertical"], accessories: ["cw-filter-500"], knownOperatorNames: ["Morse", "morse", "Wang"] });
   const unlocked = achievements.filter(({ unlocked }) => unlocked).map(({ id }) => id);
   assert.deepEqual(unlocked, ["radio-upgrade", "antenna-upgrade", "first-accessory", "first-name"]);
+});
+
+function lightsArchive({ mode = "story", grade = "base", stamp = "none", stationDate = "2026-05-02" } = {}) {
+  const run = {
+    version: 1, eventRunId: `${mode}:${grade}:${stamp}`, mode,
+    startedAt: "2026-05-02T00:00:00.000Z", completedAt: "2026-05-02T00:08:00.000Z",
+    stationDate, score: grade === "gold" ? 800 : grade === "silver" ? 600 : 400,
+    grade, stamp, playerCallsign: "BH1ABC", contacts: [],
+  };
+  return { version: 1, storyBest: mode === "story" ? run : null, annualBests: mode === "annual" ? [run] : [], practiceBests: [] };
+}
+
+test("lights achievements cover base, silver, gold, annual participation, and May 5", () => {
+  assert.equal(ACHIEVEMENT_REWARDS_VERSION, 2);
+  const gold = evaluateAchievements({ eventRunArchive: lightsArchive({ mode: "annual", grade: "gold", stamp: "special", stationDate: "2026-05-05" }) });
+  assert.deepEqual(gold.filter(({ unlocked }) => unlocked).map(({ id }) => id), [
+    "lights-base", "lights-silver", "lights-gold", "lights-annual", "lights-may5",
+  ]);
+  const silver = Object.fromEntries(evaluateAchievements({ eventRunArchive: lightsArchive({ grade: "silver" }) }).map((item) => [item.id, item]));
+  assert.equal(silver["lights-base"].unlocked, true);
+  assert.equal(silver["lights-silver"].unlocked, true);
+  assert.equal(silver["lights-gold"].unlocked, false);
+  assert.equal(silver["lights-annual"].unlocked, false);
+});
+
+test("v1 migration recognizes historical lights milestones without back-paying rewards", () => {
+  const legacy = {
+    achievementRewardsVersion: 1,
+    claimedAchievementRewards: [],
+    money: 55,
+    technologyPoints: 3,
+    eventRunArchive: lightsArchive({ mode: "annual", grade: "gold", stamp: "special", stationDate: "2026-05-05" }),
+  };
+  const settlement = settleAchievementRewards(legacy);
+  assert.deepEqual(settlement.newlyAwarded, []);
+  assert.equal(settlement.moneyAwarded, 0);
+  assert.equal(settlement.technologyPointsAwarded, 0);
+  assert.equal(settlement.save.money, 55);
+  assert.equal(settlement.save.technologyPoints, 3);
+  assert.deepEqual(settlement.save.claimedAchievementRewards.slice(-5), [
+    "lights-base", "lights-silver", "lights-gold", "lights-annual", "lights-may5",
+  ]);
+});
+
+test("new v2 saves receive lights rewards once when milestones are newly reached", () => {
+  const save = {
+    achievementRewardsVersion: ACHIEVEMENT_REWARDS_VERSION,
+    claimedAchievementRewards: [], money: 0, technologyPoints: 0,
+    eventRunArchive: lightsArchive({ mode: "annual", grade: "gold", stamp: "special", stationDate: "2026-05-05" }),
+  };
+  const first = settleAchievementRewards(save);
+  assert.deepEqual(first.newlyAwarded.map(({ id }) => id), [
+    "lights-base", "lights-silver", "lights-gold", "lights-annual", "lights-may5",
+  ]);
+  const duplicate = settleAchievementRewards(first.save);
+  assert.deepEqual(duplicate.newlyAwarded, []);
+  assert.equal(duplicate.save.money, first.save.money);
 });

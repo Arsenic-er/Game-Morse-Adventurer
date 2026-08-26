@@ -444,14 +444,14 @@ function validateLightsQaEvidence(result, { qaRunId = null } = {}) {
     afterAchievement.newlyClaimedAchievementRewards,
     "settled.moneyFlow.afterAchievementSettlement.newlyClaimedAchievementRewards",
   );
-  if (afterAchievement.achievementMoneyAwarded !== 420
+  if (afterAchievement.achievementMoneyAwarded !== 540
     || afterAchievement.money - beforeBase.money !== afterAchievement.achievementMoneyAwarded
-    || !sameStringArray(newlySettledAchievements, ["first-qso", "regions-3"])
+    || !sameStringArray(newlySettledAchievements, ["first-qso", "regions-3", "lights-base"])
     || !sameStringArray(
       stringArrayDifference(afterAchievement.claimedAchievementRewards, beforeBase.claimedAchievementRewards),
       newlySettledAchievements,
     )) {
-    throw new Error("Lights QA achievement settlement did not account for the 420 balance increase");
+    throw new Error("Lights QA achievement settlement did not account for first-qso + regions-3 + lights-base (540 money)");
   }
 
   const duplicate = checkpoints["duplicate-settlement"];
@@ -484,7 +484,7 @@ function validateLightsQaEvidence(result, { qaRunId = null } = {}) {
     || !sameStringArray(afterMissionClaim.settledRunIds, duplicateAfter.settledRunIds)
     || !sameStringArray(
       afterMissionClaim.claimedAchievementRewards,
-      [...duplicateAfter.claimedAchievementRewards, ...newlyClaimedAchievements],
+      ["first-qso", "regions-3", "first-name", "lights-base"],
     )
     || !sameStringArray(
       stringArrayDifference(afterMissionClaim.claimedAchievementRewards, duplicateAfter.claimedAchievementRewards),
@@ -1396,7 +1396,7 @@ async function runLightsQaCapture(window, outputDir, suffix, {
     afterMissionClaim,
     gradeMoneyAwarded,
   });
-  if (moneyFlow.afterAchievementSettlement.achievementMoneyAwarded !== 420
+  if (moneyFlow.afterAchievementSettlement.achievementMoneyAwarded !== 540
     || moneyFlow.missionClaim.missionMoneyAwarded !== 500
     || moneyFlow.missionClaim.achievementMoneyAwarded !== 100
     || moneyFlow.missionClaim.totalMoneyAwarded !== 600

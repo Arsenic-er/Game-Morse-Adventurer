@@ -1,5 +1,5 @@
-import { LOCATIONS, getLocation } from "./locations.js";
-import { evaluateLightsAvailability } from "./worldCalendar.js";
+import { LOCATIONS } from "./locations.js";
+import { evaluateLightsAvailability, stationCalendarDate } from "./worldCalendar.js";
 
 export const LIGHTS_EVENT_REGIONS = Object.freeze(["JP", "US", "CN", "GE", "CH", "FI"]);
 
@@ -19,6 +19,12 @@ export const LIGHTS_EVENT = Object.freeze({
   }),
 });
 
+export const LIGHTS_ACTIVITY_RULES = Object.freeze({
+  stationId: "station:lights-sim5lt",
+  timeZone: "Asia/Tokyo",
+  annualWindow: Object.freeze({ month: 5, firstDay: 1, lastDay: 7, specialDay: 5 }),
+});
+
 const LOCATION_REGION = new Map(LOCATIONS.map((location) => {
   const code = location.id === "europe-rhine-valley" ? "GE" : location.countryCode;
   return [location.id, LIGHTS_EVENT_REGIONS.includes(code) ? code : null];
@@ -32,11 +38,38 @@ export function lightsEntryModes(save, now = new Date()) {
   const claimed = Array.isArray(save?.missionState?.claimedMissionIds)
     ? save.missionState.claimedMissionIds : [];
   const storyCompleted = claimed.includes(LIGHTS_EVENT.missionId);
-  const location = getLocation(save?.locationId);
   return evaluateLightsAvailability({
     now,
-    timeZone: location.timeZone,
+    timeZone: LIGHTS_ACTIVITY_RULES.timeZone,
     storyCompleted,
     state: save?.worldCalendarState,
   });
+}
+
+function nextAnnualOpening(stationYear) {
+  // The fictional SIM5LT event station is fixed in Japan, where DST is not observed.
+  return new Date(Date.UTC(stationYear, 4, 1, 0, 0, 0) - 9 * 60 * 60 * 1000).toISOString();
+}
+
+export function lightsAnnualWindowModel(save, now = new Date()) {
+  const instant = new Date(now);
+  const safeInstant = Number.isFinite(instant.getTime()) ? instant : new Date(0);
+  const date = stationCalendarDate(safeInstant, LIGHTS_ACTIVITY_RULES.timeZone);
+  const { month, firstDay, lastDay } = LIGHTS_ACTIVITY_RULES.annualWindow;
+  const open = date.month === month && date.day >= firstDay && date.day <= lastDay;
+  const openingYear = open || date.month > month || (date.month === month && date.day > lastDay)
+    ? date.year + 1 : date.year;
+  const calendarRecord = (Array.isArray(save?.worldCalendarState?.annualRecords)
+    ? save.worldCalendarState.annualRecords : []).find(({ year }) => Number(year) === date.year) ?? null;
+  const archived = (Array.isArray(save?.eventRunArchive?.annualBests)
+    ? save.eventRunArchive.annualBests : []).find(({ stationDate }) => String(stationDate).startsWith(`${date.year}-`)) ?? null;
+  return {
+    timeZone: LIGHTS_ACTIVITY_RULES.timeZone,
+    open,
+    specialDay: open && date.day === LIGHTS_ACTIVITY_RULES.annualWindow.specialDay,
+    nextOpeningAt: nextAnnualOpening(openingYear),
+    claimed: calendarRecord?.rewardClaimed === true,
+    bestGrade: calendarRecord?.bestGrade ?? archived?.grade ?? "none",
+    stamp: calendarRecord?.stamp ?? archived?.stamp ?? "none",
+  };
 }

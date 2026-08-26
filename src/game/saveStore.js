@@ -13,7 +13,7 @@ import {
 } from "./technologyTree.js";
 import { RESEARCH_PROJECTS_VERSION, normalizeCompletedResearchProjects } from "./researchProjects.js";
 import {
-  ACHIEVEMENT_REWARDS_VERSION, baselineAchievementRewardIds, normalizeClaimedAchievementRewards,
+  ACHIEVEMENT_REWARDS_VERSION, baselineAchievementRewardIds, migrateAchievementRewardIds,
 } from "./achievements.js";
 import {
   MISSION_STATE_VERSION, emptyMissionState, normalizeMissionState,
@@ -215,7 +215,11 @@ export function normalizeSave(save) {
   };
   normalized.achievementRewardsVersion = ACHIEVEMENT_REWARDS_VERSION;
   normalized.claimedAchievementRewards = hasAchievementRewardLedger
-    ? normalizeClaimedAchievementRewards(save?.claimedAchievementRewards)
+    ? migrateAchievementRewardIds(
+        normalized,
+        save?.claimedAchievementRewards,
+        Number(save?.achievementRewardsVersion) || 1,
+      )
     : baselineAchievementRewardIds({
         ...normalized,
         // Preserve whether legacy logs actually recorded a propagation level.

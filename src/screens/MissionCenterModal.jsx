@@ -5,6 +5,8 @@ import {
 } from "@phosphor-icons/react";
 import { MAX_ACTIVE_DAILY_MISSIONS, missionBoard, missionSummary } from "../game/missionSystem.js";
 import { lightsEntryModes } from "../game/lightsEventCatalog.js";
+import { lightsNarrativeBeat } from "../game/lightsNarrative.js";
+import { lightsText } from "./lightsEventText.js";
 
 const TEXT = {
   "zh-CN": {
@@ -229,7 +231,7 @@ function missionContractClues(mission, t) {
   ].filter(Boolean);
 }
 
-function MissionCard({ mission, t, dailyLimitReached, lightsModes, onAccept, onClaim, onAbandon, onLaunchLights }) {
+function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, onAccept, onClaim, onAbandon, onLaunchLights }) {
   const ready = mission.status === "ready";
   const active = mission.status === "active";
   const available = mission.status === "available";
@@ -252,6 +254,10 @@ function MissionCard({ mission, t, dailyLimitReached, lightsModes, onAccept, onC
       <div className="mission-narrative" data-mission-narrative={narrative.kind}>
         <b>{narrative.label}</b><p>{narrative.text}</p>
       </div>
+      {mission.id === "story-05" && ["available", "active"].includes(mission.status) && <div className="mission-lights-announcement"
+        data-lights-narrative-key={lightsNarrativeBeat({ stage: "announcement" }).textKey}>
+        <p>{lightsCopy.narrativeNovaAnnouncement}</p>
+      </div>}
       <div className="mission-objective"><SealCheck size={18} weight="fill" /><span>{t[mission.objectiveKey]}</span></div>
       {contractClues.length > 0 && <div className="mission-contract" data-mission-contract={mission.contract?.missionPhase ?? mission.objective}>
         <b>{t.contractClues}</b>
@@ -286,6 +292,7 @@ function MissionCard({ mission, t, dailyLimitReached, lightsModes, onAccept, onC
 
 export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onLaunchLights, onClose }) {
   const t = TEXT[language] ?? TEXT.en;
+  const lightsCopy = lightsText(language);
   const [tab, setTab] = useState("story");
   const board = useMemo(() => missionBoard(save), [save]);
   const summary = useMemo(() => missionSummary(save), [save]);
@@ -315,7 +322,7 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
         <div className="mission-center-body">
           {tab === "daily" && <p className="mission-daily-note">{t.dailyNote}</p>}
           <div className="mission-list">
-            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} />)}
+            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} lightsCopy={lightsCopy} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} />)}
           </div>
         </div>
         <footer><span>{save.callsign} // {summary.ready} {t.ready}</span><button data-action="close-missions-footer" onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.close}</button></footer>

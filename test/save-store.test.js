@@ -14,6 +14,7 @@ import { PRACTICE_CALLSIGN_REGIONS } from "../src/practice/practiceCallsignCatal
 import { WORLD_CALENDAR_VERSION, emptyWorldCalendarState } from "../src/game/worldCalendar.js";
 import { LIGHTS_EVENT_STATE_VERSION, emptyLightsEventState } from "../src/game/lightsSettlement.js";
 import { EVENT_RUN_ARCHIVE_VERSION, emptyEventRunArchive } from "../src/game/eventRunArchive.js";
+import { ACHIEVEMENT_REWARDS_VERSION } from "../src/game/achievements.js";
 
 const SAVE_V035_FIXTURE = JSON.parse(readFileSync(
   new URL("./fixtures/save-v035-sanitized.json", import.meta.url),
@@ -53,7 +54,7 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   assert.deepEqual(save.qsoLogs, []);
   assert.equal(save.operatorRelationshipsVersion, 2);
   assert.deepEqual(save.operatorRelationships, []);
-  assert.equal(save.achievementRewardsVersion, 1);
+  assert.equal(save.achievementRewardsVersion, ACHIEVEMENT_REWARDS_VERSION);
   assert.deepEqual(save.claimedAchievementRewards, []);
   assert.deepEqual(save.knownOperatorNames, []);
   assert.equal(save.missionStateVersion, 2);
@@ -110,7 +111,7 @@ test("legacy saves receive safe defaults and migrate old QSO aliases", () => {
   assert.equal(save.equipmentId, "squid-01");
   assert.equal(save.money, 12);
   assert.equal(save.qsoLogs.length, 1);
-  assert.equal(save.achievementRewardsVersion, 1);
+  assert.equal(save.achievementRewardsVersion, ACHIEVEMENT_REWARDS_VERSION);
   assert.deepEqual(save.claimedAchievementRewards, ["first-qso", "dx-5000"]);
   assert.equal("credits" in save, false);
   assert.equal(save.qsoLogs[0].id, "legacy-qso");
@@ -177,6 +178,31 @@ test("a sanitized v0.35 save normalizes twice without progress loss or retroacti
   assert.deepEqual(first.claimedAchievementRewards, ["first-qso"]);
   assert.equal(first.eventRunArchiveVersion, EVENT_RUN_ARCHIVE_VERSION);
   assert.deepEqual(first.eventRunArchive, emptyEventRunArchive());
+});
+
+test("achievement v1 to v2 migration baselines historical lights milestones without changing value", () => {
+  const historicalRun = {
+    version: 1, eventRunId: "annual:legacy-gold", mode: "annual",
+    startedAt: "2025-05-05T00:00:00.000Z", completedAt: "2025-05-05T00:08:00.000Z",
+    stationDate: "2025-05-05", score: 800, grade: "gold", stamp: "special", playerCallsign: "JA1OLD",
+    contacts: [],
+  };
+  const legacy = {
+    id: "old-lights", callsign: "JA1OLD", locationId: "japan-tokyo-kanto",
+    money: 777, technologyPoints: 4, achievementRewardsVersion: 1,
+    claimedAchievementRewards: ["first-qso"],
+    eventRunArchiveVersion: 1,
+    eventRunArchive: { version: 1, storyBest: null, annualBests: [historicalRun], practiceBests: [] },
+  };
+  const first = normalizeSave(legacy);
+  const second = normalizeSave(JSON.parse(JSON.stringify(first)));
+  assert.deepEqual(second, first);
+  assert.equal(first.money, 777);
+  assert.equal(first.technologyPoints, 4);
+  assert.equal(first.achievementRewardsVersion, ACHIEVEMENT_REWARDS_VERSION);
+  assert.deepEqual(first.claimedAchievementRewards, [
+    "first-qso", "lights-base", "lights-silver", "lights-gold", "lights-annual", "lights-may5",
+  ]);
 });
 
 test("legacy relationship migration replays repeated operators chronologically", () => {
