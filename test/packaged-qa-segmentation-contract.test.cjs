@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
+const { deflateSync } = require("node:zlib");
 
 const {
   QA_STORAGE_KEYS,
@@ -33,7 +34,45 @@ function pngChunk(type, data = Buffer.alloc(0)) {
   return Buffer.concat([length, Buffer.from(type, "ascii"), data, Buffer.alloc(4)]);
 }
 
-function structuralPng(width = 1439, height = 912) {
+function crc32ForTest(buffer) {
+  let value = 0xffffffff;
+  for (const byte of buffer) {
+    value ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = (value >>> 1) ^ ((value & 1) ? 0xedb88320 : 0);
+    }
+  }
+  return (value ^ 0xffffffff) >>> 0;
+}
+
+function pngChunkWithCrc(type, data = Buffer.alloc(0)) {
+  const typeBuffer = Buffer.from(type, "ascii");
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32ForTest(Buffer.concat([typeBuffer, data])));
+  const chunk = pngChunk(type, data);
+  crc.copy(chunk, chunk.length - 4);
+  return chunk;
+}
+
+function crcValidPngShell(width = 1439, height = 912, {
+  bitDepth = 8,
+  colorType = 6,
+  idat = Buffer.from([0]),
+} = {}) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = bitDepth;
+  ihdr[9] = colorType;
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunkWithCrc("IHDR", ihdr),
+    pngChunkWithCrc("IDAT", idat),
+    pngChunkWithCrc("IEND"),
+  ]);
+}
+
+function forgedCrcPng(width = 1439, height = 912) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
@@ -45,6 +84,37 @@ function structuralPng(width = 1439, height = 912) {
     pngChunk("IDAT", Buffer.from([0])),
     pngChunk("IEND"),
   ]);
+}
+
+const validCapturePngCache = new Map();
+
+function validCapturePng(width = 1439, height = 912, colorType = 6) {
+  const cacheKey = `${width}x${height}:${colorType}`;
+  if (validCapturePngCache.has(cacheKey)) return validCapturePngCache.get(cacheKey);
+  const bytesPerPixel = colorType === 2 ? 3 : 4;
+  const raw = Buffer.alloc(((width * bytesPerPixel) + 1) * height);
+  const png = crcValidPngShell(width, height, {
+    colorType,
+    idat: deflateSync(raw),
+  });
+  validCapturePngCache.set(cacheKey, png);
+  return png;
+}
+
+function corruptChunkCrc(png, targetType) {
+  const corrupted = Buffer.from(png);
+  let offset = 8;
+  while (offset < corrupted.length) {
+    const dataLength = corrupted.readUInt32BE(offset);
+    const type = corrupted.toString("ascii", offset + 4, offset + 8);
+    const crcOffset = offset + 8 + dataLength;
+    if (type === targetType) {
+      corrupted[crcOffset] ^= 0xff;
+      return corrupted;
+    }
+    offset = crcOffset + 4;
+  }
+  throw new Error(`PNG fixture is missing ${targetType}`);
 }
 
 const expectedCaptures = {
@@ -134,15 +204,91 @@ test("PNG evidence requires initial 13-byte IHDR, bounded chunks, IDAT, and fina
   ihdr[8] = 8;
   ihdr[9] = 6;
   const cases = [
-    [Buffer.concat([signature, pngChunk("tEXt", ihdr), pngChunk("IDAT"), pngChunk("IEND")]), /IHDR/],
-    [Buffer.concat([signature, pngChunk("IHDR", ihdr.subarray(0, 12)), pngChunk("IDAT"), pngChunk("IEND")]), /13-byte IHDR/],
-    [Buffer.concat([signature, pngChunk("IHDR", ihdr), pngChunk("IEND")]), /IDAT/],
-    [Buffer.concat([signature, pngChunk("IHDR", ihdr), pngChunk("IDAT")]), /IEND/],
-    [Buffer.concat([structuralPng(), Buffer.from([0])]), /IEND|final chunk/],
+    [Buffer.concat([signature, pngChunkWithCrc("tEXt", ihdr), pngChunkWithCrc("IDAT"), pngChunkWithCrc("IEND")]), /IHDR/],
+    [Buffer.concat([signature, pngChunkWithCrc("IHDR", ihdr.subarray(0, 12)), pngChunkWithCrc("IDAT"), pngChunkWithCrc("IEND")]), /13-byte IHDR/],
+    [Buffer.concat([signature, pngChunkWithCrc("IHDR", ihdr), pngChunkWithCrc("IEND")]), /IDAT/],
+    [Buffer.concat([signature, pngChunkWithCrc("IHDR", ihdr), pngChunkWithCrc("IDAT")]), /IEND/],
+    [Buffer.concat([validCapturePng(), Buffer.from([0])]), /IEND|final chunk/],
   ];
   for (const [buffer, pattern] of cases) {
     assert.throws(() => validatePngScreenshot(buffer, "proof-1439x912.png"), pattern);
   }
+});
+
+test("PNG evidence rejects chunks with forged CRC values", () => {
+  assert.throws(
+    () => validatePngScreenshot(forgedCrcPng(), "proof-1439x912.png"),
+    /CRC/i,
+  );
+  for (const type of ["IHDR", "IDAT", "IEND"]) {
+    assert.throws(
+      () => validatePngScreenshot(
+        corruptChunkCrc(validCapturePng(), type),
+        "proof-1439x912.png",
+      ),
+      new RegExp(`${type} chunk CRC`, "i"),
+    );
+  }
+});
+
+test("PNG evidence rejects a CRC-valid shell whose IDAT cannot inflate", () => {
+  assert.throws(
+    () => validatePngScreenshot(crcValidPngShell(), "proof-1439x912.png"),
+    /inflate|zlib|pixel/i,
+  );
+});
+
+test("PNG evidence accepts only the RGB8 and RGBA8 capture formats", () => {
+  assert.deepEqual(validatePngScreenshot(
+    validCapturePng(1439, 912, 2),
+    "proof-1439x912.png",
+  ), { width: 1439, height: 912 });
+  assert.deepEqual(validatePngScreenshot(
+    validCapturePng(1439, 912, 6),
+    "proof-1439x912.png",
+  ), { width: 1439, height: 912 });
+  const compressed = deflateSync(Buffer.alloc(1));
+  assert.throws(
+    () => validatePngScreenshot(
+      crcValidPngShell(1439, 912, { bitDepth: 16, colorType: 6, idat: compressed }),
+      "proof-1439x912.png",
+    ),
+    /bit depth|format/i,
+  );
+  assert.throws(
+    () => validatePngScreenshot(
+      crcValidPngShell(1439, 912, { bitDepth: 8, colorType: 0, idat: compressed }),
+      "proof-1439x912.png",
+    ),
+    /color type|format/i,
+  );
+});
+
+test("PNG evidence requires the exact inflated scanline byte length", () => {
+  const png = crcValidPngShell(1439, 912, {
+    colorType: 6,
+    idat: deflateSync(Buffer.alloc(1)),
+  });
+  assert.throws(
+    () => validatePngScreenshot(png, "proof-1439x912.png"),
+    /inflated pixel length|scanline length/i,
+  );
+});
+
+test("PNG evidence rejects an invalid filter byte on any inflated scanline", () => {
+  const width = 1439;
+  const height = 912;
+  const scanlineBytes = (width * 4) + 1;
+  const raw = Buffer.alloc(scanlineBytes * height);
+  raw[scanlineBytes * 400] = 5;
+  const png = crcValidPngShell(width, height, {
+    colorType: 6,
+    idat: deflateSync(raw),
+  });
+  assert.throws(
+    () => validatePngScreenshot(png, "proof-1439x912.png"),
+    /filter byte.*row 400/i,
+  );
 });
 
 test("external supervisor refuses an existing evidence root before a no-op child can reuse 91 stale captures", async () => {
@@ -279,7 +425,7 @@ async function writeSuccessfulFakeSegment(env, scope) {
     .find((candidate) => candidate.scope === scope);
   await fs.mkdir(outputDir, { recursive: true });
   for (const screenshot of segment.screenshots) {
-    await fs.writeFile(path.join(outputDir, screenshot), structuralPng());
+    await fs.writeFile(path.join(outputDir, screenshot), validCapturePng());
   }
   await fs.writeFile(path.join(outputDir, "runtime-console-errors.json"), "[]\n");
   if (env.CWGAME_QA_STATE_OUT) {
@@ -368,14 +514,14 @@ test("external supervisor rejects a zero exit without complete segment evidence"
       await writeSuccessfulFakeSegment(env, "bootstrap");
       await fs.writeFile(
         path.join(dir, expectedCaptures.bootstrap.map(filename)[0]),
-        structuralPng().subarray(0, -1),
+        validCapturePng().subarray(0, -1),
       );
     }, /PNG|truncated|IEND/i],
     ["wrong screenshot dimensions", async (dir, env) => {
       await writeSuccessfulFakeSegment(env, "bootstrap");
       await fs.writeFile(
         path.join(dir, expectedCaptures.bootstrap.map(filename)[0]),
-        structuralPng(1438, 912),
+        validCapturePng(1438, 912),
       );
     }, /dimensions|1439x912/i],
     ["bad state", async (_dir, env) => {

@@ -26,7 +26,7 @@ test("tag builds publish the portable executable and checksum to a durable GitHu
   assert.match(workflow, /tags:\s*\r?\n\s*- ["']v\*["']/);
   assert.match(workflow, /github\.ref_type\s*==\s*'tag'/);
   assert.match(workflow, /gh release (?:create|upload)/);
-  assert.match(workflow, /gh release view \$tag \*> \$null\s*\r?\n\s*if \(\$LASTEXITCODE -eq 0\)/);
+  assert.match(workflow, /gh release view \$tag[^\r\n]*\*> \$null\s*\r?\n\s*if \(\$LASTEXITCODE -eq 0\)/);
   assert.match(workflow, /release\/CWGame-latest\.exe/);
   assert.match(workflow, /release\/CWGame-latest\.sha256/);
   assert.match(workflow, /unsigned prototype build/i);
@@ -53,6 +53,22 @@ test("build is read-only and only the tag-gated release job receives write permi
   assert.match(release, /actions\/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c/);
   assert.match(release, /name:\s*CWGame-Windows-x64-portable/);
   assert.match(release, /Get-FileHash[\s\S]*CWGame-latest\.sha256[\s\S]*gh release/i);
+});
+
+test("release commands bind the repository explicitly outside a checkout", () => {
+  const release = jobBlock("release");
+  const logicalLines = release
+    .replace(/`\r?\n\s*/g, " ")
+    .split(/\r?\n/)
+    .map((line) => line.trim());
+  const releaseCommands = logicalLines.filter((line) => line.startsWith("gh release "));
+
+  assert.deepEqual(releaseCommands.map((line) => line.split(/\s+/)[2]), [
+    "view", "upload", "edit", "create",
+  ]);
+  for (const command of releaseCommands) {
+    assert.match(command, /--repo\s+"\$env:GITHUB_REPOSITORY"/, command);
+  }
 });
 
 test("the build contract gates every emitted JavaScript chunk at 500 KiB and reports sizes", () => {

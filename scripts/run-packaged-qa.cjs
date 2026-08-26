@@ -2,6 +2,7 @@ const { execFile, spawn } = require("node:child_process");
 const { randomUUID } = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { inflateSync } = require("node:zlib");
 
 const {
   buildQaSegmentPlan,
@@ -29,6 +30,22 @@ async function pathExists(file) {
   } catch {
     return false;
   }
+}
+
+const CRC32_TABLE = Uint32Array.from({ length: 256 }, (_, index) => {
+  let value = index;
+  for (let bit = 0; bit < 8; bit += 1) {
+    value = (value >>> 1) ^ ((value & 1) ? 0xedb88320 : 0);
+  }
+  return value >>> 0;
+});
+
+function crc32(buffer, start, end) {
+  let value = 0xffffffff;
+  for (let index = start; index < end; index += 1) {
+    value = CRC32_TABLE[(value ^ buffer[index]) & 0xff] ^ (value >>> 8);
+  }
+  return (value ^ 0xffffffff) >>> 0;
 }
 
 function killWindowsProcessTree(pid, { execFileImpl = execFile } = {}) {
@@ -70,16 +87,24 @@ function validatePngScreenshot(buffer, filename) {
   let offset = signature.length;
   let chunkIndex = 0;
   let foundIdat = false;
+  const idatChunks = [];
   let foundIend = false;
   let actualWidth = null;
   let actualHeight = null;
+  let bytesPerPixel = null;
   while (offset < buffer.length) {
     if (buffer.length - offset < 12) throw new Error(`${filename} PNG chunk is truncated`);
     const dataLength = buffer.readUInt32BE(offset);
     if (dataLength > buffer.length - offset - 12) throw new Error(`${filename} PNG chunk crosses the file boundary`);
     const type = buffer.toString("ascii", offset + 4, offset + 8);
     const dataOffset = offset + 8;
-    const nextOffset = dataOffset + dataLength + 4;
+    const crcOffset = dataOffset + dataLength;
+    const nextOffset = crcOffset + 4;
+    const declaredCrc = buffer.readUInt32BE(crcOffset);
+    const computedCrc = crc32(buffer, offset + 4, crcOffset);
+    if (declaredCrc !== computedCrc) {
+      throw new Error(`${filename} PNG ${type} chunk CRC mismatch`);
+    }
     if (chunkIndex === 0) {
       if (type !== "IHDR" || dataLength !== 13) {
         throw new Error(`${filename} PNG must start with a 13-byte IHDR chunk`);
@@ -89,10 +114,31 @@ function validatePngScreenshot(buffer, filename) {
       if (actualWidth !== expectedWidth || actualHeight !== expectedHeight) {
         throw new Error(`${filename} PNG dimensions ${actualWidth}x${actualHeight} do not match ${expectedWidth}x${expectedHeight}`);
       }
+      if (actualWidth === 0 || actualHeight === 0) {
+        throw new Error(`${filename} PNG dimensions must be positive`);
+      }
+      const bitDepth = buffer[dataOffset + 8];
+      const colorType = buffer[dataOffset + 9];
+      const compressionMethod = buffer[dataOffset + 10];
+      const filterMethod = buffer[dataOffset + 11];
+      const interlaceMethod = buffer[dataOffset + 12];
+      if (bitDepth !== 8) {
+        throw new Error(`${filename} PNG bit depth ${bitDepth} is not the expected 8-bit capture format`);
+      }
+      if (colorType !== 2 && colorType !== 6) {
+        throw new Error(`${filename} PNG color type ${colorType} is not an allowed RGB/RGBA capture format`);
+      }
+      if (compressionMethod !== 0 || filterMethod !== 0 || interlaceMethod !== 0) {
+        throw new Error(`${filename} PNG uses an unsupported compression, filter, or interlace format`);
+      }
+      bytesPerPixel = colorType === 2 ? 3 : 4;
     } else if (type === "IHDR") {
       throw new Error(`${filename} PNG contains a non-initial IHDR chunk`);
     }
-    if (type === "IDAT") foundIdat = true;
+    if (type === "IDAT") {
+      foundIdat = true;
+      idatChunks.push(buffer.subarray(dataOffset, dataOffset + dataLength));
+    }
     if (type === "IEND") {
       if (dataLength !== 0 || nextOffset !== buffer.length) {
         throw new Error(`${filename} PNG IEND is malformed or not the final chunk`);
@@ -105,8 +151,31 @@ function validatePngScreenshot(buffer, filename) {
     chunkIndex += 1;
   }
   if (actualWidth === null || actualHeight === null) throw new Error(`${filename} PNG is missing IHDR`);
+  if (bytesPerPixel === null) throw new Error(`${filename} PNG capture format is missing`);
   if (!foundIdat) throw new Error(`${filename} PNG is missing IDAT`);
   if (!foundIend || offset !== buffer.length) throw new Error(`${filename} PNG is missing a final IEND`);
+  const scanlineBytes = (actualWidth * bytesPerPixel) + 1;
+  const expectedInflatedLength = scanlineBytes * actualHeight;
+  if (!Number.isSafeInteger(expectedInflatedLength)) {
+    throw new Error(`${filename} PNG expected scanline length is unsafe`);
+  }
+  let inflated;
+  try {
+    inflated = inflateSync(Buffer.concat(idatChunks), {
+      maxOutputLength: expectedInflatedLength + 1,
+    });
+  } catch (error) {
+    throw new Error(`${filename} PNG IDAT zlib stream cannot inflate: ${error.message}`);
+  }
+  if (inflated.length !== expectedInflatedLength) {
+    throw new Error(`${filename} PNG inflated pixel length ${inflated.length} does not match ${expectedInflatedLength}`);
+  }
+  for (let row = 0; row < actualHeight; row += 1) {
+    const filterByte = inflated[row * scanlineBytes];
+    if (filterByte > 4) {
+      throw new Error(`${filename} PNG filter byte ${filterByte} is invalid on row ${row}`);
+    }
+  }
   return { width: actualWidth, height: actualHeight };
 }
 

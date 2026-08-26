@@ -295,16 +295,17 @@ jobs:
           - Platform: Windows x64 portable
           - Attachments: ``CWGame-latest.exe`` and ``CWGame-latest.sha256``
           "@ | Set-Content -LiteralPath $notes -Encoding utf8
-          gh release view $tag *> $null
+          gh release view $tag --repo "$env:GITHUB_REPOSITORY" *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag $env:RELEASE_EXE $env:RELEASE_SHA --clobber
-            gh release edit $tag --title "CWGame $tag" --notes-file $notes
+            gh release upload $tag $env:RELEASE_EXE $env:RELEASE_SHA --clobber --repo "$env:GITHUB_REPOSITORY"
+            gh release edit $tag --title "CWGame $tag" --notes-file $notes --repo "$env:GITHUB_REPOSITORY"
           } else {
             gh release create $tag `
               $env:RELEASE_EXE `
               $env:RELEASE_SHA `
               --verify-tag `
               --title "CWGame $tag" `
-              --notes-file $notes
+              --notes-file $notes `
+              --repo "$env:GITHUB_REPOSITORY"
           }
 
