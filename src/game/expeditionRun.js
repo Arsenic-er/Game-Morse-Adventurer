@@ -9,6 +9,7 @@ export const EXPEDITION_STATE_VERSION = 1;
 export const EXPEDITION_DURATION_SECONDS = 900;
 export const EXPEDITION_DURATION_MILLISECONDS = EXPEDITION_DURATION_SECONDS * 1_000;
 export const MAX_EXPEDITION_CONTACTS = 8;
+export const MAX_EXPEDITION_SETTLED_QSO_PROOFS = 80;
 const MAX_RECOVERY_ACTIONS = 4;
 const MILLIWATT_MILLISECONDS_PER_WH = 3_600_000_000;
 const SETUP_MISTAKE_TIME_PENALTY_MILLISECONDS = 30_000;
@@ -550,6 +551,7 @@ export function emptyExpeditionState() {
     activeRun: null,
     settledRunIds: [],
     completedRuns: [],
+    settledQsoProofs: [],
     expeditionTreeUnlocked: false,
   };
 }
@@ -570,6 +572,72 @@ function normalizeRunSummary(value) {
   };
 }
 
+function strictOwnText(value, key, maximum) {
+  const supplied = own(value, key);
+  if (typeof supplied !== "string" || supplied.length === 0 || supplied.length > maximum
+    || supplied !== supplied.trim() || /[\u0000-\u001F\u007F]/.test(supplied)) return "";
+  return supplied;
+}
+
+function normalizeSettlementProof(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runId = strictOwnText(value, "runId", 128);
+  const qsoId = strictOwnText(value, "qsoId", 96);
+  const siteId = strictOwnText(value, "siteId", 64);
+  const personId = strictOwnText(value, "personId", 96);
+  const stationId = strictOwnText(value, "stationId", 96);
+  const completedAtText = strictOwnText(value, "completedAt", 40);
+  const playerLocationId = strictOwnText(value, "playerLocationId", 96);
+  const site = expeditionSiteById(siteId);
+  const completedAt = iso(completedAtText);
+  if (!runId || !qsoId || !site || !personId || !stationId || !completedAt
+    || playerLocationId !== `expedition:${site.id}` || own(value, "isFictional") !== true) {
+    return null;
+  }
+  return {
+    runId,
+    qsoId,
+    siteId: site.id,
+    personId,
+    stationId,
+    completedAt,
+    playerLocationId,
+    isFictional: true,
+  };
+}
+
+export function normalizeExpeditionSettlementProofs(value) {
+  if (!Array.isArray(value)) return [];
+  let retained;
+  try {
+    retained = value.slice(-MAX_EXPEDITION_SETTLED_QSO_PROOFS);
+  } catch {
+    return [];
+  }
+  const normalized = [];
+  const runIds = new Set();
+  const qsoIds = new Set();
+  const rejectedRunIds = new Set();
+  const rejectedQsoIds = new Set();
+  try {
+    for (const candidate of retained) {
+      const proof = normalizeSettlementProof(candidate);
+      if (!proof) continue;
+      if (runIds.has(proof.runId) || qsoIds.has(proof.qsoId)) {
+        rejectedRunIds.add(proof.runId);
+        rejectedQsoIds.add(proof.qsoId);
+      }
+      runIds.add(proof.runId);
+      qsoIds.add(proof.qsoId);
+      normalized.push(proof);
+    }
+  } catch {
+    return [];
+  }
+  return deepFreeze(normalized.filter((proof) => !rejectedRunIds.has(proof.runId)
+    && !rejectedQsoIds.has(proof.qsoId)));
+}
+
 export function normalizeExpeditionState(value) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const completedMap = new Map();
@@ -587,11 +655,13 @@ export function normalizeExpeditionState(value) {
   const migrationBaseline = Number(own(source, "version")) >= EXPEDITION_STATE_VERSION
     ? [] : completedRuns.map(({ runId }) => runId);
   const settledRunIds = [...new Set([...suppliedSettled, ...migrationBaseline])].slice(-100);
+  const settledQsoProofs = normalizeExpeditionSettlementProofs(own(source, "settledQsoProofs"));
   return deepFreeze({
     version: EXPEDITION_STATE_VERSION,
     activeRun: own(source, "activeRun") ? normalizeExpeditionRun(own(source, "activeRun")) : null,
     settledRunIds,
     completedRuns,
+    settledQsoProofs,
     expeditionTreeUnlocked: own(source, "expeditionTreeUnlocked") === true,
   });
 }

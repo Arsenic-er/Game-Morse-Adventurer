@@ -135,6 +135,11 @@ export function settleExpeditionRun(save, runValue, settledAtValue) {
     personId: contact.personId,
     stationId: contact.stationId,
   };
+  const settlementProof = {
+    ...completedRun,
+    playerLocationId: `expedition:${run.fieldSite.id}`,
+    isFictional: true,
+  };
   const pendingSave = {
     ...save,
     expeditionStateVersion: 1,
@@ -143,6 +148,7 @@ export function settleExpeditionRun(save, runValue, settledAtValue) {
       activeRun: expeditionState.activeRun?.runId === run.runId ? null : expeditionState.activeRun,
       settledRunIds: [...expeditionState.settledRunIds, run.runId],
       completedRuns: [...expeditionState.completedRuns, completedRun],
+      settledQsoProofs: [...expeditionState.settledQsoProofs, settlementProof],
     }),
   };
   const qsoSettlement = recordCompletedQso(pendingSave, qsoCandidate(save, run, contact, qsoId));

@@ -135,6 +135,16 @@ test("successful expedition settlement is atomic and links QSO, SORA relationshi
   assert.equal(missionBoard(settled.save).story.at(-1).status, "ready");
   assert.equal(settled.save.expeditionState.completedRuns[0].personId, "person:sora");
   assert.equal(settled.save.expeditionState.completedRuns[0].stationId, "station:sim6jp");
+  assert.deepEqual(settled.save.expeditionState.settledQsoProofs, [{
+    runId: run.runId,
+    qsoId: `expedition-qso:${run.runId}`,
+    siteId: "sunward-hill",
+    personId: "person:sora",
+    stationId: "station:sim6jp",
+    completedAt: "2026-08-25T09:06:00.000Z",
+    playerLocationId: "expedition:sunward-hill",
+    isFictional: true,
+  }]);
   const normalizedOnce = normalizeSave(settled.save);
   const normalizedTwice = normalizeSave(normalizedOnce);
   assert.deepEqual(normalizedTwice, normalizedOnce);

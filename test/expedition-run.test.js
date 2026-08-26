@@ -4,6 +4,7 @@ import test from "node:test";
 import { createExpeditionLoadout } from "../src/game/expeditionCatalog.js";
 import {
   EXPEDITION_RUN_VERSION,
+  MAX_EXPEDITION_SETTLED_QSO_PROOFS,
   abandonExpeditionRun,
   advanceExpeditionSetup,
   attemptExpeditionSetup,
@@ -11,6 +12,7 @@ import {
   createExpeditionRun,
   emptyExpeditionState,
   normalizeExpeditionRun,
+  normalizeExpeditionSettlementProofs,
   normalizeExpeditionState,
   receiveExpeditionContact,
   requestExpeditionRecovery,
@@ -301,8 +303,69 @@ test("hostile and legacy expedition aggregates normalize to bounded idempotent s
     activeRun: null,
     settledRunIds: [],
     completedRuns: [],
+    settledQsoProofs: [],
     expeditionTreeUnlocked: false,
   });
+});
+
+test("expedition settlement proofs are own-only, fixed-shape, bounded, and idempotent", () => {
+  const valid = (index = 0) => ({
+    runId: `proof-run-${index}`,
+    qsoId: `expedition-qso:proof-run-${index}`,
+    siteId: "sunward-hill",
+    personId: "person:sora",
+    stationId: "station:sim6jp",
+    completedAt: "2026-08-25T09:06:00.000Z",
+    playerLocationId: "expedition:sunward-hill",
+    isFictional: true,
+    ignored: "must not survive",
+  });
+  const inherited = Object.create(valid("inherited"));
+  const normalized = normalizeExpeditionSettlementProofs([
+    inherited,
+    { ...valid(1), playerLocationId: "expedition:lakeview-hill" },
+    { ...valid(2), isFictional: false },
+    valid(3),
+  ]);
+  assert.deepEqual(normalized, [{
+    runId: "proof-run-3",
+    qsoId: "expedition-qso:proof-run-3",
+    siteId: "sunward-hill",
+    personId: "person:sora",
+    stationId: "station:sim6jp",
+    completedAt: "2026-08-25T09:06:00.000Z",
+    playerLocationId: "expedition:sunward-hill",
+    isFictional: true,
+  }]);
+  assert.deepEqual(normalizeExpeditionSettlementProofs(structuredClone(normalized)), normalized);
+
+  const hostile = new Proxy(
+    Array.from({ length: 10_000 }, (_, index) => valid(index)),
+    {
+      get(target, property, receiver) {
+        if (/^\d+$/.test(String(property)) && Number(property) < 9_000) {
+          throw new Error("unbounded expedition proof scan");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    },
+  );
+  const bounded = normalizeExpeditionSettlementProofs(hostile);
+  assert.equal(bounded.length, MAX_EXPEDITION_SETTLED_QSO_PROOFS);
+  assert.equal(bounded[0].runId, "proof-run-9920");
+  assert.equal(bounded.at(-1).runId, "proof-run-9999");
+
+  const throwing = new Proxy([valid(4)], {
+    get(target, property, receiver) {
+      if (property === "0") throw new Error("hostile retained proof");
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  assert.deepEqual(normalizeExpeditionSettlementProofs(throwing), []);
+
+  const state = normalizeExpeditionState({ version: 1, settledQsoProofs: hostile });
+  assert.equal(state.settledQsoProofs.length, MAX_EXPEDITION_SETTLED_QSO_PROOFS);
+  assert.deepEqual(normalizeExpeditionState(structuredClone(state)), state);
 });
 
 test("state normalization bounds hostile settlement-ledger scans", () => {

@@ -73,6 +73,11 @@ function withExpeditionEvidence(save, overrides = {}) {
       completedRuns: [...(save.expeditionState?.completedRuns ?? []), {
         runId, completedAt, siteId, qsoId, personId, stationId,
       }],
+      settledQsoProofs: [...(save.expeditionState?.settledQsoProofs ?? []), {
+        runId, qsoId, siteId, personId, stationId, completedAt,
+        playerLocationId: `expedition:${siteId}`,
+        isFictional: true,
+      }],
     },
     qsoRecords: {
       ...(save.qsoRecords ?? {}),
@@ -302,6 +307,15 @@ test("chapter six requires a bounded, fully linked expedition settlement before 
     ...linked,
     qsoLogs: linked.qsoLogs.map((log) => ({ ...log, stationId: "station:other" })),
   };
+  const wrongProofLink = {
+    ...linked,
+    expeditionState: {
+      ...linked.expeditionState,
+      settledQsoProofs: linked.expeditionState.settledQsoProofs.map((proof) => ({
+        ...proof, playerLocationId: "expedition:lakeview-hill",
+      })),
+    },
+  };
   const forgedIdentityPair = {
     ...linked,
     expeditionState: {
@@ -316,7 +330,7 @@ test("chapter six requires a bounded, fully linked expedition settlement before 
   };
   for (const forged of [
     summaryOnly, settledOnly, qsoOnly, qsoLedgerOnly,
-    wrongRunLink, wrongSiteLink, wrongIdentityLink, forgedIdentityPair,
+    wrongRunLink, wrongSiteLink, wrongIdentityLink, wrongProofLink, forgedIdentityPair,
   ]) {
     assert.equal(missionBoard(forged).story.at(-1).status, "active");
     const rejected = claimMission(forged, "story-06", "2026-08-12T10:05:00.000Z");
@@ -404,84 +418,110 @@ test("chapter six mission evaluation bounds hostile expedition history scans", (
       ...accepted.save.expeditionState,
       settledRunIds: guarded("new-run"),
       completedRuns,
+      settledQsoProofs: guarded({
+        runId: "new-run", qsoId: "expedition-qso:new-run", siteId: "sunward-hill",
+        personId: "person:sora", stationId: "station:sim6jp",
+        completedAt: "2026-08-12T10:00:00.000Z",
+        playerLocationId: "expedition:sunward-hill", isFictional: true,
+      }),
     },
   }).story.at(-1).status, "ready");
 });
 
-test("chapter six locates a normalized QSO ledger id with bounded safe reads", () => {
+test("chapter six ignores the global QSO ledger and relies on its bounded proof ledger", () => {
   const accepted = acceptMission(baseSave({
     missionState: normalizeMissionState({
       claimedMissionIds: ["story-01", "story-02", "story-03", "story-04", "story-05"],
     }),
     expeditionState: { settledRunIds: [], completedRuns: [] },
   }), "story-06", ACCEPTED_AT).save;
-  const linked = withExpeditionEvidence(accepted, { runId: "binary-ledger-run" });
-  const targetId = "expedition-qso:binary-ledger-run";
-  const crowded = {
-    ...linked,
-    qsoRecords: {
-      ...linked.qsoRecords,
-      settledQsoIds: [
-        targetId,
-        ...Array.from({ length: 250 }, (_, index) => `z-veteran-${String(index).padStart(3, "0")}`),
-      ],
-    },
-  };
-  assert.equal(missionBoard(crowded).story.at(-1).status, "ready");
-
-  let indexedReads = 0;
-  const virtual = [];
-  virtual.length = 1_000_000;
-  const hugeSortedLedger = new Proxy(virtual, {
+  const linked = withExpeditionEvidence(accepted, { runId: "proof-ledger-run" });
+  const hostileGlobal = [];
+  hostileGlobal.length = 251;
+  hostileGlobal[0] = "z-out-of-order";
+  hostileGlobal[1] = "duplicate";
+  hostileGlobal[2] = "duplicate";
+  const guardedGlobal = new Proxy(hostileGlobal, {
     get(target, property, receiver) {
-      if (/^\d+$/.test(String(property))) {
-        indexedReads += 1;
-        if (indexedReads > 128) throw new Error("unbounded sorted-ledger read");
-        const index = Number(property);
-        return index === 0 ? targetId : `z-${String(index).padStart(9, "0")}`;
-      }
+      if (/^\d+$/.test(String(property))) throw new Error("global QSO ledger must not be read");
       return Reflect.get(target, property, receiver);
     },
     getOwnPropertyDescriptor(target, property) {
-      if (/^\d+$/.test(String(property))) {
-        indexedReads += 1;
-        if (indexedReads > 128) throw new Error("unbounded sorted-ledger descriptor read");
-        const index = Number(property);
-        return {
-          configurable: true,
-          enumerable: true,
-          writable: false,
-          value: index === 0 ? targetId : `z-${String(index).padStart(9, "0")}`,
-        };
-      }
+      if (/^\d+$/.test(String(property))) throw new Error("global QSO descriptors must not be read");
       return Reflect.getOwnPropertyDescriptor(target, property);
     },
   });
+  assert.doesNotThrow(() => missionBoard({
+    ...linked,
+    qsoRecords: { ...linked.qsoRecords, settledQsoIds: guardedGlobal },
+  }));
   assert.equal(missionBoard({
     ...linked,
-    qsoRecords: { ...linked.qsoRecords, settledQsoIds: hugeSortedLedger },
+    qsoRecords: { ...linked.qsoRecords, settledQsoIds: guardedGlobal },
   }).story.at(-1).status, "ready");
-  assert.ok(indexedReads <= 128);
+});
 
-  const sparse = Array(3);
-  sparse[0] = targetId;
-  sparse[2] = "z-veteran";
-  const throwing = new Proxy([targetId], {
-    getOwnPropertyDescriptor() { throw new Error("hostile ledger"); },
+test("chapter six fully validates every retained proof and bounds hostile proof histories", () => {
+  const accepted = acceptMission(baseSave({
+    missionState: normalizeMissionState({
+      claimedMissionIds: ["story-01", "story-02", "story-03", "story-04", "story-05"],
+    }),
+    expeditionState: { settledRunIds: [], completedRuns: [], settledQsoProofs: [] },
+  }), "story-06", ACCEPTED_AT).save;
+  const linked = withExpeditionEvidence(accepted, { runId: "bounded-proof-run" });
+  const targetProof = linked.expeditionState.settledQsoProofs[0];
+  const unrelatedProof = (index) => ({
+    ...targetProof,
+    runId: `unrelated-${index}`,
+    qsoId: `unrelated-qso-${index}`,
   });
-  for (const invalidLedger of [
-    [targetId, "a-out-of-order"],
-    [targetId, targetId, "z-veteran"],
-    sparse,
-    throwing,
-  ]) {
-    assert.doesNotThrow(() => missionBoard({
-      ...linked,
-      qsoRecords: { ...linked.qsoRecords, settledQsoIds: invalidLedger },
-    }));
+
+  const invalidTarget = { ...targetProof, stationId: "station:other" };
+  for (const index of [0, 20, 79]) {
+    const proofs = Array.from({ length: 80 }, (_, proofIndex) => unrelatedProof(proofIndex));
+    proofs[index] = invalidTarget;
     assert.equal(missionBoard({
       ...linked,
-      qsoRecords: { ...linked.qsoRecords, settledQsoIds: invalidLedger },
+      expeditionState: { ...linked.expeditionState, settledQsoProofs: proofs },
     }).story.at(-1).status, "active");
   }
+
+  const sparse = Array(80);
+  sparse[79] = invalidTarget;
+  assert.equal(missionBoard({
+    ...linked,
+    expeditionState: { ...linked.expeditionState, settledQsoProofs: sparse },
+  }).story.at(-1).status, "active");
+
+  const throwing = new Proxy([targetProof], {
+    get(target, property, receiver) {
+      if (property === "0") throw new Error("hostile proof");
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  assert.doesNotThrow(() => missionBoard({
+    ...linked,
+    expeditionState: { ...linked.expeditionState, settledQsoProofs: throwing },
+  }));
+  assert.equal(missionBoard({
+    ...linked,
+    expeditionState: { ...linked.expeditionState, settledQsoProofs: throwing },
+  }).story.at(-1).status, "active");
+
+  const huge = new Proxy(
+    [...Array.from({ length: 9_920 }, (_, index) => unrelatedProof(index)),
+      ...Array.from({ length: 79 }, (_, index) => unrelatedProof(index + 9_920)), targetProof],
+    {
+      get(target, property, receiver) {
+        if (/^\d+$/.test(String(property)) && Number(property) < 9_000) {
+          throw new Error("unbounded expedition proof read");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    },
+  );
+  assert.equal(missionBoard({
+    ...linked,
+    expeditionState: { ...linked.expeditionState, settledQsoProofs: huge },
+  }).story.at(-1).status, "ready");
 });
