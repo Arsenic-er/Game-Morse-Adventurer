@@ -28,7 +28,7 @@ test("current rewards keep missions meaningful without making them the only inco
     newRegion: 20,
     newDistanceRecord: 25,
   });
-  assert.equal(report.sourceValues.storyRewards.reduce((sum, mission) => sum + mission.moneyReward, 0), 1590);
+  assert.equal(report.sourceValues.storyRewards.reduce((sum, mission) => sum + mission.moneyReward, 0), 2240);
   assert.equal(report.income.qso, 3495);
   assert.equal(report.income.story, 1590);
   assert.equal(report.income.daily, 1700);

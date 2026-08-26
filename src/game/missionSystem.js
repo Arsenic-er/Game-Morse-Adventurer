@@ -1,6 +1,6 @@
 export const MISSION_STATE_VERSION = 2;
 export const MAX_ACTIVE_DAILY_MISSIONS = 2;
-export const STORY_MISSION_IDS = Object.freeze(["story-01", "story-02", "story-03", "story-04", "story-05"]);
+export const STORY_MISSION_IDS = Object.freeze(["story-01", "story-02", "story-03", "story-04", "story-05", "story-06"]);
 export const RECENT_MISSION_DNA_LIMIT = 12;
 export const MISSION_EVENT_LIMIT = 120;
 
@@ -48,6 +48,16 @@ const STORY_MISSIONS = Object.freeze([
       missionPhase: "lights-control", requiredTopics: ["CALLSIGN", "RST", "REGION"],
       recoveryActions: ["AGN", "QRS"], eventId: "lights-across-air", eventMode: "story",
       minimumGrade: "base",
+    }),
+  }),
+  Object.freeze({
+    id: "story-06", type: "story", chapter: 6, titleKey: "story06Title", descriptionKey: "story06Description",
+    objectiveKey: "story06Objective", briefKey: "story06Brief", debriefKey: "story06Debrief",
+    objective: "hill-expedition", target: 1, prerequisiteId: "story-05",
+    moneyReward: 650, technologyPointsReward: 3,
+    contract: Object.freeze({
+      missionPhase: "hill-expedition", requiredTopics: ["QTH", "POWER", "ANTENNA"],
+      recoveryActions: ["AGN", "QRS"],
     }),
   }),
 ]);
@@ -189,6 +199,7 @@ function normalizeActiveMission(value) {
     acceptedAt,
     baselineQsoIds: normalizeStringList(value?.baselineQsoIds, 200, 96),
     baselineLightsRunIds: normalizeStringList(value?.baselineLightsRunIds, 200, 128),
+    baselineExpeditionRunIds: normalizeStringList(value?.baselineExpeditionRunIds, 200, 128),
     knownCallsigns: normalizeStringList(value?.knownCallsigns, 2000, 16),
     contract: normalizeMissionContract(value?.contract),
     dnaFingerprint: String(value?.dnaFingerprint ?? "").trim().slice(0, 240) || null,
@@ -343,6 +354,18 @@ function evaluateObjective(definition, logs, save, active = null) {
       && Number.isFinite(acceptedAt) && Number.isFinite(completedAt) && completedAt >= acceptedAt
       && (gradeRank[best.grade] ?? 0) >= gradeRank.base ? 1 : 0;
   }
+  if (definition.objective === "hill-expedition") {
+    const acceptedAt = Date.parse(active?.acceptedAt ?? "");
+    const baseline = new Set(active?.baselineExpeditionRunIds ?? []);
+    const completedRuns = Array.isArray(save?.expeditionState?.completedRuns)
+      ? save.expeditionState.completedRuns.slice(-80) : [];
+    current = completedRuns.some((run) => {
+      const completedAt = Date.parse(run?.completedAt ?? "");
+      return String(run?.runId ?? "") && !baseline.has(String(run.runId))
+        && Number.isFinite(acceptedAt) && Number.isFinite(completedAt) && completedAt >= acceptedAt
+        && String(run?.qsoId ?? "").trim();
+    }) ? 1 : 0;
+  }
   if (definition.objective === "clean-qso") {
     current = logs.filter((entry) => safeInteger(entry?.repeatRequests) === 0
       && Number(entry?.transmitAccuracy) >= 85 && Number(entry?.keyingScore) >= 75).length;
@@ -427,6 +450,8 @@ export function acceptMission(save, missionId, acceptedAt = new Date().toISOStri
     baselineQsoIds: (Array.isArray(save?.qsoLogs) ? save.qsoLogs : []).map(({ id }) => id).filter(Boolean),
     baselineLightsRunIds: (Array.isArray(save?.lightsEventState?.settledRunIds)
       ? save.lightsEventState.settledRunIds : []).map((id) => String(id)).filter(Boolean),
+    baselineExpeditionRunIds: (Array.isArray(save?.expeditionState?.settledRunIds)
+      ? save.expeditionState.settledRunIds.slice(-200) : []).map((id) => String(id)).filter(Boolean),
     knownCallsigns: (Array.isArray(save?.operatorRelationships) ? save.operatorRelationships : [])
       .map(({ callsign }) => callsign).filter(Boolean),
     contract: normalizeMissionContract(definition.contract),
@@ -466,6 +491,9 @@ export function claimMission(save, missionId, claimedAt = new Date().toISOString
   const knownOperatorNames = revealedName
     ? [...new Set([...(Array.isArray(save?.knownOperatorNames) ? save.knownOperatorNames : []), revealedName])]
     : save?.knownOperatorNames;
+  const expeditionState = definition.id === "story-06"
+    ? { ...(save?.expeditionState ?? {}), expeditionTreeUnlocked: true }
+    : save?.expeditionState;
   return {
     save: {
       ...save,
@@ -474,6 +502,7 @@ export function claimMission(save, missionId, claimedAt = new Date().toISOString
       money: safeInteger(save?.money) + moneyAwarded,
       technologyPoints: safeInteger(save?.technologyPoints) + technologyPointsAwarded,
       ...(knownOperatorNames ? { knownOperatorNames } : {}),
+      ...(expeditionState ? { expeditionState } : {}),
     },
     claimed: true,
     reason: null,

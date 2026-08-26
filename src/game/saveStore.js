@@ -27,6 +27,9 @@ import {
 import {
   EVENT_RUN_ARCHIVE_VERSION, emptyEventRunArchive, normalizeEventRunArchive,
 } from "./eventRunArchive.js";
+import {
+  EXPEDITION_STATE_VERSION, emptyExpeditionState, normalizeExpeditionState,
+} from "./expeditionRun.js";
 
 export const SAVE_STORAGE_KEY = "game-morse-adventurer.saves.v1";
 export const ACTIVE_SAVE_KEY = "game-morse-adventurer.active-save.v1";
@@ -96,6 +99,8 @@ export function createSave({
     lightsEventState: emptyLightsEventState(),
     eventRunArchiveVersion: EVENT_RUN_ARCHIVE_VERSION,
     eventRunArchive: emptyEventRunArchive(),
+    expeditionStateVersion: EXPEDITION_STATE_VERSION,
+    expeditionState: emptyExpeditionState(),
     technologyPoints: 0,
     unlockedTechnologies: normalizeUnlockedTechnologies([]),
     researchProjectsVersion: RESEARCH_PROJECTS_VERSION,
@@ -193,6 +198,8 @@ export function normalizeSave(save) {
     lightsEventState: normalizeLightsEventState(save?.lightsEventState),
     eventRunArchiveVersion: EVENT_RUN_ARCHIVE_VERSION,
     eventRunArchive: normalizeEventRunArchive(save?.eventRunArchive),
+    expeditionStateVersion: EXPEDITION_STATE_VERSION,
+    expeditionState: normalizeExpeditionState(save?.expeditionState),
     technologyPoints: normalizeTechnologyPoints(save?.technologyPoints),
     unlockedTechnologies: normalizeUnlockedTechnologies(save?.unlockedTechnologies, {
       // Equipment released before the research system remains available to old saves.

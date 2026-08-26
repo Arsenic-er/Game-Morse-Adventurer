@@ -141,7 +141,7 @@ test("chapter five unlocks after chapter four and only accepts a new base lights
     },
   });
   const board = missionBoard(unlocked).story;
-  assert.equal(board.length, 5);
+  assert.equal(board.length, 6);
   assert.equal(board[4].status, "available");
   assert.equal(board[4].objective, "lights-event");
   assert.deepEqual(board[4].contract, {
@@ -185,6 +185,101 @@ test("chapter five remains locked before chapter four is claimed", () => {
   const board = missionBoard(baseSave({
     missionState: normalizeMissionState({ claimedMissionIds: ["story-01", "story-02", "story-03"] }),
   })).story;
-  assert.equal(board.at(-1).id, "story-05");
-  assert.equal(board.at(-1).status, "locked");
+  assert.equal(board[4].id, "story-05");
+  assert.equal(board[4].status, "locked");
+});
+
+test("chapter six unlocks only after chapter five and needs no optional technology or money", () => {
+  const noGrind = baseSave({
+    money: 0,
+    technologyPoints: 0,
+    unlockedTechnologies: [],
+    missionState: normalizeMissionState({
+      claimedMissionIds: ["story-01", "story-02", "story-03", "story-04", "story-05"],
+    }),
+  });
+  const board = missionBoard(noGrind).story;
+  assert.equal(board.length, 6);
+  assert.equal(board.at(-1).id, "story-06");
+  assert.equal(board.at(-1).status, "available");
+  assert.equal(board.at(-1).objective, "hill-expedition");
+  assert.deepEqual(board.at(-1).contract.requiredTopics, ["QTH", "POWER", "ANTENNA"]);
+  assert.equal(acceptMission(noGrind, "story-06", ACCEPTED_AT).accepted, true);
+
+  const locked = missionBoard(baseSave({
+    missionState: normalizeMissionState({
+      claimedMissionIds: ["story-01", "story-02", "story-03", "story-04"],
+    }),
+  })).story.at(-1);
+  assert.equal(locked.id, "story-06");
+  assert.equal(locked.status, "locked");
+});
+
+test("chapter six acceptance freezes prior expedition ids and completion unlocks its task tree on claim", () => {
+  const accepted = acceptMission(baseSave({
+    expeditionState: {
+      version: 1,
+      activeRun: null,
+      settledRunIds: ["old-run"],
+      completedRuns: [{
+        runId: "old-run", completedAt: "2026-08-12T08:00:00.000Z",
+        siteId: "sunward-hill", qsoId: "expedition-qso:old-run",
+      }],
+      expeditionTreeUnlocked: false,
+    },
+    missionState: normalizeMissionState({
+      claimedMissionIds: ["story-01", "story-02", "story-03", "story-04", "story-05"],
+    }),
+  }), "story-06", ACCEPTED_AT);
+  assert.equal(accepted.accepted, true);
+  assert.deepEqual(accepted.save.missionState.activeMissions[0].baselineExpeditionRunIds, ["old-run"]);
+  assert.equal(missionBoard(accepted.save).story.at(-1).status, "active");
+
+  const completed = {
+    ...accepted.save,
+    expeditionState: {
+      ...accepted.save.expeditionState,
+      settledRunIds: ["old-run", "new-run"],
+      completedRuns: [...accepted.save.expeditionState.completedRuns, {
+        runId: "new-run", completedAt: "2026-08-12T10:00:00.000Z",
+        siteId: "sunward-hill", qsoId: "expedition-qso:new-run",
+      }],
+    },
+  };
+  assert.equal(missionBoard(completed).story.at(-1).status, "ready");
+  const claimed = claimMission(completed, "story-06", "2026-08-12T10:05:00.000Z");
+  assert.equal(claimed.claimed, true);
+  assert.equal(claimed.save.expeditionState.expeditionTreeUnlocked, true);
+});
+
+test("chapter six mission evaluation bounds hostile expedition history scans", () => {
+  const guarded = (tail) => new Proxy(
+    [...Array(9_999).fill("old"), tail],
+    {
+      get(target, property, receiver) {
+        if (/^\d+$/.test(String(property)) && Number(property) < 9_000) {
+          throw new Error("unbounded mission expedition scan");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    },
+  );
+  const unlocked = baseSave({
+    expeditionState: { settledRunIds: guarded("old-run"), completedRuns: [] },
+    missionState: normalizeMissionState({
+      claimedMissionIds: ["story-01", "story-02", "story-03", "story-04", "story-05"],
+    }),
+  });
+  const accepted = acceptMission(unlocked, "story-06", ACCEPTED_AT);
+  assert.equal(accepted.accepted, true);
+  assert.ok(accepted.save.missionState.activeMissions[0].baselineExpeditionRunIds.length <= 200);
+
+  const completedRuns = guarded({
+    runId: "new-run", completedAt: "2026-08-12T10:00:00.000Z",
+    siteId: "sunward-hill", qsoId: "expedition-qso:new-run",
+  });
+  assert.equal(missionBoard({
+    ...accepted.save,
+    expeditionState: { ...accepted.save.expeditionState, completedRuns },
+  }).story.at(-1).status, "ready");
 });

@@ -15,6 +15,7 @@ import { WORLD_CALENDAR_VERSION, emptyWorldCalendarState } from "../src/game/wor
 import { LIGHTS_EVENT_STATE_VERSION, emptyLightsEventState } from "../src/game/lightsSettlement.js";
 import { EVENT_RUN_ARCHIVE_VERSION, emptyEventRunArchive } from "../src/game/eventRunArchive.js";
 import { ACHIEVEMENT_REWARDS_VERSION } from "../src/game/achievements.js";
+import { EXPEDITION_STATE_VERSION, emptyExpeditionState } from "../src/game/expeditionRun.js";
 
 const SAVE_V035_FIXTURE = JSON.parse(readFileSync(
   new URL("./fixtures/save-v035-sanitized.json", import.meta.url),
@@ -71,6 +72,8 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   assert.deepEqual(save.lightsEventState, emptyLightsEventState());
   assert.equal(save.eventRunArchiveVersion, EVENT_RUN_ARCHIVE_VERSION);
   assert.deepEqual(save.eventRunArchive, emptyEventRunArchive());
+  assert.equal(save.expeditionStateVersion, EXPEDITION_STATE_VERSION);
+  assert.deepEqual(save.expeditionState, emptyExpeditionState());
   assert.deepEqual(save.qsoRecords, {
     total: 0,
     longestDistanceKm: 0,
@@ -178,6 +181,31 @@ test("a sanitized v0.35 save normalizes twice without progress loss or retroacti
   assert.deepEqual(first.claimedAchievementRewards, ["first-qso"]);
   assert.equal(first.eventRunArchiveVersion, EVENT_RUN_ARCHIVE_VERSION);
   assert.deepEqual(first.eventRunArchive, emptyEventRunArchive());
+  assert.equal(first.expeditionStateVersion, EXPEDITION_STATE_VERSION);
+  assert.deepEqual(first.expeditionState, emptyExpeditionState());
+});
+
+test("expedition migration is idempotent and never mutates permanent progress or back-pays legacy runs", () => {
+  const source = {
+    ...SAVE_V035_FIXTURE,
+    expeditionState: {
+      completedRuns: [{
+        runId: "legacy-expedition", completedAt: "2025-05-02T04:00:00Z",
+        siteId: "sunward-hill",
+      }],
+    },
+  };
+  const first = normalizeSave(source);
+  const second = normalizeSave(structuredClone(first));
+  assert.deepEqual(second, first);
+  assert.equal(first.money, 1234);
+  assert.equal(first.technologyPoints, 7);
+  assert.deepEqual(first.ownedEquipment, ["squid-01", "usdr-8"]);
+  assert.deepEqual(first.ownedAntennas, ["dipole", "vertical"]);
+  assert.deepEqual(first.accessories, ["cw-filter-500"]);
+  assert.equal(first.locationId, SAVE_V035_FIXTURE.locationId);
+  assert.deepEqual(first.eventRunArchive, emptyEventRunArchive());
+  assert.deepEqual(first.expeditionState.settledRunIds, ["legacy-expedition"]);
 });
 
 test("achievement v1 to v2 migration baselines historical lights milestones without changing value", () => {
