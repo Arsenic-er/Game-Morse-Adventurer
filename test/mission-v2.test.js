@@ -58,6 +58,40 @@ function storyFourSave() {
   });
 }
 
+function withExpeditionEvidence(save, overrides = {}) {
+  const runId = overrides.runId ?? "new-run";
+  const qsoId = overrides.qsoId ?? `expedition-qso:${runId}`;
+  const siteId = overrides.siteId ?? "sunward-hill";
+  const personId = overrides.personId ?? "person:sora";
+  const stationId = overrides.stationId ?? "station:sim6jp";
+  const completedAt = overrides.completedAt ?? "2026-08-12T10:00:00.000Z";
+  return {
+    ...save,
+    expeditionState: {
+      ...save.expeditionState,
+      settledRunIds: [...(save.expeditionState?.settledRunIds ?? []), runId],
+      completedRuns: [...(save.expeditionState?.completedRuns ?? []), {
+        runId, completedAt, siteId, qsoId, personId, stationId,
+      }],
+    },
+    qsoRecords: {
+      ...(save.qsoRecords ?? {}),
+      settledQsoIds: [...(save.qsoRecords?.settledQsoIds ?? []), qsoId],
+    },
+    qsoLogs: [{
+      id: qsoId,
+      callsign: "SIM6JP",
+      completedAt,
+      expeditionRunId: runId,
+      expeditionSiteId: siteId,
+      playerLocationId: `expedition:${siteId}`,
+      personId,
+      stationId,
+      isFictional: true,
+    }, ...(save.qsoLogs ?? [])],
+  };
+}
+
 test("chapter four requires target, weak propagation, a recovered link, and weather exchange", () => {
   const initial = storyFourSave();
   assert.equal(missionBoard(initial).story[3].status, "active");
@@ -215,7 +249,7 @@ test("chapter six unlocks only after chapter five and needs no optional technolo
   assert.equal(locked.status, "locked");
 });
 
-test("chapter six acceptance freezes prior expedition ids and completion unlocks its task tree on claim", () => {
+test("chapter six requires a bounded, fully linked expedition settlement before claim", () => {
   const accepted = acceptMission(baseSave({
     expeditionState: {
       version: 1,
@@ -235,20 +269,69 @@ test("chapter six acceptance freezes prior expedition ids and completion unlocks
   assert.deepEqual(accepted.save.missionState.activeMissions[0].baselineExpeditionRunIds, ["old-run"]);
   assert.equal(missionBoard(accepted.save).story.at(-1).status, "active");
 
-  const completed = {
+  const linked = withExpeditionEvidence(accepted.save);
+  const summaryOnly = {
     ...accepted.save,
     expeditionState: {
       ...accepted.save.expeditionState,
-      settledRunIds: ["old-run", "new-run"],
-      completedRuns: [...accepted.save.expeditionState.completedRuns, {
-        runId: "new-run", completedAt: "2026-08-12T10:00:00.000Z",
-        siteId: "sunward-hill", qsoId: "expedition-qso:new-run",
-      }],
+      completedRuns: linked.expeditionState.completedRuns,
     },
   };
-  assert.equal(missionBoard(completed).story.at(-1).status, "ready");
-  const claimed = claimMission(completed, "story-06", "2026-08-12T10:05:00.000Z");
+  const settledOnly = {
+    ...summaryOnly,
+    expeditionState: {
+      ...summaryOnly.expeditionState,
+      settledRunIds: linked.expeditionState.settledRunIds,
+    },
+  };
+  const qsoOnly = {
+    ...summaryOnly,
+    qsoRecords: linked.qsoRecords,
+    qsoLogs: linked.qsoLogs,
+  };
+  const qsoLedgerOnly = { ...settledOnly, qsoRecords: linked.qsoRecords };
+  const wrongRunLink = {
+    ...linked,
+    qsoLogs: linked.qsoLogs.map((log) => ({ ...log, expeditionRunId: "other-run" })),
+  };
+  const wrongSiteLink = {
+    ...linked,
+    qsoLogs: linked.qsoLogs.map((log) => ({ ...log, expeditionSiteId: "lakeview-hill" })),
+  };
+  const wrongIdentityLink = {
+    ...linked,
+    qsoLogs: linked.qsoLogs.map((log) => ({ ...log, stationId: "station:other" })),
+  };
+  const forgedIdentityPair = {
+    ...linked,
+    expeditionState: {
+      ...linked.expeditionState,
+      completedRuns: linked.expeditionState.completedRuns.map((run) => ({
+        ...run, personId: "person:legacy:SIM6JP", stationId: "station:legacy:SIM6JP",
+      })),
+    },
+    qsoLogs: linked.qsoLogs.map((log) => ({
+      ...log, personId: "person:legacy:SIM6JP", stationId: "station:legacy:SIM6JP",
+    })),
+  };
+  for (const forged of [
+    summaryOnly, settledOnly, qsoOnly, qsoLedgerOnly,
+    wrongRunLink, wrongSiteLink, wrongIdentityLink, forgedIdentityPair,
+  ]) {
+    assert.equal(missionBoard(forged).story.at(-1).status, "active");
+    const rejected = claimMission(forged, "story-06", "2026-08-12T10:05:00.000Z");
+    assert.equal(rejected.claimed, false);
+    assert.equal(rejected.reason, "MISSION_NOT_COMPLETE");
+    assert.equal(rejected.save.money, forged.money);
+    assert.equal(rejected.save.technologyPoints, forged.technologyPoints);
+    assert.equal(rejected.save.expeditionState.expeditionTreeUnlocked, false);
+  }
+
+  assert.equal(missionBoard(linked).story.at(-1).status, "ready");
+  const claimed = claimMission(linked, "story-06", "2026-08-12T10:05:00.000Z");
   assert.equal(claimed.claimed, true);
+  assert.equal(claimed.moneyAwarded, 650);
+  assert.equal(claimed.technologyPointsAwarded, 3);
   assert.equal(claimed.save.expeditionState.expeditionTreeUnlocked, true);
 });
 
@@ -272,17 +355,7 @@ test("story-six and earlier mission claims saturate integer rewards safely", () 
     }),
     expeditionState: { settledRunIds: [], completedRuns: [] },
   }), "story-06", ACCEPTED_AT).save;
-  const ready = {
-    ...accepted,
-    expeditionState: {
-      ...accepted.expeditionState,
-      settledRunIds: ["bounded-story-six"],
-      completedRuns: [{
-        runId: "bounded-story-six", completedAt: "2026-08-12T10:00:00.000Z",
-        siteId: "sunward-hill", qsoId: "expedition-qso:bounded-story-six",
-      }],
-    },
-  };
+  const ready = withExpeditionEvidence(accepted, { runId: "bounded-story-six" });
   const storySixClaim = claimMission(ready, "story-06", "2026-08-12T10:05:00.000Z");
   assert.equal(storySixClaim.claimed, true);
   assert.equal(storySixClaim.save.money, Number.MAX_SAFE_INTEGER);
@@ -315,9 +388,22 @@ test("chapter six mission evaluation bounds hostile expedition history scans", (
   const completedRuns = guarded({
     runId: "new-run", completedAt: "2026-08-12T10:00:00.000Z",
     siteId: "sunward-hill", qsoId: "expedition-qso:new-run",
+    personId: "person:sora", stationId: "station:sim6jp",
   });
   assert.equal(missionBoard({
     ...accepted.save,
-    expeditionState: { ...accepted.save.expeditionState, completedRuns },
+    qsoLogs: guarded({
+      id: "expedition-qso:new-run", completedAt: "2026-08-12T10:00:00.000Z",
+      callsign: "SIM6JP",
+      expeditionRunId: "new-run", expeditionSiteId: "sunward-hill",
+      playerLocationId: "expedition:sunward-hill",
+      personId: "person:sora", stationId: "station:sim6jp", isFictional: true,
+    }),
+    qsoRecords: { settledQsoIds: guarded("expedition-qso:new-run") },
+    expeditionState: {
+      ...accepted.save.expeditionState,
+      settledRunIds: guarded("new-run"),
+      completedRuns,
+    },
   }).story.at(-1).status, "ready");
 });

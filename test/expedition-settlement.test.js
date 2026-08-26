@@ -22,6 +22,7 @@ import {
 import {
   acceptMission, emptyMissionState, missionBoard, normalizeMissionState,
 } from "../src/game/missionSystem.js";
+import { normalizeSave } from "../src/game/saveStore.js";
 
 const STARTED_AT = "2026-08-25T09:00:00.000Z";
 
@@ -127,9 +128,17 @@ test("successful expedition settlement is atomic and links QSO, SORA relationshi
   assert.equal(settled.save.qsoLogs[0].personId, "person:sora");
   assert.equal(settled.save.qsoLogs[0].stationId, "station:sim6jp");
   assert.equal(settled.save.qsoLogs[0].playerLocationId, "expedition:sunward-hill");
+  assert.equal(settled.save.qsoLogs[0].expeditionRunId, run.runId);
+  assert.equal(settled.save.qsoLogs[0].expeditionSiteId, "sunward-hill");
   assert.equal(settled.save.operatorRelationships[0].personId, "person:sora");
   assert.equal(settled.save.operatorRelationships[0].completedQsos, 1);
   assert.equal(missionBoard(settled.save).story.at(-1).status, "ready");
+  assert.equal(settled.save.expeditionState.completedRuns[0].personId, "person:sora");
+  assert.equal(settled.save.expeditionState.completedRuns[0].stationId, "station:sim6jp");
+  const normalizedOnce = normalizeSave(settled.save);
+  const normalizedTwice = normalizeSave(normalizedOnce);
+  assert.deepEqual(normalizedTwice, normalizedOnce);
+  assert.equal(missionBoard(normalizedTwice).story.at(-1).status, "ready");
   assert.deepEqual({
     locationId: settled.save.locationId,
     equipmentId: settled.save.equipmentId,

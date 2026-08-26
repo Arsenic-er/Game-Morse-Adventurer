@@ -1,3 +1,7 @@
+import { ACCESSORIES } from "./accessoryCatalog.js";
+import { ANTENNAS } from "./antennaCatalog.js";
+import { TRANSMITTERS } from "./equipmentCatalog.js";
+
 function deepFreeze(value) {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
   for (const nested of Object.values(value)) deepFreeze(nested);
@@ -50,6 +54,75 @@ export const EXPEDITION_LOAN_KIT = deepFreeze({
   battery: { id: "loan-lifepo4-96wh", capacityWh: 96 },
 });
 
+const FIELD_RADIO_DRAWS = Object.freeze({
+  "squid-01": Object.freeze({ receiveDrawWatts: 2, transmitDrawWatts: 12 }),
+  "usdr-8": Object.freeze({ receiveDrawWatts: 3, transmitDrawWatts: 18 }),
+});
+const FIELD_ANTENNA_CODES = Object.freeze({
+  dipole: "DIPOLE",
+  "yagi-3el": "YAGI",
+  vertical: "VERTICAL",
+});
+
+export const EXPEDITION_FIELD_COMPATIBILITY = deepFreeze({
+  radios: TRANSMITTERS
+    .filter((radio) => FIELD_RADIO_DRAWS[radio.id] && radio.modes?.includes("CW"))
+    .map((radio) => ({
+      id: radio.id,
+      outputPowerWatts: radio.powerWatts,
+      ...FIELD_RADIO_DRAWS[radio.id],
+    })),
+  antennas: ANTENNAS
+    .filter((antenna) => FIELD_ANTENNA_CODES[antenna.id])
+    .map((antenna) => ({ id: antenna.id, antennaCode: FIELD_ANTENNA_CODES[antenna.id] })),
+  batteries: ACCESSORIES
+    .filter((accessory) => accessory.expeditionCategory === "battery"
+      && Number.isFinite(accessory.capacityWh) && accessory.capacityWh > 0)
+    .map((accessory) => ({ id: accessory.id, capacityWh: accessory.capacityWh })),
+  // No ordinary accessory is currently a field battery, so owned combinations intentionally fail closed.
+  ownedCombinations: [],
+});
+
+function canonicalLoanLoadout() {
+  return {
+    source: "loan",
+    radioId: EXPEDITION_LOAN_KIT.radio.id,
+    antennaId: EXPEDITION_LOAN_KIT.antenna.id,
+    batteryId: EXPEDITION_LOAN_KIT.battery.id,
+    outputPowerWatts: EXPEDITION_LOAN_KIT.radio.exchangePowerWatts,
+    receiveDrawWatts: EXPEDITION_LOAN_KIT.radio.receiveDrawWatts,
+    transmitDrawWatts: EXPEDITION_LOAN_KIT.radio.transmitDrawWatts,
+    antennaCode: EXPEDITION_LOAN_KIT.antenna.exchangeCode,
+    capacityWh: EXPEDITION_LOAN_KIT.battery.capacityWh,
+  };
+}
+
+function canonicalOwnedLoadout(value) {
+  const radioId = boundedId(own(value, "radioId"));
+  const antennaId = boundedId(own(value, "antennaId"));
+  const batteryId = boundedId(own(value, "batteryId"));
+  const combination = EXPEDITION_FIELD_COMPATIBILITY.ownedCombinations.find((candidate) => (
+    candidate.radioId === radioId
+      && candidate.antennaId === antennaId
+      && candidate.batteryId === batteryId
+  ));
+  if (!combination) return null;
+  const radio = EXPEDITION_FIELD_COMPATIBILITY.radios.find(({ id }) => id === radioId);
+  const antenna = EXPEDITION_FIELD_COMPATIBILITY.antennas.find(({ id }) => id === antennaId);
+  const battery = EXPEDITION_FIELD_COMPATIBILITY.batteries.find(({ id }) => id === batteryId);
+  return radio && antenna && battery ? {
+    source: "owned",
+    radioId,
+    antennaId,
+    batteryId,
+    outputPowerWatts: radio.outputPowerWatts,
+    receiveDrawWatts: radio.receiveDrawWatts,
+    transmitDrawWatts: radio.transmitDrawWatts,
+    antennaCode: antenna.antennaCode,
+    capacityWh: battery.capacityWh,
+  } : null;
+}
+
 export function expeditionSiteById(value) {
   const id = String(value ?? "").trim();
   return EXPEDITION_SITES.find((site) => site.id === id) ?? null;
@@ -59,6 +132,11 @@ export function normalizeExpeditionLoadout(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const suppliedSource = own(value, "source");
   const source = suppliedSource === "owned" ? "owned" : suppliedSource === "loan" ? "loan" : null;
+  if (!source) return null;
+  if (source === "owned") {
+    const canonicalOwned = canonicalOwnedLoadout(value);
+    return canonicalOwned ? deepFreeze(canonicalOwned) : null;
+  }
   const radioId = boundedId(own(value, "radioId"));
   const antennaId = boundedId(own(value, "antennaId"));
   const batteryId = boundedId(own(value, "batteryId"));
@@ -75,37 +153,15 @@ export function normalizeExpeditionLoadout(value) {
     antennaCode,
     capacityWh: boundedNumber(own(value, "capacityWh"), 1, 2_000, 96),
   };
-  if (source === "loan") {
-    const canonical = {
-      source: "loan",
-      radioId: EXPEDITION_LOAN_KIT.radio.id,
-      antennaId: EXPEDITION_LOAN_KIT.antenna.id,
-      batteryId: EXPEDITION_LOAN_KIT.battery.id,
-      outputPowerWatts: EXPEDITION_LOAN_KIT.radio.exchangePowerWatts,
-      receiveDrawWatts: EXPEDITION_LOAN_KIT.radio.receiveDrawWatts,
-      transmitDrawWatts: EXPEDITION_LOAN_KIT.radio.transmitDrawWatts,
-      antennaCode: EXPEDITION_LOAN_KIT.antenna.exchangeCode,
-      capacityWh: EXPEDITION_LOAN_KIT.battery.capacityWh,
-    };
-    if (Object.keys(canonical).some((key) => loadout[key] !== canonical[key])) return null;
-  }
+  const canonical = canonicalLoanLoadout();
+  if (Object.keys(canonical).some((key) => loadout[key] !== canonical[key])) return null;
   return deepFreeze(loadout);
 }
 
 export function createExpeditionLoadout(save, choice = {}) {
   const source = own(choice, "source") === "owned" ? "owned" : "loan";
   if (source === "loan") {
-    return normalizeExpeditionLoadout({
-      source,
-      radioId: EXPEDITION_LOAN_KIT.radio.id,
-      antennaId: EXPEDITION_LOAN_KIT.antenna.id,
-      batteryId: EXPEDITION_LOAN_KIT.battery.id,
-      outputPowerWatts: EXPEDITION_LOAN_KIT.radio.exchangePowerWatts,
-      receiveDrawWatts: EXPEDITION_LOAN_KIT.radio.receiveDrawWatts,
-      transmitDrawWatts: EXPEDITION_LOAN_KIT.radio.transmitDrawWatts,
-      antennaCode: EXPEDITION_LOAN_KIT.antenna.exchangeCode,
-      capacityWh: EXPEDITION_LOAN_KIT.battery.capacityWh,
-    });
+    return normalizeExpeditionLoadout(canonicalLoanLoadout());
   }
   const normalized = normalizeExpeditionLoadout({ ...choice, source: "owned" });
   if (!normalized) return null;

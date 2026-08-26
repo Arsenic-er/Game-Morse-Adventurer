@@ -1,3 +1,6 @@
+import { expeditionSiteById } from "./expeditionCatalog.js";
+import { personIdForOperator, stationIdentityForCallsign } from "./personIdentity.js";
+
 export const MISSION_STATE_VERSION = 2;
 export const MAX_ACTIVE_DAILY_MISSIONS = 2;
 export const STORY_MISSION_IDS = Object.freeze(["story-01", "story-02", "story-03", "story-04", "story-05", "story-06"]);
@@ -95,6 +98,10 @@ function safeInteger(value, maximum = Number.MAX_SAFE_INTEGER) {
 
 function safeAdd(left, right, maximum = Number.MAX_SAFE_INTEGER) {
   return Math.min(maximum, safeInteger(left, maximum) + safeInteger(right, maximum));
+}
+
+function own(value, key) {
+  return value && Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined;
 }
 
 function normalizeIso(value, fallback = null) {
@@ -296,12 +303,65 @@ function missionDefinition(id) {
 
 function logsForMission(save, active) {
   if (!active) return [];
-  const logs = Array.isArray(save?.qsoLogs) ? save.qsoLogs : [];
+  const suppliedLogs = own(save, "qsoLogs");
+  const logs = Array.isArray(suppliedLogs) ? suppliedLogs.slice(-200) : [];
   const acceptedAt = Date.parse(active.acceptedAt ?? "");
   if (!Number.isFinite(acceptedAt)) return [];
-  const baseline = new Set(active.baselineQsoIds ?? []);
+  const baseline = new Set(Array.isArray(active.baselineQsoIds)
+    ? active.baselineQsoIds.slice(-200) : []);
   return logs.filter((entry) => !baseline.has(String(entry?.id ?? ""))
     && Date.parse(entry?.completedAt) >= acceptedAt);
+}
+
+function verifiedExpeditionCompletion(save, active, logs) {
+  const acceptedAt = Date.parse(own(active, "acceptedAt") ?? "");
+  if (!Number.isFinite(acceptedAt)) return false;
+  const baselineIds = own(active, "baselineExpeditionRunIds");
+  const baseline = new Set(Array.isArray(baselineIds) ? baselineIds.slice(-200) : []);
+  const expeditionState = own(save, "expeditionState");
+  const suppliedCompleted = own(expeditionState, "completedRuns");
+  const completedRuns = Array.isArray(suppliedCompleted) ? suppliedCompleted.slice(-80) : [];
+  const suppliedSettledRuns = own(expeditionState, "settledRunIds");
+  const settledRuns = new Set((Array.isArray(suppliedSettledRuns)
+    ? suppliedSettledRuns.slice(-200) : []).map((id) => String(id ?? "").trim()));
+  const qsoRecords = own(save, "qsoRecords");
+  const suppliedSettledQsos = own(qsoRecords, "settledQsoIds");
+  const settledQsos = new Set((Array.isArray(suppliedSettledQsos)
+    ? suppliedSettledQsos.slice(-200) : []).map((id) => String(id ?? "").trim()));
+  const retainedLogs = Array.isArray(logs) ? logs.slice(-200) : [];
+
+  return completedRuns.some((summary) => {
+    const runId = String(own(summary, "runId") ?? "").trim().slice(0, 128);
+    const qsoId = String(own(summary, "qsoId") ?? "").trim().slice(0, 96);
+    const siteId = String(own(summary, "siteId") ?? "").trim().slice(0, 64);
+    const personId = String(own(summary, "personId") ?? "").trim().slice(0, 96);
+    const stationId = String(own(summary, "stationId") ?? "").trim().slice(0, 96);
+    const completedAt = Date.parse(own(summary, "completedAt") ?? "");
+    if (!runId || baseline.has(runId) || !settledRuns.has(runId)
+      || !qsoId || !settledQsos.has(qsoId) || !expeditionSiteById(siteId)
+      || !personId || !stationId || !Number.isFinite(completedAt) || completedAt < acceptedAt) {
+      return false;
+    }
+    const log = retainedLogs.find((candidate) => own(candidate, "id") === qsoId);
+    const logCallsign = String(own(log, "callsign") ?? "").trim().toUpperCase().slice(0, 16);
+    const logIdentity = log ? {
+      callsign: logCallsign,
+      personId: own(log, "personId"),
+      stationId: own(log, "stationId"),
+    } : null;
+    const verifiedPersonId = personIdForOperator(logIdentity);
+    const verifiedStation = stationIdentityForCallsign(logCallsign, logIdentity ?? {});
+    return Boolean(log)
+      && own(log, "expeditionRunId") === runId
+      && own(log, "expeditionSiteId") === siteId
+      && own(log, "playerLocationId") === `expedition:${siteId}`
+      && own(log, "personId") === personId
+      && own(log, "stationId") === stationId
+      && verifiedPersonId === personId
+      && verifiedStation?.stationId === stationId
+      && own(log, "isFictional") === true
+      && Date.parse(own(log, "completedAt") ?? "") === completedAt;
+  });
 }
 
 function usedRecovery(log) {
@@ -359,16 +419,7 @@ function evaluateObjective(definition, logs, save, active = null) {
       && (gradeRank[best.grade] ?? 0) >= gradeRank.base ? 1 : 0;
   }
   if (definition.objective === "hill-expedition") {
-    const acceptedAt = Date.parse(active?.acceptedAt ?? "");
-    const baseline = new Set(active?.baselineExpeditionRunIds ?? []);
-    const completedRuns = Array.isArray(save?.expeditionState?.completedRuns)
-      ? save.expeditionState.completedRuns.slice(-80) : [];
-    current = completedRuns.some((run) => {
-      const completedAt = Date.parse(run?.completedAt ?? "");
-      return String(run?.runId ?? "") && !baseline.has(String(run.runId))
-        && Number.isFinite(acceptedAt) && Number.isFinite(completedAt) && completedAt >= acceptedAt
-        && String(run?.qsoId ?? "").trim();
-    }) ? 1 : 0;
+    current = verifiedExpeditionCompletion(save, active, logs) ? 1 : 0;
   }
   if (definition.objective === "clean-qso") {
     current = logs.filter((entry) => safeInteger(entry?.repeatRequests) === 0
@@ -451,12 +502,14 @@ export function acceptMission(save, missionId, acceptedAt = new Date().toISOStri
   const activeRecord = {
     id: definition.id,
     acceptedAt,
-    baselineQsoIds: (Array.isArray(save?.qsoLogs) ? save.qsoLogs : []).map(({ id }) => id).filter(Boolean),
+    baselineQsoIds: (Array.isArray(save?.qsoLogs) ? save.qsoLogs.slice(-200) : [])
+      .map(({ id }) => id).filter(Boolean),
     baselineLightsRunIds: (Array.isArray(save?.lightsEventState?.settledRunIds)
-      ? save.lightsEventState.settledRunIds : []).map((id) => String(id)).filter(Boolean),
+      ? save.lightsEventState.settledRunIds.slice(-200) : []).map((id) => String(id)).filter(Boolean),
     baselineExpeditionRunIds: (Array.isArray(save?.expeditionState?.settledRunIds)
       ? save.expeditionState.settledRunIds.slice(-200) : []).map((id) => String(id)).filter(Boolean),
-    knownCallsigns: (Array.isArray(save?.operatorRelationships) ? save.operatorRelationships : [])
+    knownCallsigns: (Array.isArray(save?.operatorRelationships)
+      ? save.operatorRelationships.slice(-2000) : [])
       .map(({ callsign }) => callsign).filter(Boolean),
     contract: normalizeMissionContract(definition.contract),
     dnaFingerprint: definition.dna?.fingerprint ?? null,

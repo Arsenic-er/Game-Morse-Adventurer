@@ -558,12 +558,15 @@ function normalizeRunSummary(value) {
   const runId = boundedText(own(value, "runId"), 128);
   const completedAt = iso(own(value, "completedAt"));
   const site = expeditionSiteById(own(value, "siteId"));
+  const personId = boundedText(own(value, "personId"), 96);
+  const stationId = boundedText(own(value, "stationId"), 96);
   if (!runId || !completedAt || !site) return null;
   return {
     runId,
     completedAt,
     siteId: site.id,
     qsoId: boundedText(own(value, "qsoId"), 96) || null,
+    ...(personId && stationId ? { personId, stationId } : {}),
   };
 }
 

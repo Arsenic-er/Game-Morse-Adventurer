@@ -78,6 +78,15 @@ function normalizeEventRegion(value) {
   return normalized || null;
 }
 
+function own(value, key) {
+  return value && Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined;
+}
+
+function normalizeExpeditionLink(value, maximum = 128) {
+  const normalized = String(value ?? "").replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, maximum);
+  return normalized && /^[A-Za-z0-9][A-Za-z0-9:_-]*$/.test(normalized) ? normalized : null;
+}
+
 function identifierHash(value) {
   let left = 2166136261;
   let right = 5381;
@@ -170,6 +179,12 @@ export function normalizeQsoLogEntry(entry) {
     ? entry.optionalExchangeOutcome : "not-offered";
   const optionalExchangeQuestion = optionalExchangeOutcome === "not-offered" ? null : candidateQuestion;
   const eventId = normalizeEventId(entry.eventId);
+  const expeditionRunId = normalizeExpeditionLink(
+    own(entry, "expeditionRunId") ?? own(entry, "runId"),
+  );
+  const expeditionSiteId = normalizeExpeditionLink(
+    own(entry, "expeditionSiteId") ?? own(entry, "siteId"), 64,
+  );
   const personId = personIdForOperator({ ...entry, callsign });
   const station = stationIdentityForCallsign(callsign, entry);
   if (!personId || !station) return null;
@@ -237,6 +252,7 @@ export function normalizeQsoLogEntry(entry) {
     eventRegionCode: eventId ? normalizeEventRegion(entry.eventRegionCode) : null,
     onAirCallsign: eventId ? normalizeCallsign(entry.onAirCallsign) || null : null,
     operatorCallsign: eventId ? normalizeCallsign(entry.operatorCallsign) || null : null,
+    ...(expeditionRunId && expeditionSiteId ? { expeditionRunId, expeditionSiteId } : {}),
     isFictional: entry.isFictional !== false,
   };
 }

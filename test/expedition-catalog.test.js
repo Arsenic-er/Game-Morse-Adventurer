@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  EXPEDITION_FIELD_COMPATIBILITY,
   EXPEDITION_LOAN_KIT,
   EXPEDITION_SITES,
   createExpeditionLoadout,
@@ -64,35 +65,41 @@ test("the story loan creates an isolated portable-radio wire-antenna battery loa
   assert.equal(save.ownedAntennas.includes(loadout.antennaId), false);
 });
 
-test("owned field choices stay separate from the loan kit and must already be owned", () => {
+test("owned field loadouts fail closed until a real battery component is catalogued", () => {
   const save = {
-    ownedEquipment: ["usdx-01"],
-    ownedAntennas: ["endfed"],
-    accessories: ["field-battery"],
+    ownedEquipment: ["usdr-8"],
+    ownedAntennas: ["dipole"],
+    accessories: ["cw-filter-500"],
   };
-  const owned = createExpeditionLoadout(save, {
+  const attack = {
     source: "owned",
-    radioId: "usdx-01",
-    antennaId: "endfed",
-    batteryId: "field-battery",
-    outputPowerWatts: 8,
-    receiveDrawWatts: 3,
-    transmitDrawWatts: 18,
-    antennaCode: "EFHW",
-    capacityWh: 72,
-  });
-  assert.equal(owned.source, "owned");
-  assert.equal(owned.radioId, "usdx-01");
-  assert.equal(createExpeditionLoadout(save, { ...owned, radioId: "not-owned" }), null);
-  assert.equal(normalizeExpeditionLoadout({ ...owned, source: "loan", radioId: "forged" }), null);
+    radioId: "usdr-8", antennaId: "dipole", batteryId: "cw-filter-500",
+    outputPowerWatts: 100, receiveDrawWatts: 0.1, transmitDrawWatts: 0.1,
+    antennaCode: "MOON", capacityWh: 2_000,
+  };
+  assert.equal(createExpeditionLoadout(save, attack), null);
+  assert.equal(normalizeExpeditionLoadout(attack), null);
+  assert.deepEqual(EXPEDITION_FIELD_COMPATIBILITY.batteries, []);
+  assert.deepEqual(EXPEDITION_FIELD_COMPATIBILITY.ownedCombinations, []);
+  assert.equal(Object.isFrozen(EXPEDITION_FIELD_COMPATIBILITY), true);
+  assert.equal(Object.isFrozen(EXPEDITION_FIELD_COMPATIBILITY.radios), true);
   assert.deepEqual(save, {
-    ownedEquipment: ["usdx-01"],
-    ownedAntennas: ["endfed"],
-    accessories: ["field-battery"],
+    ownedEquipment: ["usdr-8"],
+    ownedAntennas: ["dipole"],
+    accessories: ["cw-filter-500"],
   });
 });
 
-test("owned-loadout validation inspects only bounded recent inventory entries", () => {
+test("loan allowlist ignores caller-supplied performance fields", () => {
+  const loadout = createExpeditionLoadout({}, {
+    source: "loan", radioId: "usdr-8", antennaId: "yagi-3el", batteryId: "cw-filter-500",
+    outputPowerWatts: 100, receiveDrawWatts: 0.1, transmitDrawWatts: 0.1,
+    antennaCode: "MOON", capacityWh: 2_000,
+  });
+  assert.deepEqual(loadout, createExpeditionLoadout({}, { source: "loan" }));
+});
+
+test("owned-loadout rejection inspects only bounded recent inventory entries", () => {
   const guardedInventory = (finalValue) => new Proxy(
     [...Array(9_999).fill("old-item"), finalValue],
     {
@@ -105,15 +112,15 @@ test("owned-loadout validation inspects only bounded recent inventory entries", 
     },
   );
   const loadout = createExpeditionLoadout({
-    ownedEquipment: guardedInventory("usdx-01"),
-    ownedAntennas: guardedInventory("endfed"),
-    accessories: guardedInventory("field-battery"),
+    ownedEquipment: guardedInventory("usdr-8"),
+    ownedAntennas: guardedInventory("dipole"),
+    accessories: guardedInventory("cw-filter-500"),
   }, {
-    source: "owned", radioId: "usdx-01", antennaId: "endfed", batteryId: "field-battery",
-    outputPowerWatts: 8, receiveDrawWatts: 3, transmitDrawWatts: 18,
-    antennaCode: "EFHW", capacityWh: 72,
+    source: "owned", radioId: "usdr-8", antennaId: "dipole", batteryId: "cw-filter-500",
+    outputPowerWatts: 100, receiveDrawWatts: 0.1, transmitDrawWatts: 0.1,
+    antennaCode: "MOON", capacityWh: 2_000,
   });
-  assert.equal(loadout.radioId, "usdx-01");
+  assert.equal(loadout, null);
 });
 
 test("loadout validation never trusts inherited equipment fields", () => {
@@ -121,12 +128,12 @@ test("loadout validation never trusts inherited equipment fields", () => {
   assert.equal(normalizeExpeditionLoadout(inheritedLoan), null);
 
   const inheritedInventory = Object.create({
-    ownedEquipment: ["usdx-01"], ownedAntennas: ["endfed"], accessories: ["field-battery"],
+    ownedEquipment: ["usdr-8"], ownedAntennas: ["dipole"], accessories: ["cw-filter-500"],
   });
   const owned = {
-    source: "owned", radioId: "usdx-01", antennaId: "endfed", batteryId: "field-battery",
-    outputPowerWatts: 8, receiveDrawWatts: 3, transmitDrawWatts: 18,
-    antennaCode: "EFHW", capacityWh: 72,
+    source: "owned", radioId: "usdr-8", antennaId: "dipole", batteryId: "cw-filter-500",
+    outputPowerWatts: 100, receiveDrawWatts: 0.1, transmitDrawWatts: 0.1,
+    antennaCode: "MOON", capacityWh: 2_000,
   };
   assert.equal(createExpeditionLoadout(inheritedInventory, owned), null);
 });

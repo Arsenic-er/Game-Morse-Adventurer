@@ -78,6 +78,8 @@ function qsoCandidate(save, run, contact, qsoId) {
     antennaId: run.loadout.antennaId,
     accessoryId: run.loadout.batteryId,
     playerLocationId: `expedition:${run.fieldSite.id}`,
+    expeditionRunId: run.runId,
+    expeditionSiteId: run.fieldSite.id,
     wpm: 18,
     transmitAccuracy: 95,
     keyingScore: 90,
@@ -130,6 +132,8 @@ export function settleExpeditionRun(save, runValue, settledAtValue) {
     completedAt: run.result.completedAt,
     siteId: run.fieldSite.id,
     qsoId,
+    personId: contact.personId,
+    stationId: contact.stationId,
   };
   const pendingSave = {
     ...save,
