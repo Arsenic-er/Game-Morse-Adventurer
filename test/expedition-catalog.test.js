@@ -36,7 +36,7 @@ test("the story loan creates an isolated portable-radio wire-antenna battery loa
       transmitDrawWatts: 12,
     },
     antenna: { id: "loan-wire-dipole", exchangeCode: "WIRE" },
-    battery: { id: "loan-lifepo4-96wh", capacityWh: 96 },
+    battery: { id: "loan-lifepo4-12wh", capacityWh: 12 },
   });
   const save = {
     locationId: "japan-tokyo-kanto",
@@ -53,12 +53,12 @@ test("the story loan creates an isolated portable-radio wire-antenna battery loa
     source: "loan",
     radioId: "loan-portable-cw",
     antennaId: "loan-wire-dipole",
-    batteryId: "loan-lifepo4-96wh",
+    batteryId: "loan-lifepo4-12wh",
     outputPowerWatts: 5,
     receiveDrawWatts: 2,
     transmitDrawWatts: 12,
     antennaCode: "WIRE",
-    capacityWh: 96,
+    capacityWh: 12,
   });
   assert.deepEqual(save, snapshot);
   assert.equal(save.ownedEquipment.includes(loadout.radioId), false);

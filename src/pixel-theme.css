@@ -1956,6 +1956,8 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .expedition-warning { display: flex; gap: 8px; color: #ffd178; }
 .expedition-leave-dialog { width: min(470px, calc(100% - 32px)); padding: 22px; border: 4px solid #e0a354; color: #fff1cd; background: #172321; text-align: center; }
 .home-people-qsl-button { position: absolute; z-index: 5; right: 22px; bottom: 24px; display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 3px solid #6bc8c5; color: #aef8f2; background: #071719d9; }
+.home-expedition-button { position: absolute; z-index: 5; right: 22px; bottom: 70px; display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 3px solid #d9a344; color: #ffe4a3; background: #2c220ed9; }
+.home-expedition-button:hover, .home-expedition-button:focus-visible { color: #fff3bf; background: #513a0e; }
 .people-qsl-modal { display: grid; grid-template-rows: auto 1fr auto; width: min(1050px, calc(100% - 30px)); max-height: min(760px, calc(100vh - 30px)); border: 4px solid #6bc8c5; color: #dffbf5; background: #0c1e20; }
 .people-qsl-modal > header { display: flex; align-items: center; gap: 12px; padding: 14px; border-bottom: 3px solid #315d5d; }
 .people-qsl-modal > header h2 { margin-right: auto; }
@@ -1975,4 +1977,5 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   .expedition-sites > div, .expedition-setup > div { grid-template-columns: 1fr; }
   .people-qsl-columns { grid-template-columns: 1fr; }
   .qsl-card-list article > div { grid-template-columns: 1fr; }
+  .home-expedition-button, .home-people-qsl-button { right: 12px; max-width: calc(100% - 24px); }
 }

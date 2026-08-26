@@ -57,7 +57,7 @@ function normalizeRecord(value) {
   if (!recordId || !personId || !personId.startsWith("person:") || !stationId
     || !stationId.startsWith("station:") || !normalizedCallsign || (!qsoId && !eventRunId)
     || !NARRATIVE_KEYS.has(playerNarrativeKey) || !NARRATIVE_KEYS.has(operatorNarrativeKey)
-    || !createdAt || (choice && !confirmedAt)) return null;
+    || !createdAt || (choice && (!confirmedAt || Date.parse(confirmedAt) < Date.parse(createdAt)))) return null;
   return Object.freeze({
     version: QSL_RECORDS_VERSION,
     id: recordId,
@@ -166,6 +166,9 @@ export function confirmQslChoice(value, recordIdValue, choiceValue, confirmedAtV
     if (index < 0) return { records, confirmed: false, reason: "UNKNOWN_RECORD", record: null };
     if (records[index].choice) {
       return { records, confirmed: false, reason: "ALREADY_CONFIRMED", record: records[index] };
+    }
+    if (Date.parse(confirmedAt) < Date.parse(records[index].createdAt)) {
+      return { records, confirmed: false, reason: "INVALID_CHOICE", record: null };
     }
     const record = normalizeRecord({ ...records[index], choice: choiceValue, confirmedAt });
     const next = Object.freeze(records.map((candidate, candidateIndex) => candidateIndex === index ? record : candidate));

@@ -4,6 +4,7 @@ import {
   LockKey, Play, SealCheck, Trash, X,
 } from "@phosphor-icons/react";
 import { MAX_ACTIVE_DAILY_MISSIONS, missionBoard, missionSummary } from "../game/missionSystem.js";
+import { expeditionReplayAvailable } from "../game/expeditionLifecycle.js";
 import { lightsEntryModes } from "../game/lightsEventCatalog.js";
 import { lightsNarrativeBeat } from "../game/lightsNarrative.js";
 import { lightsText } from "./lightsEventText.js";
@@ -238,7 +239,7 @@ function missionContractClues(mission, t) {
   ].filter(Boolean);
 }
 
-function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition }) {
+function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, expeditionReplay, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition }) {
   const ready = mission.status === "ready";
   const active = mission.status === "active";
   const available = mission.status === "available";
@@ -287,6 +288,7 @@ function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, o
         {available && <button data-action="accept-mission" data-mission-action-id={mission.id} disabled={acceptDisabled} onClick={() => onAccept(mission.id)}><Play size={17} weight="fill" />{acceptDisabled ? t.limit : t.accept}</button>}
         {mission.id === "story-05" && active && <button data-action="launch-lights-story" onClick={() => onLaunchLights("story")}><Play size={17} weight="fill" />{t.launchEvent}</button>}
         {mission.id === "story-06" && active && <button data-action="launch-expedition-story" onClick={onLaunchExpedition}><Play size={17} weight="fill" />{t.launchExpedition}</button>}
+        {mission.id === "story-06" && expeditionReplay && !active && <button data-action="launch-expedition-replay" onClick={onLaunchExpedition}><Play size={17} weight="fill" />{t.launchExpedition}</button>}
         {active && <button className="mission-abandon" data-action="abandon-mission" data-mission-action-id={mission.id} onClick={() => onAbandon(mission.id)}><Trash size={17} />{t.abandon}</button>}
         {ready && <button className="mission-claim" data-action="claim-mission" data-mission-action-id={mission.id} onClick={() => onClaim(mission.id)}><CheckCircle size={17} weight="fill" />{t.claim}</button>}
         {mission.id === "story-05" && mission.status === "claimed" && <>
@@ -305,6 +307,7 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
   const board = useMemo(() => missionBoard(save), [save]);
   const summary = useMemo(() => missionSummary(save), [save]);
   const lightsModes = useMemo(() => lightsEntryModes(save, new Date()), [save]);
+  const expeditionReplay = expeditionReplayAvailable(save);
   const activeDaily = board.daily.filter(({ status }) => ["active", "ready"].includes(status)).length;
   const missions = tab === "story" ? board.story : board.daily;
 
@@ -330,7 +333,7 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
         <div className="mission-center-body">
           {tab === "daily" && <p className="mission-daily-note">{t.dailyNote}</p>}
           <div className="mission-list">
-            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} lightsCopy={lightsCopy} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} />)}
+            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} lightsCopy={lightsCopy} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} expeditionReplay={expeditionReplay} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} />)}
           </div>
         </div>
         <footer><span>{save.callsign} // {summary.ready} {t.ready}</span><button data-action="close-missions-footer" onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.close}</button></footer>

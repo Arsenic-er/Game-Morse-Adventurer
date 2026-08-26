@@ -6,16 +6,18 @@ The following third-party projects are used by or distributed with Game-Morse-Ad
 
 - Author: TakWolf and upstream glyph contributors
 - Project: https://github.com/TakWolf/fusion-pixel-font
+- Pinned license source: https://github.com/TakWolf/fusion-pixel-font/blob/6048696f6058e0c1d98935b063d6e8fa5a4deb1e/LICENSE-OFL
 - License: SIL Open Font License 1.1
-- Reserved Font Name: Fusion Pixel
+- Bundled complete license text: `licenses/font/Fusion-Pixel-OFL-1.1.txt`
 
 ## Press Start 2P
 
 - Author: CodeMan38 and Google Fonts contributors
 - Project: https://github.com/google/fonts/tree/main/ofl/pressstart2p
+- Pinned license source: https://github.com/google/fonts/blob/6a003b5eb672dc8bf5bff5937cf5863f8b175445/ofl/pressstart2p/OFL.txt
 - Use: Pixel interface font for Spanish, German, and Russian
 - License: SIL Open Font License 1.1
-- Bundled license text: `src/assets/fonts/OFL-PressStart2P.txt`
+- Bundled complete license text: `licenses/font/Press-Start-2P-OFL-1.1.txt`
 
 ## Phosphor Icons
 
@@ -72,4 +74,4 @@ The following third-party projects are used by or distributed with Game-Morse-Ad
 - Use: public technical and appearance references for the fictional MICA-8 gameplay profile
 - Distribution: no upstream firmware, schematics, PCB files, branding, photographs, or enclosure files are included in this repository or its Windows build; the MICA-8 artwork and game values are original abstractions
 
-Complete dependency license texts are available from each linked upstream project and from installed package metadata.
+The complete license texts for both bundled font families are included in `licenses/font/`. Other dependency license texts are available from each linked upstream project and from installed package metadata.

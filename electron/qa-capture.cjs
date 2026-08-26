@@ -525,7 +525,10 @@ function validateExpeditionQaEvidence(value, { qaRunId = null } = {}) {
     || typeof value.relationshipPersonId !== "string" || !value.relationshipPersonId.startsWith("person:")
     || value.qslPersonId !== value.relationshipPersonId
     || !["believe", "request-review", "defer"].includes(value.qslChoice)
-    || value.qslChoicePersistedAfterReload !== true || value.duplicateChoiceNoOp !== true) {
+    || value.qslChoicePersistedAfterReload !== true || value.duplicateChoiceNoOp !== true
+    || value.timerPausedWithoutCatchUp !== true || value.timeoutReachable !== true
+    || value.powerDepletedReachable !== true || value.replayEntryPersisted !== true
+    || value.replayRewardNoOp !== true) {
     throw new Error("Expedition QA evidence is missing a required gameplay proof");
   }
   return value;
@@ -701,6 +704,34 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+const QSO_SUBMIT_ADVANCED_SELECTOR = [
+  '[data-qso-phase="NPC_OPTIONAL_QUERY"]',
+  '[data-qso-phase="PLAYER_OPTIONAL_ANSWER"]',
+  '[data-qso-phase="NPC_73_AND_SK"]',
+  '.qso-result-modal.success',
+].join(", ");
+
+async function waitForQsoSubmitDecision(window, {
+  focusFn = focusQaWindow,
+  waitForFn = waitFor,
+} = {}) {
+  await focusFn(window, "after submitting a QSO reply");
+  await waitForFn(
+    window,
+    `${QSO_SUBMIT_ADVANCED_SELECTOR}, [data-qso-phase="PLAYER_RST_AND_73"] [data-action="submit-reply"][disabled]`,
+    10000,
+  );
+  await waitForFn(
+    window,
+    `${QSO_SUBMIT_ADVANCED_SELECTOR}, [data-qso-phase="PLAYER_RST_AND_73"] [data-action="submit-reply"]:not([disabled])`,
+    10000,
+  );
+  return window.webContents.executeJavaScript(
+    'document.querySelector(".station-screen")?.dataset.qsoPhase ?? null',
+    true,
+  );
+}
+
 async function capturePageWithVizRetry(webContents, {
   maxAttempts = 4,
   retryDelayMs = 750,
@@ -752,86 +783,156 @@ function lightsKeyInputForSymbol(symbol) {
   throw new Error(`Unsupported Lights QA key symbol: ${symbol}`);
 }
 
-async function sendAutomaticText(window, text, wpm = 18) {
+async function sendAutomaticStationText(window, text, wpm = 18) {
   const dotMs = 1200 / wpm;
+  const tapHoldMs = dotMs * 0.12;
   const words = String(text).toUpperCase().trim().split(/\s+/);
+  const expected = words.join(" ");
+  const steps = [];
   for (let wordIndex = 0; wordIndex < words.length; wordIndex += 1) {
     const characters = [...words[wordIndex]];
     for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
       const pattern = MORSE[characters[characterIndex]];
       if (!pattern) continue;
-      for (let symbolIndex = 0; symbolIndex < pattern.length; symbolIndex += 1) {
-        const symbol = pattern[symbolIndex];
-        const keyCode = symbol === "." ? "Z" : "X";
-        const previousPulseCount = await window.webContents.executeJavaScript(
-          'Number(document.querySelector(".station-screen")?.dataset.pulseCount || 0)',
-          true,
-        );
-        const eventCode = keyCode === "Z" ? "KeyZ" : "KeyX";
-        await window.webContents.executeJavaScript(`(() => {
-          window.dispatchEvent(new KeyboardEvent("keydown", { code: ${JSON.stringify(eventCode)}, key: ${JSON.stringify(keyCode.toLowerCase())}, bubbles: true, cancelable: true }));
-          window.dispatchEvent(new KeyboardEvent("keyup", { code: ${JSON.stringify(eventCode)}, key: ${JSON.stringify(keyCode.toLowerCase())}, bubbles: true, cancelable: true }));
-        })()`, true);
-        const accepted = await window.webContents.executeJavaScript(`new Promise((resolve) => {
-          const started = Date.now();
-          const timer = setInterval(() => {
-            const count = Number(document.querySelector(".station-screen")?.dataset.pulseCount || 0);
-            if (count > ${previousPulseCount}) { clearInterval(timer); resolve(true); }
-            else if (Date.now() - started > 3000) { clearInterval(timer); resolve(false); }
-          }, 20);
-        })`, true);
-        if (!accepted) {
-          const state = await window.webContents.executeJavaScript(`(() => {
-            const station = document.querySelector(".station-screen");
-            return {
-              phase: station?.dataset.qsoPhase ?? null,
-              decoded: station?.dataset.decoded ?? null,
-              pulseCount: station?.dataset.pulseCount ?? null,
-              keyType: document.querySelector(".key-card strong")?.textContent ?? null,
-              bodyClass: document.body.className,
-            };
-          })()`, true);
-          throw new Error(`Automatic-key pulse was dropped for ${keyCode}: ${JSON.stringify(state)}`);
-        }
-        // The pulse-count update is observed after the automatic-key timer ends,
-        // so the intra-character gap has already begun. Keep the remaining wait
-        // short to avoid hidden-window compositor delays splitting one letter.
-        if (symbolIndex < pattern.length - 1) await delay(12);
-      }
-      if (characterIndex < characters.length - 1) await delay(dotMs * 3 + 25);
+      const lastCharacter = characterIndex === characters.length - 1;
+      const lastWord = wordIndex === words.length - 1;
+      const separator = !lastCharacter ? "character" : !lastWord ? "word" : null;
+      steps.push({
+        character: characters[characterIndex],
+        keyCodes: [...pattern].map((symbol) => (symbol === "." ? "Z" : "X")),
+        gapMs: separator ? automaticQaGapAfterElement(separator, wpm) : 0,
+      });
     }
-    if (wordIndex < words.length - 1) await delay(dotMs * 7 + 25);
   }
-  await delay(180);
+  let result = { decoded: "", pulseCount: 0 };
+  for (let stepIndex = 0; stepIndex < steps.length; stepIndex += 1) {
+    const step = steps[stepIndex];
+    await focusQaWindow(
+      window,
+      `before station character ${stepIndex + 1}/${steps.length} (${step.character})`,
+    );
+    result = await window.webContents.executeJavaScript(`(async () => {
+    const keyCodes = ${JSON.stringify(step.keyCodes)};
+    const tapHoldMs = ${JSON.stringify(tapHoldMs)};
+    const taskChannel = new MessageChannel();
+    const taskWaiters = [];
+    taskChannel.port1.onmessage = () => taskWaiters.shift()?.();
+    const yieldTask = () => new Promise((resolve) => {
+      taskWaiters.push(resolve);
+      taskChannel.port2.postMessage(null);
+    });
+    const holdTap = () => {
+      const started = performance.now();
+      while (performance.now() - started < tapHoldMs) {}
+    };
+    const station = () => document.querySelector(".station-screen");
+    const pulseCount = () => Number(station()?.dataset.pulseCount || 0);
+    const waitUntil = (predicate, description) => new Promise((resolve, reject) => {
+      const started = Date.now();
+      const timer = setInterval(() => {
+        if (predicate()) { clearInterval(timer); resolve(true); }
+        else if (Date.now() - started > 3000) {
+          clearInterval(timer);
+          reject(new Error(description + "; rendered state: " + JSON.stringify({
+            phase: station()?.dataset.qsoPhase ?? null,
+            decoded: station()?.dataset.decoded ?? null,
+            pulseCount: station()?.dataset.pulseCount ?? null,
+            keyType: document.querySelector(".key-card strong")?.textContent ?? null,
+            bodyClass: document.body.className,
+            documentHasFocus: document.hasFocus(),
+            visibilityState: document.visibilityState,
+          })));
+        }
+      }, 20);
+    });
+    if (!Number.isFinite(pulseCount())) throw new Error("Station input DOM state is unavailable");
+    await yieldTask();
+    try {
+      const before = pulseCount();
+      const heldCodes = new Set();
+      try {
+        for (const keyCode of keyCodes) {
+          const code = "Key" + keyCode;
+          window.dispatchEvent(new KeyboardEvent("keydown", {
+            code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true,
+          }));
+          heldCodes.add(code);
+          holdTap();
+          window.dispatchEvent(new KeyboardEvent("keyup", {
+            code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true,
+          }));
+          heldCodes.delete(code);
+          await yieldTask();
+        }
+      } finally {
+        for (const code of heldCodes) {
+          window.dispatchEvent(new KeyboardEvent("keyup", {
+            code, key: code.slice(3).toLowerCase(), bubbles: true, cancelable: true,
+          }));
+        }
+      }
+      await waitUntil(
+        () => pulseCount() >= before + keyCodes.length,
+        "Station automatic-key character pulses were not observed",
+      );
+      await waitUntil(
+        () => Boolean(document.querySelector('[data-action="submit-reply"]:not([disabled])')),
+        "Station automatic keyer did not become idle",
+      );
+    } finally {
+      taskChannel.port1.close();
+      taskChannel.port2.close();
+    }
+    return { decoded: station()?.dataset.decoded ?? "", pulseCount: pulseCount() };
+  })()`, true);
+    if (step.gapMs > 0) await delay(step.gapMs);
+  }
+  if (result.decoded.trim().replace(/\s+/g, " ") !== expected) {
+    throw new Error(`Station automatic input decoded '${result.decoded}' instead of '${expected}'`);
+  }
+  return result;
 }
 
-async function sendAutomaticRun(window, symbol, count, { expectClear = false } = {}) {
+async function sendAutomaticStationRun(window, symbol, count, { expectClear = false } = {}) {
   if (symbol !== "." && symbol !== "-") throw new Error(`Unsupported QA automatic-key symbol: ${symbol}`);
   const eventCode = symbol === "." ? "KeyZ" : "KeyX";
   const key = symbol === "." ? "z" : "x";
-  for (let index = 0; index < count; index += 1) {
-    const previousPulseCount = await window.webContents.executeJavaScript(
-      'Number(document.querySelector(".station-screen")?.dataset.pulseCount || 0)',
-      true,
-    );
-    await window.webContents.executeJavaScript(`(() => {
+  return window.webContents.executeJavaScript(`(async () => {
+    const station = () => document.querySelector(".station-screen");
+    const pulseCount = () => Number(station()?.dataset.pulseCount || 0);
+    const before = pulseCount();
+    let sawProgress = false;
+    for (let index = 0; index < ${count}; index += 1) {
       window.dispatchEvent(new KeyboardEvent("keydown", { code: ${JSON.stringify(eventCode)}, key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }));
       window.dispatchEvent(new KeyboardEvent("keyup", { code: ${JSON.stringify(eventCode)}, key: ${JSON.stringify(key)}, bubbles: true, cancelable: true }));
-    })()`, true);
-    const shouldClear = expectClear && index === count - 1;
-    const accepted = await window.webContents.executeJavaScript(`new Promise((resolve) => {
+    }
+    await new Promise((resolve, reject) => {
       const started = Date.now();
       const timer = setInterval(() => {
-        const current = Number(document.querySelector(".station-screen")?.dataset.pulseCount || 0);
-        if (${shouldClear} ? current === 0 : current > ${previousPulseCount}) { clearInterval(timer); resolve(true); }
-        else if (Date.now() - started > 3000) { clearInterval(timer); resolve(false); }
+        const current = pulseCount();
+        if (current > before) sawProgress = true;
+        if (${expectClear} ? sawProgress && current === 0 : current >= before + ${count}) {
+          clearInterval(timer);
+          resolve(true);
+        } else if (Date.now() - started > 3000) {
+          clearInterval(timer);
+          reject(new Error("Automatic ${symbol} clear-gesture pulse was dropped at ${count}/${count}; rendered state: " + JSON.stringify({
+            phase: station()?.dataset.qsoPhase ?? null,
+            decoded: station()?.dataset.decoded ?? null,
+            pulseCount: station()?.dataset.pulseCount ?? null,
+            keyType: document.querySelector(".key-card strong")?.textContent ?? null,
+            bodyClass: document.body.className,
+          })));
+        }
       }, 20);
-    })`, true);
-    if (!accepted) throw new Error(`Automatic ${symbol} clear-gesture pulse was dropped at ${index + 1}/${count}`);
-    await delay(12);
-  }
-  await delay(120);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    return { decoded: station()?.dataset.decoded ?? "", pulseCount: pulseCount() };
+  })()`, true);
 }
+
+const sendAutomaticText = sendAutomaticStationText;
+const sendAutomaticRun = sendAutomaticStationRun;
 
 async function assertHeldAutomaticKey(window, { code, key, holdMs, minimumPulses }) {
   const before = await window.webContents.executeJavaScript(
@@ -884,6 +985,24 @@ function screenshotDimensions(filename) {
   return { width: Number(match[1]), height: Number(match[2]) };
 }
 
+async function waitForRendererImages(webContents, { timeoutMs = 5_000 } = {}) {
+  const boundedTimeout = Math.max(1, Math.floor(Number(timeoutMs) || 1));
+  let timeoutId;
+  try {
+    return await Promise.race([
+      webContents.executeJavaScript(`Promise.all(Array.from(document.images).map(async (image) => {
+        if (!image.complete) await new Promise((resolve) => { image.addEventListener("load", resolve, { once: true }); image.addEventListener("error", resolve, { once: true }); });
+        if (image.decode) await image.decode().catch(() => {});
+      }))`, true).then(() => ({ timedOut: false })),
+      new Promise((resolve) => {
+        timeoutId = setTimeout(() => resolve({ timedOut: true }), boundedTimeout);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function capture(window, outputDir, filename, { scope = process.env.CWGAME_QA_SCOPE || "full" } = {}) {
   await writeQaStep(outputDir, {
     scope,
@@ -891,10 +1010,7 @@ async function capture(window, outputDir, filename, { scope = process.env.CWGAME
     phase: "capture-start",
     at: new Date().toISOString(),
   });
-  await window.webContents.executeJavaScript(`Promise.all(Array.from(document.images).map(async (image) => {
-    if (!image.complete) await new Promise((resolve) => { image.addEventListener("load", resolve, { once: true }); image.addEventListener("error", resolve, { once: true }); });
-    if (image.decode) await image.decode().catch(() => {});
-  }))`, true);
+  await waitForRendererImages(window.webContents);
   await new Promise((resolve) => setTimeout(resolve, 1000));
   // Software-rendered packaged builds can return the previous compositor frame
   // on the first capture after a large modal or route transition.
@@ -955,6 +1071,14 @@ async function waitForLightsPhase(window, phase, context = "while advancing Ligh
 }
 
 async function focusQaWindow(window, context) {
+  const readRendererFocus = () => window.webContents.executeJavaScript(
+    `({ hasFocus: document.hasFocus(), visibilityState: document.visibilityState })`, true,
+  );
+  const readRendererFocusSafely = async () => {
+    try { return await readRendererFocus(); } catch { return null; }
+  };
+  const initial = await readRendererFocusSafely();
+  if (initial?.hasFocus === true) return initial;
   if (window.isMinimized()) window.restore();
   window.show();
   window.focus();
@@ -968,9 +1092,28 @@ async function focusQaWindow(window, context) {
       }, 20);
     })`, true);
   } catch (error) {
-    const state = await window.webContents.executeJavaScript(`({ hasFocus: document.hasFocus(), visibilityState: document.visibilityState })`, true).catch(() => null);
-    throw new Error(`Lights QA could not focus the real renderer ${context}: ${JSON.stringify({ state, error: error.message })}`);
+    const state = await readRendererFocusSafely();
+    const diagnostics = {
+      windowIsFocused: typeof window.isFocused === "function" ? window.isFocused() : null,
+      hasFocus: state?.hasFocus ?? null,
+      visibilityState: state?.visibilityState ?? null,
+      error: error.message,
+    };
+    throw new Error(`QA could not focus the real renderer ${context}: ${JSON.stringify(diagnostics)}`);
   }
+}
+
+async function waitForFocusedQsoState(window, selector, {
+  context = "before waiting for focused QSO state",
+  timeout = 10_000,
+  waitForFn = waitFor,
+} = {}) {
+  await focusQaWindow(window, context);
+  await waitForFn(window, selector, timeout);
+  return window.webContents.executeJavaScript(
+    'document.querySelector(".station-screen")?.dataset.qsoPhase ?? null',
+    true,
+  );
 }
 
 async function startGuidedQaWatch(window) {
@@ -1088,16 +1231,18 @@ async function sendAutomaticLightsText(window, text, wpm = LIGHTS_QA_WPM) {
       const lastWord = wordIndex === words.length - 1;
       const separator = !lastCharacter ? "character" : !lastWord ? "word" : null;
       steps.push({
+        character: characters[characterIndex],
         keyCodes: [...pattern].map((symbol) => lightsKeyInputForSymbol(symbol).keyCode),
         gapMs: separator ? automaticQaGapAfterElement(separator, wpm) : 0,
       });
     }
   }
   const expected = String(text).toUpperCase().trim().replace(/\s+/g, " ");
-  return window.webContents.executeJavaScript(`(async () => {
-    const steps = ${JSON.stringify(steps)};
-    const expected = ${JSON.stringify(expected)};
-    const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+  for (let stepIndex = 0; stepIndex < steps.length; stepIndex += 1) {
+    const step = steps[stepIndex];
+    await focusQaWindow(window, `before Lights character ${stepIndex + 1}/${steps.length} (${step.character})`);
+    await window.webContents.executeJavaScript(`(async () => {
+    const keyCodes = ${JSON.stringify(step.keyCodes)};
     const pulseCount = () => Number(document.querySelector(".lights-event-screen")?.dataset.pulseCount);
     const decoded = () => document.querySelector(".lights-tx-line strong")?.textContent?.trim() || "";
     const waitUntil = (predicate, description) => new Promise((resolve, reject) => {
@@ -1115,40 +1260,53 @@ async function sendAutomaticLightsText(window, text, wpm = LIGHTS_QA_WPM) {
       }, 20);
     });
     if (!Number.isFinite(pulseCount())) throw new Error("Lights input DOM state is unavailable");
-    for (const step of steps) {
-      const before = pulseCount();
-      const heldCodes = new Set();
-      try {
-        for (const keyCode of step.keyCodes) {
-          const code = "Key" + keyCode;
-          window.dispatchEvent(new KeyboardEvent("keydown", {
-            code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true,
-          }));
-          heldCodes.add(code);
-          window.dispatchEvent(new KeyboardEvent("keyup", {
-            code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true,
-          }));
-          heldCodes.delete(code);
-        }
-      } finally {
-        for (const code of heldCodes) {
-          window.dispatchEvent(new KeyboardEvent("keyup", {
-            code, key: code.slice(3).toLowerCase(), bubbles: true, cancelable: true,
-          }));
-        }
+    const before = pulseCount();
+    const heldCodes = new Set();
+    try {
+      for (const keyCode of keyCodes) {
+        const code = "Key" + keyCode;
+        window.dispatchEvent(new KeyboardEvent("keydown", {
+          code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true,
+        }));
+        heldCodes.add(code);
+        window.dispatchEvent(new KeyboardEvent("keyup", {
+          code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true,
+        }));
+        heldCodes.delete(code);
       }
-      await waitUntil(
-        () => pulseCount() >= before + step.keyCodes.length,
-        "Lights automatic-key character pulses were not observed",
-      );
-      await waitUntil(
-        () => Boolean(document.querySelector('[data-action="lights-transmit"]:not([disabled])')),
-        "Lights automatic keyer did not become idle",
-      );
-      if (step.gapMs > 0) await delay(step.gapMs);
+    } finally {
+      for (const code of heldCodes) {
+        window.dispatchEvent(new KeyboardEvent("keyup", {
+          code, key: code.slice(3).toLowerCase(), bubbles: true, cancelable: true,
+        }));
+      }
     }
-    await waitUntil(() => decoded() === expected, "Lights automatic input decoded '" + decoded() + "' instead of '" + expected + "'");
+    await waitUntil(
+      () => pulseCount() >= before + keyCodes.length,
+      "Lights automatic-key character pulses were not observed",
+    );
+    await waitUntil(
+      () => Boolean(document.querySelector('[data-action="lights-transmit"]:not([disabled])')),
+      "Lights automatic keyer did not become idle",
+    );
     return { decoded: decoded(), pulseCount: pulseCount() };
+  })()`, true);
+    if (step.gapMs > 0) await delay(step.gapMs);
+  }
+  return window.webContents.executeJavaScript(`(async () => {
+    const expected = ${JSON.stringify(expected)};
+    const decoded = () => document.querySelector(".lights-tx-line strong")?.textContent?.trim() || "";
+    const started = Date.now();
+    while (decoded() !== expected) {
+      if (Date.now() - started > 3000) {
+        throw new Error("Lights automatic input decoded '" + decoded() + "' instead of '" + expected + "'");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    return {
+      decoded: decoded(),
+      pulseCount: Number(document.querySelector(".lights-event-screen")?.dataset.pulseCount),
+    };
   })()`, true);
 }
 
@@ -1570,7 +1728,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.36.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.37.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
   const languageStorageKey = "game-morse-adventurer.language.v1";
@@ -2203,6 +2361,8 @@ async function runQaCapture(window) {
     || !persistentPracticeIdentity.statusText.includes(persistentPracticeIdentity.callsign)) {
     throw new Error(`Active-save practice did not identify its record destination: ${JSON.stringify(persistentPracticeIdentity)}`);
   }
+  await click(window, '[data-action="practice-visual-aid"]');
+  await waitFor(window, ".practice-prompt code");
   await capture(window, outputDir, shot("practice-lesson-guidance"));
 
   const practiceTargets = [];
@@ -2635,7 +2795,11 @@ async function runQaCapture(window) {
     throw new Error("A pristine PLAYER_CQ incorrectly opened the leave guard.");
   }
   await click(window, ".hotspot-station");
-  await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-qso-exit-risk="none"][data-receiver-active="true"]', 10000);
+  await waitForFocusedQsoState(
+    window,
+    '[data-qso-phase="PLAYER_CQ"][data-qso-exit-risk="none"][data-receiver-active="true"]',
+    { context: "after re-entering the station receiver" },
+  );
   const accessoryReceiverState = await window.webContents.executeJavaScript(`(() => {
     const station = document.querySelector(".station-screen");
     return {
@@ -2663,6 +2827,7 @@ async function runQaCapture(window) {
   }
   await capture(window, outputDir, shot("station-listening-warmup"));
   await capture(window, outputDir, shot("station-listening"));
+  await focusQaWindow(window, "before station TX artwork keying probe");
   await window.webContents.executeJavaScript(`window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyX", key: "x", bubbles: true, cancelable: true }))`, true);
   await waitFor(window, '[data-testid="station-radio-art"][data-radio-art-state="tx"]');
   const txRadioArt = await window.webContents.executeJavaScript(
@@ -2774,7 +2939,11 @@ async function runQaCapture(window) {
     throw new Error(`Imperfect CQ did not produce a safe operator query: ${JSON.stringify(queryState)}`);
   }
   await capture(window, outputDir, shot("qso-npc-query"));
-  await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-channel-notice="npcQuery"]', 10000);
+  await waitForFocusedQsoState(
+    window,
+    '[data-qso-phase="PLAYER_CQ"][data-channel-notice="npcQuery"]',
+    { context: "after capturing the NPC CQ query" },
+  );
 
   const cqMessage = `CQCQDE${playerIdentity.player}${playerIdentity.player}PSEK`;
   await sendAutomaticText(window, cqMessage);
@@ -2816,7 +2985,11 @@ async function runQaCapture(window) {
   }
   await click(window, '[data-action="cancel-qso-leave"]');
   await waitForMissing(window, '[data-testid="qso-leave-dialog"]');
-  await waitFor(window, '[data-qso-phase="PLAYER_RST_AND_73"]', 10000);
+  await waitForFocusedQsoState(
+    window,
+    '[data-qso-phase="PLAYER_RST_AND_73"]',
+    { context: "after cancelling the active QSO leave guard" },
+  );
   await assertNoNpcPortraitRuntime(window, "player-report");
   const firstRecoveryState = await window.webContents.executeJavaScript(`(() => ({
     failures: window.cwgameSystem?.getQaIncomingFailureCount?.() ?? 0,
@@ -2853,12 +3026,68 @@ async function runQaCapture(window) {
     throw new Error(`Invalid reply was not retained safely: ${JSON.stringify(retainedInvalidReply)}`);
   }
   await capture(window, outputDir, shot("qso-specific-error"));
+  await window.webContents.executeJavaScript(`(() => {
+    const sample = (label) => {
+      const station = document.querySelector(".station-screen");
+      const submit = document.querySelector('[data-action="submit-reply"]');
+      return {
+        label,
+        at: performance.now(),
+        phase: station?.dataset.qsoPhase ?? null,
+        decoded: station?.dataset.decoded ?? null,
+        accuracy: document.querySelector(".qso-console small")?.textContent ?? null,
+        repeatRequests: station?.dataset.repeatRequests ?? null,
+        pulseCount: station?.dataset.pulseCount ?? null,
+        submitDisabled: submit?.disabled ?? null,
+        clearAndRetry: Boolean(document.querySelector('[data-action="clear-and-retry"]')),
+      };
+    };
+    window.__qaAgnTrace = [sample("before-clear-click")];
+    window.__qaAgnLast = JSON.stringify(window.__qaAgnTrace[0]);
+    window.__qaAgnSample = sample;
+    window.__qaAgnObserver?.disconnect();
+    window.__qaAgnObserver = new MutationObserver(() => {
+      const next = sample("mutation");
+      const signature = JSON.stringify({ ...next, label: undefined, at: undefined });
+      if (signature !== window.__qaAgnLast) {
+        window.__qaAgnTrace.push(next);
+        window.__qaAgnLast = signature;
+      }
+    });
+    window.__qaAgnObserver.observe(document.body, { attributes: true, childList: true, subtree: true });
+  })()`, true);
   await click(window, '[data-action="clear-and-retry"]');
+  await window.webContents.executeJavaScript('window.__qaAgnTrace.push(window.__qaAgnSample("after-clear-click"))', true);
 
   await sendAutomaticText(window, "AGN K");
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
+  const agnBeforeSubmit = await window.webContents.executeJavaScript(`(async () => ({
+    ...window.__qaAgnSample("before-submit"),
+    semanticStatus: await window.cwgameSystem?.getSemanticStatus?.(),
+  }))()`, true);
   await click(window, '[data-action="submit-reply"]');
-  await waitFor(window, '[data-qso-phase="PLAYER_RST_AND_73"][data-repeat-requests="1"]', 10000);
+  let agnWaitError = null;
+  try {
+    await waitForFocusedQsoState(
+      window,
+      '[data-qso-phase="PLAYER_RST_AND_73"][data-repeat-requests="1"]',
+      { context: "after requesting an NPC report repeat" },
+    );
+  } catch (error) {
+    agnWaitError = error;
+  }
+  const agnAfterSubmit = await window.webContents.executeJavaScript(`(async () => {
+    window.__qaAgnObserver?.disconnect();
+    return {
+      current: window.__qaAgnSample("after-submit-wait"),
+      trace: window.__qaAgnTrace,
+      semanticStatus: await window.cwgameSystem?.getSemanticStatus?.(),
+    };
+  })()`, true);
+  await fs.writeFile(path.join(outputDir, "qso-agn-debug.json"), `${JSON.stringify({
+    expected: "AGN K", beforeSubmit: agnBeforeSubmit, afterSubmit: agnAfterSubmit,
+  }, null, 2)}\n`, "utf8");
+  if (agnWaitError) throw agnWaitError;
   const repeatedIncoming = await window.webContents.executeJavaScript(`(() => ({
     npc: document.querySelector(".station-screen")?.dataset.qaNpcCallsign ?? null,
     repeatRequests: Number(document.querySelector(".station-screen")?.dataset.repeatRequests),
@@ -2868,7 +3097,6 @@ async function runQaCapture(window) {
     throw new Error(`AGN K did not replay the same hidden station: ${JSON.stringify(repeatedIncoming)}`);
   }
   await capture(window, outputDir, shot("qso-agn-repeat"));
-
   await sendAutomaticText(window, `${stationIdentity.npc} DE ${stationIdentity.player} RST 559 73 K`);
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
   const secondReplyDebug = await window.webContents.executeJavaScript(`(() => ({
@@ -2878,18 +3106,18 @@ async function runQaCapture(window) {
   }))()`, true);
   await fs.writeFile(path.join(outputDir, "qso-second-reply-debug.json"), `${JSON.stringify(secondReplyDebug, null, 2)}\n`, "utf8");
   await click(window, '[data-action="submit-reply"]');
-  await delay(120);
-  const secondReplyPhase = await window.webContents.executeJavaScript(
-    'document.querySelector(".station-screen")?.dataset.qsoPhase ?? null',
-    true,
-  );
+  const secondReplyPhase = await waitForQsoSubmitDecision(window);
   if (secondReplyPhase === "PLAYER_RST_AND_73") {
     await click(window, '[data-action="clear-input"]');
     await sendAutomaticText(window, `${stationIdentity.npc} DE ${stationIdentity.player} RST 559 73 K`);
     await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
     await click(window, '[data-action="submit-reply"]');
   }
-  await waitFor(window, '[data-qso-phase="PLAYER_OPTIONAL_ANSWER"], .qso-result-modal.success', 30000);
+  await waitForFocusedQsoState(
+    window,
+    '[data-qso-phase="PLAYER_OPTIONAL_ANSWER"], .qso-result-modal.success',
+    { context: "while receiving the optional NPC question", timeout: 30_000 },
+  );
   await assertNoNpcPortraitRuntime(window, "optional-exchange");
   const optionalExchangeQa = await window.webContents.executeJavaScript(`(() => {
     const station = document.querySelector(".station-screen");
@@ -2910,7 +3138,11 @@ async function runQaCapture(window) {
   await sendAutomaticText(window, "QRS K");
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
   await click(window, '[data-action="submit-reply"]');
-  await waitFor(window, '[data-qso-phase="PLAYER_OPTIONAL_ANSWER"][data-optional-exchange-repeats="1"]', 30000);
+  await waitForFocusedQsoState(
+    window,
+    '[data-qso-phase="PLAYER_OPTIONAL_ANSWER"][data-optional-exchange-repeats="1"]',
+    { context: "after requesting the optional question more slowly", timeout: 30_000 },
+  );
   await assertNoNpcPortraitRuntime(window, "optional-qrs-replay");
   const replayedOptionalQuestion = await window.webContents.executeJavaScript(`(() => {
     const station = document.querySelector(".station-screen");
@@ -2935,7 +3167,11 @@ async function runQaCapture(window) {
   await sendAutomaticText(window, optionalAnswerText);
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10000);
   await click(window, '[data-action="submit-reply"]');
-  await waitFor(window, ".qso-result-modal.success", 30000);
+  await waitForFocusedQsoState(
+    window,
+    ".qso-result-modal.success",
+    { context: "while receiving the closing 73 and SK", timeout: 30_000 },
+  );
   await assertNoNpcPortraitRuntime(window, "qso-complete");
   await waitFor(window, ".qso-operation-review");
   await waitFor(window, ".qso-attempt-history > li.accepted");
@@ -3235,6 +3471,20 @@ async function runQaCapture(window) {
     if (scope === "qso") return finishScope({ practiceWrongTarget: wrongPracticeTarget });
 
     if (scope === "expedition") {
+      async function leaveExpeditionToHome() {
+        await click(window, '[data-action="expedition-back"]');
+        const destination = await window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+          const started = Date.now();
+          const timer = setInterval(() => {
+            if (document.querySelector(".home-screen")) { clearInterval(timer); resolve("home"); }
+            else if (document.querySelector('[data-action="expedition-confirm-leave"]')) { clearInterval(timer); resolve("confirm"); }
+            else if (Date.now() - started > 10000) { clearInterval(timer); reject(new Error("Expedition leave did not expose Home or confirmation")); }
+          }, 20);
+        })`, true);
+        if (destination === "confirm") await click(window, '[data-action="expedition-confirm-leave"]');
+        await waitFor(window, ".home-screen");
+      }
+
       await window.webContents.executeJavaScript(`(() => {
         const key = "game-morse-adventurer.saves.v1";
         const saves = JSON.parse(localStorage.getItem(key) || "[]");
@@ -3269,6 +3519,9 @@ async function runQaCapture(window) {
 
       await click(window, '[data-action="expedition-select-site"][data-site-id="sunward-hill"]');
       await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="setup"]');
+      const setupRunFixture = await window.webContents.executeJavaScript(
+        'JSON.parse(JSON.stringify(JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].expeditionState.activeRun))', true,
+      );
       await click(window, '[data-action="expedition-setup-wrong"]');
       await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="setup"]');
       const penalty = await window.webContents.executeJavaScript(`(() => {
@@ -3276,7 +3529,7 @@ async function runQaCapture(window) {
         const run = save.expeditionState.activeRun;
         return { mistakes: run.setupMistakes, elapsedMilliseconds: run.elapsedMilliseconds, remainingWh: run.power.remainingWh };
       })()`, true);
-      if (penalty.mistakes !== 1 || penalty.elapsedMilliseconds < 30000 || penalty.remainingWh >= 96) {
+      if (penalty.mistakes !== 1 || penalty.elapsedMilliseconds < 30000 || penalty.remainingWh >= 12) {
         throw new Error(`Expedition setup penalty was not durable: ${JSON.stringify(penalty)}`);
       }
       await capture(window, outputDir, shot("expedition-setup-penalty"));
@@ -3284,6 +3537,94 @@ async function runQaCapture(window) {
       await click(window, '[data-action="expedition-setup-power"]');
       await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="ready"]');
       await capture(window, outputDir, shot("expedition-ready"));
+
+      await pressKey(window, { key: "Escape", code: "Escape" });
+      await waitFor(window, ".settings-modal");
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-paused="true"]');
+      const pausedElapsed = await window.webContents.executeJavaScript(
+        'Number(document.querySelector("[data-testid=expedition-screen]")?.dataset.expeditionElapsedMs)', true,
+      );
+      await delay(1000);
+      const elapsedDuringPause = await window.webContents.executeJavaScript(
+        'Number(document.querySelector("[data-testid=expedition-screen]")?.dataset.expeditionElapsedMs)', true,
+      );
+      await pressKey(window, { key: "Escape", code: "Escape" });
+      await waitForMissing(window, ".settings-modal");
+      await focusQaWindow(window, "after closing expedition settings");
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-window-active="true"][data-expedition-paused="false"]');
+      const resumedElapsed = await window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+        const baseline = ${JSON.stringify(pausedElapsed)};
+        const started = Date.now();
+        const timer = setInterval(() => {
+          const elapsed = Number(document.querySelector("[data-testid=expedition-screen]")?.dataset.expeditionElapsedMs);
+          if (elapsed > baseline) { clearInterval(timer); resolve(elapsed); }
+          else if (Date.now() - started > 3000) { clearInterval(timer); reject(new Error("Expedition timer did not resume")); }
+        }, 20);
+      })`, true);
+      const resumedDelta = resumedElapsed - pausedElapsed;
+      const timerPausedWithoutCatchUp = Number.isFinite(pausedElapsed)
+        && elapsedDuringPause === pausedElapsed && resumedDelta > 0 && resumedDelta < 750;
+      if (!timerPausedWithoutCatchUp) {
+        throw new Error(`Expedition pause/resume charged hidden time: ${JSON.stringify({ pausedElapsed, elapsedDuringPause, resumedElapsed, resumedDelta })}`);
+      }
+
+      const readyRunFixture = await window.webContents.executeJavaScript(
+        'JSON.parse(JSON.stringify(JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].expeditionState.activeRun))', true,
+      );
+      await leaveExpeditionToHome();
+      async function reopenExpeditionWithRun(fixture) {
+        await window.webContents.executeJavaScript(`(() => {
+          const key = "game-morse-adventurer.saves.v1";
+          const saves = JSON.parse(localStorage.getItem(key));
+          const activeId = localStorage.getItem("game-morse-adventurer.active-save.v1");
+          const save = saves.find((candidate) => candidate.id === activeId);
+          if (!save) throw new Error("Missing active expedition fixture save");
+          save.expeditionState.activeRun = ${JSON.stringify(fixture)};
+          localStorage.setItem(key, JSON.stringify(saves));
+        })()`, true);
+        await window.reload();
+        await waitFor(window, ".start-screen");
+        await click(window, ".menu-primary");
+        await waitFor(window, ".save-select-screen");
+        await click(window, ".save-primary-action");
+        await waitFor(window, ".home-screen");
+        await click(window, '[data-action="open-missions"]');
+        await waitFor(window, '[data-mission-id="story-06"][data-mission-status="active"]');
+        await click(window, '[data-action="launch-expedition-story"]');
+        await waitFor(window, '[data-testid="expedition-screen"]');
+        await focusQaWindow(window, "before expedition timer evidence");
+        await waitFor(window, '[data-testid="expedition-screen"][data-expedition-window-active="true"][data-expedition-paused="false"]');
+      }
+
+      const timeoutFixture = JSON.parse(JSON.stringify(readyRunFixture));
+      timeoutFixture.elapsedMilliseconds = 899500;
+      timeoutFixture.elapsedSeconds = 899;
+      await reopenExpeditionWithRun(timeoutFixture);
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="failed"][data-expedition-failure-reason="TIMED_OUT"]');
+      const timeoutReachable = await window.webContents.executeJavaScript(
+        'document.querySelector("[data-testid=expedition-screen]")?.dataset.expeditionFailureReason === "TIMED_OUT"', true,
+      );
+      if (!timeoutReachable) throw new Error("Expedition real UI timer did not reach TIMED_OUT");
+      await leaveExpeditionToHome();
+
+      await reopenExpeditionWithRun(setupRunFixture);
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="setup"]');
+      await click(window, '[data-action="expedition-setup-antenna"]');
+      for (let mistake = 0; mistake < 3; mistake += 1) {
+        await click(window, '[data-action="expedition-setup-wrong"]');
+        if (mistake < 2) {
+          await waitFor(window, `[data-testid="expedition-screen"][data-expedition-phase="setup"][data-expedition-setup-mistakes="${mistake + 1}"]`);
+        }
+      }
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="failed"][data-expedition-failure-reason="POWER_DEPLETED"]');
+      const powerDepletedReachable = await window.webContents.executeJavaScript(
+        'document.querySelector("[data-testid=expedition-screen]")?.dataset.expeditionFailureReason === "POWER_DEPLETED"', true,
+      );
+      if (!powerDepletedReachable) throw new Error("Expedition legal power-setup path did not reach POWER_DEPLETED");
+      await leaveExpeditionToHome();
+
+      await reopenExpeditionWithRun(readyRunFixture);
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="ready"]');
       await click(window, '[data-action="expedition-call-cq"]');
       await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="calling"]');
       await capture(window, outputDir, shot("expedition-calling"));
@@ -3321,8 +3662,31 @@ async function runQaCapture(window) {
         throw new Error(`Expedition settlement linkage is incomplete: ${JSON.stringify(settledState)}`);
       }
       await capture(window, outputDir, shot("expedition-settled"));
-      await click(window, '[data-action="expedition-back"]');
-      await waitFor(window, ".home-screen");
+      await leaveExpeditionToHome();
+
+      await click(window, '[data-action="open-missions"]');
+      await waitFor(window, '[data-mission-id="story-06"][data-mission-status="ready"]');
+      await click(window, '[data-action="claim-mission"][data-mission-action-id="story-06"]');
+      await waitFor(window, '[data-mission-id="story-06"][data-mission-status="claimed"]');
+      await waitFor(window, '[data-action="launch-expedition-replay"]');
+      const claimedExpeditionState = await window.webContents.executeJavaScript(`(() => {
+        const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+        return {
+          money: save.money,
+          technologyPoints: save.technologyPoints,
+          claimed: save.missionState?.claimedMissionIds ?? [],
+          history: save.missionState?.history ?? [],
+          treeUnlocked: save.expeditionState?.expeditionTreeUnlocked === true,
+        };
+      })()`, true);
+      if (!claimedExpeditionState.treeUnlocked
+        || claimedExpeditionState.claimed.filter((id) => id === "story-06").length !== 1
+        || claimedExpeditionState.history.filter(({ id }) => id === "story-06").length !== 1) {
+        throw new Error(`Chapter 6 claim did not unlock one durable replay entry: ${JSON.stringify(claimedExpeditionState)}`);
+      }
+      await click(window, '[data-action="close-missions-footer"]');
+      await waitForMissing(window, '[data-testid="mission-center-modal"]');
+      await waitFor(window, '[data-action="enter-expedition-home"]');
 
       await window.reload();
       await waitFor(window, ".start-screen");
@@ -3330,23 +3694,67 @@ async function runQaCapture(window) {
       await waitFor(window, ".save-select-screen");
       await click(window, ".save-primary-action");
       await waitFor(window, ".home-screen");
+      await waitFor(window, '[data-action="enter-expedition-home"]');
+      await click(window, '[data-action="open-missions"]');
+      await waitFor(window, '[data-mission-id="story-06"][data-mission-status="claimed"]');
+      await waitFor(window, '[data-action="launch-expedition-replay"]');
+      const replayReloadState = await window.webContents.executeJavaScript(`(() => {
+        const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+        return {
+          money: save.money,
+          technologyPoints: save.technologyPoints,
+          claimed: save.missionState?.claimedMissionIds ?? [],
+          history: save.missionState?.history ?? [],
+          homeEntry: Boolean(document.querySelector('[data-action="enter-expedition-home"]')),
+          missionEntry: Boolean(document.querySelector('[data-action="launch-expedition-replay"]')),
+        };
+      })()`, true);
+      const replayEntryPersisted = replayReloadState.homeEntry && replayReloadState.missionEntry;
+      if (!replayEntryPersisted) throw new Error(`Expedition replay entry did not persist: ${JSON.stringify(replayReloadState)}`);
+      await click(window, '[data-action="launch-expedition-replay"]');
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="site-selection"]');
+      await leaveExpeditionToHome();
+      const replayAfterLaunchState = await window.webContents.executeJavaScript(`(() => {
+        const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+        return {
+          money: save.money,
+          technologyPoints: save.technologyPoints,
+          claimed: save.missionState?.claimedMissionIds ?? [],
+          history: save.missionState?.history ?? [],
+        };
+      })()`, true);
+      const replayRewardNoOp = replayAfterLaunchState.money === claimedExpeditionState.money
+        && replayAfterLaunchState.technologyPoints === claimedExpeditionState.technologyPoints
+        && JSON.stringify(replayAfterLaunchState.claimed) === JSON.stringify(claimedExpeditionState.claimed)
+        && JSON.stringify(replayAfterLaunchState.history) === JSON.stringify(claimedExpeditionState.history);
+      if (!replayRewardNoOp) {
+        throw new Error(`Expedition replay repeated the story reward: ${JSON.stringify({ claimedExpeditionState, replayAfterLaunchState })}`);
+      }
       await click(window, '[data-action="open-people-qsl"]');
       await waitFor(window, '[data-testid="people-qsl-modal"] [data-qsl-choice="believe"]');
       await capture(window, outputDir, shot("expedition-reloaded-qsl"));
       const beforeChoice = await window.webContents.executeJavaScript(
         'JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].qslRecords[0]', true,
       );
-      await window.webContents.executeJavaScript(`(() => {
-        const node = document.querySelector('[data-qsl-choice="believe"]');
-        node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-        node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-      })()`, true);
+      await click(window, '[data-qsl-choice="believe"]');
       await waitFor(window, '[data-testid="people-qsl-modal"] [data-qsl-id] b');
-      const afterChoice = await window.webContents.executeJavaScript(
+      const afterFirst = await window.webContents.executeJavaScript(
         'JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].qslRecords', true,
       );
-      if (beforeChoice.choice !== null || afterChoice.length !== 1 || afterChoice[0].choice !== "believe"
-        || !afterChoice[0].confirmedAt) throw new Error(`QSL choice was not one-time: ${JSON.stringify(afterChoice)}`);
+      await window.webContents.executeJavaScript(
+        'document.querySelector(\'[data-action="qa-confirm-qsl-duplicate"]\').click()', true,
+      );
+      const afterDuplicate = await window.webContents.executeJavaScript(
+        'JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].qslRecords', true,
+      );
+      const duplicateChoiceNoOp = afterDuplicate.length === 1 && afterFirst.length === 1
+        && afterDuplicate[0].choice === afterFirst[0].choice
+        && afterDuplicate[0].confirmedAt === afterFirst[0].confirmedAt
+        && JSON.stringify(afterDuplicate) === JSON.stringify(afterFirst);
+      if (beforeChoice.choice !== null || afterFirst.length !== 1 || afterFirst[0].choice !== "believe"
+        || !afterFirst[0].confirmedAt || !duplicateChoiceNoOp) {
+        throw new Error(`QSL choice was not one-time: ${JSON.stringify({ afterFirst, afterDuplicate })}`);
+      }
       await capture(window, outputDir, shot("expedition-choice-confirmed"));
 
       await window.reload();
@@ -3382,7 +3790,12 @@ async function runQaCapture(window) {
         qslPersonId: reloaded.qsl.personId,
         qslChoice: reloaded.qsl.choice,
         qslChoicePersistedAfterReload: true,
-        duplicateChoiceNoOp: afterChoice.length === 1 && afterChoice[0].choice === "believe",
+        duplicateChoiceNoOp: duplicateChoiceNoOp,
+        timerPausedWithoutCatchUp,
+        timeoutReachable,
+        powerDepletedReachable,
+        replayEntryPersisted,
+        replayRewardNoOp,
       };
       validateExpeditionQaEvidence(expeditionEvidence, { qaRunId });
       await fs.writeFile(path.join(outputDir, "expedition-qa-result.json"), `${JSON.stringify(expeditionEvidence, null, 2)}\n`, "utf8");
@@ -3424,9 +3837,12 @@ module.exports = {
   automaticQaGapAfterElement, automaticQaShouldWaitForIdleAfterSymbol,
   buildLightsQaMoneyFlow, buildLightsQaPlan, buildQaSegmentPlan, capture, capturePageWithVizRetry,
   createQaStateEnvelope, exportQaStateFromRenderer, formatLightsWaitFailure, importQaStateIntoRenderer,
+  focusQaWindow,
   LIGHTS_QA_WPM, QA_QSO_LOG_VERSION, QA_STORAGE_KEYS, QA_SUPPORTED_SCOPES,
   runLightsQaCapture, runLightsQaSegment, runQaCapture,
   lightsKeyInputForSymbol, selectLightsCallerFromRuntimeSnapshot, startGuidedQaWatch,
+  sendAutomaticStationRun, sendAutomaticStationText,
   sendAutomaticLightsText, validateExpeditionQaEvidence, validateLightsQaEvidence, validateQaStateEnvelope, validateStationEntryProbe,
+  waitForFocusedQsoState, waitForQsoSubmitDecision, waitForRendererImages,
   writeQaSegmentResult,
 };

@@ -347,6 +347,12 @@ test("chapter six requires a bounded, fully linked expedition settlement before 
   assert.equal(claimed.moneyAwarded, 650);
   assert.equal(claimed.technologyPointsAwarded, 3);
   assert.equal(claimed.save.expeditionState.expeditionTreeUnlocked, true);
+  const repeatedClaim = claimMission(claimed.save, "story-06", "2026-08-12T10:06:00.000Z");
+  assert.equal(repeatedClaim.claimed, false);
+  assert.equal(repeatedClaim.reason, "MISSION_ALREADY_CLAIMED");
+  assert.equal(repeatedClaim.save.money, claimed.save.money);
+  assert.equal(repeatedClaim.save.technologyPoints, claimed.save.technologyPoints);
+  assert.deepEqual(repeatedClaim.save.missionState, claimed.save.missionState);
 });
 
 test("story-six and earlier mission claims saturate integer rewards safely", () => {

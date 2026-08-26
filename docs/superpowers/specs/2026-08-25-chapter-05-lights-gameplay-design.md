@@ -2,13 +2,13 @@
 
 ## Status
 
-Implemented as the v0.36.0 Chapter 5 vertical slice. This specification builds on the dual-calendar and active-save clock contracts in `worldCalendar.js` and `worldCalendarHeartbeat.js`; its chase, pile-up, exchange, scoring, settlement, mission, economy, save, and seven-language UI contracts are now executable and covered by automated acceptance tests. The pixel-art lights-map result presentation and full narrative dialogue remain later work.
+Implemented in v0.37.0 as the complete Chapter 5 presentation. This specification builds on the dual-calendar and active-save clock contracts in `worldCalendar.js` and `worldCalendarHeartbeat.js`; chase, pile-up, exchange, scoring, settlement, mission, economy, save, narrative, archive-backed lights map/history, annual records, stamps, achievements, failure coaching, and seven-language UI contracts are executable. NPC portraits remain excluded from on-air scenes.
 
 ## 1. Purpose and boundaries
 
 Chapter 5 is the first event-style CW chapter. It teaches the player to hear a crowded frequency, recover a partial callsign, complete a short event exchange, and then operate the event station for a timed slot.
 
-This slice includes:
+The implemented chapter includes:
 
 - the event identity and radio contract;
 - story, annual, and practice entry modes;
@@ -19,8 +19,11 @@ This slice includes:
 - the player-operated event-station stage;
 - exchange validation, scoring, grades, and rewards;
 - annual and daily reward idempotency.
+- fixed NOVA→SORA→MORSE narrative beats and cause-specific failure coaching;
+- stable person/station identities and bounded event-run archives;
+- an archive-backed lights map, annual/practice history, stamps, and achievements.
 
-This slice does not include the lights-map presentation, final character dialogue, portraits, new equipment, or Chapters 6–15.
+Chapter 5 does not include portraits, new equipment, the full Chapter 7 story, or Chapters 8–15. Chapter 6 is implemented separately as a playable expedition vertical slice; Chapter 7 has only the QSL/person-choice foundation in v0.37.0.
 
 ## 2. Frozen event identity
 

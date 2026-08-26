@@ -51,6 +51,7 @@ import {
   qsoCanAcceptPlayer, qsoNeedsNpcPlayback, resolveCqResponse, restartQso, submitPlayerMessage,
 } from "./qso/qsoEngine.js";
 import { responseDelayForNpc } from "./qso/operatorProfiles.js";
+import { qsoRepeatNoticeCopy } from "./qso/qsoRepeatNotice.js";
 
 import { recordCompletedQso } from "./qso/qsoLog.js";
 import {
@@ -88,7 +89,7 @@ const ASSETS = {
 
 const QA_OPTIONAL_NPC_CALLSIGNS = new Set(["SIM3RA", "SIM5TU", "SIM2DX", "SIM8CW", "SIM6JP"]);
 
-const BUILD_VERSION = "0.36.0";
+const BUILD_VERSION = "0.37.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -319,16 +320,6 @@ const OPTIONAL_EXCHANGE_COPY = {
   },
 };
 
-const QRS_NOTICE_COPY = {
-  "zh-CN": { qrsRepeat: "对方已减速重发。", qrsMinimum: "对方已以最低 5 WPM 重发。" },
-  "zh-TW": { qrsRepeat: "對方已減速重發。", qrsMinimum: "對方已以最低 5 WPM 重發。" },
-  ja: { qrsRepeat: "相手局が速度を落として再送しました。", qrsMinimum: "相手局が最低速度 5 WPM で再送しました。" },
-  en: { qrsRepeat: "The station repeated more slowly.", qrsMinimum: "The station repeated at the minimum 5 WPM." },
-  es: { qrsRepeat: "La estación repitió más despacio.", qrsMinimum: "La estación repitió a la velocidad mínima de 5 WPM." },
-  de: { qrsRepeat: "Die Gegenstation hat langsamer wiederholt.", qrsMinimum: "Die Gegenstation hat mit der Mindestgeschwindigkeit von 5 WPM wiederholt." },
-  ru: { qrsRepeat: "Станция повторила медленнее.", qrsMinimum: "Станция повторила на минимальной скорости 5 WPM." },
-};
-
 function IconButton({ label, children, className = "", ...props }) {
   return <button className={`icon-button ${className}`} aria-label={label} title={label} {...props}>{children}</button>;
 }
@@ -476,7 +467,7 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
   const t = COPY[language];
   const flow = STATION_FLOW_COPY[language] ?? STATION_FLOW_COPY.en;
   const optionalFlow = OPTIONAL_EXCHANGE_COPY[language] ?? OPTIONAL_EXCHANGE_COPY.en;
-  const qrsNotice = QRS_NOTICE_COPY[language] ?? QRS_NOTICE_COPY.en;
+  const qrsNotice = qsoRepeatNoticeCopy(language);
   const antennaStatus = ANTENNA_STATUS[language] ?? ANTENNA_STATUS.en;
   const location = getLocation(save.locationId);
   const transmitter = getTransmitter(save.equipmentId);
@@ -1024,6 +1015,7 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
     unreadableCq: flow.unreadableCq,
     unreadableReport: flow.unreadableReport,
     optionalExchange: optionalFlow.privacy,
+    agnRepeat: qrsNotice.agnRepeat,
     qrsRepeat: qrsNotice.qrsRepeat,
     qrsMinimum: qrsNotice.qrsMinimum,
   }[qso.channelNotice] ?? "";

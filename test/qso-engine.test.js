@@ -634,6 +634,7 @@ test("a strict AGN K request replays the same incoming message without consuming
 
   qso = onNpcPlaybackFinished(qso);
   assert.equal(qso.phase, QSO_PHASES.PLAYER_RST_AND_73);
+  assert.equal(qso.channelNotice, "agnRepeat");
   qso = submitPlayerMessage(qso, "AGN K");
   assert.equal(qso.repeatRequests, 2);
   qso = onNpcPlaybackFinished(qso);
@@ -681,7 +682,7 @@ test("QRS replays the same contact more slowly, floors at 5 WPM, and AGN keeps t
   const slowedWpm = qso.replyWpm;
   qso = submitPlayerMessage(qso, "AGN K");
   assert.equal(qso.replyWpm, slowedWpm);
-  assert.equal(qso.channelNotice, null);
+  assert.equal(qso.channelNotice, "agnRepeat");
 
   for (let index = 0; index < 8; index += 1) {
     qso = onNpcPlaybackFinished(qso);

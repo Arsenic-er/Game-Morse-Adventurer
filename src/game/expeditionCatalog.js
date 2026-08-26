@@ -51,7 +51,7 @@ export const EXPEDITION_LOAN_KIT = deepFreeze({
     receiveDrawWatts: 2, transmitDrawWatts: 12,
   },
   antenna: { id: "loan-wire-dipole", exchangeCode: "WIRE" },
-  battery: { id: "loan-lifepo4-96wh", capacityWh: 96 },
+  battery: { id: "loan-lifepo4-12wh", capacityWh: 12 },
 });
 
 const FIELD_RADIO_DRAWS = Object.freeze({
@@ -151,7 +151,7 @@ export function normalizeExpeditionLoadout(value) {
     receiveDrawWatts: boundedNumber(own(value, "receiveDrawWatts"), 0.1, 100, 2),
     transmitDrawWatts: boundedNumber(own(value, "transmitDrawWatts"), 0.1, 500, 12),
     antennaCode,
-    capacityWh: boundedNumber(own(value, "capacityWh"), 1, 2_000, 96),
+    capacityWh: boundedNumber(own(value, "capacityWh"), 1, 2_000, 12),
   };
   const canonical = canonicalLoanLoadout();
   if (Object.keys(canonical).some((key) => loadout[key] !== canonical[key])) return null;

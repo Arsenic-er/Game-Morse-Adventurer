@@ -4,6 +4,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { runLightsQaCapture, runLightsQaSegment, runQaCapture } = require("./qa-capture.cjs");
+const { finishQaProcess } = require("./qa-shutdown.cjs");
 const { readWindowsWifiStatus } = require("./network-status.cjs");
 const { qsoExitDialogOptions } = require("./qso-exit-dialog.cjs");
 const { createSemanticRuntime, sanitizeSemanticPayload } = require("./semantic-runtime.cjs");
@@ -13,6 +14,13 @@ const qaCaptureMode = process.argv.includes("--qa-capture") || lightsQaCaptureMo
 const semanticSmokeMode = process.argv.includes("--semantic-smoke");
 const qaWidth = Math.max(1280, Number(process.env.CWGAME_QA_WIDTH) || 1672);
 const qaHeight = Math.max(720, Number(process.env.CWGAME_QA_HEIGHT) || 941);
+
+function writeProcessStream(stream, content) {
+  return new Promise((resolve, reject) => {
+    stream.write(content, (error) => (error ? reject(error) : resolve()));
+  });
+}
+
 if (qaCaptureMode) app.disableHardwareAcceleration();
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 if (qaCaptureMode) {
@@ -137,16 +145,16 @@ if (!gotLock) {
               process.env.CWGAME_QA_SUFFIX || `${captureWidth}x${captureHeight}`,
             )
             : await runQaCapture(mainWindow);
-          process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-          app.exit(0);
+          await writeProcessStream(process.stdout, `${JSON.stringify(result, null, 2)}\n`);
+          await finishQaProcess({ app, window: mainWindow, exitCode: 0 });
         } catch (error) {
           const outputDir = process.env.CWGAME_QA_OUTPUT;
           if (outputDir) {
             fs.mkdirSync(outputDir, { recursive: true });
             fs.writeFileSync(path.join(outputDir, "qa-failure.txt"), `${error.stack || error}\n`, "utf8");
           }
-          process.stderr.write(`${error.stack || error}\n`);
-          app.exit(1);
+          await writeProcessStream(process.stderr, `${error.stack || error}\n`);
+          await finishQaProcess({ app, window: mainWindow, exitCode: 1 });
         }
       });
     } else {
@@ -171,6 +179,7 @@ if (!gotLock) {
   });
 
   app.on("window-all-closed", () => {
+    if (qaCaptureMode) return;
     if (process.platform !== "darwin") app.quit();
   });
 }

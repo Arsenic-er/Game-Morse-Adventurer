@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
+const { createHash } = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -158,6 +159,41 @@ test("the release uses one project icon and WOFF2 fonts for all seven language i
   const css = read("src/pixel-theme.css");
   assert.equal((css.match(/\.woff2/g) ?? []).length, 4);
   assert.doesNotMatch(css, /\.ttf/);
+});
+
+test("the portable package carries tracked complete upstream OFL texts for both bundled font families", () => {
+  const notices = read("THIRD_PARTY_NOTICES.md");
+  const fontLicenses = [
+    {
+      file: "licenses/font/Fusion-Pixel-OFL-1.1.txt",
+      sha256: "bc518cf64b8032c07690f33cc270c35c179255a6ac8efa7c165ebae7e8f76a63",
+      copyright: "Copyright (c) 2022, TakWolf (https://takwolf.com).",
+      source: "https://github.com/TakWolf/fusion-pixel-font/blob/6048696f6058e0c1d98935b063d6e8fa5a4deb1e/LICENSE-OFL",
+    },
+    {
+      file: "licenses/font/Press-Start-2P-OFL-1.1.txt",
+      sha256: "42f069b690469d0a2e534649f435e92371f5ff179e733f0812dec87c737a0e8f",
+      copyright: "Copyright 2012 The Press Start 2P Project Authors (cody@zone38.net), with Reserved Font Name \"Press Start 2P\".",
+      source: "https://github.com/google/fonts/blob/6a003b5eb672dc8bf5bff5937cf5863f8b175445/ofl/pressstart2p/OFL.txt",
+    },
+  ];
+
+  assert.ok(packageJson.build.files.includes("licenses/font/**/*"));
+  for (const license of fontLicenses) {
+    const tracked = spawnSync("git", ["ls-files", "--error-unmatch", "--", license.file], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(tracked.status, 0, `${license.file} must be tracked by git`);
+
+    const bytes = fs.readFileSync(path.join(root, license.file));
+    const text = bytes.toString("utf8");
+    const upstreamBytes = Buffer.from(text.replace(/\r\n/g, "\n"), "utf8");
+    assert.equal(createHash("sha256").update(upstreamBytes).digest("hex"), license.sha256);
+    assert.match(text, new RegExp(license.copyright.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(notices, new RegExp(license.file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.match(notices, new RegExp(license.source.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
 });
 
 test("all localized READMEs describe an unsigned source-available proprietary prototype", () => {

@@ -225,11 +225,10 @@
 **Interfaces:**
 - Produces: v0.37.0 source, documentation, portable executable, checksums, QA evidence, and final code-review package.
 
-- [ ] Update all version contracts and seven-language release summaries to `0.37.0`, explicitly separating implemented Chapters 5–6, Chapter 7 foundation, and planned Chapters 7–15.
-- [ ] Run `pnpm test`, `pnpm qso:simulate:poor`, `pnpm qso:calibrate`, and `pnpm mission:economy`.
-- [ ] Run `pnpm build`, enforce the asset budgets, then `pnpm desktop:build`.
-- [ ] Run packaged `--semantic-smoke` and `--qa-capture`; verify named lights and expedition evidence, console report, migration fixture, and duplicate settlement guards.
-- [ ] Run `git diff --check`, tracked-secret scan, model hashes, PE header, EXE size, and SHA-256 generation.
+- [x] Update all version contracts and seven-language release summaries to `0.37.0`, explicitly separating implemented Chapters 5–6, Chapter 7 foundation, and planned Chapters 7–15.
+- [x] Run `pnpm test`, `pnpm qso:simulate:poor`, `pnpm qso:calibrate`, and `pnpm mission:economy`.
+- [x] Run `pnpm build`, enforce the asset budgets, then `pnpm desktop:build`.
+- [x] Run packaged `--semantic-smoke` and `--qa-capture`; verify named lights and expedition evidence, console report, migration fixture, and duplicate settlement guards.
+- [x] Run `git diff --check`, tracked-secret scan, model hashes, PE header, EXE size, and SHA-256 generation.
 - [ ] Request broad whole-branch code review; fix every Critical/Important finding and perform one scoped re-review.
 - [ ] Commit `release: verify v0.37 chapter continuation`; retain the isolated branch until the user chooses merge/push.
-

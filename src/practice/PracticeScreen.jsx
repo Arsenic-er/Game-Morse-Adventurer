@@ -873,7 +873,7 @@ export function PracticeScreen({
           )}
 
           <footer className="practice-actions">
-            <button onClick={() => setVisualAid((current) => !current)}>{visualAid ? <EyeSlash size={19} /> : <Eye size={19} />}{visualAid ? t.visualOn : t.visualOff}</button>
+            <button data-action="practice-visual-aid" onClick={() => setVisualAid((current) => !current)}>{visualAid ? <EyeSlash size={19} /> : <Eye size={19} />}{visualAid ? t.visualOn : t.visualOff}</button>
             {sending && <button onClick={cw.replayInput} disabled={!cw.analysis.pulseCount || cw.isPlaying}><Broadcast size={19} />{t.replay}</button>}
             <button className="primary-button" data-action="practice-submit" onClick={scoreAttempt} disabled={Boolean(result || session.completedAt || (receiving ? !answer.trim() : !cw.analysis.pulseCount))}><Check size={20} weight="bold" />{t.submit}</button>
             <button data-action="practice-next" onClick={nextPrompt} disabled={!result || session.completedAt}><ArrowRight size={20} />{t.next}</button>

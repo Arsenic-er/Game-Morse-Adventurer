@@ -9,7 +9,7 @@ const vm = require("node:vm");
 const {
   automaticQaGapAfterElement, automaticQaShouldWaitForIdleAfterSymbol,
   buildLightsQaMoneyFlow, buildLightsQaPlan, capturePageWithVizRetry, formatLightsWaitFailure,
-  lightsKeyInputForSymbol, LIGHTS_QA_WPM,
+  focusQaWindow, lightsKeyInputForSymbol, LIGHTS_QA_WPM,
   QA_QSO_LOG_VERSION, runLightsQaCapture, selectLightsCallerFromRuntimeSnapshot, sendAutomaticLightsText,
   startGuidedQaWatch,
   validateLightsQaEvidence, validateStationEntryProbe,
@@ -76,6 +76,10 @@ test("packaged QA refocuses the real renderer before starting a guided QSO watch
     webContents: {
       focus() { calls.push("renderer-focus"); focused = true; },
       async executeJavaScript(source) {
+        if (source.trim().startsWith("({ hasFocus:")) {
+          calls.push("renderer-focus-precheck");
+          return { hasFocus: focused, visibilityState: "visible" };
+        }
         if (source.includes("document.hasFocus()")) {
           calls.push("renderer-focus-check");
           assert.equal(focused, true);
@@ -96,8 +100,78 @@ test("packaged QA refocuses the real renderer before starting a guided QSO watch
   await startGuidedQaWatch(qaWindow);
 
   assert.deepEqual(calls, [
-    "restore", "show", "window-focus", "renderer-focus", "renderer-focus-check", "guided-watch-click",
+    "renderer-focus-precheck", "restore", "show", "window-focus", "renderer-focus", "renderer-focus-check", "guided-watch-click",
   ]);
+});
+
+test("focusQaWindow is idempotent while the real renderer remains focused", async () => {
+  const nativeCalls = [];
+  const qaWindow = {
+    isMinimized: () => false,
+    restore() { nativeCalls.push("restore"); },
+    show() { nativeCalls.push("show"); },
+    focus() { nativeCalls.push("window-focus"); },
+    webContents: {
+      focus() { nativeCalls.push("renderer-focus"); },
+      async executeJavaScript(source) {
+        if (source.trim().startsWith("({ hasFocus:")) {
+          return { hasFocus: true, visibilityState: "visible" };
+        }
+        throw new Error(`Unexpected QA script: ${source}`);
+      },
+    },
+  };
+
+  await focusQaWindow(qaWindow, "character one");
+  await focusQaWindow(qaWindow, "character two");
+  await focusQaWindow(qaWindow, "character three");
+  assert.deepEqual(nativeCalls, []);
+});
+
+test("focusQaWindow restores a real blur once and fails closed when native focus cannot recover", async () => {
+  let focused = false;
+  const restoredCalls = [];
+  const recoveredWindow = {
+    isMinimized: () => true,
+    restore() { restoredCalls.push("restore"); },
+    show() { restoredCalls.push("show"); },
+    focus() { restoredCalls.push("window-focus"); focused = true; },
+    isFocused: () => focused,
+    webContents: {
+      focus() { restoredCalls.push("renderer-focus"); focused = true; },
+      async executeJavaScript(source) {
+        if (source.trim().startsWith("({ hasFocus:")) {
+          return { hasFocus: focused, visibilityState: "visible" };
+        }
+        if (source.includes("new Promise")) {
+          assert.equal(focused, true);
+          return true;
+        }
+        throw new Error(`Unexpected QA script: ${source}`);
+      },
+    },
+  };
+  await focusQaWindow(recoveredWindow, "recover blur");
+  assert.deepEqual(restoredCalls, ["restore", "show", "window-focus", "renderer-focus"]);
+
+  const failedWindow = {
+    isMinimized: () => false,
+    show() {}, focus() {}, isFocused: () => false,
+    webContents: {
+      focus() {},
+      async executeJavaScript(source) {
+        if (source.trim().startsWith("({ hasFocus:")) {
+          return { hasFocus: false, visibilityState: "visible" };
+        }
+        if (source.includes("new Promise")) throw new Error("renderer did not gain focus");
+        throw new Error(`Unexpected QA script: ${source}`);
+      },
+    },
+  };
+  await assert.rejects(
+    () => focusQaWindow(failedWindow, "unrecoverable blur"),
+    /unrecoverable blur.*"windowIsFocused":false.*"hasFocus":false.*renderer did not gain focus/,
+  );
 });
 
 test("packaged QA follows the production QSO log schema version", async () => {
@@ -195,6 +269,10 @@ async function delayedLightsRenderer({ keyerTimerLagMs = 0, projectionDelayMs = 
   let projectedPulseCount = 0;
   let projectedDecoded = "";
   let keyerActive = false;
+  let rendererFocused = true;
+  let focusLossAfterPulseCount = null;
+  let focusLossApplied = false;
+  const focusCalls = [];
   const keyer = new AutomaticKeyer({
     getWpm: () => wpm,
     now: () => performance.now(),
@@ -207,6 +285,11 @@ async function delayedLightsRenderer({ keyerTimerLagMs = 0, projectionDelayMs = 
         projectionTimers.delete(timer);
         projectedPulseCount = snapshot.length;
         projectedDecoded = analyzeKeying(snapshot, { fallbackWpm: wpm }).decoded;
+        if (!focusLossApplied && Number.isInteger(focusLossAfterPulseCount)
+          && projectedPulseCount >= focusLossAfterPulseCount) {
+          rendererFocused = false;
+          focusLossApplied = true;
+        }
       }, projectionDelayMs);
       projectionTimers.add(timer);
     },
@@ -219,7 +302,7 @@ async function delayedLightsRenderer({ keyerTimerLagMs = 0, projectionDelayMs = 
   }
   const document = {
     visibilityState: "visible",
-    hasFocus: () => true,
+    hasFocus: () => rendererFocused,
     querySelector(selector) {
       if (selector === ".lights-event-screen") {
         return { dataset: { eventPhase: "CHASE_PLAYER_CALL", pulseCount: String(projectedPulseCount) } };
@@ -231,6 +314,7 @@ async function delayedLightsRenderer({ keyerTimerLagMs = 0, projectionDelayMs = 
   };
   const rendererWindow = {
     dispatchEvent(event) {
+      if (!rendererFocused) return false;
       const symbol = event.code === "KeyZ" ? "." : event.code === "KeyX" ? "-" : null;
       if (!symbol) return false;
       if (event.type === "keydown") keyer.begin(symbol);
@@ -244,9 +328,15 @@ async function delayedLightsRenderer({ keyerTimerLagMs = 0, projectionDelayMs = 
   };
   return {
     decoded: () => projectedDecoded,
+    focusCalls,
+    loseFocusAfterPulses(count) { focusLossAfterPulseCount = count; },
     pulses,
     window: {
+      isMinimized: () => false,
+      show() { focusCalls.push("show"); },
+      focus() { focusCalls.push("window-focus"); rendererFocused = true; },
       webContents: {
+        focus() { focusCalls.push("renderer-focus"); rendererFocused = true; },
         executeJavaScript(source) {
           return vm.runInNewContext(source, context);
         },
@@ -603,24 +693,39 @@ test("automatic Lights typing waits for idle only at character boundaries", () =
 });
 
 test("automatic Lights typing queues each character before observing its DOM pulse projection", async () => {
-  let executions = 0;
-  let script = "";
+  const focusCalls = [];
+  const keyingScripts = [];
   const window = {
+    isMinimized: () => false,
+    show() { focusCalls.push("show"); },
+    focus() { focusCalls.push("window-focus"); },
     webContents: {
+      focus() { focusCalls.push("renderer-focus"); },
       async executeJavaScript(source) {
-        executions += 1;
-        script = source;
-        return { screenPresent: true, pulseCount: executions, decoded: "RRR RST" };
+        if (source.trim().startsWith("({ hasFocus:")) {
+          return { hasFocus: true, visibilityState: "visible" };
+        }
+        if (source.includes("const keyCodes =")) {
+          keyingScripts.push(source);
+          return { pulseCount: keyingScripts.length, decoded: "RRR RST" };
+        }
+        if (source.includes("const expected =")) return { pulseCount: keyingScripts.length, decoded: "RRR RST" };
+        if (source.includes("document.hasFocus()")) return true;
+        throw new Error(`Unexpected QA script: ${source}`);
       },
     },
   };
 
   await sendAutomaticLightsText(window, "RRR RST", 12);
-  assert.equal(executions, 1);
-  const keyDownAt = script.indexOf('new KeyboardEvent("keydown"');
-  const pulseAt = script.indexOf("pulseCount() >= before");
-  const keyUpAt = script.indexOf('new KeyboardEvent("keyup"');
-  assert.ok(keyDownAt >= 0 && keyDownAt < keyUpAt && keyUpAt < pulseAt);
+  assert.equal(keyingScripts.length, 6);
+  assert.equal(focusCalls.filter((call) => call === "window-focus").length, 0);
+  assert.equal(focusCalls.filter((call) => call === "renderer-focus").length, 0);
+  for (const script of keyingScripts) {
+    const keyDownAt = script.indexOf('new KeyboardEvent("keydown"');
+    const pulseAt = script.indexOf("pulseCount() >= before");
+    const keyUpAt = script.indexOf('new KeyboardEvent("keyup"');
+    assert.ok(keyDownAt >= 0 && keyDownAt < keyUpAt && keyUpAt < pulseAt);
+  }
 });
 
 test("automatic Lights typing preserves character boundaries when DOM pulse projection is delayed", async () => {
@@ -639,6 +744,20 @@ test("automatic Lights typing preserves long-character boundaries when keyer tim
   try {
     await sendAutomaticLightsText(renderer.window, "QA5L", 12);
     assert.equal(renderer.decoded(), "QA5L");
+  } finally {
+    renderer.cleanup();
+  }
+});
+
+test("automatic Lights typing restores real renderer focus at character boundaries", async () => {
+  const renderer = await delayedLightsRenderer({ projectionDelayMs: 150, wpm: 12 });
+  renderer.loseFocusAfterPulses(4); // L completes, then an external window steals focus.
+  try {
+    await sendAutomaticLightsText(renderer.window, "LT T", 12);
+    assert.equal(renderer.decoded(), "LT T");
+    assert.deepEqual(renderer.pulses.map(({ symbol }) => symbol), [".", "-", ".", ".", "-", "-"]);
+    assert.equal(renderer.focusCalls.filter((call) => call === "window-focus").length, 1);
+    assert.equal(renderer.focusCalls.filter((call) => call === "renderer-focus").length, 1);
   } finally {
     renderer.cleanup();
   }

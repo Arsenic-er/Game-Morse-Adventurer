@@ -58,7 +58,7 @@ surface that cannot be exercised by the CommonJS helper tests.
 The complete direct Electron run with the single-renderer protocol wrote evidence to:
 
 ```text
-C:\Users\jiang\AppData\Local\Temp\cwgame-lights-direct-20260826-010239249
+<temp>\cwgame-lights-direct-20260826-010239249
 ```
 
 Its independently re-read JSON passed `validateLightsQaEvidence` and contained Base grade, 3 valid QSOs, 3 distinct regions, 3 resolved pile-ups, duplicate-settlement no-op facts, and reload equality. It produced six `lights-*.png` files.
@@ -66,7 +66,7 @@ Its independently re-read JSON passed `validateLightsQaEvidence` and contained B
 After the final held-paddle refinement, a new direct timing probe wrote to:
 
 ```text
-C:\Users\jiang\AppData\Local\Temp\cwgame-lights-probe-20260826-011601047
+<temp>\cwgame-lights-probe-20260826-011601047
 ```
 
 `RRR RST` decoded exactly, the flow advanced through the full chase, and both story-launch and chase screenshots were generated. This probe-only process was then deliberately terminated with SIGINT before rebuilding the portable artifact; it is not represented as a complete result run.
@@ -75,7 +75,7 @@ After the round-three idle-anchored change, a fresh direct short probe passed bo
 chase transmissions and reached the control/failed-run checkpoints at:
 
 ```text
-C:\Users\jiang\AppData\Local\Temp\cwgame-lights-round3-h2-direct-20260826-023852268
+<temp>\cwgame-lights-round3-h2-direct-20260826-023852268
 ```
 
 It produced four screenshots and no failure file before deliberate termination. It
@@ -108,7 +108,7 @@ release\CWGame-latest.exe --qa-lights-capture
 The first review-round run was retained as a hard failure rather than discarded:
 
 ```text
-C:\Users\jiang\AppData\Local\Temp\cwgame-lights-portable-round2-20260826-015303265
+<temp>\cwgame-lights-portable-round2-20260826-015303265
 ```
 
 It failed during real keying because `SIM5LT` decoded as `SIM5EDT` while the document
@@ -116,7 +116,7 @@ was focused and visible. No new timing assumption was added. An unchanged, clean
 rerun of the same rebuilt EXE completed at:
 
 ```text
-C:\Users\jiang\AppData\Local\Temp\cwgame-lights-portable-round2-final-20260826-015443749
+<temp>\cwgame-lights-portable-round2-final-20260826-015443749
 ```
 
 The fail/green pair demonstrated the review's intermittent boundary fault; the green
@@ -125,9 +125,9 @@ After the idle-anchored repair, the final portable EXE identified above complete
 three consecutive fresh-TEMP cold starts. There was no failed-run retry:
 
 ```text
-C:\Users\jiang\AppData\Local\Temp\cwgame-lights-round3-h2-portable-1-20260826-024630469
-C:\Users\jiang\AppData\Local\Temp\cwgame-lights-round3-h2-portable-2-20260826-025210160
-C:\Users\jiang\AppData\Local\Temp\cwgame-lights-round3-h2-portable-3-20260826-025812409
+<temp>\cwgame-lights-round3-h2-portable-1-20260826-024630469
+<temp>\cwgame-lights-round3-h2-portable-2-20260826-025210160
+<temp>\cwgame-lights-round3-h2-portable-3-20260826-025812409
 ```
 
 Each directory independently passed the current `validateLightsQaEvidence`, contains

@@ -60,6 +60,22 @@ test("QSL choice confirms once, reloads unchanged, and duplicate confirmation is
   assert.strictEqual(duplicate.records, reloaded);
 });
 
+test("QSL confirmation timestamps cannot predate record creation", () => {
+  const beforeCreation = "2026-08-26T03:04:59.999Z";
+  assert.equal(createQslRecord({
+    ...BASE,
+    choice: "believe",
+    confirmedAt: beforeCreation,
+  }), null);
+
+  const records = normalizeQslRecords([createQslRecord(BASE)]);
+  const rejected = confirmQslChoice(records, BASE.id, "believe", beforeCreation);
+  assert.equal(rejected.confirmed, false);
+  assert.equal(rejected.reason, "INVALID_CHOICE");
+  assert.strictEqual(rejected.records, records);
+  assert.equal(rejected.record, null);
+});
+
 test("QSL hostile input is own-only, bounded, prototype-safe and never persists player text", () => {
   let getterCalls = 0;
   const hostile = Object.create({

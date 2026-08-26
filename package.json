@@ -1,6 +1,6 @@
 {
   "name": "cwgame",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "description": "Pixel-art amateur radio CW station simulator",
   "author": "Arsenic-er <302726993@qq.com>",
   "private": true,
@@ -43,6 +43,7 @@
       "package.json",
       "LICENSE",
       "THIRD_PARTY_NOTICES.md",
+      "licenses/font/**/*",
       "build/icon.ico",
       "!node_modules/onnxruntime-node/bin/napi-v6/darwin/**/*",
       "!node_modules/onnxruntime-node/bin/napi-v6/linux/**/*",

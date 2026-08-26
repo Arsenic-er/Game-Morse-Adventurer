@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, BatteryHigh, Broadcast, CheckCircle, MapPin, Radio, Warning } from "@phosphor-icons/react";
 import { EXPEDITION_SITES, createExpeditionLoadout } from "../game/expeditionCatalog.js";
 import {
   advanceExpeditionSetup, attemptExpeditionSetup, beginExpeditionCq, createExpeditionRun,
   receiveExpeditionContact, requestExpeditionRecovery, retryExpeditionRun,
-  selectExpeditionSite, submitExpeditionExchange,
+  selectExpeditionSite, submitExpeditionExchange, tickExpeditionRun,
 } from "../game/expeditionRun.js";
+import {
+  createExpeditionActiveClock, expeditionPageIsActive, expeditionTimerShouldRun,
+  registerExpeditionPageVisibility,
+} from "../game/expeditionLifecycle.js";
 import { EXPEDITION_TEXT, expeditionLeaveRisk, expeditionUiModel } from "./expeditionText.js";
 
 function nowIso() { return new Date().toISOString(); }
@@ -25,9 +29,29 @@ export function ExpeditionScreen({ language, save, inputBlocked = false, onActiv
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [settled, setSettled] = useState(false);
   const [semanticBusy, setSemanticBusy] = useState(false);
+  const [windowActive, setWindowActive] = useState(() => expeditionPageIsActive(globalThis.document));
+  const onRunChangeRef = useRef(onRunChange);
+  onRunChangeRef.current = onRunChange;
+  const activeClockRef = useRef(null);
+  if (!activeClockRef.current) {
+    activeClockRef.current = createExpeditionActiveClock({
+      onElapsed(milliseconds) {
+        setRun((current) => {
+          const next = tickExpeditionRun(
+            current,
+            { seconds: milliseconds / 1_000, transmitting: false },
+            nowIso(),
+          );
+          onRunChangeRef.current(next);
+          return next;
+        });
+      },
+    });
+  }
+  const activeClock = activeClockRef.current;
   const model = useMemo(() => expeditionUiModel(run, {
-    language, paused: inputBlocked, ownedLoadoutAvailable: false,
-  }), [inputBlocked, language, run]);
+    language, paused: inputBlocked || !windowActive, ownedLoadoutAvailable: false,
+  }), [inputBlocked, language, run, windowActive]);
 
   function update(next) {
     setRun(next);
@@ -35,6 +59,20 @@ export function ExpeditionScreen({ language, save, inputBlocked = false, onActiv
   }
 
   useEffect(() => { onRunChange(run); }, []); // Persist the newly created loan run once.
+  useEffect(() => registerExpeditionPageVisibility({
+    windowTarget: globalThis.window,
+    documentTarget: globalThis.document,
+    onActiveChange: setWindowActive,
+  }), []);
+  useEffect(() => {
+    activeClock.setActive(expeditionTimerShouldRun({
+      status: run.status,
+      inputBlocked,
+      windowActive,
+    }));
+    return () => activeClock.setActive(false);
+  }, [activeClock, inputBlocked, run.status, windowActive]);
+  useEffect(() => () => activeClock.dispose(), [activeClock]);
   useEffect(() => {
     const risk = settled ? "none" : expeditionLeaveRisk(run);
     onActivityRisk(risk);
@@ -91,7 +129,17 @@ export function ExpeditionScreen({ language, save, inputBlocked = false, onActiv
     if (result?.settled) setSettled(true);
   }
 
-  return <main className="screen expedition-screen" data-testid="expedition-screen" data-expedition-phase={model.phase} data-portrait-visible="false">
+  return <main
+    className="screen expedition-screen"
+    data-testid="expedition-screen"
+    data-expedition-phase={model.phase}
+    data-expedition-elapsed-ms={run.elapsedMilliseconds}
+    data-expedition-setup-mistakes={run.setupMistakes}
+    data-expedition-failure-reason={run.failureReason ?? ""}
+    data-expedition-window-active={windowActive}
+    data-expedition-paused={inputBlocked || !windowActive}
+    data-portrait-visible="false"
+  >
     <header className="expedition-topbar">
       <div><Broadcast size={28} weight="fill" /><span>CHAPTER 06</span><h1>{t.title}</h1></div>
       <b>{save.callsign}</b>

@@ -563,7 +563,7 @@ export function submitPlayerMessage(qso, message, {
       replyWpm: nextReplyWpm,
       channelNotice: validation.action === "repeat-slower"
         ? (nextReplyWpm === currentReplyWpm ? "qrsMinimum" : "qrsRepeat")
-        : null,
+        : "agnRepeat",
     };
   }
   if (["repeat-optional", "repeat-optional-slower"].includes(validation.action)) {

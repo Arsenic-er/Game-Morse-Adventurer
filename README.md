@@ -8,7 +8,7 @@
 
 [**Semantic model and training data**](https://github.com/Arsenic-er/cwformer)
 
-**v0.36.0**: Adds the playable Chapter 5 event “Lights Across the Air.” Chase SORA at the fictional `SIM5LT` event station, then take control through deterministic two-to-four-station CW pile-ups. Story, station-local annual replay (May 1–7), and year-round practice share tolerant callsign/RST/region exchanges, `AGN`/`QRS` and partial-call recovery, eight-minute scoring, Base/Silver/Gold grades, idempotent rewards, career logs, and NPC relationships. Annual completions preserve a dated memorial stamp, upgraded to a gold-border stamp on May 5 without paying twice. The event UI is localized in all seven interface languages; the later lights-map result presentation remains planned.
+**v0.37.0**: Chapter 5 is now complete, with NOVA–SORA–MORSE story beats, archive-backed lights map and history, annual records, stamps, achievements, failure coaching, durable person/station identities, and safe pause/close behavior. Chapter 6 is playable as the “Hilltop Field Station” vertical slice: choose one of three fictional sites, set up a loan radio, wire antenna and battery, recover from a weak exchange, send the required QTH/PWR/ANT traffic, and settle once without changing permanent equipment. Chapter 7 foundation only adds the People & QSL page, immutable person-linked cards, and the fixed choices believe/request review/defer. Full Chapter 7 and Chapters 8–15 remain planned; emergency traffic and later narrative systems are not claimed as implemented.
 
 
 [![Windows portable](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml/badge.svg)](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml)

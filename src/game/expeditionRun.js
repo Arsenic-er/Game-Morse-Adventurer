@@ -13,7 +13,8 @@ export const MAX_EXPEDITION_SETTLED_QSO_PROOFS = 80;
 const MAX_RECOVERY_ACTIONS = 4;
 const MILLIWATT_MILLISECONDS_PER_WH = 3_600_000_000;
 const SETUP_MISTAKE_TIME_PENALTY_MILLISECONDS = 30_000;
-const SETUP_MISTAKE_ENERGY_PENALTY_WH = 1;
+const SETUP_ANTENNA_MISTAKE_ENERGY_PENALTY_WH = 1;
+const SETUP_POWER_MISTAKE_ENERGY_PENALTY_WH = 4;
 const MAX_SETUP_MISTAKES = 3;
 const RUN_STATUSES = new Set([
   "site-selection", "setup", "ready", "calling", "exchange", "recovering",
@@ -336,20 +337,27 @@ export function attemptExpeditionSetup(value, stage, attempt = {}, observedAt) {
       run.elapsedMilliseconds + SETUP_MISTAKE_TIME_PENALTY_MILLISECONDS,
     );
     const maximumEnergy = Math.round(run.power.capacityWh * MILLIWATT_MILLISECONDS_PER_WH);
+    const energyPenaltyWh = stage === "power"
+      ? SETUP_POWER_MISTAKE_ENERGY_PENALTY_WH
+      : SETUP_ANTENNA_MISTAKE_ENERGY_PENALTY_WH;
     const usedMilliWattMilliseconds = Math.min(
       maximumEnergy,
       run.power.usedMilliWattMilliseconds
-        + SETUP_MISTAKE_ENERGY_PENALTY_WH * MILLIWATT_MILLISECONDS_PER_WH,
+        + energyPenaltyWh * MILLIWATT_MILLISECONDS_PER_WH,
     );
-    const exhausted = setupMistakes >= MAX_SETUP_MISTAKES;
+    const depleted = usedMilliWattMilliseconds >= maximumEnergy;
+    const retriesExhausted = setupMistakes >= MAX_SETUP_MISTAKES;
+    const terminalFailure = depleted
+      ? "POWER_DEPLETED"
+      : retriesExhausted ? "SETUP_RETRIES_EXHAUSTED" : null;
     return changed(run, {
       setupMistakes,
       setupPropagationPenalty: Math.min(2, run.setupPropagationPenalty + 1),
       elapsedMilliseconds,
       power: { capacityWh: run.power.capacityWh, usedMilliWattMilliseconds },
-      status: exhausted ? "failed" : "setup",
-      failureReason: exhausted ? "SETUP_RETRIES_EXHAUSTED" : errorCode,
-      result: exhausted ? { outcome: "failed", completedAt: at, contactCount: 0 } : null,
+      status: terminalFailure ? "failed" : "setup",
+      failureReason: terminalFailure ?? errorCode,
+      result: terminalFailure ? { outcome: "failed", completedAt: at, contactCount: 0 } : null,
       updatedAt: at,
     });
   }

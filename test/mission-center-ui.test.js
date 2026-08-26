@@ -38,9 +38,10 @@ test("chapter five cards expose story, annual, and practice launch actions", () 
   }
 });
 
-test("chapter six card launches the expedition only after mission acceptance", () => {
+test("chapter six keeps its accepted-story launch and exposes a durable replay action", () => {
   assert.match(source, /mission\.id === "story-06" && active/);
   assert.match(source, /data-action="launch-expedition-story"/);
+  assert.match(source, /data-action="launch-expedition-replay"/);
   for (const key of ["story06Title", "story06Description", "story06Objective", "story06Brief", "story06Debrief", "launchExpedition"]) {
     assert.equal((source.match(new RegExp(`${key}:`, "g")) ?? []).length, 7, `${key} must exist in seven languages`);
   }

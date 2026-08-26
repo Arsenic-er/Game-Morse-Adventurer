@@ -183,6 +183,10 @@ test("chapters six and seven expose responsive portrait-free seven-language inte
   const mission = read("src/screens/MissionCenterModal.jsx");
   const css = read("src/pixel-theme.css");
   assert.match(expedition, /data-testid="expedition-screen"/);
+  assert.match(expedition, /data-expedition-elapsed-ms=\{run\.elapsedMilliseconds\}/);
+  assert.match(expedition, /data-expedition-failure-reason=\{run\.failureReason \?\? ""\}/);
+  assert.match(expedition, /data-expedition-window-active=\{windowActive\}/);
+  assert.match(expedition, /data-expedition-paused=\{inputBlocked \|\| !windowActive\}/);
   assert.match(expedition, /data-portrait-visible="false"/);
   assert.doesNotMatch(expedition, /<img[^>]+portrait/i);
   assert.match(expedition, /data-action="expedition-call-cq"/);
@@ -191,6 +195,9 @@ test("chapters six and seven expose responsive portrait-free seven-language inte
   assert.doesNotMatch(expedition, /submitExpeditionExchange\(run, exchange, \{ safeToCommit: true \}/);
   assert.match(people, /data-testid="people-qsl-modal"/);
   assert.match(people, /className="icon-button"[^>]+aria-label=\{t\.close\}/);
+  assert.match(people, /window\.addEventListener\("keydown", onKeyDown\)/);
+  assert.match(people, /event\.key !== "Escape"/);
+  assert.match(people, /event\.preventDefault\(\)/);
   assert.match(people, /data-qsl-choice=/);
   assert.match(people, /t\[record\.operatorNarrativeKey\]/);
   assert.match(people, /t\[record\.playerNarrativeKey\]/);

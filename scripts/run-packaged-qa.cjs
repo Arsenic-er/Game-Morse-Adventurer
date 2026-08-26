@@ -1,5 +1,5 @@
 const { execFile, spawn } = require("node:child_process");
-const { randomUUID } = require("node:crypto");
+const { createHash, randomUUID } = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { inflateSync } = require("node:zlib");
@@ -74,7 +74,16 @@ async function readLastQaStep(outputDir) {
   }
 }
 
-function validatePngScreenshot(buffer, filename) {
+function paethPredictor(left, up, upperLeft) {
+  const estimate = left + up - upperLeft;
+  const leftDistance = Math.abs(estimate - left);
+  const upDistance = Math.abs(estimate - up);
+  const upperLeftDistance = Math.abs(estimate - upperLeft);
+  if (leftDistance <= upDistance && leftDistance <= upperLeftDistance) return left;
+  return upDistance <= upperLeftDistance ? up : upperLeft;
+}
+
+function validatePngScreenshot(buffer, filename, { includePixelHash = false } = {}) {
   if (!Buffer.isBuffer(buffer)) throw new Error(`${filename} PNG evidence is not a buffer`);
   const expected = /-(\d+)x(\d+)\.png$/i.exec(filename);
   if (!expected) throw new Error(`${filename} does not declare expected WIDTHxHEIGHT dimensions`);
@@ -88,16 +97,27 @@ function validatePngScreenshot(buffer, filename) {
   let offset = signature.length;
   let chunkIndex = 0;
   let foundIdat = false;
+  let idatSequenceEnded = false;
   const idatChunks = [];
   let foundIend = false;
   let actualWidth = null;
   let actualHeight = null;
+  let actualColorType = null;
   let bytesPerPixel = null;
   while (offset < buffer.length) {
     if (buffer.length - offset < 12) throw new Error(`${filename} PNG chunk is truncated`);
     const dataLength = buffer.readUInt32BE(offset);
     if (dataLength > buffer.length - offset - 12) throw new Error(`${filename} PNG chunk crosses the file boundary`);
-    const type = buffer.toString("ascii", offset + 4, offset + 8);
+    const typeBytes = buffer.subarray(offset + 4, offset + 8);
+    if (typeBytes.length !== 4 || ![...typeBytes].every((byte) => (byte >= 0x41 && byte <= 0x5a)
+      || (byte >= 0x61 && byte <= 0x7a))) {
+      throw new Error(`${filename} PNG chunk type must contain exactly four ASCII letters`);
+    }
+    const type = typeBytes.toString("ascii");
+    if (typeBytes[0] >= 0x41 && typeBytes[0] <= 0x5a
+      && !["IHDR", "PLTE", "IDAT", "IEND"].includes(type)) {
+      throw new Error(`${filename} PNG contains unknown critical chunk ${type}`);
+    }
     const dataOffset = offset + 8;
     const crcOffset = dataOffset + dataLength;
     const nextOffset = crcOffset + 4;
@@ -133,12 +153,16 @@ function validatePngScreenshot(buffer, filename) {
         throw new Error(`${filename} PNG uses an unsupported compression, filter, or interlace format`);
       }
       bytesPerPixel = colorType === 2 ? 3 : 4;
+      actualColorType = colorType;
     } else if (type === "IHDR") {
       throw new Error(`${filename} PNG contains a non-initial IHDR chunk`);
     }
     if (type === "IDAT") {
+      if (idatSequenceEnded) throw new Error(`${filename} PNG IDAT chunks must be consecutive`);
       foundIdat = true;
       idatChunks.push(buffer.subarray(dataOffset, dataOffset + dataLength));
+    } else if (foundIdat) {
+      idatSequenceEnded = true;
     }
     if (type === "IEND") {
       if (dataLength !== 0 || nextOffset !== buffer.length) {
@@ -171,13 +195,116 @@ function validatePngScreenshot(buffer, filename) {
   if (inflated.length !== expectedInflatedLength) {
     throw new Error(`${filename} PNG inflated pixel length ${inflated.length} does not match ${expectedInflatedLength}`);
   }
+  const rowPixelBytes = actualWidth * bytesPerPixel;
+  let previousRow = Buffer.alloc(rowPixelBytes);
+  let currentRow = Buffer.alloc(rowPixelBytes);
+  let visiblePixels = 0;
+  const distinctColors = new Set();
+  let minimumLuma = 255;
+  let maximumLuma = 0;
+  const pixelHasher = includePixelHash ? createHash("sha256") : null;
+  pixelHasher?.update(`${actualWidth}x${actualHeight}:${actualColorType}:`);
   for (let row = 0; row < actualHeight; row += 1) {
-    const filterByte = inflated[row * scanlineBytes];
+    const scanlineOffset = row * scanlineBytes;
+    const filterByte = inflated[scanlineOffset];
     if (filterByte > 4) {
       throw new Error(`${filename} PNG filter byte ${filterByte} is invalid on row ${row}`);
     }
+    for (let byteIndex = 0; byteIndex < rowPixelBytes; byteIndex += 1) {
+      const filtered = inflated[scanlineOffset + 1 + byteIndex];
+      const left = byteIndex >= bytesPerPixel ? currentRow[byteIndex - bytesPerPixel] : 0;
+      const up = previousRow[byteIndex];
+      const upperLeft = byteIndex >= bytesPerPixel ? previousRow[byteIndex - bytesPerPixel] : 0;
+      let predictor = 0;
+      if (filterByte === 1) predictor = left;
+      else if (filterByte === 2) predictor = up;
+      else if (filterByte === 3) predictor = Math.floor((left + up) / 2);
+      else if (filterByte === 4) predictor = paethPredictor(left, up, upperLeft);
+      currentRow[byteIndex] = (filtered + predictor) & 0xff;
+    }
+    pixelHasher?.update(currentRow);
+    for (let column = 0; column < actualWidth; column += 1) {
+      const pixelOffset = column * bytesPerPixel;
+      if (actualColorType === 6 && currentRow[pixelOffset + 3] === 0) continue;
+      visiblePixels += 1;
+      const red = currentRow[pixelOffset];
+      const green = currentRow[pixelOffset + 1];
+      const blue = currentRow[pixelOffset + 2];
+      if (distinctColors.size < 8) distinctColors.add((red << 16) | (green << 8) | blue);
+      const luma = Math.floor(((54 * red) + (183 * green) + (19 * blue)) / 256);
+      minimumLuma = Math.min(minimumLuma, luma);
+      maximumLuma = Math.max(maximumLuma, luma);
+    }
+    [previousRow, currentRow] = [currentRow, previousRow];
   }
-  return { width: actualWidth, height: actualHeight };
+  const minimumVisiblePixels = Math.min(64, actualWidth * actualHeight);
+  if (visiblePixels < minimumVisiblePixels) {
+    throw new Error(`${filename} PNG has only ${visiblePixels} visible pixels; transparent placeholder evidence is not allowed`);
+  }
+  if (distinctColors.size < 8 || maximumLuma - minimumLuma < 16) {
+    throw new Error(`${filename} PNG lacks visible colour/luma variation; uniform placeholder evidence is not allowed`);
+  }
+  return {
+    width: actualWidth,
+    height: actualHeight,
+    ...(includePixelHash ? { pixelHash: pixelHasher.digest("hex") } : {}),
+  };
+}
+
+const ALLOWED_PIXEL_DUPLICATE_STEMS = Object.freeze([
+  Object.freeze([
+    "segments/inventory/warehouse-radio-warmup",
+    "segments/inventory/warehouse-radio",
+  ]),
+  Object.freeze([
+    "segments/inventory/home-log-empty-warmup",
+    "segments/inventory/home-log-empty",
+  ]),
+  Object.freeze([
+    "segments/equipment/store-radio-available-warmup",
+    "segments/equipment/store-radio-available",
+  ]),
+  Object.freeze([
+    "segments/practice/practice-weak-cleared",
+    "segments/practice/practice-weak-cleared-reloaded",
+  ]),
+  Object.freeze([
+    "segments/qso/station-listening-warmup",
+    "segments/qso/station-listening",
+  ]),
+  Object.freeze([
+    "segments/qso/qso-result-unsaved-warmup",
+    "segments/qso/qso-result-unsaved",
+  ]),
+]);
+
+function validatePixelHashGroups(entries, { suffix }) {
+  if (!Array.isArray(entries) || typeof suffix !== "string" || !suffix) {
+    throw new Error("Packaged QA pixel duplicate validation requires evidence entries and a suffix");
+  }
+  const allowedGroups = new Set(ALLOWED_PIXEL_DUPLICATE_STEMS.map((stems) => stems
+    .map((stem) => `${stem}-${suffix}.png`)
+    .sort()
+    .join("\n")));
+  const byHash = new Map();
+  for (const entry of entries) {
+    const normalizedPath = String(entry?.path ?? "").replaceAll("\\", "/");
+    const pixelHash = String(entry?.pixelHash ?? "");
+    if (!normalizedPath || !pixelHash) throw new Error("Packaged QA screenshot pixel evidence is incomplete");
+    const group = byHash.get(pixelHash) ?? [];
+    group.push(normalizedPath);
+    byHash.set(pixelHash, group);
+  }
+  const duplicateGroups = [];
+  for (const paths of byHash.values()) {
+    if (paths.length < 2) continue;
+    const normalizedGroup = [...paths].sort();
+    if (!allowedGroups.has(normalizedGroup.join("\n"))) {
+      throw new Error(`Packaged QA has an unapproved duplicate pixel group: ${normalizedGroup.join(", ")}`);
+    }
+    duplicateGroups.push(normalizedGroup);
+  }
+  return duplicateGroups;
 }
 
 async function runQaChildProcess({
@@ -293,13 +420,15 @@ async function validateQaSegmentArtifacts(segment, outputDir, { qaRunId }) {
   if (!Array.isArray(consoleErrors) || consoleErrors.length !== 0 || sentinel.consoleErrorCount !== 0) {
     throw new Error(`${segment.scope} reported runtime console errors`);
   }
+  const screenshotPixelHashes = [];
   for (const screenshot of segment.screenshots) {
     const screenshotFile = path.join(outputDir, screenshot);
     const stat = await fs.stat(screenshotFile).catch(() => null);
     if (!stat || !stat.isFile() || stat.size === 0) {
       throw new Error(`${segment.scope} screenshot is missing or empty: ${screenshot}`);
     }
-    validatePngScreenshot(await fs.readFile(screenshotFile), screenshot);
+    const inspected = validatePngScreenshot(await fs.readFile(screenshotFile), screenshot, { includePixelHash: true });
+    screenshotPixelHashes.push({ path: screenshot, pixelHash: inspected.pixelHash });
   }
 
   let stateOut = null;
@@ -321,7 +450,7 @@ async function validateQaSegmentArtifacts(segment, outputDir, { qaRunId }) {
     if (!await pathExists(lightsFile)) throw new Error("lights is missing Lights evidence");
     validateLightsQaEvidence(await readJson(lightsFile, "Lights QA evidence"), { qaRunId });
   }
-  return { sentinel, consoleErrors, stateOut };
+  return { sentinel, consoleErrors, screenshotPixelHashes, stateOut };
 }
 
 function segmentOutputPath(outputRoot, scope) {
@@ -390,11 +519,19 @@ async function runPackagedQa({
       outputDir: path.relative(resolvedOutput, outputDir),
       captures: evidence.sentinel.captures.map((name) => path.join("segments", segment.scope, name)),
       consoleErrorCount: evidence.consoleErrors.length,
+      screenshotPixelHashes: evidence.screenshotPixelHashes.map(({ path: screenshot, pixelHash }) => ({
+        path: path.join("segments", segment.scope, screenshot),
+        pixelHash,
+      })),
     });
     previousStateFile = stateOutFile;
   }
 
   const allCaptures = results.flatMap(({ captures }) => captures);
+  const approvedPixelDuplicateGroups = validatePixelHashGroups(
+    results.flatMap(({ screenshotPixelHashes }) => screenshotPixelHashes),
+    { suffix },
+  );
   const finalResult = {
     schemaVersion: 1,
     qaRunId,
@@ -402,7 +539,8 @@ async function runPackagedQa({
     suffix,
     totalPhysicalCaptures: allCaptures.length,
     captures: allCaptures,
-    segments: results,
+    segments: results.map(({ screenshotPixelHashes: _pixelHashes, ...result }) => result),
+    approvedPixelDuplicateGroups,
     lightsResult: path.join("segments", "lights", "lights-qa-result.json"),
     completedAt: new Date().toISOString(),
   };
@@ -448,5 +586,6 @@ module.exports = {
   runPackagedQa,
   runQaChildProcess,
   validatePngScreenshot,
+  validatePixelHashGroups,
   validateQaSegmentArtifacts,
 };

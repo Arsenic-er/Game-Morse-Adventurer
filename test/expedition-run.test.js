@@ -75,7 +75,7 @@ test("site selection and setup are pure and keep the temporary loadout isolated"
   assert.equal(completed.status, "ready");
   assert.deepEqual(completed.setup, { antenna: true, power: true });
   assert.equal(completed.loadout.source, "loan");
-  assert.equal(completed.power.remainingWh, 96);
+  assert.equal(completed.power.remainingWh, 12);
 });
 
 test("CQ freezes one propagation snapshot and later transitions never reroll it", () => {
@@ -108,7 +108,7 @@ test("invalid field wiring has a bounded temporary penalty and correct setup can
   assert.equal(mistaken.setupMistakes, 1);
   assert.equal(mistaken.setupPropagationPenalty, 1);
   assert.equal(mistaken.elapsedMilliseconds, 30_000);
-  assert.ok(mistaken.power.remainingWh < 96);
+  assert.ok(mistaken.power.remainingWh < 12);
   assert.equal(mistaken.loadout.radioId, "loan-portable-cw");
 
   const antenna = advanceExpeditionSetup(mistaken, "antenna", "2026-08-25T09:02:00.000Z");
@@ -128,8 +128,40 @@ test("invalid field wiring has a bounded temporary penalty and correct setup can
   });
   assert.equal(retried.setupMistakes, 0);
   assert.equal(retried.setupPropagationPenalty, 0);
-  assert.equal(retried.power.remainingWh, 96);
+  assert.equal(retried.power.remainingWh, 12);
   assert.equal(retried.loadout.radioId, "loan-portable-cw");
+});
+
+test("fresh legal setup actions distinguish power depletion from exhausted antenna retries", () => {
+  const selected = selectExpeditionSite(fresh("fresh-power-failure"), "sunward-hill", "2026-08-25T09:01:00.000Z");
+  let powerRun = advanceExpeditionSetup(selected, "antenna", "2026-08-25T09:01:10.000Z");
+  for (let mistake = 1; mistake <= 3; mistake += 1) {
+    powerRun = attemptExpeditionSetup(
+      powerRun,
+      "power",
+      { valid: false, errorCode: "INVALID_POWER" },
+      `2026-08-25T09:01:${10 + mistake}.000Z`,
+    );
+    if (mistake < 3) assert.equal(powerRun.status, "setup");
+  }
+  assert.equal(powerRun.status, "failed");
+  assert.equal(powerRun.failureReason, "POWER_DEPLETED");
+  assert.equal(powerRun.setupMistakes, 3);
+  assert.equal(powerRun.power.remainingWh, 0);
+
+  let antennaRun = selectExpeditionSite(fresh("fresh-retry-failure"), "sunward-hill", "2026-08-25T10:01:00.000Z");
+  for (let mistake = 1; mistake <= 3; mistake += 1) {
+    antennaRun = attemptExpeditionSetup(
+      antennaRun,
+      "antenna",
+      { valid: false, errorCode: "INVALID_WIRING" },
+      `2026-08-25T10:01:${10 + mistake}.000Z`,
+    );
+  }
+  assert.equal(antennaRun.status, "failed");
+  assert.equal(antennaRun.failureReason, "SETUP_RETRIES_EXHAUSTED");
+  assert.equal(antennaRun.setupMistakes, 3);
+  assert.equal(antennaRun.power.remainingWh, 9);
 });
 
 test("a complete hard-field exchange closes a normal expedition contact", () => {
@@ -270,7 +302,7 @@ test("retry resets temporary work without duplicating the loan kit or stale prop
   assert.equal(retried.runId, "expedition:story-06:run-2");
   assert.equal(retried.status, "setup");
   assert.equal(retried.fieldSite.id, "sunward-hill");
-  assert.equal(retried.power.remainingWh, 96);
+  assert.equal(retried.power.remainingWh, 12);
   assert.equal(retried.propagationSnapshot, null);
   assert.deepEqual(retried.contacts, []);
   assert.equal(retried.loadout.radioId, "loan-portable-cw");
