@@ -15,6 +15,7 @@ const QA_SEGMENT_PREDECESSORS = Object.freeze({
   practice: "equipment",
   qso: "practice",
 });
+const QA_RUN_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const QA_CAPTURE_STEMS = Object.freeze({
   bootstrap: [
@@ -121,9 +122,20 @@ function validateQaFacts(facts, activeSave, producerScope) {
   }
 }
 
-function validateQaStateShape(value) {
+function validateQaRunId(value, expected = null) {
+  if (typeof value !== "string" || !QA_RUN_ID_PATTERN.test(value)) {
+    throw new Error("QA run id must be a random UUID");
+  }
+  if (expected !== null && value !== expected) {
+    throw new Error(`QA run id mismatch: expected ${expected}, received ${value}`);
+  }
+  return value;
+}
+
+function validateQaStateShape(value, { qaRunId = null } = {}) {
   if (!isPlainObject(value)) throw new Error("QA state input must be a plain object");
   if (value.schemaVersion !== 1) throw new Error("QA state schemaVersion is unsupported");
+  validateQaRunId(value.qaRunId, qaRunId);
   if (!["bootstrap", "inventory", "equipment", "practice", "qso"].includes(value.producerScope)) {
     throw new Error("QA state producerScope is unsupported");
   }
@@ -132,11 +144,11 @@ function validateQaStateShape(value) {
   return value;
 }
 
-function createQaStateEnvelope({ producerScope, storage, facts = {} }) {
-  return validateQaStateShape({ schemaVersion: 1, producerScope, storage, facts });
+function createQaStateEnvelope({ qaRunId, producerScope, storage, facts = {} }) {
+  return validateQaStateShape({ schemaVersion: 1, qaRunId, producerScope, storage, facts });
 }
 
-function validateQaStateEnvelope(value, { consumerScope }) {
+function validateQaStateEnvelope(value, { consumerScope, qaRunId }) {
   if (consumerScope === "bootstrap") {
     if (value !== null && value !== undefined) throw new Error("QA bootstrap rejects state input");
     return null;
@@ -144,15 +156,15 @@ function validateQaStateEnvelope(value, { consumerScope }) {
   if (!Object.hasOwn(QA_SEGMENT_PREDECESSORS, consumerScope)) {
     throw new Error(`QA state consumer scope is unsupported: ${consumerScope}`);
   }
-  const envelope = validateQaStateShape(value);
+  const envelope = validateQaStateShape(value, { qaRunId });
   if (envelope.producerScope !== QA_SEGMENT_PREDECESSORS[consumerScope]) {
     throw new Error(`QA state predecessor for ${consumerScope} must be ${QA_SEGMENT_PREDECESSORS[consumerScope]}`);
   }
   return envelope;
 }
 
-async function importQaStateIntoRenderer(window, value, { consumerScope }) {
-  const envelope = validateQaStateEnvelope(value, { consumerScope });
+async function importQaStateIntoRenderer(window, value, { consumerScope, qaRunId }) {
+  const envelope = validateQaStateEnvelope(value, { consumerScope, qaRunId });
   await window.webContents.executeJavaScript(`(() => {
     const keys = ${JSON.stringify(QA_STORAGE_KEYS)};
     const storage = ${JSON.stringify(envelope.storage)};
@@ -165,17 +177,18 @@ async function importQaStateIntoRenderer(window, value, { consumerScope }) {
   return envelope;
 }
 
-async function exportQaStateFromRenderer(window, { producerScope, facts = {} }) {
+async function exportQaStateFromRenderer(window, { qaRunId, producerScope, facts = {} }) {
   const storage = await window.webContents.executeJavaScript(`(() => {
     const keys = ${JSON.stringify(QA_STORAGE_KEYS)};
     return Object.fromEntries(keys.map((key) => [key, localStorage.getItem(key)]));
   })()`, true);
-  return createQaStateEnvelope({ producerScope, storage: { ...storage }, facts });
+  return createQaStateEnvelope({ qaRunId, producerScope, storage: { ...storage }, facts });
 }
 
 async function writeQaSegmentResult(window, {
   outputDir,
   stateOutFile = path.join(outputDir, "qa-state-out.json"),
+  qaRunId,
   scope,
   suffix,
   consoleErrors,
@@ -183,10 +196,11 @@ async function writeQaSegmentResult(window, {
 }) {
   const segment = buildQaSegmentPlan({ suffix }).segments.find((candidate) => candidate.scope === scope);
   if (!segment || scope === "lights") throw new Error(`Unsupported ordinary QA segment: ${scope}`);
-  const state = await exportQaStateFromRenderer(window, { producerScope: scope, facts });
+  const state = await exportQaStateFromRenderer(window, { qaRunId, producerScope: scope, facts });
   await fs.writeFile(stateOutFile, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   const result = {
     schemaVersion: 1,
+    qaRunId,
     scope,
     captures: segment.screenshots,
     stateOut: path.relative(outputDir, stateOutFile),
@@ -316,8 +330,9 @@ function buildLightsQaMoneyFlow({
   };
 }
 
-function validateLightsQaEvidence(result) {
+function validateLightsQaEvidence(result, { qaRunId = null } = {}) {
   requirePlainObject(result, "evidence");
+  validateQaRunId(result.qaRunId, qaRunId);
   if (result.schemaVersion !== 1 || result.activity !== "lights-across-air"
     || result.resultFile !== "lights-qa-result.json") {
     throw new Error("Lights QA evidence has an unsupported schema");
@@ -836,6 +851,12 @@ async function writeQaStep(outputDir, step) {
   }
 }
 
+function screenshotDimensions(filename) {
+  const match = /-(\d+)x(\d+)\.png$/i.exec(filename);
+  if (!match) throw new Error(`QA screenshot filename must end in WIDTHxHEIGHT.png: ${filename}`);
+  return { width: Number(match[1]), height: Number(match[2]) };
+}
+
 async function capture(window, outputDir, filename, { scope = process.env.CWGAME_QA_SCOPE || "full" } = {}) {
   await writeQaStep(outputDir, {
     scope,
@@ -853,7 +874,9 @@ async function capture(window, outputDir, filename, { scope = process.env.CWGAME
   await capturePageWithVizRetry(window.webContents);
   await new Promise((resolve) => setTimeout(resolve, 150));
   const image = await capturePageWithVizRetry(window.webContents);
-  await fs.writeFile(path.join(outputDir, filename), image.toPNG());
+  const { width, height } = screenshotDimensions(filename);
+  const normalizedImage = image.resize({ width, height, quality: "best" });
+  await fs.writeFile(path.join(outputDir, filename), normalizedImage.toPNG());
   await writeQaStep(outputDir, {
     scope,
     filename,
@@ -1206,7 +1229,10 @@ async function runStationEntryProbe(window) {
   }
 }
 
-async function runLightsQaCapture(window, outputDir, suffix) {
+async function runLightsQaCapture(window, outputDir, suffix, {
+  qaRunId = process.env.CWGAME_QA_RUN_ID,
+} = {}) {
+  validateQaRunId(qaRunId);
   const plan = buildLightsQaPlan({ suffix });
   const facts = { checkpoints: {} };
   const checkpoint = (id, value) => { facts.checkpoints[id] = value; };
@@ -1406,19 +1432,22 @@ async function runLightsQaCapture(window, outputDir, suffix) {
 
   const result = {
     schemaVersion: 1,
+    qaRunId,
     activity: "lights-across-air",
     resultFile: plan.resultFile,
     screenshots: plan.screenshots,
     ...facts,
   };
   await fs.writeFile(path.join(outputDir, plan.resultFile), `${JSON.stringify(result, null, 2)}\n`, "utf8");
-  validateLightsQaEvidence(result);
+  validateLightsQaEvidence(result, { qaRunId });
   return result;
 }
 
 async function runLightsQaSegment(window, outputDir, suffix, {
+  qaRunId = process.env.CWGAME_QA_RUN_ID,
   runCaptureImpl = runLightsQaCapture,
 } = {}) {
+  validateQaRunId(qaRunId);
   const consoleErrors = [];
   const onConsoleMessage = (_event, levelOrDetails, message) => {
     const details = typeof levelOrDetails === "object" ? levelOrDetails : { level: levelOrDetails, message };
@@ -1428,10 +1457,14 @@ async function runLightsQaSegment(window, outputDir, suffix, {
   };
   window.webContents.on("console-message", onConsoleMessage);
   try {
-    await runCaptureImpl(window, outputDir, suffix);
+    const captureResult = await runCaptureImpl(window, outputDir, suffix, { qaRunId });
+    if (captureResult?.qaRunId !== qaRunId) {
+      throw new Error("Lights QA capture returned a mismatched QA run id");
+    }
     const segment = buildQaSegmentPlan({ suffix }).segments.find(({ scope }) => scope === "lights");
     const result = {
       schemaVersion: 1,
+      qaRunId,
       scope: "lights",
       captures: segment.screenshots,
       consoleErrorCount: consoleErrors.length,
@@ -1459,6 +1492,8 @@ async function runLightsQaSegment(window, outputDir, suffix, {
 
 async function runQaCapture(window) {
   const outputDir = process.env.CWGAME_QA_OUTPUT || path.join(process.cwd(), "qa-artifacts");
+  const qaRunId = process.env.CWGAME_QA_RUN_ID;
+  validateQaRunId(qaRunId);
   const [captureWidth, captureHeight] = window.getContentSize();
   const suffix = process.env.CWGAME_QA_SUFFIX || `${captureWidth}x${captureHeight}`;
   const scope = process.env.CWGAME_QA_SCOPE || "full";
@@ -1482,6 +1517,7 @@ async function runQaCapture(window) {
   const finishScope = (facts = {}) => writeQaSegmentResult(window, {
     outputDir,
     stateOutFile: process.env.CWGAME_QA_STATE_OUT || path.join(outputDir, "qa-state-out.json"),
+    qaRunId,
     scope,
     suffix,
     consoleErrors,
@@ -1493,7 +1529,7 @@ async function runQaCapture(window) {
       const stateInFile = process.env.CWGAME_QA_STATE_IN;
       if (!stateInFile) throw new Error(`${scope} requires CWGAME_QA_STATE_IN`);
       const stateIn = JSON.parse(await fs.readFile(stateInFile, "utf8"));
-      await importQaStateIntoRenderer(window, stateIn, { consumerScope: scope });
+      await importQaStateIntoRenderer(window, stateIn, { consumerScope: scope, qaRunId });
       wrongPracticeTarget = stateIn.facts?.practiceWrongTarget ?? null;
       await waitFor(window, ".start-screen");
     }
@@ -3171,7 +3207,7 @@ async function runQaCapture(window) {
     }
     if (scope === "qso") return finishScope({ practiceWrongTarget: wrongPracticeTarget });
 
-  const lightsQaResult = await runLightsQaCapture(window, outputDir, suffix);
+  const lightsQaResult = await runLightsQaCapture(window, outputDir, suffix, { qaRunId });
 
   return {
     outputDir,

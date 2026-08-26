@@ -1,4 +1,5 @@
 const { execFile, spawn } = require("node:child_process");
+const { randomUUID } = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 
@@ -55,6 +56,60 @@ async function readLastQaStep(outputDir) {
   }
 }
 
+function validatePngScreenshot(buffer, filename) {
+  if (!Buffer.isBuffer(buffer)) throw new Error(`${filename} PNG evidence is not a buffer`);
+  const expected = /-(\d+)x(\d+)\.png$/i.exec(filename);
+  if (!expected) throw new Error(`${filename} does not declare expected WIDTHxHEIGHT dimensions`);
+  const expectedWidth = Number(expected[1]);
+  const expectedHeight = Number(expected[2]);
+  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  if (buffer.length < signature.length || !buffer.subarray(0, signature.length).equals(signature)) {
+    throw new Error(`${filename} is not PNG evidence (invalid signature)`);
+  }
+
+  let offset = signature.length;
+  let chunkIndex = 0;
+  let foundIdat = false;
+  let foundIend = false;
+  let actualWidth = null;
+  let actualHeight = null;
+  while (offset < buffer.length) {
+    if (buffer.length - offset < 12) throw new Error(`${filename} PNG chunk is truncated`);
+    const dataLength = buffer.readUInt32BE(offset);
+    if (dataLength > buffer.length - offset - 12) throw new Error(`${filename} PNG chunk crosses the file boundary`);
+    const type = buffer.toString("ascii", offset + 4, offset + 8);
+    const dataOffset = offset + 8;
+    const nextOffset = dataOffset + dataLength + 4;
+    if (chunkIndex === 0) {
+      if (type !== "IHDR" || dataLength !== 13) {
+        throw new Error(`${filename} PNG must start with a 13-byte IHDR chunk`);
+      }
+      actualWidth = buffer.readUInt32BE(dataOffset);
+      actualHeight = buffer.readUInt32BE(dataOffset + 4);
+      if (actualWidth !== expectedWidth || actualHeight !== expectedHeight) {
+        throw new Error(`${filename} PNG dimensions ${actualWidth}x${actualHeight} do not match ${expectedWidth}x${expectedHeight}`);
+      }
+    } else if (type === "IHDR") {
+      throw new Error(`${filename} PNG contains a non-initial IHDR chunk`);
+    }
+    if (type === "IDAT") foundIdat = true;
+    if (type === "IEND") {
+      if (dataLength !== 0 || nextOffset !== buffer.length) {
+        throw new Error(`${filename} PNG IEND is malformed or not the final chunk`);
+      }
+      foundIend = true;
+      offset = nextOffset;
+      break;
+    }
+    offset = nextOffset;
+    chunkIndex += 1;
+  }
+  if (actualWidth === null || actualHeight === null) throw new Error(`${filename} PNG is missing IHDR`);
+  if (!foundIdat) throw new Error(`${filename} PNG is missing IDAT`);
+  if (!foundIend || offset !== buffer.length) throw new Error(`${filename} PNG is missing a final IEND`);
+  return { width: actualWidth, height: actualHeight };
+}
+
 async function runQaChildProcess({
   executable,
   args,
@@ -64,6 +119,7 @@ async function runQaChildProcess({
   timeoutMs,
   spawnImpl = spawn,
   killTreeImpl = killWindowsProcessTree,
+  writeFileImpl = fs.writeFile,
   setTimeoutImpl = setTimeout,
   clearTimeoutImpl = clearTimeout,
 }) {
@@ -93,32 +149,49 @@ async function runQaChildProcess({
         if (code === 0) finish(null, { code, signal, pid: child.pid });
         else finish(new Error(`${scope} child exited with code ${code}${signal ? ` (${signal})` : ""}`));
       });
-      timer = setTimeoutImpl(async () => {
-        if (settled) return;
-        timedOut = true;
-        const lastStep = await readLastQaStep(outputDir).catch((error) => ({ readError: error.message }));
-        const marker = {
-          schemaVersion: 1,
-          scope,
-          elapsedMs: timeoutMs,
-          pid: child.pid,
-          lastStep,
-          timedOutAt: new Date().toISOString(),
-        };
-        await fs.writeFile(
-          path.join(outputDir, "qa-timeout.json"),
-          `${JSON.stringify(marker, null, 2)}\n`,
-          "utf8",
-        );
-        let killError = null;
-        try {
-          await killTreeImpl(child.pid);
-        } catch (error) {
-          killError = error;
-        }
-        const timeoutError = new Error(`${scope} timed out after ${timeoutMs}ms`);
-        if (killError) timeoutError.cause = killError;
-        finish(timeoutError);
+      timer = setTimeoutImpl(() => {
+        void (async () => {
+          if (settled) return;
+          timedOut = true;
+          const lastStep = await readLastQaStep(outputDir).catch((error) => ({ readError: error.message }));
+          const marker = {
+            schemaVersion: 1,
+            scope,
+            elapsedMs: timeoutMs,
+            pid: child.pid,
+            lastStep,
+            timedOutAt: new Date().toISOString(),
+          };
+          let markerError = null;
+          let killError = null;
+          try {
+            try {
+              await writeFileImpl(
+                path.join(outputDir, "qa-timeout.json"),
+                `${JSON.stringify(marker, null, 2)}\n`,
+                "utf8",
+              );
+            } catch (error) {
+              markerError = error;
+            }
+          } finally {
+            try {
+              await killTreeImpl(child.pid);
+            } catch (error) {
+              killError = error;
+            } finally {
+              const timeoutError = new Error(`${scope} timed out after ${timeoutMs}ms`);
+              const causes = [markerError, killError].filter(Boolean);
+              if (causes.length === 1) [timeoutError.cause] = causes;
+              if (causes.length > 1) timeoutError.cause = new AggregateError(causes, "QA timeout cleanup failed");
+              finish(timeoutError);
+            }
+          }
+        })().catch((error) => {
+          const timeoutError = new Error(`${scope} timed out after ${timeoutMs}ms`);
+          timeoutError.cause = error;
+          finish(timeoutError);
+        });
       }, timeoutMs);
     });
   } finally {
@@ -126,7 +199,7 @@ async function runQaChildProcess({
   }
 }
 
-async function validateQaSegmentArtifacts(segment, outputDir) {
+async function validateQaSegmentArtifacts(segment, outputDir, { qaRunId }) {
   const failureFile = path.join(outputDir, "qa-failure.txt");
   if (await pathExists(failureFile)) {
     throw new Error(`${segment.scope} wrote qa-failure.txt: ${await fs.readFile(failureFile, "utf8")}`);
@@ -137,8 +210,8 @@ async function validateQaSegmentArtifacts(segment, outputDir) {
   const sentinelFile = path.join(outputDir, "qa-segment-result.json");
   if (!await pathExists(sentinelFile)) throw new Error(`${segment.scope} is missing its segment sentinel`);
   const sentinel = await readJson(sentinelFile, `${segment.scope} segment sentinel`);
-  if (sentinel?.schemaVersion !== 1 || sentinel?.scope !== segment.scope) {
-    throw new Error(`${segment.scope} segment sentinel has the wrong schema or scope`);
+  if (sentinel?.schemaVersion !== 1 || sentinel?.scope !== segment.scope || sentinel?.qaRunId !== qaRunId) {
+    throw new Error(`${segment.scope} segment sentinel has the wrong schema, scope, or QA run id`);
   }
   if (!Array.isArray(sentinel.captures)
     || JSON.stringify(sentinel.captures) !== JSON.stringify(segment.screenshots)) {
@@ -151,10 +224,12 @@ async function validateQaSegmentArtifacts(segment, outputDir) {
     throw new Error(`${segment.scope} reported runtime console errors`);
   }
   for (const screenshot of segment.screenshots) {
-    const stat = await fs.stat(path.join(outputDir, screenshot)).catch(() => null);
+    const screenshotFile = path.join(outputDir, screenshot);
+    const stat = await fs.stat(screenshotFile).catch(() => null);
     if (!stat || !stat.isFile() || stat.size === 0) {
       throw new Error(`${segment.scope} screenshot is missing or empty: ${screenshot}`);
     }
+    validatePngScreenshot(await fs.readFile(screenshotFile), screenshot);
   }
 
   let stateOut = null;
@@ -163,13 +238,13 @@ async function validateQaSegmentArtifacts(segment, outputDir) {
     if (!await pathExists(stateFile)) throw new Error(`${segment.scope} is missing state output`);
     stateOut = await readJson(stateFile, `${segment.scope} state output`);
     const validated = createQaStateEnvelope(stateOut);
-    if (validated.producerScope !== segment.scope) {
-      throw new Error(`${segment.scope} state output has producer ${validated.producerScope}`);
+    if (validated.producerScope !== segment.scope || validated.qaRunId !== qaRunId) {
+      throw new Error(`${segment.scope} state output has the wrong producer or QA run id`);
     }
   } else {
     const lightsFile = path.join(outputDir, "lights-qa-result.json");
     if (!await pathExists(lightsFile)) throw new Error("lights is missing Lights evidence");
-    validateLightsQaEvidence(await readJson(lightsFile, "Lights QA evidence"));
+    validateLightsQaEvidence(await readJson(lightsFile, "Lights QA evidence"), { qaRunId });
   }
   return { sentinel, consoleErrors, stateOut };
 }
@@ -192,17 +267,27 @@ async function runPackagedQa({
 }) {
   if (!exe || !outputRoot) throw new Error("runPackagedQa requires exe and outputRoot");
   const resolvedOutput = path.resolve(outputRoot);
-  await fs.mkdir(path.join(resolvedOutput, "segments"), { recursive: true });
+  const qaRunId = randomUUID();
+  await fs.mkdir(path.dirname(resolvedOutput), { recursive: true });
+  try {
+    await fs.mkdir(resolvedOutput);
+  } catch (error) {
+    if (error?.code === "EEXIST") {
+      throw new Error(`QA output root already exists; choose a fresh exclusive path: ${resolvedOutput}`);
+    }
+    throw error;
+  }
+  await fs.mkdir(path.join(resolvedOutput, "segments"));
   const plan = buildQaSegmentPlan({ suffix });
   const results = [];
   let previousStateFile = null;
 
   for (const segment of plan.segments) {
     const outputDir = segmentOutputPath(resolvedOutput, segment.scope);
-    await fs.mkdir(outputDir, { recursive: true });
+    await fs.mkdir(outputDir);
     if (segment.predecessor) {
       const previousState = await readJson(previousStateFile, `${segment.scope} predecessor state`);
-      validateQaStateEnvelope(previousState, { consumerScope: segment.scope });
+      validateQaStateEnvelope(previousState, { consumerScope: segment.scope, qaRunId });
     }
     const stateOutFile = segment.scope === "lights" ? null : path.join(outputDir, "qa-state-out.json");
     const env = {
@@ -210,6 +295,7 @@ async function runPackagedQa({
       CWGAME_QA_OUTPUT: outputDir,
       CWGAME_QA_SCOPE: segment.scope,
       CWGAME_QA_SUFFIX: suffix,
+      CWGAME_QA_RUN_ID: qaRunId,
       ...(segment.predecessor ? { CWGAME_QA_STATE_IN: previousStateFile } : {}),
       ...(stateOutFile ? { CWGAME_QA_STATE_OUT: stateOutFile } : {}),
     };
@@ -223,7 +309,7 @@ async function runPackagedQa({
       spawnImpl,
       killTreeImpl,
     });
-    const evidence = await validateQaSegmentArtifacts(segment, outputDir);
+    const evidence = await validateQaSegmentArtifacts(segment, outputDir, { qaRunId });
     results.push({
       scope: segment.scope,
       outputDir: path.relative(resolvedOutput, outputDir),
@@ -236,6 +322,7 @@ async function runPackagedQa({
   const allCaptures = results.flatMap(({ captures }) => captures);
   const finalResult = {
     schemaVersion: 1,
+    qaRunId,
     planVersion: 1,
     suffix,
     totalPhysicalCaptures: allCaptures.length,
@@ -285,5 +372,6 @@ module.exports = {
   parseArgs,
   runPackagedQa,
   runQaChildProcess,
+  validatePngScreenshot,
   validateQaSegmentArtifacts,
 };

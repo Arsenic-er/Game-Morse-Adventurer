@@ -34,6 +34,7 @@ assets.sort((left, right) => right.bytes - left.bytes || left.path.localeCompare
 const ownedJsChunks = assets.filter(({ path: file }) => file.endsWith(".js"));
 const totalBuildBytes = assets.reduce((total, asset) => total + asset.bytes, 0);
 const oversizedChunks = ownedJsChunks.filter(({ bytes }) => bytes > MAX_OWNED_JS_BYTES);
+const hasOwnedJsChunks = ownedJsChunks.length > 0;
 const payload = {
   schemaVersion: 1,
   maxOwnedJsBytes: MAX_OWNED_JS_BYTES,
@@ -41,7 +42,7 @@ const payload = {
   largestAsset: assets[0] ?? null,
   largestOwnedJsChunk: ownedJsChunks[0] ?? null,
   ownedJsChunks,
-  passed: oversizedChunks.length === 0,
+  passed: hasOwnedJsChunks && oversizedChunks.length === 0,
 };
 
 await writeFile(reportPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
@@ -63,6 +64,9 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 }
 
 if (!payload.passed) {
+  if (!hasOwnedJsChunks) {
+    process.stderr.write("Build emitted no owned JavaScript chunks; size gate cannot pass.\n");
+  }
   for (const chunk of oversizedChunks) {
     process.stderr.write(`Owned JavaScript chunk ${chunk.path} is ${chunk.bytes} bytes; limit is ${MAX_OWNED_JS_BYTES}.\n`);
   }

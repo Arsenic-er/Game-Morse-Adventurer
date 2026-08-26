@@ -21,9 +21,31 @@ const {
   killWindowsProcessTree,
   runPackagedQa,
   runQaChildProcess,
+  validatePngScreenshot,
 } = require("../scripts/run-packaged-qa.cjs");
 
-const SUFFIX = "contract";
+const SUFFIX = "1439x912";
+const QA_RUN_ID = "11111111-2222-4333-8444-555555555555";
+
+function pngChunk(type, data = Buffer.alloc(0)) {
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  return Buffer.concat([length, Buffer.from(type, "ascii"), data, Buffer.alloc(4)]);
+}
+
+function structuralPng(width = 1439, height = 912) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", ihdr),
+    pngChunk("IDAT", Buffer.from([0])),
+    pngChunk("IEND"),
+  ]);
+}
 
 const expectedCaptures = {
   bootstrap: [
@@ -81,6 +103,11 @@ function saveStorage({ recentTargets = ["A", "N", "T", "E"] } = {}) {
   };
 }
 
+async function freshOutputRoot(prefix) {
+  const parent = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  return path.join(parent, "evidence");
+}
+
 test("segmented packaged QA has an exact non-overlapping 91-image physical manifest", () => {
   const plan = buildQaSegmentPlan({ suffix: SUFFIX });
   assert.deepEqual(plan.segments.map(({ scope }) => scope), [
@@ -99,6 +126,53 @@ test("segmented packaged QA has an exact non-overlapping 91-image physical manif
   assert.equal(plan.segments.find(({ scope }) => scope === "bootstrap").timeoutMs, 5 * 60_000);
 });
 
+test("PNG evidence requires initial 13-byte IHDR, bounded chunks, IDAT, and final IEND", () => {
+  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(1439, 0);
+  ihdr.writeUInt32BE(912, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const cases = [
+    [Buffer.concat([signature, pngChunk("tEXt", ihdr), pngChunk("IDAT"), pngChunk("IEND")]), /IHDR/],
+    [Buffer.concat([signature, pngChunk("IHDR", ihdr.subarray(0, 12)), pngChunk("IDAT"), pngChunk("IEND")]), /13-byte IHDR/],
+    [Buffer.concat([signature, pngChunk("IHDR", ihdr), pngChunk("IEND")]), /IDAT/],
+    [Buffer.concat([signature, pngChunk("IHDR", ihdr), pngChunk("IDAT")]), /IEND/],
+    [Buffer.concat([structuralPng(), Buffer.from([0])]), /IEND|final chunk/],
+  ];
+  for (const [buffer, pattern] of cases) {
+    assert.throws(() => validatePngScreenshot(buffer, "proof-1439x912.png"), pattern);
+  }
+});
+
+test("external supervisor refuses an existing evidence root before a no-op child can reuse 91 stale captures", async () => {
+  const outputRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cwgame-supervisor-stale-root-"));
+  const plan = buildQaSegmentPlan({ suffix: SUFFIX });
+  for (const segment of plan.segments) {
+    const segmentDir = path.join(outputRoot, "segments", segment.scope);
+    await fs.mkdir(segmentDir, { recursive: true });
+    for (const screenshot of segment.screenshots) {
+      await fs.writeFile(path.join(segmentDir, screenshot), "stale screenshot");
+    }
+  }
+  const oldManifest = '{"schemaVersion":1,"totalPhysicalCaptures":91,"stale":true}\n';
+  await fs.writeFile(path.join(outputRoot, "qa-result.json"), oldManifest);
+  let spawnCalls = 0;
+  const spawnImpl = () => {
+    spawnCalls += 1;
+    const child = new EventEmitter();
+    child.pid = 4001;
+    setImmediate(() => child.emit("close", 0, null));
+    return child;
+  };
+
+  await assert.rejects(() => runPackagedQa({
+    exe: "CWGame-latest.exe", outputRoot, suffix: SUFFIX, spawnImpl,
+  }), /already exists|exclusive|fresh/i);
+  assert.equal(spawnCalls, 0);
+  assert.equal(await fs.readFile(path.join(outputRoot, "qa-result.json"), "utf8"), oldManifest);
+});
+
 test("QA state envelopes preserve only the three raw durable storage keys", () => {
   assert.deepEqual(QA_STORAGE_KEYS, [
     "game-morse-adventurer.saves.v1",
@@ -106,26 +180,35 @@ test("QA state envelopes preserve only the three raw durable storage keys", () =
     "game-morse-adventurer.language.v1",
   ]);
   const storage = saveStorage();
-  const envelope = createQaStateEnvelope({ producerScope: "equipment", storage });
+  const envelope = createQaStateEnvelope({ qaRunId: QA_RUN_ID, producerScope: "equipment", storage });
   assert.deepEqual(envelope, {
     schemaVersion: 1,
+    qaRunId: QA_RUN_ID,
     producerScope: "equipment",
     storage,
     facts: {},
   });
-  assert.deepEqual(validateQaStateEnvelope(envelope, { consumerScope: "practice" }), envelope);
+  assert.deepEqual(validateQaStateEnvelope(envelope, { consumerScope: "practice", qaRunId: QA_RUN_ID }), envelope);
+  assert.throws(
+    () => validateQaStateEnvelope(envelope, {
+      consumerScope: "practice", qaRunId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    }),
+    /run id/i,
+  );
 });
 
 test("practice state carries one validated wrong-target fact into qso", () => {
   const storage = saveStorage({ recentTargets: ["A", "N", "T", "E"] });
   const envelope = createQaStateEnvelope({
+    qaRunId: QA_RUN_ID,
     producerScope: "practice",
     storage,
     facts: { practiceWrongTarget: "N" },
   });
-  assert.deepEqual(validateQaStateEnvelope(envelope, { consumerScope: "qso" }), envelope);
+  assert.deepEqual(validateQaStateEnvelope(envelope, { consumerScope: "qso", qaRunId: QA_RUN_ID }), envelope);
 
   assert.throws(() => createQaStateEnvelope({
+    qaRunId: QA_RUN_ID,
     producerScope: "practice",
     storage,
     facts: { practiceWrongTarget: "Q" },
@@ -134,15 +217,15 @@ test("practice state carries one validated wrong-target fact into qso", () => {
 
 test("QA state rejects hostile or non-adjacent segment input", () => {
   const storage = saveStorage();
-  const valid = createQaStateEnvelope({ producerScope: "bootstrap", storage });
+  const valid = createQaStateEnvelope({ qaRunId: QA_RUN_ID, producerScope: "bootstrap", storage });
   const cases = [
-    [{ ...valid, schemaVersion: 2 }, { consumerScope: "inventory" }, /schemaVersion/],
-    [{ ...valid, producerScope: "equipment" }, { consumerScope: "inventory" }, /predecessor/],
-    [{ ...valid, storage: { ...storage, extra: "forbidden" } }, { consumerScope: "inventory" }, /storage key/],
-    [{ ...valid, storage: { ...storage, [QA_STORAGE_KEYS[0]]: "{" } }, { consumerScope: "inventory" }, /saves/],
-    [{ ...valid, storage: { ...storage, [QA_STORAGE_KEYS[1]]: "missing" } }, { consumerScope: "inventory" }, /active save/],
-    [{ ...valid, storage: { ...storage, [QA_STORAGE_KEYS[2]]: "xx" } }, { consumerScope: "inventory" }, /language/],
-    [null, { consumerScope: "inventory" }, /state input/],
+    [{ ...valid, schemaVersion: 2 }, { consumerScope: "inventory", qaRunId: QA_RUN_ID }, /schemaVersion/],
+    [{ ...valid, producerScope: "equipment" }, { consumerScope: "inventory", qaRunId: QA_RUN_ID }, /predecessor/],
+    [{ ...valid, storage: { ...storage, extra: "forbidden" } }, { consumerScope: "inventory", qaRunId: QA_RUN_ID }, /storage key/],
+    [{ ...valid, storage: { ...storage, [QA_STORAGE_KEYS[0]]: "{" } }, { consumerScope: "inventory", qaRunId: QA_RUN_ID }, /saves/],
+    [{ ...valid, storage: { ...storage, [QA_STORAGE_KEYS[1]]: "missing" } }, { consumerScope: "inventory", qaRunId: QA_RUN_ID }, /active save/],
+    [{ ...valid, storage: { ...storage, [QA_STORAGE_KEYS[2]]: "xx" } }, { consumerScope: "inventory", qaRunId: QA_RUN_ID }, /language/],
+    [null, { consumerScope: "inventory", qaRunId: QA_RUN_ID }, /state input/],
     [valid, { consumerScope: "bootstrap" }, /bootstrap.*state input/],
   ];
   for (const [candidate, options, pattern] of cases) {
@@ -154,7 +237,15 @@ test("capture publishes start before renderer work and complete only after the P
   const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cwgame-capture-step-"));
   let releaseRenderer;
   const rendererGate = new Promise((resolve) => { releaseRenderer = resolve; });
-  const image = { toPNG: () => Buffer.from("png-contract") };
+  let resizeOptions = null;
+  const image = {
+    getSize: () => ({ width: 2878, height: 1824 }),
+    resize(options) {
+      resizeOptions = options;
+      return { toPNG: () => Buffer.from("png-contract") };
+    },
+    toPNG: () => Buffer.from("unscaled-png"),
+  };
   const qaWindow = {
     webContents: {
       executeJavaScript: () => rendererGate,
@@ -162,35 +253,38 @@ test("capture publishes start before renderer work and complete only after the P
     },
   };
 
-  const capturePromise = capture(qaWindow, outputDir, "start-contract.png", { scope: "bootstrap" });
+  const capturePromise = capture(qaWindow, outputDir, "start-1439x912.png", { scope: "bootstrap" });
   await new Promise((resolve) => setTimeout(resolve, 20));
   const started = JSON.parse(await fs.readFile(path.join(outputDir, "qa-step.txt"), "utf8"));
   assert.equal(started.scope, "bootstrap");
-  assert.equal(started.filename, "start-contract.png");
+  assert.equal(started.filename, "start-1439x912.png");
   assert.equal(started.phase, "capture-start");
   assert.equal(typeof started.at, "string");
-  await assert.rejects(fs.access(path.join(outputDir, "start-contract.png")));
+  await assert.rejects(fs.access(path.join(outputDir, "start-1439x912.png")));
 
   releaseRenderer();
   await capturePromise;
-  assert.equal(await fs.readFile(path.join(outputDir, "start-contract.png"), "utf8"), "png-contract");
+  assert.deepEqual(resizeOptions, { width: 1439, height: 912, quality: "best" });
+  assert.equal(await fs.readFile(path.join(outputDir, "start-1439x912.png"), "utf8"), "png-contract");
   const completed = JSON.parse(await fs.readFile(path.join(outputDir, "qa-step.txt"), "utf8"));
   assert.equal(completed.phase, "capture-complete");
   assert.equal(completed.scope, "bootstrap");
-  assert.equal(completed.filename, "start-contract.png");
+  assert.equal(completed.filename, "start-1439x912.png");
 });
 
 async function writeSuccessfulFakeSegment(env, scope) {
   const outputDir = env.CWGAME_QA_OUTPUT;
+  const qaRunId = env.CWGAME_QA_RUN_ID ?? QA_RUN_ID;
   const segment = buildQaSegmentPlan({ suffix: env.CWGAME_QA_SUFFIX }).segments
     .find((candidate) => candidate.scope === scope);
   await fs.mkdir(outputDir, { recursive: true });
   for (const screenshot of segment.screenshots) {
-    await fs.writeFile(path.join(outputDir, screenshot), "png");
+    await fs.writeFile(path.join(outputDir, screenshot), structuralPng());
   }
   await fs.writeFile(path.join(outputDir, "runtime-console-errors.json"), "[]\n");
   if (env.CWGAME_QA_STATE_OUT) {
     const state = createQaStateEnvelope({
+      qaRunId,
       producerScope: scope,
       storage: saveStorage(),
       facts: scope === "practice" ? { practiceWrongTarget: "N" } : {},
@@ -199,6 +293,7 @@ async function writeSuccessfulFakeSegment(env, scope) {
   }
   await fs.writeFile(path.join(outputDir, "qa-segment-result.json"), `${JSON.stringify({
     schemaVersion: 1,
+    qaRunId,
     scope,
     captures: segment.screenshots,
     consoleErrorCount: 0,
@@ -207,7 +302,7 @@ async function writeSuccessfulFakeSegment(env, scope) {
 }
 
 test("external supervisor launches fresh ordered segment processes and stops at the first child failure", async () => {
-  const outputRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cwgame-supervisor-order-"));
+  const outputRoot = await freshOutputRoot("cwgame-supervisor-order-");
   const launches = [];
   const spawnImpl = (_exe, args, options) => {
     const child = new EventEmitter();
@@ -238,6 +333,8 @@ test("external supervisor launches fresh ordered segment processes and stops at 
   assert.match(launches[1].env.CWGAME_QA_OUTPUT, /segments[\\/]inventory$/);
   assert.equal(launches[0].env.CWGAME_QA_STATE_IN, undefined);
   assert.equal(launches[1].env.CWGAME_QA_STATE_IN, launches[0].env.CWGAME_QA_STATE_OUT);
+  assert.match(launches[0].env.CWGAME_QA_RUN_ID, /^[0-9a-f-]{36}$/i);
+  assert.equal(launches[1].env.CWGAME_QA_RUN_ID, launches[0].env.CWGAME_QA_RUN_ID);
 });
 
 test("external supervisor rejects a zero exit without complete segment evidence", async () => {
@@ -254,7 +351,8 @@ test("external supervisor rejects a zero exit without complete segment evidence"
       await writeSuccessfulFakeSegment(env, "bootstrap");
       await fs.writeFile(path.join(dir, "runtime-console-errors.json"), '[{"message":"boom"}]');
       await fs.writeFile(path.join(dir, "qa-segment-result.json"), JSON.stringify({
-        schemaVersion: 1, scope: "bootstrap", captures: expectedCaptures.bootstrap.map(filename),
+        schemaVersion: 1, qaRunId: env.CWGAME_QA_RUN_ID,
+        scope: "bootstrap", captures: expectedCaptures.bootstrap.map(filename),
         consoleErrorCount: 1, completedAt: "2026-08-26T00:00:00.000Z",
       }));
     }, /console/],
@@ -262,13 +360,37 @@ test("external supervisor rejects a zero exit without complete segment evidence"
       await writeSuccessfulFakeSegment(env, "bootstrap");
       await fs.writeFile(path.join(dir, expectedCaptures.bootstrap.map(filename)[0]), "");
     }, /missing or empty/],
+    ["text screenshot", async (dir, env) => {
+      await writeSuccessfulFakeSegment(env, "bootstrap");
+      await fs.writeFile(path.join(dir, expectedCaptures.bootstrap.map(filename)[0]), "not a PNG");
+    }, /PNG/i],
+    ["truncated screenshot", async (dir, env) => {
+      await writeSuccessfulFakeSegment(env, "bootstrap");
+      await fs.writeFile(
+        path.join(dir, expectedCaptures.bootstrap.map(filename)[0]),
+        structuralPng().subarray(0, -1),
+      );
+    }, /PNG|truncated|IEND/i],
+    ["wrong screenshot dimensions", async (dir, env) => {
+      await writeSuccessfulFakeSegment(env, "bootstrap");
+      await fs.writeFile(
+        path.join(dir, expectedCaptures.bootstrap.map(filename)[0]),
+        structuralPng(1438, 912),
+      );
+    }, /dimensions|1439x912/i],
     ["bad state", async (_dir, env) => {
       await writeSuccessfulFakeSegment(env, "bootstrap");
       await fs.writeFile(env.CWGAME_QA_STATE_OUT, '{"schemaVersion":1}');
-    }, /state/],
+    }, /state|run id/i],
+    ["mismatched run id", async (dir, env) => {
+      await writeSuccessfulFakeSegment(env, "bootstrap");
+      const sentinelFile = path.join(dir, "qa-segment-result.json");
+      const sentinel = JSON.parse(await fs.readFile(sentinelFile, "utf8"));
+      await fs.writeFile(sentinelFile, JSON.stringify({ ...sentinel, qaRunId: QA_RUN_ID }));
+    }, /run id/i],
   ];
   for (const [label, arrange, expected] of failureCases) {
-    const outputRoot = await fs.mkdtemp(path.join(os.tmpdir(), `cwgame-supervisor-${label.replace(" ", "-")}-`));
+    const outputRoot = await freshOutputRoot(`cwgame-supervisor-${label.replace(" ", "-")}-`);
     const spawnImpl = (_exe, _args, options) => {
       const child = new EventEmitter();
       child.pid = 4200;
@@ -282,6 +404,7 @@ test("external supervisor rejects a zero exit without complete segment evidence"
     await assert.rejects(() => runPackagedQa({
       exe: "CWGame-latest.exe", outputRoot, suffix: SUFFIX, spawnImpl,
     }), expected, label);
+    await assert.rejects(fs.access(path.join(outputRoot, "qa-result.json")), undefined, label);
   }
 });
 
@@ -314,6 +437,54 @@ test("Windows timeout kills the exact process tree once and records the last cap
   const marker = JSON.parse(await fs.readFile(path.join(outputDir, "qa-timeout.json"), "utf8"));
   assert.equal(marker.scope, "qso");
   assert.equal(marker.lastStep.filename, "qso-npc-query-contract.png");
+});
+
+test("timeout marker write failure still kills and rejects exactly once without an unhandled rejection", async () => {
+  const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cwgame-supervisor-timeout-marker-failure-"));
+  const child = new EventEmitter();
+  child.pid = 4313;
+  let markerWriteCalls = 0;
+  let killCalls = 0;
+  let cleared = 0;
+  const unhandled = [];
+  const onUnhandled = (error) => { unhandled.push(error); };
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    const execution = runQaChildProcess({
+      executable: "CWGame-latest.exe",
+      args: ["--qa-capture"],
+      env: {},
+      outputDir,
+      scope: "qso",
+      timeoutMs: 1,
+      spawnImpl: () => child,
+      writeFileImpl: async () => {
+        markerWriteCalls += 1;
+        throw new Error("disk denied");
+      },
+      killTreeImpl: async () => {
+        killCalls += 1;
+        child.emit("close", 1, null);
+      },
+      clearTimeoutImpl: (timer) => { cleared += 1; clearTimeout(timer); },
+    });
+    await assert.rejects(
+      Promise.race([
+        execution,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("TEST_TIMEOUT")), 250)),
+      ]),
+      /qso.*timed out/,
+    );
+    child.emit("close", 0, null);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(markerWriteCalls, 1);
+    assert.equal(killCalls, 1);
+    assert.equal(cleared, 1);
+    assert.deepEqual(unhandled, []);
+    await assert.rejects(fs.access(path.join(outputDir, "qa-timeout.json")));
+  } finally {
+    process.removeListener("unhandledRejection", onUnhandled);
+  }
 });
 
 test("Windows tree killer passes taskkill the required PID/T/F arguments", async () => {
@@ -350,12 +521,12 @@ function rendererStorageWindow(initial = {}) {
 
 test("consumer state import applies only validated raw keys and reloads the fresh renderer once", async () => {
   const storage = saveStorage();
-  const state = createQaStateEnvelope({ producerScope: "bootstrap", storage });
+  const state = createQaStateEnvelope({ qaRunId: QA_RUN_ID, producerScope: "bootstrap", storage });
   const qaWindow = rendererStorageWindow({
     "game-morse-adventurer.saves.v1": "stale",
     "unrelated.renderer.key": "fresh-profile-proof",
   });
-  await importQaStateIntoRenderer(qaWindow, state, { consumerScope: "inventory" });
+  await importQaStateIntoRenderer(qaWindow, state, { consumerScope: "inventory", qaRunId: QA_RUN_ID });
   assert.equal(qaWindow.reloads(), 1);
   assert.equal(qaWindow.values.get("unrelated.renderer.key"), "fresh-profile-proof");
   assert.deepEqual(Object.fromEntries(QA_STORAGE_KEYS.map((key) => [key, qaWindow.values.get(key)])), storage);
@@ -365,11 +536,13 @@ test("renderer state export reads exactly the allowlist and validates practice f
   const storage = saveStorage();
   const qaWindow = rendererStorageWindow({ ...storage, "unrelated.renderer.key": "do-not-export" });
   const envelope = await exportQaStateFromRenderer(qaWindow, {
+    qaRunId: QA_RUN_ID,
     producerScope: "practice",
     facts: { practiceWrongTarget: "A" },
   });
   assert.deepEqual(envelope, {
     schemaVersion: 1,
+    qaRunId: QA_RUN_ID,
     producerScope: "practice",
     storage,
     facts: { practiceWrongTarget: "A" },
@@ -382,6 +555,7 @@ test("a completed ordinary scope writes validated state and an exact segment sen
   const stateOutFile = path.join(outputDir, "qa-state-out.json");
   const qaWindow = rendererStorageWindow(saveStorage());
   const result = await writeQaSegmentResult(qaWindow, {
+    qaRunId: QA_RUN_ID,
     outputDir,
     stateOutFile,
     scope: "practice",
@@ -391,6 +565,7 @@ test("a completed ordinary scope writes validated state and an exact segment sen
   });
   assert.deepEqual(result, {
     schemaVersion: 1,
+    qaRunId: QA_RUN_ID,
     scope: "practice",
     captures: expectedCaptures.practice.map(filename),
     stateOut: "qa-state-out.json",
@@ -410,8 +585,10 @@ test("the independent Lights scope writes its own exact sentinel and cleans up i
   const webContents = new EventEmitter();
   const qaWindow = { webContents };
   const result = await runLightsQaSegment(qaWindow, outputDir, SUFFIX, {
-    runCaptureImpl: async () => ({ resultFile: "lights-qa-result.json" }),
+    qaRunId: QA_RUN_ID,
+    runCaptureImpl: async () => ({ resultFile: "lights-qa-result.json", qaRunId: QA_RUN_ID }),
   });
+  assert.equal(result.qaRunId, QA_RUN_ID);
   assert.deepEqual(result.captures, expectedCaptures.lights.map(filename));
   assert.equal(result.scope, "lights");
   assert.equal(result.consoleErrorCount, 0);

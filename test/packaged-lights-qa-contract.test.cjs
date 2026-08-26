@@ -15,6 +15,8 @@ const {
   validateLightsQaEvidence, validateStationEntryProbe,
 } = require("../electron/qa-capture.cjs");
 
+const QA_RUN_ID = "11111111-2222-4333-8444-555555555555";
+
 test("capturePage retries only bounded UnknownViz compositor failures", async () => {
   let attempts = 0;
   const expectedImage = { toPNG: () => Buffer.from("image") };
@@ -131,6 +133,7 @@ function validLightsEvidence() {
   });
   return {
     schemaVersion: 1,
+    qaRunId: QA_RUN_ID,
     activity: "lights-across-air",
     resultFile: "lights-qa-result.json",
     screenshots: [
@@ -291,7 +294,13 @@ test("packaged lights QA plan names every real gameplay checkpoint", () => {
 
 test("Lights evidence validator accepts the complete literal gameplay schema", () => {
   const valid = validLightsEvidence();
-  assert.doesNotThrow(() => validateLightsQaEvidence(valid));
+  assert.doesNotThrow(() => validateLightsQaEvidence(valid, { qaRunId: QA_RUN_ID }));
+  assert.throws(
+    () => validateLightsQaEvidence(valid, {
+      qaRunId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    }),
+    /run id/i,
+  );
 });
 
 test("Lights evidence validator rejects missing and false protocol facts", () => {
@@ -435,7 +444,7 @@ test("Lights capture runner reaches its keying probe through the shared renderer
 
   try {
     await assert.rejects(
-      () => runLightsQaCapture(qaWindow, outputDir, "focus-contract"),
+      () => runLightsQaCapture(qaWindow, outputDir, "focus-contract", { qaRunId: QA_RUN_ID }),
       /KEYING_PROBE_REACHED/,
     );
   } finally {
@@ -447,6 +456,7 @@ test("every segmented QA startup isolates userData before the Electron instance 
   const originalArgv = process.argv;
   const originalOutput = process.env.CWGAME_QA_OUTPUT;
   const originalScope = process.env.CWGAME_QA_SCOPE;
+  const originalRunId = process.env.CWGAME_QA_RUN_ID;
   const originalLoad = Module._load;
   const mainPath = require.resolve("../electron/main.cjs");
   const outputDirs = [];
@@ -456,6 +466,7 @@ test("every segmented QA startup isolates userData before the Electron instance 
       process.argv = [originalArgv[0], mainPath, scope === "lights" ? "--qa-lights-capture" : "--qa-capture"];
       process.env.CWGAME_QA_SCOPE = scope;
       delete process.env.CWGAME_QA_OUTPUT;
+      delete process.env.CWGAME_QA_RUN_ID;
       Module._load = function load(request, parent, isMain) {
         if (request !== "electron") return originalLoad.call(this, request, parent, isMain);
         return {
@@ -475,6 +486,7 @@ test("every segmented QA startup isolates userData before the Electron instance 
 
       const isolation = calls.find(([name]) => name === "setPath");
       assert.ok(outputDir, `${scope} QA startup must choose an isolated output directory`);
+      assert.match(process.env.CWGAME_QA_RUN_ID, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
       assert.deepEqual(isolation?.slice(0, 2), ["setPath", "userData"]);
       assert.equal(path.dirname(isolation[2]), outputDir);
       assert.equal(path.basename(isolation[2]), "electron-user-data");
@@ -490,9 +502,51 @@ test("every segmented QA startup isolates userData before the Electron instance 
     else process.env.CWGAME_QA_OUTPUT = originalOutput;
     if (originalScope === undefined) delete process.env.CWGAME_QA_SCOPE;
     else process.env.CWGAME_QA_SCOPE = originalScope;
+    if (originalRunId === undefined) delete process.env.CWGAME_QA_RUN_ID;
+    else process.env.CWGAME_QA_RUN_ID = originalRunId;
     for (const outputDir of outputDirs) {
       if (outputDir && fs.existsSync(outputDir)) fs.rmSync(outputDir, { recursive: true, force: true });
     }
+  }
+});
+
+test("direct QA CLI preserves a supervisor-provided run id", () => {
+  const originalArgv = process.argv;
+  const originalOutput = process.env.CWGAME_QA_OUTPUT;
+  const originalRunId = process.env.CWGAME_QA_RUN_ID;
+  const originalLoad = Module._load;
+  const mainPath = require.resolve("../electron/main.cjs");
+  const providedRunId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  let outputDir;
+  try {
+    process.argv = [originalArgv[0], mainPath, "--qa-lights-capture"];
+    delete process.env.CWGAME_QA_OUTPUT;
+    process.env.CWGAME_QA_RUN_ID = providedRunId;
+    Module._load = function load(request, parent, isMain) {
+      if (request !== "electron") return originalLoad.call(this, request, parent, isMain);
+      return {
+        app: {
+          commandLine: { appendSwitch: () => {} },
+          disableHardwareAcceleration: () => {},
+          quit: () => {},
+          requestSingleInstanceLock: () => false,
+          setPath: () => {},
+        },
+      };
+    };
+    delete require.cache[mainPath];
+    require(mainPath);
+    outputDir = process.env.CWGAME_QA_OUTPUT;
+    assert.equal(process.env.CWGAME_QA_RUN_ID, providedRunId);
+  } finally {
+    delete require.cache[mainPath];
+    Module._load = originalLoad;
+    process.argv = originalArgv;
+    if (originalOutput === undefined) delete process.env.CWGAME_QA_OUTPUT;
+    else process.env.CWGAME_QA_OUTPUT = originalOutput;
+    if (originalRunId === undefined) delete process.env.CWGAME_QA_RUN_ID;
+    else process.env.CWGAME_QA_RUN_ID = originalRunId;
+    if (outputDir && fs.existsSync(outputDir)) fs.rmSync(outputDir, { recursive: true, force: true });
   }
 });
 

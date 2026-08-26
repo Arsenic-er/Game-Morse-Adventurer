@@ -1,4 +1,5 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain } = require("electron");
+const { randomUUID } = require("node:crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -15,6 +16,7 @@ const qaHeight = Math.max(720, Number(process.env.CWGAME_QA_HEIGHT) || 941);
 if (qaCaptureMode) app.disableHardwareAcceleration();
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 if (qaCaptureMode) {
+  if (!process.env.CWGAME_QA_RUN_ID) process.env.CWGAME_QA_RUN_ID = randomUUID();
   const qaOutputDir = process.env.CWGAME_QA_OUTPUT
     ? path.resolve(process.env.CWGAME_QA_OUTPUT)
     : fs.mkdtempSync(path.join(os.tmpdir(), "cwgame-qa-"));
