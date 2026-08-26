@@ -195,6 +195,8 @@ test("chapter five presentation stays archive-backed, portrait-free on air, and 
   const css = read("src/pixel-theme.css");
   assert.match(eventScreen, /<LightsMapPanel archive=\{save\.eventRunArchive\}/);
   assert.match(eventScreen, /<LightsHistoryPanel archive=\{save\.eventRunArchive\}/);
+  assert.match(eventScreen, /const stationDate = lightsStationCalendarDate\(startedAt\)/);
+  assert.doesNotMatch(eventScreen, /getLocation\(save\.locationId\)\.timeZone/);
   assert.match(eventScreen, /data-portrait-visible="false"/);
   assert.doesNotMatch(eventScreen, /<img[^>]+portrait/i);
   assert.match(mapPanel, /buildLightsMapModel\(archive/);

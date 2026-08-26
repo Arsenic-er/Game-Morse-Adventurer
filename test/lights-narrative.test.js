@@ -18,6 +18,20 @@ test("chapter five follows the fixed NOVA to SORA handoff before control", () =>
   assert.equal(lightsNarrativeBeat({ phase: LIGHTS_PHASES.CONTROL_CQ, chaseCompleted: true }).textKey, LIGHTS_NARRATIVE_KEYS.soraHandoff);
 });
 
+test("annual and practice control runs never claim that the player is still chasing SORA", () => {
+  for (const mode of ["annual", "practice"]) {
+    const run = {
+      phase: LIGHTS_PHASES.CONTROL_CQ,
+      chaseCompleted: false,
+      mode,
+    };
+    const beat = lightsNarrativeBeat(run);
+    assert.equal(beat.textKey, LIGHTS_NARRATIVE_KEYS.soraHandoff, mode);
+    assert.notEqual(beat.textKey, LIGHTS_NARRATIVE_KEYS.soraChase, mode);
+    assert.equal(beat.showPortrait, false, mode);
+  }
+});
+
 test("success signs off with MORSE while failures receive cause-specific SORA debriefs", () => {
   assert.deepEqual(lightsNarrativeBeat({
     phase: LIGHTS_PHASES.RUN_COMPLETE,

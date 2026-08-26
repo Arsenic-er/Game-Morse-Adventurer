@@ -4,9 +4,7 @@ import {
 } from "@phosphor-icons/react";
 import { useCwCore } from "../cw/useCwCore.js";
 import { CLEAR_INPUT_GESTURE_LENGTH } from "../cw/inputAnalyzer.js";
-import { lightsRegionForLocation } from "../game/lightsEventCatalog.js";
-import { getLocation } from "../game/locations.js";
-import { stationCalendarDate } from "../game/worldCalendar.js";
+import { lightsRegionForLocation, lightsStationCalendarDate } from "../game/lightsEventCatalog.js";
 import { lightsPileupPlaybackLayers } from "../game/lightsPileup.js";
 import {
   LIGHTS_PHASES, advanceLightsPlayback, createLightsRun, currentLightsPileup,
@@ -35,7 +33,7 @@ export function LightsEventScreen({ language, mode, save, inputBlocked = false, 
   const t = lightsText(language);
   const [run, setRun] = useState(() => {
     const startedAt = new Date();
-    const stationDate = stationCalendarDate(startedAt, getLocation(save.locationId).timeZone);
+    const stationDate = lightsStationCalendarDate(startedAt);
     return createLightsRun({
       mode,
       playerCallsign: save.callsign,

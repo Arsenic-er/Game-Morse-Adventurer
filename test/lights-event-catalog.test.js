@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { LOCATIONS } from "../src/game/locations.js";
 import {
-  LIGHTS_EVENT, LIGHTS_EVENT_REGIONS, lightsEntryModes, lightsRegionForLocation,
+  LIGHTS_ACTIVITY_RULES, LIGHTS_EVENT, LIGHTS_EVENT_REGIONS, lightsEntryModes,
+  lightsRegionForLocation, lightsStationCalendarDate,
 } from "../src/game/lightsEventCatalog.js";
+import { lightsRunSeed } from "../src/game/lightsUiModel.js";
 
 test("event identity is fictional, bounded, and localized in all interface languages", () => {
   assert.equal(LIGHTS_EVENT.id, "lights-across-air");
@@ -51,4 +53,27 @@ test("entry modes project story, annual, and practice from the station-local cal
   assert.equal(practice.preferredMode, "practice");
   assert.equal(practice.annualAvailable, false);
   assert.equal(practice.practiceAvailable, true);
+});
+
+test("US, Europe, and Japan saves derive one Tokyo practice date and seed at the UTC boundary", () => {
+  const startedAt = "2026-04-30T15:30:00.000Z";
+  const saves = [
+    { id: "same-save", locationId: "usa-new-england" },
+    { id: "same-save", locationId: "europe-rhine-valley" },
+    { id: "same-save", locationId: "japan-tokyo-kanto" },
+  ];
+  const identities = saves.map((save) => {
+    const stationDate = lightsStationCalendarDate(startedAt);
+    return {
+      locationId: save.locationId,
+      dateKey: stationDate.dateKey,
+      timeZone: stationDate.timeZone,
+      seed: lightsRunSeed({ saveId: save.id, mode: "practice", stationDate, startedAt }),
+    };
+  });
+  assert.equal(LIGHTS_ACTIVITY_RULES.timeZone, "Asia/Tokyo");
+  assert.deepEqual(new Set(identities.map(({ dateKey }) => dateKey)), new Set(["2026-05-01"]));
+  assert.deepEqual(new Set(identities.map(({ timeZone }) => timeZone)), new Set(["Asia/Tokyo"]));
+  assert.equal(new Set(identities.map(({ seed }) => seed)).size, 1);
+  assert.match(identities[0].seed, /practice:2026-05-01/);
 });

@@ -67,6 +67,23 @@ test("annual replay follows May 1–7 at the station and marks May 5", () => {
   assert.equal(closed.annualAvailable, false);
 });
 
+test("an activity rule object overrides the caller location without coupling the calendar to an event catalog", () => {
+  const activityRules = {
+    timeZone: "Asia/Tokyo",
+    annualWindow: { month: 5, firstDay: 1, lastDay: 7, specialDay: 5 },
+  };
+  const availability = evaluateLightsAvailability({
+    now: "2026-04-30T15:30:00.000Z",
+    timeZone: "America/New_York",
+    storyCompleted: true,
+    activityRules,
+  });
+  assert.equal(availability.stationDate.dateKey, "2026-05-01");
+  assert.equal(availability.stationDate.timeZone, "Asia/Tokyo");
+  assert.equal(availability.annualAvailable, true);
+  assert.equal(availability.specialDay, false);
+});
+
 test("clock rollback pauses only annual rewards and recovers when trusted time catches up", () => {
   const trusted = evaluateLightsAvailability({
     now: "2026-05-05T12:00:00.000Z", timeZone: "UTC", storyCompleted: true,

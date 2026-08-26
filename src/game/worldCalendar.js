@@ -168,23 +168,36 @@ export function advanceWorldCalendarState(value, { now = new Date(), timeZone = 
   return { ...clock, stationDate };
 }
 
+function lightsActivityCalendar(activityRules, fallbackTimeZone) {
+  const window = activityRules?.annualWindow;
+  return {
+    timeZone: typeof activityRules?.timeZone === "string" && activityRules.timeZone.trim()
+      ? activityRules.timeZone : fallbackTimeZone,
+    month: Number.isInteger(window?.month) ? window.month : LIGHTS_ANNUAL_MONTH,
+    firstDay: Number.isInteger(window?.firstDay) ? window.firstDay : LIGHTS_ANNUAL_FIRST_DAY,
+    lastDay: Number.isInteger(window?.lastDay) ? window.lastDay : LIGHTS_ANNUAL_LAST_DAY,
+    specialDay: Number.isInteger(window?.specialDay) ? window.specialDay : LIGHTS_SPECIAL_DAY,
+  };
+}
+
 export function evaluateLightsAvailability({
-  now = new Date(), timeZone = "UTC", storyCompleted = false, state = null,
+  now = new Date(), timeZone = "UTC", storyCompleted = false, state = null, activityRules = null,
 } = {}) {
-  const clock = advanceWorldCalendarState(state, { now, timeZone });
+  const rules = lightsActivityCalendar(activityRules, timeZone);
+  const clock = advanceWorldCalendarState(state, { now, timeZone: rules.timeZone });
   const stationDate = clock.stationDate;
   const storyAvailable = storyCompleted !== true;
   const annualAvailable = storyCompleted === true
-    && stationDate.month === LIGHTS_ANNUAL_MONTH
-    && stationDate.day >= LIGHTS_ANNUAL_FIRST_DAY
-    && stationDate.day <= LIGHTS_ANNUAL_LAST_DAY;
+    && stationDate.month === rules.month
+    && stationDate.day >= rules.firstDay
+    && stationDate.day <= rules.lastDay;
   const practiceAvailable = storyCompleted === true;
   return {
     preferredMode: storyAvailable ? "story" : annualAvailable ? "annual" : "practice",
     storyAvailable,
     annualAvailable,
     practiceAvailable,
-    specialDay: annualAvailable && stationDate.day === LIGHTS_SPECIAL_DAY,
+    specialDay: annualAvailable && stationDate.day === rules.specialDay,
     annualRewardsPaused: clock.annualRewardsPaused,
     clockRollbackDetected: clock.clockRollbackDetected,
     stationDate,
@@ -194,8 +207,9 @@ export function evaluateLightsAvailability({
 
 export function recordLightsAnnualResult(value, {
   now = new Date(), timeZone = "UTC", storyCompleted = false, score = 0, grade = "none",
+  activityRules = null,
 } = {}) {
-  const availability = evaluateLightsAvailability({ now, timeZone, storyCompleted, state: value });
+  const availability = evaluateLightsAvailability({ now, timeZone, storyCompleted, state: value, activityRules });
   if (!storyCompleted) {
     return { accepted: false, rewardGranted: false, reason: "story-incomplete", record: null, state: availability.state };
   }

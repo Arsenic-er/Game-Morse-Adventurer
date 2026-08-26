@@ -313,7 +313,8 @@ export function settleLightsRun(save, candidate, { observedAt = null, now = null
       lastTrustedAt: result.completedAt,
     };
     const annual = recordLightsAnnualResult(eventClockState, {
-      now: completionInstant, timeZone, storyCompleted, score: result.score, grade: result.grade,
+      now: completionInstant, activityRules: LIGHTS_ACTIVITY_RULES,
+      storyCompleted, score: result.score, grade: result.grade,
     });
     if (!annual.accepted) {
       return { save, result, settled: false, reason: annual.reason, moneyAwarded: 0, technologyPointsAwarded: 0 };

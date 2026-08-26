@@ -40,10 +40,14 @@ export function lightsEntryModes(save, now = new Date()) {
   const storyCompleted = claimed.includes(LIGHTS_EVENT.missionId);
   return evaluateLightsAvailability({
     now,
-    timeZone: LIGHTS_ACTIVITY_RULES.timeZone,
+    activityRules: LIGHTS_ACTIVITY_RULES,
     storyCompleted,
     state: save?.worldCalendarState,
   });
+}
+
+export function lightsStationCalendarDate(now = new Date()) {
+  return stationCalendarDate(now, LIGHTS_ACTIVITY_RULES.timeZone);
 }
 
 function nextAnnualOpening(stationYear) {
@@ -54,7 +58,7 @@ function nextAnnualOpening(stationYear) {
 export function lightsAnnualWindowModel(save, now = new Date()) {
   const instant = new Date(now);
   const safeInstant = Number.isFinite(instant.getTime()) ? instant : new Date(0);
-  const date = stationCalendarDate(safeInstant, LIGHTS_ACTIVITY_RULES.timeZone);
+  const date = lightsStationCalendarDate(safeInstant);
   const { month, firstDay, lastDay } = LIGHTS_ACTIVITY_RULES.annualWindow;
   const open = date.month === month && date.day >= firstDay && date.day <= lastDay;
   const openingYear = open || date.month > month || (date.month === month && date.day > lastDay)

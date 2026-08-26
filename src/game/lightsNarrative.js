@@ -19,6 +19,14 @@ const CHASE_PHASES = new Set([
   LIGHTS_PHASES.CHASE_NPC_REPORT,
   LIGHTS_PHASES.CHASE_PLAYER_REPORT,
 ]);
+const CONTROL_PHASES = new Set([
+  LIGHTS_PHASES.CONTROL_CQ,
+  LIGHTS_PHASES.CONTROL_PILEUP,
+  LIGHTS_PHASES.CONTROL_SELECTION,
+  LIGHTS_PHASES.CONTROL_CALLER_REPORT,
+  LIGHTS_PHASES.CONTROL_PLAYER_REPORT,
+  LIGHTS_PHASES.CONTROL_FINAL,
+]);
 
 export function isOnAirLightsPhase(phase) {
   return ON_AIR_PHASES.has(phase);
@@ -46,6 +54,9 @@ export function lightsNarrativeBeat({ stage = null, phase = null, chaseCompleted
   }
   if (CHASE_PHASES.has(phase)) {
     return { speaker: "SORA", textKey: LIGHTS_NARRATIVE_KEYS.soraChase, showPortrait: !onAir };
+  }
+  if (CONTROL_PHASES.has(phase)) {
+    return { speaker: "SORA", textKey: LIGHTS_NARRATIVE_KEYS.soraHandoff, showPortrait: !onAir };
   }
   return {
     speaker: "SORA",
