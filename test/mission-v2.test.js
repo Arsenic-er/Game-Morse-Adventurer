@@ -404,6 +404,26 @@ test("chapter six mission evaluation bounds hostile expedition history scans", (
     siteId: "sunward-hill", qsoId: "expedition-qso:new-run",
     personId: "person:sora", stationId: "station:sim6jp",
   });
+  const proofHistory = new Proxy(
+    Array.from({ length: 10_000 }, (_, index) => ({
+      runId: index === 9_999 ? "new-run" : `old-proof-run-${index}`,
+      qsoId: index === 9_999 ? "expedition-qso:new-run" : `old-proof-qso-${index}`,
+      siteId: "sunward-hill",
+      personId: "person:sora",
+      stationId: "station:sim6jp",
+      completedAt: "2026-08-12T10:00:00.000Z",
+      playerLocationId: "expedition:sunward-hill",
+      isFictional: true,
+    })),
+    {
+      get(target, property, receiver) {
+        if (/^\d+$/.test(String(property)) && Number(property) < 9_000) {
+          throw new Error("unbounded mission proof scan");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    },
+  );
   assert.equal(missionBoard({
     ...accepted.save,
     qsoLogs: guarded({
@@ -418,12 +438,7 @@ test("chapter six mission evaluation bounds hostile expedition history scans", (
       ...accepted.save.expeditionState,
       settledRunIds: guarded("new-run"),
       completedRuns,
-      settledQsoProofs: guarded({
-        runId: "new-run", qsoId: "expedition-qso:new-run", siteId: "sunward-hill",
-        personId: "person:sora", stationId: "station:sim6jp",
-        completedAt: "2026-08-12T10:00:00.000Z",
-        playerLocationId: "expedition:sunward-hill", isFictional: true,
-      }),
+      settledQsoProofs: proofHistory,
     },
   }).story.at(-1).status, "ready");
 });
@@ -487,10 +502,30 @@ test("chapter six fully validates every retained proof and bounds hostile proof 
   }
 
   const sparse = Array(80);
-  sparse[79] = invalidTarget;
+  sparse[79] = targetProof;
   assert.equal(missionBoard({
     ...linked,
     expeditionState: { ...linked.expeditionState, settledQsoProofs: sparse },
+  }).story.at(-1).status, "active");
+
+  const inheritedTarget = Array(80);
+  const inheritedPrototype = Object.create(Array.prototype);
+  Object.defineProperty(inheritedPrototype, "79", { value: targetProof, configurable: true });
+  Object.setPrototypeOf(inheritedTarget, inheritedPrototype);
+  assert.equal(missionBoard({
+    ...linked,
+    expeditionState: { ...linked.expeditionState, settledQsoProofs: inheritedTarget },
+  }).story.at(-1).status, "active");
+
+  assert.equal(missionBoard({
+    ...linked,
+    expeditionState: {
+      ...linked.expeditionState,
+      settledQsoProofs: [
+        { ...unrelatedProof("bad-location"), playerLocationId: "expedition:lakeview-hill" },
+        targetProof,
+      ],
+    },
   }).story.at(-1).status, "active");
 
   const throwing = new Proxy([targetProof], {

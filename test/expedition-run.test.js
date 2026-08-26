@@ -321,12 +321,7 @@ test("expedition settlement proofs are own-only, fixed-shape, bounded, and idemp
     ignored: "must not survive",
   });
   const inherited = Object.create(valid("inherited"));
-  const normalized = normalizeExpeditionSettlementProofs([
-    inherited,
-    { ...valid(1), playerLocationId: "expedition:lakeview-hill" },
-    { ...valid(2), isFictional: false },
-    valid(3),
-  ]);
+  const normalized = normalizeExpeditionSettlementProofs([valid(3)]);
   assert.deepEqual(normalized, [{
     runId: "proof-run-3",
     qsoId: "expedition-qso:proof-run-3",
@@ -338,6 +333,37 @@ test("expedition settlement proofs are own-only, fixed-shape, bounded, and idemp
     isFictional: true,
   }]);
   assert.deepEqual(normalizeExpeditionSettlementProofs(structuredClone(normalized)), normalized);
+  for (const invalidLedger of [
+    [inherited, valid(3)],
+    [{ ...valid(1), playerLocationId: "expedition:lakeview-hill" }, valid(3)],
+    [{ ...valid(2), isFictional: false }, valid(3)],
+    [valid(3), valid(3)],
+  ]) {
+    assert.deepEqual(normalizeExpeditionSettlementProofs(invalidLedger), []);
+  }
+
+  const inheritedIndex = Array(80);
+  const customPrototype = Object.create(Array.prototype);
+  Object.defineProperty(customPrototype, "79", { value: valid(3), configurable: true });
+  Object.setPrototypeOf(inheritedIndex, customPrototype);
+  assert.deepEqual(normalizeExpeditionSettlementProofs(inheritedIndex), []);
+
+  const sparse = Array(80);
+  sparse[79] = valid(3);
+  assert.deepEqual(normalizeExpeditionSettlementProofs(sparse), []);
+
+  let accessorReads = 0;
+  const accessor = [];
+  Object.defineProperty(accessor, "0", {
+    configurable: true,
+    enumerable: true,
+    get() {
+      accessorReads += 1;
+      return valid(3);
+    },
+  });
+  assert.deepEqual(normalizeExpeditionSettlementProofs(accessor), []);
+  assert.equal(accessorReads, 0);
 
   const hostile = new Proxy(
     Array.from({ length: 10_000 }, (_, index) => valid(index)),

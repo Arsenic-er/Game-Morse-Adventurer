@@ -607,35 +607,36 @@ function normalizeSettlementProof(value) {
 }
 
 export function normalizeExpeditionSettlementProofs(value) {
-  if (!Array.isArray(value)) return [];
-  let retained;
   try {
-    retained = value.slice(-MAX_EXPEDITION_SETTLED_QSO_PROOFS);
-  } catch {
-    return [];
-  }
-  const normalized = [];
-  const runIds = new Set();
-  const qsoIds = new Set();
-  const rejectedRunIds = new Set();
-  const rejectedQsoIds = new Set();
-  try {
-    for (const candidate of retained) {
+    if (!Array.isArray(value)) return [];
+    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
+    if (!lengthDescriptor || !Object.hasOwn(lengthDescriptor, "value")
+      || Object.hasOwn(lengthDescriptor, "get") || Object.hasOwn(lengthDescriptor, "set")) return [];
+    const length = lengthDescriptor.value;
+    if (!Number.isSafeInteger(length) || length < 0 || length > 0xFFFF_FFFF
+      || value.length !== length) return [];
+
+    const normalized = [];
+    const runIds = new Set();
+    const qsoIds = new Set();
+    const firstRetainedIndex = Math.max(0, length - MAX_EXPEDITION_SETTLED_QSO_PROOFS);
+    for (let index = firstRetainedIndex; index < length; index += 1) {
+      if (!Object.hasOwn(value, index)) return [];
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor || !Object.hasOwn(descriptor, "value")
+        || Object.hasOwn(descriptor, "get") || Object.hasOwn(descriptor, "set")) return [];
+      const candidate = value[index];
+      if (candidate !== descriptor.value) return [];
       const proof = normalizeSettlementProof(candidate);
-      if (!proof) continue;
-      if (runIds.has(proof.runId) || qsoIds.has(proof.qsoId)) {
-        rejectedRunIds.add(proof.runId);
-        rejectedQsoIds.add(proof.qsoId);
-      }
+      if (!proof || runIds.has(proof.runId) || qsoIds.has(proof.qsoId)) return [];
       runIds.add(proof.runId);
       qsoIds.add(proof.qsoId);
       normalized.push(proof);
     }
+    return deepFreeze(normalized);
   } catch {
     return [];
   }
-  return deepFreeze(normalized.filter((proof) => !rejectedRunIds.has(proof.runId)
-    && !rejectedQsoIds.has(proof.qsoId)));
 }
 
 export function normalizeExpeditionState(value) {
