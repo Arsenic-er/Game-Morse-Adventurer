@@ -7,6 +7,7 @@ const { inflateSync } = require("node:zlib");
 const {
   buildQaSegmentPlan,
   createQaStateEnvelope,
+  validateExpeditionQaEvidence,
   validateLightsQaEvidence,
   validateQaStateEnvelope,
 } = require("../electron/qa-capture.cjs");
@@ -309,6 +310,11 @@ async function validateQaSegmentArtifacts(segment, outputDir, { qaRunId }) {
     const validated = createQaStateEnvelope(stateOut);
     if (validated.producerScope !== segment.scope || validated.qaRunId !== qaRunId) {
       throw new Error(`${segment.scope} state output has the wrong producer or QA run id`);
+    }
+    if (segment.scope === "expedition") {
+      const expeditionFile = path.join(outputDir, "expedition-qa-result.json");
+      if (!await pathExists(expeditionFile)) throw new Error("expedition is missing gameplay evidence");
+      validateExpeditionQaEvidence(await readJson(expeditionFile, "Expedition QA evidence"), { qaRunId });
     }
   } else {
     const lightsFile = path.join(outputDir, "lights-qa-result.json");

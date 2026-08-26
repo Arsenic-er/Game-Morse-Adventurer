@@ -25,6 +25,9 @@ import { equipmentName, getTransmitter } from "./game/equipmentCatalog.js";
 import { equipOwnedItem, purchaseItem } from "./game/economy.js";
 import { settleAchievementRewards } from "./game/achievements.js";
 import { settleLightsRun } from "./game/lightsSettlement.js";
+import { normalizeExpeditionState } from "./game/expeditionRun.js";
+import { settleExpeditionRun } from "./game/expeditionSettlement.js";
+import { confirmQslChoice, createExpeditionQslRecord, normalizeQslRecords } from "./game/qslRecords.js";
 import { createActivityPlaybackLifecycle, registerActivityPlaybackVisibility } from "./game/lightsUiModel.js";
 import { getLocation, toPropagationLocation } from "./game/locations.js";
 import {
@@ -64,6 +67,8 @@ const HomeScreen = lazy(() => import("./screens/HomeScreen.jsx")
   .then(({ HomeScreen: component }) => ({ default: component })));
 const LightsEventScreen = lazy(() => import("./screens/LightsEventScreen.jsx")
   .then(({ LightsEventScreen: component }) => ({ default: component })));
+const ExpeditionScreen = lazy(() => import("./screens/ExpeditionScreen.jsx")
+  .then(({ ExpeditionScreen: component }) => ({ default: component })));
 const SaveSelectScreen = lazy(() => import("./screens/SaveSelectScreen.jsx")
   .then(({ SaveSelectScreen: component }) => ({ default: component })));
 const StationManualModal = lazy(() => import("./screens/StationManualModal.jsx")
@@ -1406,6 +1411,44 @@ export function App() {
     return transaction;
   }
 
+  function updateExpeditionRunForActiveSave(run) {
+    if (!activeSaveId) return;
+    commitSaves((current) => current.map((save) => save.id === activeSaveId ? {
+      ...save,
+      expeditionState: normalizeExpeditionState({ ...save.expeditionState, activeRun: run }),
+      updatedAt: new Date().toISOString(),
+    } : save));
+  }
+
+  function settleExpeditionForActiveSave(run) {
+    if (!activeSaveId) return null;
+    let transaction = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      transaction = settleExpeditionRun(save, run, new Date().toISOString());
+      if (!transaction.settled) return save;
+      const qsl = createExpeditionQslRecord(run, transaction.qsoId);
+      const qslRecords = qsl
+        ? normalizeQslRecords([...(transaction.save.qslRecords ?? []), qsl])
+        : transaction.save.qslRecords;
+      const nextSave = { ...transaction.save, qslRecords, updatedAt: new Date().toISOString() };
+      transaction = { ...transaction, save: nextSave, qslRecord: qsl };
+      return nextSave;
+    }));
+    return transaction;
+  }
+
+  function confirmQslChoiceForActiveSave(recordId, choice) {
+    if (!activeSaveId) return null;
+    let transaction = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      transaction = confirmQslChoice(save.qslRecords, recordId, choice, new Date().toISOString());
+      return transaction.confirmed ? { ...save, qslRecords: transaction.records, updatedAt: new Date().toISOString() } : save;
+    }));
+    return transaction;
+  }
+
 
   function applySettings(next) {
     const nextWpm = normalizeAutomaticKeyWpm(next.automaticKeyWpm);
@@ -1413,7 +1456,7 @@ export function App() {
     setKeyType(next.keyType);
     setAutomaticKeyWpm(nextWpm);
     setQsoGuidance(normalizeQsoGuidance(next.qsoGuidance));
-    if (activeSave && ["home", "station", "lights"].includes(screen)) {
+    if (activeSave && ["home", "station", "lights", "expedition"].includes(screen)) {
       updateActiveSave({ keyType: next.keyType, automaticKeyWpm: nextWpm, qsoGuidance: normalizeQsoGuidance(next.qsoGuidance) });
     }
   }
@@ -1446,7 +1489,7 @@ export function App() {
   let currentScreen;
   if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => enterPractice("start")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onAcceptMission={acceptMissionForActiveSave} onClaimMission={claimMissionForActiveSave} onAbandonMission={abandonMissionForActiveSave} onEnterLights={enterLights} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onAcceptMission={acceptMissionForActiveSave} onClaimMission={claimMissionForActiveSave} onAbandonMission={abandonMissionForActiveSave} onEnterLights={enterLights} onEnterExpedition={() => setScreen("expedition")} onConfirmQslChoice={confirmQslChoiceForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") {
     const persistentStats = practiceStatsByMode(activeSave?.practiceRecords);
     if (activeSave?.practiceRecords) {
@@ -1477,6 +1520,16 @@ export function App() {
     onSettle={settleLightsForActiveSave}
     onBack={() => setScreen("home")}
   />;
+  else if (screen === "expedition" && activeSave) currentScreen = <ExpeditionScreen
+    key={`${activeSave.id}:expedition`}
+    language={language}
+    save={activeSave}
+    inputBlocked={settingsOpen}
+    onActivityRisk={setActivityRisk}
+    onRunChange={updateExpeditionRunForActiveSave}
+    onSettle={settleExpeditionForActiveSave}
+    onBack={() => setScreen("home")}
+  />;
   else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onActivityRisk={setActivityRisk} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
   else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   return <>
@@ -1493,9 +1546,9 @@ export function App() {
     {manualOpen && <Suspense fallback={null}><StationManualModal language={language} onClose={() => setManualOpen(false)} /></Suspense>}
     {settingsOpen && <SettingsModal
       language={language}
-      keyType={activeSave && ["home", "station", "lights"].includes(screen) ? activeSave.keyType : keyType}
-      automaticKeyWpm={activeSave && ["home", "station", "lights"].includes(screen) ? activeSave.automaticKeyWpm : automaticKeyWpm}
-      qsoGuidance={activeSave && ["home", "station", "lights"].includes(screen) ? activeSave.qsoGuidance : qsoGuidance}
+      keyType={activeSave && ["home", "station", "lights", "expedition"].includes(screen) ? activeSave.keyType : keyType}
+      automaticKeyWpm={activeSave && ["home", "station", "lights", "expedition"].includes(screen) ? activeSave.automaticKeyWpm : automaticKeyWpm}
+      qsoGuidance={activeSave && ["home", "station", "lights", "expedition"].includes(screen) ? activeSave.qsoGuidance : qsoGuidance}
       onApply={applySettings}
       onClose={() => setSettingsOpen(false)}
     />}

@@ -9,12 +9,14 @@ const { deflateSync } = require("node:zlib");
 
 const {
   QA_STORAGE_KEYS,
+  QA_SUPPORTED_SCOPES,
   buildQaSegmentPlan,
   capture,
   createQaStateEnvelope,
   exportQaStateFromRenderer,
   importQaStateIntoRenderer,
   runLightsQaSegment,
+  validateExpeditionQaEvidence,
   writeQaSegmentResult,
   validateQaStateEnvelope,
 } = require("../electron/qa-capture.cjs");
@@ -151,6 +153,12 @@ const expectedCaptures = {
     "home-log-after-qso-warmup", "home-log-after-qso", "home-log-operation-review", "propagation-map",
     "world-map", "mission-story-claimed", "reload-without-achievement-repeat",
   ],
+  expedition: [
+    "expedition-mission-available", "expedition-site", "expedition-setup-penalty",
+    "expedition-ready", "expedition-calling", "expedition-recovering", "expedition-result",
+    "expedition-settled", "expedition-reloaded-qsl", "expedition-choice-confirmed",
+    "expedition-choice-reloaded",
+  ],
   lights: [
     "lights-story-launch", "lights-chase", "lights-control", "lights-failed", "lights-result",
     "lights-reloaded-history",
@@ -178,10 +186,13 @@ async function freshOutputRoot(prefix) {
   return path.join(parent, "evidence");
 }
 
-test("segmented packaged QA has an exact non-overlapping 91-image physical manifest", () => {
+test("segmented packaged QA preserves all 91 legacy images and adds an exact expedition scope", () => {
+  assert.deepEqual(QA_SUPPORTED_SCOPES, [
+    "full", "bootstrap", "inventory", "equipment", "practice", "qso", "expedition",
+  ]);
   const plan = buildQaSegmentPlan({ suffix: SUFFIX });
   assert.deepEqual(plan.segments.map(({ scope }) => scope), [
-    "bootstrap", "inventory", "equipment", "practice", "qso", "lights",
+    "bootstrap", "inventory", "equipment", "practice", "qso", "expedition", "lights",
   ]);
 
   const expectedByScope = Object.fromEntries(Object.entries(expectedCaptures)
@@ -189,11 +200,38 @@ test("segmented packaged QA has an exact non-overlapping 91-image physical manif
   assert.deepEqual(Object.fromEntries(plan.segments.map(({ scope, screenshots }) => [scope, screenshots])), expectedByScope);
 
   const all = plan.segments.flatMap(({ screenshots }) => screenshots);
-  assert.equal(all.length, 91);
-  assert.equal(new Set(all).size, 91);
+  assert.equal(all.length, 102);
+  assert.equal(new Set(all).size, 102);
+  assert.equal(plan.segments.find(({ scope }) => scope === "expedition").predecessor, "qso");
+  assert.equal(plan.segments.find(({ scope }) => scope === "expedition").timeoutMs, 8 * 60_000);
   assert.equal(plan.segments.find(({ scope }) => scope === "lights").timeoutMs, 8 * 60_000);
   assert.equal(plan.segments.find(({ scope }) => scope === "qso").timeoutMs, 8 * 60_000);
   assert.equal(plan.segments.find(({ scope }) => scope === "bootstrap").timeoutMs, 5 * 60_000);
+});
+
+test("expedition evidence binds gameplay recovery, settlement, reload, relationship and one-time QSL choice to the QA run", () => {
+  const evidence = {
+    schemaVersion: 1,
+    qaRunId: QA_RUN_ID,
+    activity: "hill-expedition",
+    failurePenaltyApplied: true,
+    recoveryAction: "AGN",
+    result: "success",
+    settled: true,
+    relationshipPersonId: "person:sora",
+    qslPersonId: "person:sora",
+    qslChoice: "believe",
+    qslChoicePersistedAfterReload: true,
+    duplicateChoiceNoOp: true,
+  };
+  assert.deepEqual(validateExpeditionQaEvidence(evidence, { qaRunId: QA_RUN_ID }), evidence);
+  for (const [key, value] of [
+    ["qaRunId", "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"],
+    ["failurePenaltyApplied", false], ["recoveryAction", ""], ["result", "failed"],
+    ["settled", false], ["qslChoicePersistedAfterReload", false], ["duplicateChoiceNoOp", false],
+  ]) {
+    assert.throws(() => validateExpeditionQaEvidence({ ...evidence, [key]: value }, { qaRunId: QA_RUN_ID }), /expedition|run id|evidence/i, key);
+  }
 });
 
 test("PNG evidence requires initial 13-byte IHDR, bounded chunks, IDAT, and final IEND", () => {
@@ -428,6 +466,14 @@ async function writeSuccessfulFakeSegment(env, scope) {
     await fs.writeFile(path.join(outputDir, screenshot), validCapturePng());
   }
   await fs.writeFile(path.join(outputDir, "runtime-console-errors.json"), "[]\n");
+  if (scope === "expedition") {
+    await fs.writeFile(path.join(outputDir, "expedition-qa-result.json"), `${JSON.stringify({
+      schemaVersion: 1, qaRunId, activity: "hill-expedition", failurePenaltyApplied: true,
+      recoveryAction: "AGN", result: "success", settled: true,
+      relationshipPersonId: "person:sora", qslPersonId: "person:sora", qslChoice: "believe",
+      qslChoicePersistedAfterReload: true, duplicateChoiceNoOp: true,
+    })}\n`);
+  }
   if (env.CWGAME_QA_STATE_OUT) {
     const state = createQaStateEnvelope({
       qaRunId,

@@ -38,6 +38,14 @@ test("chapter five cards expose story, annual, and practice launch actions", () 
   }
 });
 
+test("chapter six card launches the expedition only after mission acceptance", () => {
+  assert.match(source, /mission\.id === "story-06" && active/);
+  assert.match(source, /data-action="launch-expedition-story"/);
+  for (const key of ["story06Title", "story06Description", "story06Objective", "story06Brief", "story06Debrief", "launchExpedition"]) {
+    assert.equal((source.match(new RegExp(`${key}:`, "g")) ?? []).length, 7, `${key} must exist in seven languages`);
+  }
+});
+
 test("new mission information keeps the established pixel-card styling", () => {
   for (const selector of [".mission-narrative", ".mission-contract", ".mission-target-identity", ".mission-relationship"]) {
     assert.ok(styles.includes(selector), `${selector} must be styled`);

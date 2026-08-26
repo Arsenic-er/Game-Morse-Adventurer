@@ -1927,3 +1927,52 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   .lights-event-controls { flex-wrap: wrap; padding: 8px; }
   .lights-event-controls button { flex: 1 1 130px; }
 }
+/* Chapter 6 field station and Chapter 7 relationship foundation */
+.expedition-screen { min-height: 100vh; overflow: auto; color: #e9fbdf; background: linear-gradient(#4f86a1 0 34%, #739b56 34% 58%, #253b2a 58%); }
+.expedition-topbar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 18px; padding: 12px 18px; border-bottom: 4px solid #162419; background: #0d201fef; box-shadow: 0 4px #80d8b2; }
+.expedition-topbar > div { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 10px; margin-right: auto; }
+.expedition-topbar h1 { grid-column: 2; margin: 0; font-size: clamp(17px, 2vw, 25px); }
+.expedition-topbar span, .expedition-topbar b { color: #9fe7bb; }
+.expedition-topbar button, .expedition-screen button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 3px solid #78d1ad; color: #eaffef; background: #102a29; box-shadow: 3px 3px #071312; }
+.expedition-topbar button:disabled, .expedition-screen button:disabled { opacity: .45; }
+.expedition-paused { position: fixed; z-index: 5; top: 74px; left: 50%; translate: -50%; padding: 8px 16px; border: 3px solid #f0b455; color: #ffecc2; background: #382a15; }
+.expedition-console { display: grid; grid-template-columns: minmax(190px, 260px) minmax(0, 1fr); gap: 18px; width: min(1080px, calc(100% - 28px)); margin: 28px auto; padding: 18px; border: 5px solid #17291d; outline: 3px solid #84d0a1; background: #13241fe8; box-shadow: 10px 10px #0b1611a8; }
+.expedition-telemetry { display: grid; align-content: start; gap: 10px; }
+.expedition-telemetry > div { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; padding: 12px; border: 3px solid #436b58; background: #091918; }
+.expedition-telemetry svg { grid-row: span 3; color: #e7c761; }
+.expedition-telemetry strong { color: #bff98d; font-size: 20px; }
+.expedition-workbench { min-height: 390px; padding: 18px; border: 3px solid #436b58; background: repeating-linear-gradient(0deg, #112923, #112923 3px, #0d211d 3px, #0d211d 6px); }
+.expedition-workbench h2 { color: #bff98d; }
+.expedition-sites > div, .expedition-setup > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.expedition-sites button { min-height: 116px; flex-direction: column; }
+.expedition-sites p { color: #f0d584; }
+.expedition-setup button { min-height: 92px; flex-direction: column; }
+.expedition-primary { min-height: 120px; width: 100%; margin-top: 70px; font-size: 20px; }
+.expedition-exchange { display: grid; gap: 12px; }
+.expedition-exchange code { padding: 12px; color: #bff98d; background: #071512; }
+.expedition-exchange input { width: 100%; padding: 13px; border: 3px solid #77c8a8; color: #eaffef; background: #071512; font: inherit; box-sizing: border-box; }
+.expedition-exchange button, .expedition-recovery button, .expedition-result button { min-height: 48px; padding: 8px 18px; }
+.expedition-recovery, .expedition-result { display: flex; min-height: 280px; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; }
+.expedition-warning { display: flex; gap: 8px; color: #ffd178; }
+.expedition-leave-dialog { width: min(470px, calc(100% - 32px)); padding: 22px; border: 4px solid #e0a354; color: #fff1cd; background: #172321; text-align: center; }
+.home-people-qsl-button { position: absolute; z-index: 5; right: 22px; bottom: 24px; display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 3px solid #6bc8c5; color: #aef8f2; background: #071719d9; }
+.people-qsl-modal { display: grid; grid-template-rows: auto 1fr auto; width: min(1050px, calc(100% - 30px)); max-height: min(760px, calc(100vh - 30px)); border: 4px solid #6bc8c5; color: #dffbf5; background: #0c1e20; }
+.people-qsl-modal > header { display: flex; align-items: center; gap: 12px; padding: 14px; border-bottom: 3px solid #315d5d; }
+.people-qsl-modal > header h2 { margin-right: auto; }
+.people-qsl-columns { display: grid; grid-template-columns: minmax(230px, .65fr) 1.35fr; gap: 14px; min-height: 0; padding: 14px; overflow: auto; }
+.people-qsl-columns h3 { display: flex; gap: 8px; color: #bff98d; }
+.people-list, .qsl-card-list { display: grid; gap: 10px; }
+.people-list article, .qsl-card-list article { display: grid; gap: 6px; padding: 12px; border: 3px solid #315d5d; background: #071719; }
+.qsl-card-list article > header { display: flex; justify-content: space-between; }
+.qsl-card-list article > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.qsl-card-list button, .people-qsl-modal footer button { padding: 9px; border: 2px solid #6bc8c5; color: #dffbf5; background: #102c2d; }
+.people-qsl-modal footer { padding: 12px; border-top: 3px solid #315d5d; }
+
+@media (max-width: 820px) {
+  .expedition-screen { min-width: 0; }
+  .expedition-console { grid-template-columns: 1fr; }
+  .expedition-telemetry { grid-template-columns: repeat(3, 1fr); }
+  .expedition-sites > div, .expedition-setup > div { grid-template-columns: 1fr; }
+  .people-qsl-columns { grid-template-columns: 1fr; }
+  .qsl-card-list article > div { grid-template-columns: 1fr; }
+}

@@ -160,6 +160,8 @@ test("every interface dictionary has the same non-empty shape in all seven langu
     ["src/screens/HomeScreen.jsx", "QSO_LOG_TEXT"],
     ["src/screens/HomeScreen.jsx", "QSO_REVIEW_TEXT"],
     ["src/screens/lightsEventText.js", "LIGHTS_TEXT"],
+    ["src/screens/expeditionText.js", "EXPEDITION_TEXT"],
+    ["src/screens/PeopleAndQslModal.jsx", "QSL_TEXT"],
     ["src/screens/MissionCenterModal.jsx", "TEXT"],
     ["src/screens/QsoResultModal.jsx", "TEXT"],
     ["src/screens/QsoResultModal.jsx", "REVIEW_TEXT"],
@@ -171,6 +173,36 @@ test("every interface dictionary has the same non-empty shape in all seven langu
   for (const [relativePath, constantName] of dictionaries) {
     assertSevenLanguageDictionary(relativePath, constantName);
   }
+});
+
+test("chapters six and seven expose responsive portrait-free seven-language interfaces", () => {
+  const expedition = read("src/screens/ExpeditionScreen.jsx");
+  const people = read("src/screens/PeopleAndQslModal.jsx");
+  const app = read("src/App.jsx");
+  const home = read("src/screens/HomeScreen.jsx");
+  const mission = read("src/screens/MissionCenterModal.jsx");
+  const css = read("src/pixel-theme.css");
+  assert.match(expedition, /data-testid="expedition-screen"/);
+  assert.match(expedition, /data-portrait-visible="false"/);
+  assert.doesNotMatch(expedition, /<img[^>]+portrait/i);
+  assert.match(expedition, /data-action="expedition-call-cq"/);
+  assert.match(expedition, /data-action="expedition-settle"/);
+  assert.match(expedition, /cwgameSystem\?\.interpretCwTraffic/);
+  assert.doesNotMatch(expedition, /submitExpeditionExchange\(run, exchange, \{ safeToCommit: true \}/);
+  assert.match(people, /data-testid="people-qsl-modal"/);
+  assert.match(people, /className="icon-button"[^>]+aria-label=\{t\.close\}/);
+  assert.match(people, /data-qsl-choice=/);
+  assert.match(people, /t\[record\.operatorNarrativeKey\]/);
+  assert.match(people, /t\[record\.playerNarrativeKey\]/);
+  assert.doesNotMatch(people, />\{record\.operatorNarrativeKey\}<\/p>/);
+  for (const key of [
+    "qsl.player.hill-signal", "qsl.operator.sora-hill-reply",
+    "qsl.player.lights-contact", "qsl.operator.lights-reply",
+  ]) assert.match(people, new RegExp(`"${key.replaceAll(".", "\\.")}"`));
+  assert.match(app, /screen === "expedition"/);
+  assert.match(home, /data-action="open-people-qsl"/);
+  assert.match(mission, /data-action="launch-expedition-story"/);
+  assert.match(css, /@media \(max-width: 820px\)[\s\S]*\.expedition-screen/);
 });
 
 test("chapter five achievements have localized display copy instead of raw ids", () => {

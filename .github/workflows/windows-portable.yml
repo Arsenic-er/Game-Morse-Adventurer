@@ -148,9 +148,9 @@ jobs:
             throw "Packaged QA did not produce qa-result.json"
           }
           $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
-          if ($result.totalPhysicalCaptures -ne 91 -or @($result.captures).Count -ne 91) {
+          if ($result.totalPhysicalCaptures -ne 102 -or @($result.captures).Count -ne 102) {
             $result | ConvertTo-Json -Depth 5
-            throw "Packaged QA manifest did not name exactly 91 physical screenshots"
+            throw "Packaged QA manifest did not preserve 91 legacy screenshots plus 11 expedition screenshots"
           }
           foreach ($relativeCapture in $result.captures) {
             $capturePath = Join-Path $qaOutput $relativeCapture
@@ -175,6 +175,14 @@ jobs:
               throw "Packaged Lights QA result is missing checkpoint '$checkpoint'"
             }
           }
+          $expeditionResultPath = Join-Path $qaOutput "segments/expedition/expedition-qa-result.json"
+          if (!(Test-Path -LiteralPath $expeditionResultPath)) {
+            throw "Packaged QA did not produce expedition gameplay evidence"
+          }
+          node -e "const fs = require('fs'); const { validateExpeditionQaEvidence } = require('./electron/qa-capture.cjs'); validateExpeditionQaEvidence(JSON.parse(fs.readFileSync(process.argv[1], 'utf8')));" $expeditionResultPath
+          if ($LASTEXITCODE -ne 0) {
+            throw "Packaged expedition result failed gameplay fact/schema validation"
+          }
           $consoleLog = Join-Path $qaOutput "runtime-console-errors.json"
           if (!(Test-Path -LiteralPath $consoleLog)) {
             throw "Packaged QA did not produce the runtime console report"
@@ -185,7 +193,7 @@ jobs:
             throw "Packaged QA recorded renderer warnings or errors"
           }
 
-          "Packaged QA captured 91 exact segmented screens and all Lights gameplay checkpoints." |
+          "Packaged QA preserved 91 legacy screens, added 11 expedition screens, and passed Lights + expedition gameplay checkpoints." |
             Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
 
       - name: Verify executable and write checksum

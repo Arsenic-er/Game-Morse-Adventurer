@@ -9,11 +9,15 @@ const QA_STORAGE_KEYS = Object.freeze([
   "game-morse-adventurer.language.v1",
 ]);
 const QA_LANGUAGE_IDS = Object.freeze(["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"]);
+const QA_SUPPORTED_SCOPES = Object.freeze([
+  "full", "bootstrap", "inventory", "equipment", "practice", "qso", "expedition",
+]);
 const QA_SEGMENT_PREDECESSORS = Object.freeze({
   inventory: "bootstrap",
   equipment: "inventory",
   practice: "equipment",
   qso: "practice",
+  expedition: "qso",
 });
 const QA_RUN_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -51,15 +55,21 @@ const QA_CAPTURE_STEMS = Object.freeze({
     "home-log-after-qso-warmup", "home-log-after-qso", "home-log-operation-review", "propagation-map",
     "world-map", "mission-story-claimed", "reload-without-achievement-repeat",
   ],
+  expedition: [
+    "expedition-mission-available", "expedition-site", "expedition-setup-penalty",
+    "expedition-ready", "expedition-calling", "expedition-recovering", "expedition-result",
+    "expedition-settled", "expedition-reloaded-qsl", "expedition-choice-confirmed",
+    "expedition-choice-reloaded",
+  ],
 });
 
 function buildQaSegmentPlan({ suffix = "qa" } = {}) {
-  const regularScopes = ["bootstrap", "inventory", "equipment", "practice", "qso"];
+  const regularScopes = QA_SUPPORTED_SCOPES.slice(1);
   const segments = regularScopes.map((scope) => ({
     scope,
     mode: "qa-capture",
     predecessor: QA_SEGMENT_PREDECESSORS[scope] ?? null,
-    timeoutMs: scope === "qso" ? 8 * 60_000 : 5 * 60_000,
+    timeoutMs: ["qso", "expedition"].includes(scope) ? 8 * 60_000 : 5 * 60_000,
     screenshots: QA_CAPTURE_STEMS[scope].map((stem) => `${stem}-${suffix}.png`),
   }));
   segments.push({
@@ -136,7 +146,7 @@ function validateQaStateShape(value, { qaRunId = null } = {}) {
   if (!isPlainObject(value)) throw new Error("QA state input must be a plain object");
   if (value.schemaVersion !== 1) throw new Error("QA state schemaVersion is unsupported");
   validateQaRunId(value.qaRunId, qaRunId);
-  if (!["bootstrap", "inventory", "equipment", "practice", "qso"].includes(value.producerScope)) {
+  if (!["bootstrap", "inventory", "equipment", "practice", "qso", "expedition"].includes(value.producerScope)) {
     throw new Error("QA state producerScope is unsupported");
   }
   const { activeSave } = validateQaStorage(value.storage);
@@ -502,6 +512,23 @@ function validateLightsQaEvidence(result, { qaRunId = null } = {}) {
     throw new Error(`Lights QA settled facts did not match reloaded history: ${JSON.stringify({ settled: final, reloaded })}`);
   }
   return true;
+}
+
+function validateExpeditionQaEvidence(value, { qaRunId = null } = {}) {
+  requirePlainObject(value, "Expedition evidence");
+  validateQaRunId(value.qaRunId, qaRunId);
+  if (value.schemaVersion !== 1 || value.activity !== "hill-expedition") {
+    throw new Error("Expedition QA evidence has the wrong schema or activity");
+  }
+  if (value.failurePenaltyApplied !== true || !["AGN", "QRS"].includes(value.recoveryAction)
+    || value.result !== "success" || value.settled !== true
+    || typeof value.relationshipPersonId !== "string" || !value.relationshipPersonId.startsWith("person:")
+    || value.qslPersonId !== value.relationshipPersonId
+    || !["believe", "request-review", "defer"].includes(value.qslChoice)
+    || value.qslChoicePersistedAfterReload !== true || value.duplicateChoiceNoOp !== true) {
+    throw new Error("Expedition QA evidence is missing a required gameplay proof");
+  }
+  return value;
 }
 
 function validateStationEntryProbe(report) {
@@ -1498,7 +1525,7 @@ async function runQaCapture(window) {
   const suffix = process.env.CWGAME_QA_SUFFIX || `${captureWidth}x${captureHeight}`;
   const scope = process.env.CWGAME_QA_SCOPE || "full";
   if (scope === "station-entry") return runStationEntryProbe(window);
-  if (!["full", "bootstrap", "inventory", "equipment", "practice", "qso"].includes(scope)) {
+  if (!QA_SUPPORTED_SCOPES.includes(scope)) {
     throw new Error(`Unsupported packaged QA scope: ${scope}`);
   }
   const shot = (stem) => `${stem}-${suffix}.png`;
@@ -1829,8 +1856,8 @@ async function runQaCapture(window) {
     chapterFourClues: Array.from(document.querySelectorAll('[data-mission-id="story-04"] [data-contract-clue]'), (node) => node.dataset.contractClue),
     chapterFourRelationshipStats: document.querySelectorAll('[data-mission-id="story-04"] [data-relationship-stat]').length,
   }))()`, true);
-  if (initialMissionState.storyCount !== 5 || initialMissionState.available !== "available"
-    || JSON.stringify(initialMissionState.locked) !== JSON.stringify(["story-02", "story-03", "story-04", "story-05"])
+  if (initialMissionState.storyCount !== 6 || initialMissionState.available !== "available"
+    || JSON.stringify(initialMissionState.locked) !== JSON.stringify(["story-02", "story-03", "story-04", "story-05", "story-06"])
     || initialMissionState.chapterFourNarrative !== "brief"
     || JSON.stringify(initialMissionState.chapterFourClues) !== JSON.stringify(["propagation", "topics", "recovery"])
     || initialMissionState.chapterFourRelationshipStats !== 2) {
@@ -1928,7 +1955,7 @@ async function runQaCapture(window) {
     callsign: document.querySelector(".achievements-summary strong")?.textContent.trim() ?? null,
     savedCallsign: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
   }))()`, true);
-  if (emptyAchievementState.total !== 11 || emptyAchievementState.unlocked !== 0
+  if (emptyAchievementState.total !== 16 || emptyAchievementState.unlocked !== 0
     || emptyAchievementState.callsign !== emptyAchievementState.savedCallsign) {
     throw new Error(`Unexpected empty achievement state: ${JSON.stringify(emptyAchievementState)}`);
   }
@@ -3207,6 +3234,161 @@ async function runQaCapture(window) {
     }
     if (scope === "qso") return finishScope({ practiceWrongTarget: wrongPracticeTarget });
 
+    if (scope === "expedition") {
+      await window.webContents.executeJavaScript(`(() => {
+        const key = "game-morse-adventurer.saves.v1";
+        const saves = JSON.parse(localStorage.getItem(key) || "[]");
+        const activeId = localStorage.getItem("game-morse-adventurer.active-save.v1");
+        const save = saves.find((candidate) => candidate.id === activeId);
+        if (!save) throw new Error("Missing active expedition QA save");
+        save.missionState = save.missionState || {};
+        save.missionState.claimedMissionIds = ["story-01", "story-02", "story-03", "story-04", "story-05"];
+        save.missionState.activeMissions = [];
+        save.expeditionState = {
+          version: 1, activeRun: null, settledRunIds: [], completedRuns: [],
+          settledQsoProofs: [], expeditionTreeUnlocked: false,
+        };
+        save.qslRecordsVersion = 1;
+        save.qslRecords = [];
+        localStorage.setItem(key, JSON.stringify(saves));
+      })()`, true);
+      await window.reload();
+      await waitFor(window, ".start-screen");
+      await click(window, ".menu-primary");
+      await waitFor(window, ".save-select-screen");
+      await click(window, ".save-primary-action");
+      await waitFor(window, ".home-screen");
+      await click(window, '[data-action="open-missions"]');
+      await waitFor(window, '[data-mission-id="story-06"][data-mission-status="available"]');
+      await click(window, '[data-action="accept-mission"][data-mission-action-id="story-06"]');
+      await waitFor(window, '[data-mission-id="story-06"][data-mission-status="active"]');
+      await capture(window, outputDir, shot("expedition-mission-available"));
+      await click(window, '[data-action="launch-expedition-story"]');
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="site-selection"]');
+      await capture(window, outputDir, shot("expedition-site"));
+
+      await click(window, '[data-action="expedition-select-site"][data-site-id="sunward-hill"]');
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="setup"]');
+      await click(window, '[data-action="expedition-setup-wrong"]');
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="setup"]');
+      const penalty = await window.webContents.executeJavaScript(`(() => {
+        const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+        const run = save.expeditionState.activeRun;
+        return { mistakes: run.setupMistakes, elapsedMilliseconds: run.elapsedMilliseconds, remainingWh: run.power.remainingWh };
+      })()`, true);
+      if (penalty.mistakes !== 1 || penalty.elapsedMilliseconds < 30000 || penalty.remainingWh >= 96) {
+        throw new Error(`Expedition setup penalty was not durable: ${JSON.stringify(penalty)}`);
+      }
+      await capture(window, outputDir, shot("expedition-setup-penalty"));
+      await click(window, '[data-action="expedition-setup-antenna"]');
+      await click(window, '[data-action="expedition-setup-power"]');
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="ready"]');
+      await capture(window, outputDir, shot("expedition-ready"));
+      await click(window, '[data-action="expedition-call-cq"]');
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="calling"]');
+      await capture(window, outputDir, shot("expedition-calling"));
+      await click(window, '[data-action="expedition-receive-reply"]');
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="exchange"]');
+      await setInputValue(window, ".expedition-exchange input", "QTH WRONG PWR 5W ANT WIRE");
+      await click(window, '[data-action="expedition-send-exchange"]');
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="recovering"]');
+      await capture(window, outputDir, shot("expedition-recovering"));
+      await click(window, '[data-action="expedition-agn"]');
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="exchange"]');
+      await setInputValue(window, ".expedition-exchange input", "PSE QTH SUNWARD PWR 5W ANT WIRE K");
+      await click(window, '[data-action="expedition-send-exchange"]');
+      await waitFor(window, '[data-testid="expedition-screen"][data-expedition-phase="completed"]');
+      await capture(window, outputDir, shot("expedition-result"));
+      await click(window, '[data-action="expedition-settle"]');
+      const settledState = await window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+        const started = Date.now();
+        const timer = setInterval(() => {
+          const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+          const qsl = save.qslRecords?.[0];
+          const relationship = save.operatorRelationships?.find((item) => item.personId === "person:sora");
+          if (save.expeditionState?.settledRunIds?.length === 1 && qsl && relationship) {
+            clearInterval(timer); resolve({
+              qsl, relationship, completedRuns: save.expeditionState.completedRuns,
+              activeRun: save.expeditionState.activeRun,
+            });
+          } else if (Date.now() - started > 10000) {
+            clearInterval(timer); reject(new Error("Expedition settlement did not persist"));
+          }
+        }, 50);
+      })`, true);
+      if (settledState.activeRun !== null || settledState.completedRuns.length !== 1
+        || settledState.qsl.personId !== "person:sora" || settledState.relationship.personId !== "person:sora") {
+        throw new Error(`Expedition settlement linkage is incomplete: ${JSON.stringify(settledState)}`);
+      }
+      await capture(window, outputDir, shot("expedition-settled"));
+      await click(window, '[data-action="expedition-back"]');
+      await waitFor(window, ".home-screen");
+
+      await window.reload();
+      await waitFor(window, ".start-screen");
+      await click(window, ".menu-primary");
+      await waitFor(window, ".save-select-screen");
+      await click(window, ".save-primary-action");
+      await waitFor(window, ".home-screen");
+      await click(window, '[data-action="open-people-qsl"]');
+      await waitFor(window, '[data-testid="people-qsl-modal"] [data-qsl-choice="believe"]');
+      await capture(window, outputDir, shot("expedition-reloaded-qsl"));
+      const beforeChoice = await window.webContents.executeJavaScript(
+        'JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].qslRecords[0]', true,
+      );
+      await window.webContents.executeJavaScript(`(() => {
+        const node = document.querySelector('[data-qsl-choice="believe"]');
+        node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+        node.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      })()`, true);
+      await waitFor(window, '[data-testid="people-qsl-modal"] [data-qsl-id] b');
+      const afterChoice = await window.webContents.executeJavaScript(
+        'JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].qslRecords', true,
+      );
+      if (beforeChoice.choice !== null || afterChoice.length !== 1 || afterChoice[0].choice !== "believe"
+        || !afterChoice[0].confirmedAt) throw new Error(`QSL choice was not one-time: ${JSON.stringify(afterChoice)}`);
+      await capture(window, outputDir, shot("expedition-choice-confirmed"));
+
+      await window.reload();
+      await waitFor(window, ".start-screen");
+      await click(window, ".menu-primary");
+      await waitFor(window, ".save-select-screen");
+      await click(window, ".save-primary-action");
+      await waitFor(window, ".home-screen");
+      await click(window, '[data-action="open-people-qsl"]');
+      await waitFor(window, '[data-testid="people-qsl-modal"] [data-qsl-id] b');
+      const reloaded = await window.webContents.executeJavaScript(`(() => {
+        const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+        return {
+          qsl: save.qslRecords[0],
+          relationship: save.operatorRelationships.find((item) => item.personId === "person:sora"),
+          choiceButtons: document.querySelectorAll("[data-qsl-choice]").length,
+        };
+      })()`, true);
+      if (reloaded.qsl.choice !== "believe" || !reloaded.qsl.confirmedAt || reloaded.choiceButtons !== 0
+        || reloaded.relationship.personId !== reloaded.qsl.personId) {
+        throw new Error(`Reload lost QSL/person memory: ${JSON.stringify(reloaded)}`);
+      }
+      await capture(window, outputDir, shot("expedition-choice-reloaded"));
+      const expeditionEvidence = {
+        schemaVersion: 1,
+        qaRunId,
+        activity: "hill-expedition",
+        failurePenaltyApplied: true,
+        recoveryAction: "AGN",
+        result: "success",
+        settled: true,
+        relationshipPersonId: reloaded.relationship.personId,
+        qslPersonId: reloaded.qsl.personId,
+        qslChoice: reloaded.qsl.choice,
+        qslChoicePersistedAfterReload: true,
+        duplicateChoiceNoOp: afterChoice.length === 1 && afterChoice[0].choice === "believe",
+      };
+      validateExpeditionQaEvidence(expeditionEvidence, { qaRunId });
+      await fs.writeFile(path.join(outputDir, "expedition-qa-result.json"), `${JSON.stringify(expeditionEvidence, null, 2)}\n`, "utf8");
+      return finishScope({ practiceWrongTarget: wrongPracticeTarget });
+    }
+
   const lightsQaResult = await runLightsQaCapture(window, outputDir, suffix, { qaRunId });
 
   return {
@@ -3242,9 +3424,9 @@ module.exports = {
   automaticQaGapAfterElement, automaticQaShouldWaitForIdleAfterSymbol,
   buildLightsQaMoneyFlow, buildLightsQaPlan, buildQaSegmentPlan, capture, capturePageWithVizRetry,
   createQaStateEnvelope, exportQaStateFromRenderer, formatLightsWaitFailure, importQaStateIntoRenderer,
-  LIGHTS_QA_WPM, QA_QSO_LOG_VERSION, QA_STORAGE_KEYS,
+  LIGHTS_QA_WPM, QA_QSO_LOG_VERSION, QA_STORAGE_KEYS, QA_SUPPORTED_SCOPES,
   runLightsQaCapture, runLightsQaSegment, runQaCapture,
   lightsKeyInputForSymbol, selectLightsCallerFromRuntimeSnapshot, startGuidedQaWatch,
-  sendAutomaticLightsText, validateLightsQaEvidence, validateQaStateEnvelope, validateStationEntryProbe,
+  sendAutomaticLightsText, validateExpeditionQaEvidence, validateLightsQaEvidence, validateQaStateEnvelope, validateStationEntryProbe,
   writeQaSegmentResult,
 };
