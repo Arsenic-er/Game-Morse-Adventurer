@@ -1,3 +1,5 @@
+import { emptyQslStoryState, normalizeQslStoryState } from "./qslStoryRun.js";
+
 export const STORY_CONTINUATION_STATE_VERSION = 1;
 
 const LIMITS = Object.freeze({
@@ -129,7 +131,7 @@ function normalizeChapter(value, chapter) {
 export function emptyStoryContinuationState() {
   return Object.freeze({
     version: STORY_CONTINUATION_STATE_VERSION,
-    chapter07: emptyChapter("chapter07"),
+    chapter07: emptyQslStoryState(),
     chapter08: emptyChapter("chapter08"),
     chapter09: emptyChapter("chapter09"),
     chapter10: emptyChapter("chapter10"),
@@ -141,7 +143,7 @@ export function normalizeStoryContinuationState(value) {
     const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
     return Object.freeze({
       version: STORY_CONTINUATION_STATE_VERSION,
-      chapter07: normalizeChapter(own(source, "chapter07"), "chapter07"),
+      chapter07: normalizeQslStoryState(own(source, "chapter07")),
       chapter08: normalizeChapter(own(source, "chapter08"), "chapter08"),
       chapter09: normalizeChapter(own(source, "chapter09"), "chapter09"),
       chapter10: normalizeChapter(own(source, "chapter10"), "chapter10"),

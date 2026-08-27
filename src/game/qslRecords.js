@@ -7,6 +7,8 @@ const NARRATIVE_KEYS = new Set([
   "qsl.operator.sora-hill-reply",
   "qsl.player.lights-contact",
   "qsl.operator.lights-reply",
+  "qsl.player.clarification-request",
+  "qsl.operator.sora-clarification",
 ]);
 const RECORD_KEYS = Object.freeze([
   "version", "id", "personId", "stationId", "callsign", "qsoId", "eventRunId",

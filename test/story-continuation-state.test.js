@@ -16,6 +16,17 @@ const ids = (count, prefix = "run") => Array.from(
   { length: count },
   (_, index) => `${prefix}:${String(index).padStart(3, "0")}`,
 );
+const qslCases = (count) => Array.from({ length: count }, (_, index) => ({
+  id: `qsl-case:${String(index).padStart(3, "0")}`,
+  runId: `qsl-story:${String(index).padStart(3, "0")}`,
+  sourceQslId: "qsl-hill-1",
+  qsoId: `qsl-story-qso:${String(index).padStart(3, "0")}`,
+  personId: "person:sora",
+  stationId: "station:sim6jp",
+  initialChoice: "believe",
+  finalChoice: "request-review",
+  completedAt: minute(index),
+}));
 
 test("empty continuation state has fixed chapter seven through ten shape", () => {
   const state = emptyStoryContinuationState();
@@ -34,14 +45,14 @@ test("empty continuation state has fixed chapter seven through ten shape", () =>
 
 test("continuation ledgers retain bounded ordered tails and normalize twice identically", () => {
   const state = normalizeStoryContinuationState({
-    chapter07: { cases: records(45), settledRunIds: ids(105) },
+    chapter07: { cases: qslCases(45), settledRunIds: ids(105) },
     chapter08: { receipts: records(85, "receipt"), settledRunIds: ids(101, "service"), taskTreeUnlocked: true },
     chapter09: { packets: records(81, "packet"), settledRunIds: ids(102, "relay"), toolUnlocked: true },
     chapter10: { records: records(41, "contest"), settledRunIds: ids(103, "contest-run"), taskTreeUnlocked: true },
   });
 
   assert.equal(state.chapter07.cases.length, 40);
-  assert.equal(state.chapter07.cases[0].id, "case:005");
+  assert.equal(state.chapter07.cases[0].id, "qsl-case:005");
   assert.equal(state.chapter07.settledRunIds.length, 100);
   assert.equal(state.chapter08.receipts.length, 80);
   assert.equal(state.chapter09.packets.length, 80);
@@ -65,8 +76,8 @@ test("a retained ledger with holes, accessors, duplicates, or reversed chronolog
   });
   const sparse = records(2);
   delete sparse[0];
-  const duplicate = [records(1)[0], records(1)[0]];
-  const reversed = records(2).reverse();
+  const duplicate = [qslCases(1)[0], qslCases(1)[0]];
+  const reversed = qslCases(2).reverse();
 
   assert.deepEqual(normalizeStoryContinuationState({ chapter07: { cases: accessor } }).chapter07.cases, []);
   assert.equal(getterCalls, 0);
@@ -82,7 +93,7 @@ test("continuation state ignores inherited chapter values and never persists arb
   });
   source.chapter07 = {
     activeRun: { freeText: "do not persist" },
-    cases: [{ id: "case:001", completedAt: minute(1), freeText: "drop me" }],
+    cases: [{ ...qslCases(2)[1], freeText: "drop me" }],
     settledRunIds: ["run:001"],
     freeText: "drop me",
   };
@@ -92,7 +103,7 @@ test("continuation state ignores inherited chapter values and never persists arb
   assert.deepEqual(state.chapter08, emptyStoryContinuationState().chapter08);
   assert.deepEqual(state.chapter07, {
     activeRun: null,
-    cases: [{ id: "case:001", completedAt: minute(1) }],
+    cases: [qslCases(2)[1]],
     settledRunIds: ["run:001"],
   });
   assert.equal(JSON.stringify(state).includes("freeText"), false);

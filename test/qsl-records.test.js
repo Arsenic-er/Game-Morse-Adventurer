@@ -31,6 +31,20 @@ test("QSL records are versioned, person-linked, immutable and fixed-key only", (
   assert.equal("freeText" in record, false);
 });
 
+test("QSL records allow the fixed Chapter 7 clarification narrative pair", () => {
+  const record = createQslRecord({
+    ...BASE,
+    id: "qsl:story:chapter-07",
+    qsoId: "qsl-story-qso:chapter-07",
+    eventRunId: "qsl-story:chapter-07",
+    playerNarrativeKey: "qsl.player.clarification-request",
+    operatorNarrativeKey: "qsl.operator.sora-clarification",
+  });
+
+  assert.equal(record.playerNarrativeKey, "qsl.player.clarification-request");
+  assert.equal(record.operatorNarrativeKey, "qsl.operator.sora-clarification");
+});
+
 test("expedition settlement creates a bounded QSL linked to both QSO and event run", () => {
   const runId = `run-${"z".repeat(120)}`;
   const record = createExpeditionQslRecord({
