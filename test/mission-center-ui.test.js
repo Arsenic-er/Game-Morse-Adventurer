@@ -47,6 +47,14 @@ test("chapter six keeps its accepted-story launch and exposes a durable replay a
   }
 });
 
+test("chapter seven exposes its accepted investigation action with localized story copy", () => {
+  assert.match(source, /mission\.id === "story-07" && active/);
+  assert.match(source, /data-action="launch-qsl-story"/);
+  for (const key of ["story07Title", "story07Description", "story07Objective", "story07Brief", "story07Debrief", "launchQslStory"]) {
+    assert.equal((source.match(new RegExp(`${key}:`, "g")) ?? []).length, 7, `${key} must exist in seven languages`);
+  }
+});
+
 test("new mission information keeps the established pixel-card styling", () => {
   for (const selector of [".mission-narrative", ".mission-contract", ".mission-target-identity", ".mission-relationship"]) {
     assert.ok(styles.includes(selector), `${selector} must be styled`);

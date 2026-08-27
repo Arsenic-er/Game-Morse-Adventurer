@@ -399,6 +399,18 @@ export function emptyQslStoryState() {
   });
 }
 
+export function qslStoryReplayAvailable(save) {
+  try {
+    const chapter = normalizeQslStoryState(own(own(save, "storyContinuationState"), "chapter07"));
+    const missionState = own(save, "missionState");
+    const claimed = own(missionState, "claimedMissionIds");
+    return chapter.peopleTaskTreeUnlocked === true
+      || (Array.isArray(claimed) && claimed.slice(-100).includes("story-07"));
+  } catch {
+    return false;
+  }
+}
+
 export function normalizeQslStoryState(value) {
   try {
     const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
