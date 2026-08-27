@@ -7,6 +7,7 @@ import { MAX_ACTIVE_DAILY_MISSIONS, missionBoard, missionSummary } from "../game
 import { expeditionReplayAvailable } from "../game/expeditionLifecycle.js";
 import { serviceNetReplayAvailable } from "../game/serviceNetRun.js";
 import { coordinateRelayReplayAvailable } from "../game/coordinateRelayRun.js";
+import { contestReplayAvailable } from "../game/contestRun.js";
 import { lightsEntryModes } from "../game/lightsEventCatalog.js";
 import { lightsNarrativeBeat } from "../game/lightsNarrative.js";
 import { lightsText } from "./lightsEventText.js";
@@ -19,7 +20,7 @@ const TEXT = {
     storyProgress: "日志进度", dailyNote: "每天根据呼号生成三份委托；最多同时进行两份，已接受的不会在换日时消失。",
     limit: "常规委托栏已满", targetCallsign: "优先监听", propagation: "只有当前传播允许时，目标台才会回应。",
     brief: "任务简报", debrief: "结算记录", contractClues: "通联合同", requiredPropagation: "传播", requiredTopics: "必需话题", recoveryActions: "恢复操作",
-    relationship: "目标台关系", completedQsos: "已完成 QSO", weakSignalRecoveries: "弱信号恢复", launchEvent: "进入活动台", annualReplay: "年度复刻", practiceRun: "活动练习", launchExpedition: "进入山丘临时台", launchQslStory: "进入QSL调查", launchServiceNet: "进入公共服务台网", launchCoordinateRelay: "进入坐标中继",
+    relationship: "目标台关系", completedQsos: "已完成 QSO", weakSignalRecoveries: "弱信号恢复", launchEvent: "进入活动台", annualReplay: "年度复刻", practiceRun: "活动练习", launchExpedition: "进入山丘临时台", launchQslStory: "进入QSL调查", launchServiceNet: "进入公共服务台网", launchCoordinateRelay: "进入坐标中继", launchContest: "进入五分钟短赛",
     story01Title: "第一次开机", story01Description: "陌生人的一句“听见你了”，让这间沉默的房间重新有了声音。", story01Objective: "完成并保存第一次 QSO。",
     story02Title: "纸页上的呼号", story02Description: "褪色日志里圈着 SIM3RA。对方是否还记得这本没有写完的日志？", story02Objective: "与 SIM3RA 完成 QSO，并在通联中至少使用一次 AGN K。",
     story03Title: "不同的节奏", story03Description: "有人谨慎，有人急促，也有人需要更慢的速度。先学会听见差异。", story03Objective: "完成来自三种不同操作员风格的 QSO。",
@@ -32,6 +33,7 @@ const TEXT = {
     story07Title: "QSL疑云", story07Description: "同一张山丘QSL留下两种叙述。SORA愿意在空中重新核对。", story07Objective: "发送QSL澄清电文，抄收SORA回应并作出最终判断。", story07Brief: "比对双方记录，以QSL案件编号和本台呼号请求澄清；需要时使用AGN或QRS。", story07Debrief: "事实被重新核对，而最后的判断由你留在人物档案中。",
     story08Title: "城市停电", story08Description: "一场虚构停电演练让三条公共服务报文同时涌入 SIM8PS。", story08Objective: "签到后按优先级确认三条报文的编号与优先级。", story08Brief: "这是虚构演练。抄收冻结报文，按优先级发送 ACK；需要时用 AGN 或 QRS。", story08Debrief: "三条回执按序落入日志。没有真实调度，只有清楚、克制的通信练习。",
     story09Title: "坐标", story09Description: "一条虚构像素网格报文必须在两个台站之间原样抵达。", story09Objective: "读回网格、UTC、人数和校验，再完成双台站中继。", story09Brief: "从 SIM9CR 抄收冻结报文，纠正硬字段后将同一规范报文中继给 SIM9RL。", story09Debrief: "两个台站和一条完整报文被同一组校验字段连接起来。",
+    story10Title: "空中的拥挤", story10Description: "SIM0CT 打开一个虚构的五分钟短赛窗口。速度必须服从准确与礼貌。", story10Objective: "完成至少六台、RUN与S&P各两台、三个地区的比赛通联。", story10Brief: "在RUN pile-up和S&P台池间切换，发送准确的RST、序号、地区和功率；需要时用AGN或QRS。", story10Debrief: "拥挤的频率重新安静下来。分数记录了速度，也记录了你为准确与礼貌留下的每一次停顿。",
     weatherTitle: "空中天气簿", weatherDescription: "替台站收下一份来自远方的天气记录。", weatherObjective: "完成一次 WEATHER 问答并让对方确认抄收。",
     relayTitle: "衰落中的接力", relayDescription: "信号跌入噪声时，耐心比功率更重要。", relayObjective: "在 P0–P2 完成一次使用 AGN 或 QRS 恢复的 QSO。",
     equipmentTitle: "设备试航", equipmentDescription: "让新电台或配件在真实通联里留下第一条记录。", equipmentObjective: "使用非初始电台或已安装配件完成一次 QSO。",
@@ -50,7 +52,7 @@ const TEXT = {
     storyProgress: "日誌進度", dailyNote: "每天依呼號生成三份委託；最多同時進行兩份，已接受的任務不會在換日時消失。",
     limit: "常規委託欄已滿", targetCallsign: "優先監聽", propagation: "只有目前傳播允許時，目標臺才會回應。",
     brief: "任務簡報", debrief: "結算記錄", contractClues: "通聯條件", requiredPropagation: "傳播", requiredTopics: "必要話題", recoveryActions: "恢復操作",
-    relationship: "目標臺關係", completedQsos: "已完成 QSO", weakSignalRecoveries: "弱訊號恢復", launchEvent: "進入活動臺", annualReplay: "年度復刻", practiceRun: "活動練習", launchExpedition: "進入山丘臨時臺", launchQslStory: "進入QSL調查", launchServiceNet: "進入公共服務臺網", launchCoordinateRelay: "進入座標中繼",
+    relationship: "目標臺關係", completedQsos: "已完成 QSO", weakSignalRecoveries: "弱訊號恢復", launchEvent: "進入活動臺", annualReplay: "年度復刻", practiceRun: "活動練習", launchExpedition: "進入山丘臨時臺", launchQslStory: "進入QSL調查", launchServiceNet: "進入公共服務臺網", launchCoordinateRelay: "進入座標中繼", launchContest: "進入五分鐘短賽",
     story01Title: "第一次開機", story01Description: "陌生人的一句「聽見你了」，讓沉默的房間重新有了聲音。", story01Objective: "完成並儲存第一次 QSO。",
     story02Title: "紙頁上的呼號", story02Description: "褪色日誌裡圈著 SIM3RA。對方是否還記得這本未完成的日誌？", story02Objective: "與 SIM3RA 完成 QSO，並在通聯中至少使用一次 AGN K。",
     story03Title: "不同的節奏", story03Description: "有人謹慎，有人急促，也有人需要更慢的速度。先學會聽見差異。", story03Objective: "完成來自三種不同操作員風格的 QSO。",
@@ -63,6 +65,7 @@ const TEXT = {
     story07Title: "QSL疑雲", story07Description: "同一張山丘QSL留下兩種敘述。SORA願意在空中重新核對。", story07Objective: "發送QSL澄清電文，抄收SORA回應並作出最終判斷。", story07Brief: "比對雙方記錄，以QSL案件編號與本臺呼號請求澄清；需要時使用AGN或QRS。", story07Debrief: "事實已重新核對，最後判斷由你留在人物檔案中。",
     story08Title: "城市停電", story08Description: "一場虛構停電演練讓三則公共服務報文同時湧入 SIM8PS。", story08Objective: "報到後依優先順序確認三則報文的編號與優先級。", story08Brief: "這是虛構演練。抄收凍結報文，依優先順序發送 ACK；需要時使用 AGN 或 QRS。", story08Debrief: "三則回執依序寫入日誌。沒有真實調度，只有清楚而克制的通信練習。",
     story09Title: "座標", story09Description: "一則虛構像素網格報文必須在兩個臺站之間原樣抵達。", story09Objective: "讀回網格、UTC、人數與校驗，再完成雙臺站中繼。", story09Brief: "從 SIM9CR 抄收凍結報文，修正硬欄位後把同一規範報文中繼給 SIM9RL。", story09Debrief: "兩個臺站與一則完整報文由同一組校驗欄位連接起來。",
+    story10Title: "空中的擁擠", story10Description: "SIM0CT 開啟虛構五分鐘短賽；速度必須服從準確與禮貌。", story10Objective: "完成至少六臺、RUN與S&P各兩臺、三個地區的比賽通聯。", story10Brief: "在RUN pile-up與S&P臺池間切換，準確發送RST、序號、地區和功率；需要時用AGN或QRS。", story10Debrief: "擁擠頻率重新安靜。分數記錄速度，也記錄你為準確和禮貌留下的停頓。",
     weatherTitle: "空中天氣簿", weatherDescription: "替臺站收下一份來自遠方的天氣記錄。", weatherObjective: "完成一次 WEATHER 問答並讓對方確認抄收。",
     relayTitle: "衰落中的接力", relayDescription: "訊號跌入雜訊時，耐心比功率更重要。", relayObjective: "在 P0–P2 完成一次使用 AGN 或 QRS 恢復的 QSO。",
     equipmentTitle: "設備試航", equipmentDescription: "讓新電臺或配件在真實通聯裡留下第一條記錄。", equipmentObjective: "使用非初始電臺或已安裝配件完成一次 QSO。",
@@ -81,7 +84,7 @@ const TEXT = {
     storyProgress: "ログ進捗", dailyNote: "コールサインを基に毎日3件生成。通常依頼は同時に2件までで、受注済みの依頼は日付が変わっても残ります。",
     limit: "通常依頼枠が満杯です", targetCallsign: "優先受信", propagation: "現在の伝搬が届く場合だけ対象局が応答します。",
     brief: "ミッション概要", debrief: "完了報告", contractClues: "交信条件", requiredPropagation: "伝搬", requiredTopics: "必須話題", recoveryActions: "復旧操作",
-    relationship: "対象局との関係", completedQsos: "完了した QSO", weakSignalRecoveries: "弱信号からの復帰", launchEvent: "記念局へ", annualReplay: "年次再演", practiceRun: "イベント練習", launchExpedition: "丘の移動運用へ", launchQslStory: "QSL調査へ", launchServiceNet: "公共サービスネットへ", launchCoordinateRelay: "座標リレーへ",
+    relationship: "対象局との関係", completedQsos: "完了した QSO", weakSignalRecoveries: "弱信号からの復帰", launchEvent: "記念局へ", annualReplay: "年次再演", practiceRun: "イベント練習", launchExpedition: "丘の移動運用へ", launchQslStory: "QSL調査へ", launchServiceNet: "公共サービスネットへ", launchCoordinateRelay: "座標リレーへ", launchContest: "5分コンテストへ",
     story01Title: "初めての電源", story01Description: "見知らぬ誰かの「聞こえた」が、静かな部屋にもう一度音を戻します。", story01Objective: "最初のQSOを完了し、ログに保存する。",
     story02Title: "紙に残ったコール", story02Description: "色あせたログにはSIM3RAが囲まれています。相手は未完のログを覚えているでしょうか。", story02Objective: "SIM3RAとQSOし、交信中にAGN Kを1回以上使用する。",
     story03Title: "それぞれのリズム", story03Description: "慎重な人、速い人、ゆっくりでなければ聞けない人。まず違いを聞き分けます。", story03Objective: "3種類のオペレータースタイルとQSOする。",
@@ -94,6 +97,7 @@ const TEXT = {
     story07Title: "QSLの疑問", story07Description: "丘のQSLに二つの記述が残り、SORAは無線での再確認に応じます。", story07Objective: "QSL確認電文を送り、SORAの返答を受けて最終判断を残す。", story07Brief: "双方の記録を比べ、案件番号と自局コールで確認します。必要ならAGNまたはQRSを使います。", story07Debrief: "事実を確認し直し、最後の判断は人物記録に残りました。",
     story08Title: "街の停電", story08Description: "架空の停電訓練で三通の公共サービス電文が SIM8PS に同時到着します。", story08Objective: "チェックイン後、優先順に三通の番号と優先度を確認する。", story08Brief: "これは架空の訓練です。固定電文を受信し、優先順に ACK を返してください。必要なら AGN または QRS を使います。", story08Debrief: "三通の受領記録が順に残りました。実在の派遣ではなく、明確で落ち着いた通信訓練です。",
     story09Title: "座標", story09Description: "架空のピクセルグリッド電文を二局間でそのまま届けます。", story09Objective: "グリッド、UTC、人数、チェックを復唱し、二局の中継を完了する。", story09Brief: "SIM9CR の固定電文を受信し、硬い項目を訂正して同じ標準電文を SIM9RL へ中継します。", story09Debrief: "二局と完全な一通の電文が同じチェック項目で結ばれました。",
+    story10Title: "混み合う空", story10Description: "SIM0CTが架空の5分窓を開きます。速度は正確さと礼儀に従います。", story10Objective: "6局以上、RUN/S&P各2局、3地域を満たして完走する。", story10Brief: "RUN pile-upとS&P局プールを切り替え、RST、連番、地域、電力を正確に送ります。必要ならAGN/QRSを使います。", story10Debrief: "混み合った周波数は静かになりました。得点には速さだけでなく、正確さと礼儀のための間も残りました。",
     weatherTitle: "空の気象ログ", weatherDescription: "遠方から届く気象記録を局のログに残します。", weatherObjective: "WEATHER の質問と回答を完了し、相手に受信を確認してもらう。",
     relayTitle: "フェージング・リレー", relayDescription: "信号が雑音へ沈むとき、出力より忍耐が役立ちます。", relayObjective: "P0–P2 で AGN または QRS を使って復帰し、QSOを完了する。",
     equipmentTitle: "機材の実地試験", equipmentDescription: "新しい無線機や付属品で最初の実交信を記録します。", equipmentObjective: "初期機以外の無線機、または装着した付属品を使ってQSOする。",
@@ -112,7 +116,7 @@ const TEXT = {
     storyProgress: "Log Progress", dailyNote: "Three commissions are generated daily from your station seed. Up to two may be active; accepted work survives the day change.",
     limit: "Regular commission slots are full", targetCallsign: "Priority Listener", propagation: "The target station answers only when current propagation reaches it.",
     brief: "Mission Brief", debrief: "Debrief", contractClues: "Contact Contract", requiredPropagation: "Propagation", requiredTopics: "Required Topics", recoveryActions: "Recovery Actions",
-    relationship: "Target Relationship", completedQsos: "Completed QSOs", weakSignalRecoveries: "Weak-Signal Recoveries", launchEvent: "Enter Event Station", annualReplay: "Annual Replay", practiceRun: "Event Practice", launchExpedition: "Enter Hilltop Field Station", launchQslStory: "Enter QSL Investigation", launchServiceNet: "Enter Public Service Net", launchCoordinateRelay: "Enter Coordinate Relay",
+    relationship: "Target Relationship", completedQsos: "Completed QSOs", weakSignalRecoveries: "Weak-Signal Recoveries", launchEvent: "Enter Event Station", annualReplay: "Annual Replay", practiceRun: "Event Practice", launchExpedition: "Enter Hilltop Field Station", launchQslStory: "Enter QSL Investigation", launchServiceNet: "Enter Public Service Net", launchCoordinateRelay: "Enter Coordinate Relay", launchContest: "Enter Five-minute Contest",
     story01Title: "First Power-On", story01Description: "A stranger's “I hear you” brings sound back into the silent room.", story01Objective: "Complete and save your first QSO.",
     story02Title: "The Callsign on Paper", story02Description: "SIM3RA is circled in the faded log. Does that operator still remember the unfinished page?", story02Objective: "Complete a QSO with SIM3RA and use AGN K at least once during the contact.",
     story03Title: "Different Rhythms", story03Description: "Some operators are cautious, some rush, and some need a slower pace. Learn to hear the difference.", story03Objective: "Complete QSOs with three distinct operator styles.",
@@ -125,6 +129,7 @@ const TEXT = {
     story07Title: "The QSL Question", story07Description: "One hilltop QSL holds two accounts. SORA agrees to compare them over the air.", story07Objective: "Send a QSL clarification, copy SORA's reply, and record a final judgment.", story07Brief: "Compare both accounts and request clarification with the case ID and your callsign; use AGN or QRS if needed.", story07Debrief: "The facts were checked again, and your final judgment now remains in the people record.",
     story08Title: "City Blackout", story08Description: "A fictional blackout exercise sends three public-service messages into SIM8PS at once.", story08Objective: "Check in, then acknowledge all three message IDs and priorities in order.", story08Brief: "This is a fictional exercise. Copy the frozen messages and send each ACK by priority; use AGN or QRS when needed.", story08Debrief: "Three receipts entered the log in order. No real dispatch occurred—only clear, restrained communications practice.",
     story09Title: "Coordinates", story09Description: "A fictional Pixel Grid packet must arrive unchanged between two stations.", story09Objective: "Read back grid, UTC, people, and check, then complete the two-station relay.", story09Brief: "Copy the frozen packet from SIM9CR, correct every hard field, and relay the same canonical packet to SIM9RL.", story09Debrief: "Two stations and one complete packet now share the same verified fields.",
+    story10Title: "Crowded Air", story10Description: "SIM0CT opens a fictional five-minute window where speed must answer to accuracy and courtesy.", story10Objective: "Complete at least six contacts, two each in RUN and S&P, across three regions.", story10Brief: "Switch between a RUN pile-up and S&P pool. Send exact RST, serial, region, and power; use AGN or QRS when needed.", story10Debrief: "The crowded frequency falls quiet. The score remembers speed, but also every pause made for accuracy and courtesy.",
     weatherTitle: "Weather on the Air", weatherDescription: "Add one distant weather observation to the station log.", weatherObjective: "Complete a WEATHER question and answer that the other station acknowledges.",
     relayTitle: "Relay Through the Fade", relayDescription: "When a signal falls into noise, patience matters more than power.", relayObjective: "At P0–P2, recover with AGN or QRS and complete the QSO.",
     equipmentTitle: "Equipment Shakedown", equipmentDescription: "Give a new radio or accessory its first record in a real contact.", equipmentObjective: "Complete a QSO with a non-starter radio or an installed accessory.",
@@ -143,7 +148,7 @@ const TEXT = {
     storyProgress: "Progreso del registro", dailyNote: "Cada día se generan tres encargos según tu estación. Puedes mantener dos activos; los aceptados no desaparecen al cambiar el día.",
     limit: "Los espacios de encargos están llenos", targetCallsign: "Escucha prioritaria", propagation: "La estación objetivo solo responderá si la propagación actual la alcanza.",
     brief: "Informe de misión", debrief: "Informe final", contractClues: "Condiciones del contacto", requiredPropagation: "Propagación", requiredTopics: "Temas obligatorios", recoveryActions: "Maniobras de recuperación",
-    relationship: "Relación con la estación", completedQsos: "QSO completados", weakSignalRecoveries: "Recuperaciones con señal débil", launchEvent: "Entrar en la estación", annualReplay: "Repetición anual", practiceRun: "Práctica del evento", launchExpedition: "Entrar en la estación de la colina", launchQslStory: "Entrar en la investigación QSL", launchServiceNet: "Entrar en la red de servicio público", launchCoordinateRelay: "Entrar en el relevo de coordenadas",
+    relationship: "Relación con la estación", completedQsos: "QSO completados", weakSignalRecoveries: "Recuperaciones con señal débil", launchEvent: "Entrar en la estación", annualReplay: "Repetición anual", practiceRun: "Práctica del evento", launchExpedition: "Entrar en la estación de la colina", launchQslStory: "Entrar en la investigación QSL", launchServiceNet: "Entrar en la red de servicio público", launchCoordinateRelay: "Entrar en el relevo de coordenadas", launchContest: "Entrar en el concurso de cinco minutos",
     story01Title: "Primer encendido", story01Description: "El «te escucho» de un desconocido devuelve el sonido a la habitación silenciosa.", story01Objective: "Completa y guarda tu primer QSO.",
     story02Title: "El indicativo en el papel", story02Description: "SIM3RA está rodeado en el registro descolorido. ¿Recordará aún esa página inacabada?", story02Objective: "Completa un QSO con SIM3RA y usa AGN K al menos una vez.",
     story03Title: "Ritmos diferentes", story03Description: "Algunos son prudentes, otros rápidos y otros necesitan más calma. Aprende a oír la diferencia.", story03Objective: "Completa QSO con tres estilos de operador distintos.",
@@ -156,6 +161,7 @@ const TEXT = {
     story07Title: "La duda QSL", story07Description: "Una QSL de la colina contiene dos relatos. SORA acepta compararlos por radio.", story07Objective: "Envía una aclaración QSL, copia la respuesta de SORA y registra una decisión final.", story07Brief: "Compara ambos relatos y pide aclaración con el caso y tu indicativo; usa AGN o QRS si hace falta.", story07Debrief: "Los hechos se revisaron y tu decisión final queda en el registro de personas.",
     story08Title: "Apagón urbano", story08Description: "Un simulacro ficticio envía tres mensajes de servicio público a SIM8PS al mismo tiempo.", story08Objective: "Regístrate y confirma en orden los identificadores y prioridades de los tres mensajes.", story08Brief: "Es un ejercicio ficticio. Copia los mensajes fijos y envía cada ACK por prioridad; usa AGN o QRS si hace falta.", story08Debrief: "Los tres recibos quedaron registrados en orden. No hubo despacho real, solo práctica de comunicación clara y serena.",
     story09Title: "Coordenadas", story09Description: "Un paquete ficticio de Cuadrícula Pixel debe llegar intacto entre dos estaciones.", story09Objective: "Repite cuadrícula, UTC, personas y control, y completa el relevo entre dos estaciones.", story09Brief: "Copia el paquete fijo de SIM9CR, corrige los campos y relévalo sin cambios a SIM9RL.", story09Debrief: "Dos estaciones y un paquete completo quedaron unidos por los mismos campos verificados.",
+    story10Title: "Aire congestionado", story10Description: "SIM0CT abre una ventana ficticia de cinco minutos donde la velocidad obedece a la precisión y la cortesía.", story10Objective: "Completa seis contactos, dos en RUN y dos en S&P, en tres regiones.", story10Brief: "Alterna entre pile-up RUN y grupo S&P. Envía RST, número, región y potencia exactos; usa AGN o QRS si hace falta.", story10Debrief: "La frecuencia queda en silencio. La puntuación recuerda la velocidad y también las pausas por precisión y cortesía.",
     weatherTitle: "El tiempo en el aire", weatherDescription: "Añade al registro una observación meteorológica llegada desde lejos.", weatherObjective: "Completa una pregunta y respuesta WEATHER que la otra estación confirme.",
     relayTitle: "Relevo entre desvanecimientos", relayDescription: "Cuando la señal cae en el ruido, la paciencia importa más que la potencia.", relayObjective: "En P0–P2, recupérate con AGN o QRS y completa el QSO.",
     equipmentTitle: "Prueba de equipo", equipmentDescription: "Da a una radio o accesorio nuevo su primer contacto real.", equipmentObjective: "Completa un QSO con una radio distinta de la inicial o un accesorio instalado.",
@@ -174,7 +180,7 @@ const TEXT = {
     storyProgress: "Logbuchfortschritt", dailyNote: "Täglich entstehen drei Aufträge aus deinem Stations-Seed. Zwei dürfen gleichzeitig aktiv sein; angenommene Aufträge bleiben über den Tageswechsel erhalten.",
     limit: "Alle regulären Auftragsplätze sind belegt", targetCallsign: "Prioritätsempfang", propagation: "Die Zielstation antwortet nur, wenn die aktuelle Ausbreitung sie erreicht.",
     brief: "Missionsbriefing", debrief: "Abschlussbericht", contractClues: "Funkbedingungen", requiredPropagation: "Ausbreitung", requiredTopics: "Pflichtthemen", recoveryActions: "Wiederherstellung",
-    relationship: "Beziehung zur Zielstation", completedQsos: "Abgeschlossene QSOs", weakSignalRecoveries: "Schwachsignal-Rettungen", launchEvent: "Sonderstation betreten", annualReplay: "Jährliche Wiederholung", practiceRun: "Event-Übung", launchExpedition: "Feldstation auf dem Hügel betreten", launchQslStory: "QSL-Untersuchung starten", launchServiceNet: "Öffentliches Servicenetz starten", launchCoordinateRelay: "Koordinatenrelais starten",
+    relationship: "Beziehung zur Zielstation", completedQsos: "Abgeschlossene QSOs", weakSignalRecoveries: "Schwachsignal-Rettungen", launchEvent: "Sonderstation betreten", annualReplay: "Jährliche Wiederholung", practiceRun: "Event-Übung", launchExpedition: "Feldstation auf dem Hügel betreten", launchQslStory: "QSL-Untersuchung starten", launchServiceNet: "Öffentliches Servicenetz starten", launchCoordinateRelay: "Koordinatenrelais starten", launchContest: "Fünf-Minuten-Contest starten",
     story01Title: "Erstes Einschalten", story01Description: "Das „Ich höre dich“ eines Fremden bringt Klang in den stillen Raum zurück.", story01Objective: "Das erste QSO abschließen und speichern.",
     story02Title: "Das Rufzeichen auf Papier", story02Description: "SIM3RA ist im verblichenen Log eingekreist. Erinnert sich der Operator noch an die unvollendete Seite?", story02Objective: "Ein QSO mit SIM3RA abschließen und dabei mindestens einmal AGN K verwenden.",
     story03Title: "Verschiedene Rhythmen", story03Description: "Manche funken vorsichtig, manche schnell, andere brauchen mehr Ruhe. Höre zuerst den Unterschied.", story03Objective: "QSOs mit drei unterschiedlichen Operatorstilen abschließen.",
@@ -187,6 +193,7 @@ const TEXT = {
     story07Title: "Die QSL-Frage", story07Description: "Eine Hügel-QSL enthält zwei Berichte. SORA vergleicht sie mit dir über Funk.", story07Objective: "Eine QSL-Klärung senden, SORAs Antwort aufnehmen und ein Urteil speichern.", story07Brief: "Vergleiche beide Berichte und frage mit Fallnummer und Rufzeichen nach; nutze bei Bedarf AGN oder QRS.", story07Debrief: "Die Fakten wurden erneut geprüft und dein Urteil bleibt im Personenprotokoll.",
     story08Title: "Stromausfall in der Stadt", story08Description: "Eine fiktive Übung leitet drei öffentliche Servicemeldungen zugleich an SIM8PS.", story08Objective: "Einchecken und Kennung sowie Priorität aller drei Meldungen der Reihe nach bestätigen.", story08Brief: "Dies ist eine fiktive Übung. Nimm die feststehenden Meldungen auf und sende die ACKs nach Priorität; nutze bei Bedarf AGN oder QRS.", story08Debrief: "Drei Empfangsbestätigungen wurden geordnet protokolliert. Kein realer Einsatz, nur klare und ruhige Funkpraxis.",
     story09Title: "Koordinaten", story09Description: "Ein fiktives Pixelraster-Paket muss unverändert zwischen zwei Stationen ankommen.", story09Objective: "Raster, UTC, Personen und Prüfwert zurücklesen und das Zwei-Stationen-Relais abschließen.", story09Brief: "Nimm das feste Paket von SIM9CR auf, korrigiere alle Felder und leite dasselbe kanonische Paket an SIM9RL weiter.", story09Debrief: "Zwei Stationen und ein vollständiges Paket sind durch dieselben geprüften Felder verbunden.",
+    story10Title: "Gedrängte Luft", story10Description: "SIM0CT öffnet ein fiktives Fünf-Minuten-Fenster, in dem Tempo Genauigkeit und Höflichkeit folgt.", story10Objective: "Mindestens sechs Kontakte, je zwei RUN/S&P und drei Regionen abschließen.", story10Brief: "Wechsle zwischen RUN-Pile-up und S&P-Pool. Sende RST, Nummer, Region und Leistung exakt; nutze bei Bedarf AGN/QRS.", story10Debrief: "Die gedrängte Frequenz wird still. Die Wertung bewahrt Tempo und jede Pause für Genauigkeit und Höflichkeit.",
     weatherTitle: "Wetter über Funk", weatherDescription: "Füge dem Stationslog eine Wetterbeobachtung aus der Ferne hinzu.", weatherObjective: "Einen bestätigten WEATHER-Frage-und-Antwort-Austausch abschließen.",
     relayTitle: "Staffel durch den Schwund", relayDescription: "Sinkt das Signal ins Rauschen, zählt Geduld mehr als Leistung.", relayObjective: "Bei P0–P2 mit AGN oder QRS zurückfinden und das QSO abschließen.",
     equipmentTitle: "Geräteerprobung", equipmentDescription: "Gib einem neuen Funkgerät oder Zubehör den ersten echten Kontakt.", equipmentObjective: "Ein QSO mit einem anderen als dem Startgerät oder mit montiertem Zubehör abschließen.",
@@ -205,7 +212,7 @@ const TEXT = {
     storyProgress: "Прогресс журнала", dailyNote: "Каждый день создаются три поручения по данным станции. Одновременно активны не более двух; принятые поручения сохраняются после смены дня.",
     limit: "Все места обычных поручений заняты", targetCallsign: "Приоритетный приём", propagation: "Целевая станция ответит, только если текущая трасса распространения её достигает.",
     brief: "Сводка задания", debrief: "Итоговый отчёт", contractClues: "Условия связи", requiredPropagation: "Прохождение", requiredTopics: "Обязательные темы", recoveryActions: "Восстановление связи",
-    relationship: "Связь с целевой станцией", completedQsos: "Завершённые QSO", weakSignalRecoveries: "Восстановления слабого сигнала", launchEvent: "Войти на спецстанцию", annualReplay: "Ежегодный повтор", practiceRun: "Практика события", launchExpedition: "Войти на полевую станцию", launchQslStory: "Начать расследование QSL", launchServiceNet: "Войти в сеть общественной службы", launchCoordinateRelay: "Начать ретрансляцию координат",
+    relationship: "Связь с целевой станцией", completedQsos: "Завершённые QSO", weakSignalRecoveries: "Восстановления слабого сигнала", launchEvent: "Войти на спецстанцию", annualReplay: "Ежегодный повтор", practiceRun: "Практика события", launchExpedition: "Войти на полевую станцию", launchQslStory: "Начать расследование QSL", launchServiceNet: "Войти в сеть общественной службы", launchCoordinateRelay: "Начать ретрансляцию координат", launchContest: "Начать пятиминутный контест",
     story01Title: "Первое включение", story01Description: "Слова незнакомца «я вас слышу» возвращают звук в тихую комнату.", story01Objective: "Завершите и сохраните первое QSO.",
     story02Title: "Позывной на бумаге", story02Description: "SIM3RA обведён в выцветшем журнале. Помнит ли оператор незавершённую страницу?", story02Objective: "Проведите QSO с SIM3RA и хотя бы один раз используйте AGN K.",
     story03Title: "Разные ритмы", story03Description: "Кто-то осторожен, кто-то спешит, кому-то нужен медленный темп. Научитесь слышать различия.", story03Objective: "Проведите QSO с тремя разными стилями операторов.",
@@ -218,6 +225,7 @@ const TEXT = {
     story07Title: "Вопрос QSL", story07Description: "В одной QSL с холма остались две версии. SORA согласна сверить их в эфире.", story07Objective: "Передайте уточнение QSL, примите ответ SORA и сохраните итоговое решение.", story07Brief: "Сравните записи и запросите уточнение по номеру дела и своему позывному; при необходимости используйте AGN или QRS.", story07Debrief: "Факты проверены снова, а ваше решение осталось в записи о людях.",
     story08Title: "Город без света", story08Description: "Учебное вымышленное отключение направляет три служебных сообщения на SIM8PS одновременно.", story08Objective: "Зарегистрируйтесь и по порядку подтвердите номера и приоритеты трёх сообщений.", story08Brief: "Это вымышленное учение. Примите фиксированные сообщения и отправьте ACK по приоритету; при необходимости используйте AGN или QRS.", story08Debrief: "Три квитанции вошли в журнал по порядку. Реальной диспетчеризации не было — только ясная и спокойная тренировка связи.",
     story09Title: "Координаты", story09Description: "Вымышленный пакет Пиксельной сетки должен без изменений пройти между двумя станциями.", story09Objective: "Повторите сетку, UTC, число людей и проверку, затем завершите ретрансляцию.", story09Brief: "Примите пакет SIM9CR, исправьте жёсткие поля и передайте тот же канонический пакет SIM9RL.", story09Debrief: "Две станции и один полный пакет теперь связаны одинаковыми проверенными полями.",
+    story10Title: "Тесный эфир", story10Description: "SIM0CT открывает вымышленное пятиминутное окно, где скорость подчиняется точности и вежливости.", story10Objective: "Проведите шесть связей, по две RUN/S&P, минимум с тремя регионами.", story10Brief: "Переключайтесь между RUN-пайлапом и S&P-пулом. Точно передавайте RST, номер, регион и мощность; при необходимости используйте AGN/QRS.", story10Debrief: "Тесная частота затихла. Счёт запомнил скорость и паузы ради точности и вежливости.",
     weatherTitle: "Погода в эфире", weatherDescription: "Добавьте в журнал станции наблюдение погоды издалека.", weatherObjective: "Завершите вопрос и ответ WEATHER с подтверждением другой станции.",
     relayTitle: "Эстафета сквозь замирания", relayDescription: "Когда сигнал тонет в шуме, терпение важнее мощности.", relayObjective: "При P0–P2 восстановите связь через AGN или QRS и завершите QSO.",
     equipmentTitle: "Испытание аппаратуры", equipmentDescription: "Дайте новой радиостанции или аксессуару первый настоящий контакт.", equipmentObjective: "Проведите QSO не на начальной станции или с установленным аксессуаром.",
@@ -262,7 +270,7 @@ function missionContractClues(mission, t) {
   ].filter(Boolean);
 }
 
-function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, expeditionReplay, serviceNetReplay, coordinateRelayReplay, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay }) {
+function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, expeditionReplay, serviceNetReplay, coordinateRelayReplay, contestReplay, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest }) {
   const ready = mission.status === "ready";
   const active = mission.status === "active";
   const available = mission.status === "available";
@@ -315,6 +323,7 @@ function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, e
         {mission.id === "story-07" && active && <button data-action="launch-qsl-story" onClick={onLaunchQslStory}><Play size={17} weight="fill" />{t.launchQslStory}</button>}
         {mission.id === "story-08" && (active || serviceNetReplay) && <button data-action="launch-service-net" onClick={onLaunchServiceNet}><Play size={17} weight="fill" />{t.launchServiceNet}</button>}
         {mission.id === "story-09" && (active || coordinateRelayReplay) && <button data-action="launch-coordinate-relay" onClick={onLaunchCoordinateRelay}><Play size={17} weight="fill" />{t.launchCoordinateRelay}</button>}
+        {mission.id === "story-10" && (active || contestReplay) && <button data-action="launch-contest" onClick={onLaunchContest}><Play size={17} weight="fill" />{t.launchContest}</button>}
         {active && <button className="mission-abandon" data-action="abandon-mission" data-mission-action-id={mission.id} onClick={() => onAbandon(mission.id)}><Trash size={17} />{t.abandon}</button>}
         {ready && <button className="mission-claim" data-action="claim-mission" data-mission-action-id={mission.id} onClick={() => onClaim(mission.id)}><CheckCircle size={17} weight="fill" />{t.claim}</button>}
         {mission.id === "story-05" && mission.status === "claimed" && <>
@@ -326,7 +335,7 @@ function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, e
   );
 }
 
-export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onClose }) {
+export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onClose }) {
   const t = TEXT[language] ?? TEXT.en;
   const lightsCopy = lightsText(language);
   const [tab, setTab] = useState("story");
@@ -336,6 +345,7 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
   const expeditionReplay = expeditionReplayAvailable(save);
   const serviceNetReplay = serviceNetReplayAvailable(save);
   const coordinateRelayReplay = coordinateRelayReplayAvailable(save);
+  const contestReplay = contestReplayAvailable(save);
   const activeDaily = board.daily.filter(({ status }) => ["active", "ready"].includes(status)).length;
   const missions = tab === "story" ? board.story : board.daily;
 
@@ -361,7 +371,7 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
         <div className="mission-center-body">
           {tab === "daily" && <p className="mission-daily-note">{t.dailyNote}</p>}
           <div className="mission-list">
-            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} lightsCopy={lightsCopy} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} expeditionReplay={expeditionReplay} serviceNetReplay={serviceNetReplay} coordinateRelayReplay={coordinateRelayReplay} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} onLaunchQslStory={onLaunchQslStory} onLaunchServiceNet={onLaunchServiceNet} onLaunchCoordinateRelay={onLaunchCoordinateRelay} />)}
+            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} lightsCopy={lightsCopy} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} expeditionReplay={expeditionReplay} serviceNetReplay={serviceNetReplay} coordinateRelayReplay={coordinateRelayReplay} contestReplay={contestReplay} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} onLaunchQslStory={onLaunchQslStory} onLaunchServiceNet={onLaunchServiceNet} onLaunchCoordinateRelay={onLaunchCoordinateRelay} onLaunchContest={onLaunchContest} />)}
           </div>
         </div>
         <footer><span>{save.callsign} // {summary.ready} {t.ready}</span><button data-action="close-missions-footer" onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.close}</button></footer>

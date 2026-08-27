@@ -177,11 +177,12 @@ test("every interface dictionary has the same non-empty shape in all seven langu
   }
 });
 
-test("chapters six through nine expose responsive portrait-free seven-language interfaces", () => {
+test("chapters six through ten expose responsive portrait-free seven-language interfaces", () => {
   const expedition = read("src/screens/ExpeditionScreen.jsx");
   const qslStory = read("src/screens/QslStoryScreen.jsx");
   const serviceNet = read("src/screens/ServiceNetScreen.jsx");
   const coordinateRelay = read("src/screens/CoordinateRelayScreen.jsx");
+  const contest = read("src/screens/ContestScreen.jsx");
   const structuredMessages = read("src/screens/StructuredMessageLogModal.jsx");
   const people = read("src/screens/PeopleAndQslModal.jsx");
   const app = read("src/App.jsx");
@@ -231,25 +232,35 @@ test("chapters six through nine expose responsive portrait-free seven-language i
   assert.doesNotMatch(coordinateRelay, /<img[^>]+portrait/i);
   assert.match(coordinateRelay, /data-action="coordinate-submit"/);
   assert.match(coordinateRelay, /cwgameSystem\?\.interpretCwTraffic/);
+  assert.match(contest, /data-testid="contest-screen"/);
+  assert.match(contest, /data-simulation="fictional-five-minute-contest"/);
+  assert.match(contest, /data-portrait-visible="false"/);
+  assert.doesNotMatch(contest, /<img[^>]+portrait/i);
+  assert.match(contest, /data-action="contest-submit"/);
+  assert.match(contest, /cwgameSystem\?\.interpretCwTraffic/);
   assert.match(structuredMessages, /data-testid="structured-message-log"/);
   assert.doesNotMatch(structuredMessages, /rawInput|playerInput|decodedText|freeText/);
   assert.match(app, /screen === "expedition"/);
   assert.match(app, /screen === "qsl-story"/);
   assert.match(app, /screen === "service-net"/);
   assert.match(app, /screen === "coordinate-relay"/);
+  assert.match(app, /screen === "contest"/);
   assert.match(home, /data-action="open-people-qsl"/);
   assert.match(home, /data-action="enter-qsl-story-home"/);
   assert.match(home, /data-action="enter-service-net-home"/);
   assert.match(home, /data-action="enter-coordinate-relay-home"/);
+  assert.match(home, /data-action="enter-contest-home"/);
   assert.match(home, /data-action="open-structured-messages"/);
   assert.match(mission, /data-action="launch-expedition-story"/);
   assert.match(mission, /data-action="launch-qsl-story"/);
   assert.match(mission, /data-action="launch-service-net"/);
   assert.match(mission, /data-action="launch-coordinate-relay"/);
+  assert.match(mission, /data-action="launch-contest"/);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*\.expedition-screen/);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*\.qsl-story-screen/);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*\.service-net-screen/);
   assert.match(css, /@media \(max-width: 820px\)[\s\S]*\.coordinate-relay-screen/);
+  assert.match(css, /@media \(max-width: 820px\)[\s\S]*\.contest-screen/);
 });
 
 test("chapter five achievements have localized display copy instead of raw ids", () => {

@@ -71,6 +71,14 @@ test("chapter nine exposes its accepted coordinate-relay action and durable repl
   }
 });
 
+test("chapter ten exposes its accepted contest action and durable replay with localized story copy", () => {
+  assert.match(source, /mission\.id === "story-10" && \(active \|\| contestReplay\)/);
+  assert.match(source, /data-action="launch-contest"/);
+  for (const key of ["story10Title", "story10Description", "story10Objective", "story10Brief", "story10Debrief", "launchContest"]) {
+    assert.equal((source.match(new RegExp(`${key}:`, "g")) ?? []).length, 7, `${key} must exist in seven languages`);
+  }
+});
+
 test("new mission information keeps the established pixel-card styling", () => {
   for (const selector of [".mission-narrative", ".mission-contract", ".mission-target-identity", ".mission-relationship"]) {
     assert.ok(styles.includes(selector), `${selector} must be styled`);

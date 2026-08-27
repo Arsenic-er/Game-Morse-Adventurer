@@ -13,6 +13,8 @@ import { SERVICE_NET_PHASES } from "../src/game/serviceNetRun.js";
 import { serviceNetLeaveRisk } from "../src/screens/serviceNetText.js";
 import { COORDINATE_RELAY_PHASES } from "../src/game/coordinateRelayRun.js";
 import { coordinateRelayLeaveRisk } from "../src/screens/coordinateRelayText.js";
+import { CONTEST_PHASES } from "../src/game/contestRun.js";
+import { contestLeaveRisk } from "../src/screens/contestText.js";
 
 test("generic activity unload guard protects live and completed-unsettled lights, ordinary QSOs, and Home", () => {
   const liveLights = {
@@ -34,6 +36,9 @@ test("generic activity unload guard protects live and completed-unsettled lights
   assert.equal(coordinateRelayLeaveRisk({ phase: COORDINATE_RELAY_PHASES.PLAYER_READBACK }, false), "active");
   assert.equal(coordinateRelayLeaveRisk({ phase: COORDINATE_RELAY_PHASES.COMPLETED }, false), "unsaved");
   assert.equal(coordinateRelayLeaveRisk({ phase: COORDINATE_RELAY_PHASES.COMPLETED }, true), "none");
+  assert.equal(contestLeaveRisk({ phase: CONTEST_PHASES.EXCHANGE }, false), "active");
+  assert.equal(contestLeaveRisk({ phase: CONTEST_PHASES.COMPLETED }, false), "unsaved");
+  assert.equal(contestLeaveRisk({ phase: CONTEST_PHASES.COMPLETED }, true), "none");
   assert.equal(activityUnloadRisk({ activity: "home" }), "none");
 });
 

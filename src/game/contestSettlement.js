@@ -1,8 +1,9 @@
 import { appendQsoLog, normalizeQsoLogEntry, normalizeQsoLogs, normalizeQsoRecords } from "../qso/qsoLog.js";
 import { OPERATOR_RELATIONSHIPS_VERSION, normalizeOperatorRelationships, recordCompletedOperatorRelationship } from "../qso/operatorRelationships.js";
-import { personIdForOperator, stationIdentityForCallsign } from "./personIdentity.js";
 import { CONTEST_PHASES, normalizeContestRun, normalizeContestState, scoreContestRun } from "./contestRun.js";
 import { STORY_CONTINUATION_STATE_VERSION, normalizeStoryContinuationState } from "./storyContinuationState.js";
+
+export { verifiedContestCompletion } from "./contestCompletion.js";
 
 function own(value, key) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
@@ -32,41 +33,6 @@ function qsoCandidate(save, run, contact, qsoId) {
     eventRegionCode: contact.regionCode, onAirCallsign: run.playerCallsign, operatorCallsign: contact.callsign,
     isFictional: true,
   };
-}
-
-function verifiedLog(log, proof, runId) {
-  const callsign = String(own(log, "callsign") ?? "").trim().toUpperCase().slice(0, 16);
-  const claim = log ? { callsign, personId: own(log, "personId"), stationId: own(log, "stationId"), proceduralNpcId: proof.npcId } : null;
-  return Boolean(log) && own(log, "id") === proof.qsoId && own(log, "eventKind") === "contest" && own(log, "eventRunId") === runId
-    && own(log, "personId") === proof.personId && own(log, "stationId") === proof.stationId && callsign === proof.callsign
-    && personIdForOperator(claim) === proof.personId && stationIdentityForCallsign(callsign, claim)?.stationId === proof.stationId
-    && own(log, "isFictional") === true && own(log, "eventRegionCode") === proof.regionCode
-    && Date.parse(own(log, "completedAt") ?? "") === Date.parse(proof.completedAt) && Number(own(log, "credits")) === 0;
-}
-
-export function verifiedContestCompletion(save, active, logs = own(save, "qsoLogs")) {
-  try {
-    const acceptedAt = Date.parse(own(active, "acceptedAt") ?? "");
-    if (!Number.isFinite(acceptedAt)) return false;
-    const baselineRaw = own(active, "baselineContestRunIds");
-    const baseline = new Set(Array.isArray(baselineRaw) ? baselineRaw.slice(-100) : []);
-    const chapter = normalizeContestState(normalizeStoryContinuationState(own(save, "storyContinuationState")).chapter10);
-    const retainedLogs = Array.isArray(logs) ? logs.slice(-200) : [];
-    const relationships = normalizeOperatorRelationships(own(save, "operatorRelationships"));
-    for (const record of chapter.records) {
-      if (baseline.has(record.runId) || !chapter.settledRunIds.includes(record.runId) || Date.parse(record.completedAt) < acceptedAt
-        || !["complete", "silver", "gold"].includes(record.grade) || record.validContacts < 6 || record.runContacts < 2 || record.spContacts < 2 || record.uniqueRegions < 3) continue;
-      let valid = true;
-      for (const proof of record.contacts) {
-        const log = retainedLogs.find((entry) => own(entry, "id") === proof.qsoId);
-        const relationship = relationships.find((entry) => entry.personId === proof.personId);
-        if (!verifiedLog(log, proof, record.runId) || Date.parse(proof.completedAt) < acceptedAt
-          || relationship?.completedQsos < 1 || relationship.lastQsoId !== proof.qsoId) { valid = false; break; }
-      }
-      if (valid && new Set(record.contacts.map(({ personId }) => personId)).size === record.validContacts) return true;
-    }
-    return false;
-  } catch { return false; }
 }
 
 export function settleContestRun(save, runValue, settledAtValue) {

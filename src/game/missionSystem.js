@@ -8,7 +8,7 @@ import { verifiedServiceNetCompletion } from "./serviceNetSettlement.js";
 import { normalizeCoordinateRelayState } from "./coordinateRelayRun.js";
 import { verifiedCoordinateRelayCompletion } from "./coordinateRelaySettlement.js";
 import { normalizeContestState } from "./contestRun.js";
-import { verifiedContestCompletion } from "./contestSettlement.js";
+import { verifiedContestCompletion } from "./contestCompletion.js";
 import { normalizeStoryContinuationState } from "./storyContinuationState.js";
 import { normalizeOperatorRelationships } from "../qso/operatorRelationships.js";
 
