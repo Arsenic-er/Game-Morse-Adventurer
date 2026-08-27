@@ -11,6 +11,8 @@ import { QSL_STORY_PHASES } from "../src/game/qslStoryRun.js";
 import { qslStoryLeaveRisk } from "../src/screens/qslStoryText.js";
 import { SERVICE_NET_PHASES } from "../src/game/serviceNetRun.js";
 import { serviceNetLeaveRisk } from "../src/screens/serviceNetText.js";
+import { COORDINATE_RELAY_PHASES } from "../src/game/coordinateRelayRun.js";
+import { coordinateRelayLeaveRisk } from "../src/screens/coordinateRelayText.js";
 
 test("generic activity unload guard protects live and completed-unsettled lights, ordinary QSOs, and Home", () => {
   const liveLights = {
@@ -29,6 +31,9 @@ test("generic activity unload guard protects live and completed-unsettled lights
   assert.equal(serviceNetLeaveRisk({ phase: SERVICE_NET_PHASES.PLAYER_ACK }, false), "active");
   assert.equal(serviceNetLeaveRisk({ phase: SERVICE_NET_PHASES.COMPLETED }, false), "unsaved");
   assert.equal(serviceNetLeaveRisk({ phase: SERVICE_NET_PHASES.COMPLETED }, true), "none");
+  assert.equal(coordinateRelayLeaveRisk({ phase: COORDINATE_RELAY_PHASES.PLAYER_READBACK }, false), "active");
+  assert.equal(coordinateRelayLeaveRisk({ phase: COORDINATE_RELAY_PHASES.COMPLETED }, false), "unsaved");
+  assert.equal(coordinateRelayLeaveRisk({ phase: COORDINATE_RELAY_PHASES.COMPLETED }, true), "none");
   assert.equal(activityUnloadRisk({ activity: "home" }), "none");
 });
 

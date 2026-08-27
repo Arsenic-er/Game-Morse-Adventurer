@@ -63,6 +63,14 @@ test("chapter eight exposes its accepted service-net action and durable replay w
   }
 });
 
+test("chapter nine exposes its accepted coordinate-relay action and durable replay with localized story copy", () => {
+  assert.match(source, /mission\.id === "story-09" && \(active \|\| coordinateRelayReplay\)/);
+  assert.match(source, /data-action="launch-coordinate-relay"/);
+  for (const key of ["story09Title", "story09Description", "story09Objective", "story09Brief", "story09Debrief", "launchCoordinateRelay"]) {
+    assert.equal((source.match(new RegExp(`${key}:`, "g")) ?? []).length, 7, `${key} must exist in seven languages`);
+  }
+});
+
 test("new mission information keeps the established pixel-card styling", () => {
   for (const selector of [".mission-narrative", ".mission-contract", ".mission-target-identity", ".mission-relationship"]) {
     assert.ok(styles.includes(selector), `${selector} must be styled`);
