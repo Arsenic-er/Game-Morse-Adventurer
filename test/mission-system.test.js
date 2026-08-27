@@ -38,6 +38,11 @@ import {
   receiveCoordinatePacket, receiveRelayConfirmation, submitCoordinateRelayText,
 } from "../src/game/coordinateRelayRun.js";
 import { settleCoordinateRelayRun } from "../src/game/coordinateRelaySettlement.js";
+import {
+  CONTEST_MODES, contestExchangeText, createContestRun, finishContestRun,
+  normalizeContestState, selectContestMode, submitContestText,
+} from "../src/game/contestRun.js";
+import { settleContestRun } from "../src/game/contestSettlement.js";
 import { createSave } from "../src/game/saveStore.js";
 import { normalizeStoryContinuationState } from "../src/game/storyContinuationState.js";
 import { normalizeExpeditionState } from "../src/game/expeditionRun.js";
@@ -432,6 +437,68 @@ test("story nine rejects pre-acceptance and partial coordinate proof sets", () =
   ]) {
     assert.equal(missionBoard(forged).story.find(({ id }) => id === "story-09").status, "active");
     assert.equal(claimMission(forged, "story-09").reason, "MISSION_NOT_COMPLETE");
+  }
+});
+
+function storyNineClaimed() {
+  const base = storyEightClaimed();
+  return {
+    ...base,
+    missionState: {
+      ...base.missionState,
+      claimedMissionIds: [...base.missionState.claimedMissionIds, "story-09"],
+      history: [...base.missionState.history, { id: "story-09", claimedAt: "2026-08-28T02:30:00.000Z", moneyReward: 950, technologyPointsReward: 4, outcome: "completed" }],
+    },
+  };
+}
+
+function completedContestRun(seed = "mission-story-10") {
+  const start = "2026-08-28T03:01:00.000Z";
+  let run = createContestRun({ playerCallsign: "BH1ABC", seed, startedAt: start });
+  for (let index = 0; index < 6; index += 1) {
+    const mode = index < 3 ? CONTEST_MODES.RUN : CONTEST_MODES.SP;
+    run = selectContestMode(run, mode);
+    const station = run.candidates[0];
+    const observedAt = new Date(Date.parse(start) + (index * 8 + 5) * 1000).toISOString();
+    run = submitContestText(run, station.callsign, { safeToCommit: true }, observedAt);
+    run = submitContestText(run, contestExchangeText(station, run.playerCallsign, run.nextSerial), { safeToCommit: true }, new Date(Date.parse(observedAt) + 1000).toISOString());
+  }
+  return finishContestRun(run, "2026-08-28T03:02:00.000Z");
+}
+
+test("story ten requires linked contest facts, rewards once, and unlocks the task tree", () => {
+  const base = storyNineClaimed();
+  const accepted = acceptMission(base, "story-10", "2026-08-28T03:00:00.000Z");
+  assert.equal(accepted.accepted, true);
+  const run = completedContestRun();
+  const active = { ...accepted.save, storyContinuationState: normalizeStoryContinuationState({ ...accepted.save.storyContinuationState, chapter10: normalizeContestState({ activeRun: run }) }) };
+  const settled = settleContestRun(active, run, "2026-08-28T03:04:00.000Z");
+  assert.equal(settled.settled, true);
+  assert.equal(missionBoard(settled.save).story.find(({ id }) => id === "story-10").status, "ready");
+  const claimed = claimMission(settled.save, "story-10", "2026-08-28T03:05:00.000Z");
+  assert.equal(claimed.claimed, true);
+  assert.equal(claimed.moneyAwarded, 1100);
+  assert.equal(claimed.technologyPointsAwarded, 5);
+  assert.equal(claimed.save.money, base.money + 1100);
+  assert.equal(claimed.save.technologyPoints, base.technologyPoints + 5);
+  assert.equal(claimed.save.storyContinuationState.chapter10.taskTreeUnlocked, true);
+  assert.equal(claimMission(claimed.save, "story-10").reason, "MISSION_ALREADY_CLAIMED");
+});
+
+test("story ten rejects pre-acceptance and partial contest proof sets", () => {
+  const base = storyNineClaimed();
+  const run = completedContestRun("mission-story-10-forged");
+  const accepted = acceptMission(base, "story-10", "2026-08-28T03:00:00.000Z").save;
+  const active = { ...accepted, storyContinuationState: normalizeStoryContinuationState({ ...accepted.storyContinuationState, chapter10: normalizeContestState({ activeRun: run }) }) };
+  const settled = settleContestRun(active, run, "2026-08-28T03:04:00.000Z").save;
+  for (const forged of [
+    { ...settled, qsoLogs: settled.qsoLogs.slice(1) },
+    { ...settled, operatorRelationships: settled.operatorRelationships.slice(1) },
+    { ...settled, storyContinuationState: normalizeStoryContinuationState({ ...settled.storyContinuationState, chapter10: normalizeContestState({ ...settled.storyContinuationState.chapter10, records: [] }) }) },
+    { ...settled, storyContinuationState: normalizeStoryContinuationState({ ...settled.storyContinuationState, chapter10: normalizeContestState({ ...settled.storyContinuationState.chapter10, settledRunIds: [] }) }) },
+  ]) {
+    assert.equal(missionBoard(forged).story.find(({ id }) => id === "story-10").status, "active");
+    assert.equal(claimMission(forged, "story-10").reason, "MISSION_NOT_COMPLETE");
   }
 });
 

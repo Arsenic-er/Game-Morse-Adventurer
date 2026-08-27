@@ -52,6 +52,36 @@ const coordinatePackets = (count) => Array.from({ length: count }, (_, index) =>
     sourceCompletedAt: minute(index), completedAt: minute(index),
   };
 });
+const contestRecords = (count) => Array.from({ length: count }, (_, index) => {
+  const contactQsoIds = Array.from({ length: 6 }, (_, contact) => `contest-qso:${String(index).padStart(3, "0")}:${contact + 1}`);
+  return {
+    id: `contest-record:${String(index).padStart(3, "0")}`,
+    runId: `contest:${String(index).padStart(3, "0")}`,
+    score: 990,
+    grade: "silver",
+    validContacts: 6,
+    uniqueRegions: 3,
+    runContacts: 3,
+    spContacts: 3,
+    repeatRequests: 0,
+    bustedCalls: 0,
+    interruptions: 0,
+    contactQsoIds,
+    contacts: contactQsoIds.map((qsoId, contact) => ({
+      qsoId,
+      personId: `person:procedural:C${index}N${contact}`,
+      stationId: `station:procedural:C${index}N${contact}`,
+      npcId: `C${index}N${contact}`,
+      callsign: `S${String(index).padStart(2, "0")}${contact}`,
+      mode: contact < 3 ? "RUN" : "SP",
+      serialNumber: contact + 1,
+      regionCode: ["JP", "US", "CN"][contact % 3],
+      powerWatts: 10,
+      completedAt: minute(index),
+    })),
+    completedAt: minute(index),
+  };
+});
 
 test("empty continuation state has fixed chapter seven through ten shape", () => {
   const state = emptyStoryContinuationState();
@@ -62,7 +92,7 @@ test("empty continuation state has fixed chapter seven through ten shape", () =>
     chapter07: { activeRun: null, cases: [], settledRunIds: [], peopleTaskTreeUnlocked: false },
     chapter08: { activeRun: null, receipts: [], settledRunIds: [], taskTreeUnlocked: false },
     chapter09: { activeRun: null, packets: [], settledRunIds: [], toolUnlocked: false },
-    chapter10: { activeRun: null, records: [], settledRunIds: [], taskTreeUnlocked: false },
+    chapter10: { activeRun: null, records: [], settledRunIds: [], personalBest: null, taskTreeUnlocked: false },
   });
   assert.equal(Object.isFrozen(state), true);
   assert.equal(Object.isFrozen(state.chapter07.cases), true);
@@ -73,7 +103,7 @@ test("continuation ledgers retain bounded ordered tails and normalize twice iden
     chapter07: { cases: qslCases(45), settledRunIds: ids(105) },
     chapter08: { receipts: serviceReceipts(85), settledRunIds: ids(101, "service"), taskTreeUnlocked: true },
     chapter09: { packets: coordinatePackets(81), settledRunIds: ids(102, "relay"), toolUnlocked: true },
-    chapter10: { records: records(41, "contest"), settledRunIds: ids(103, "contest-run"), taskTreeUnlocked: true },
+    chapter10: { records: contestRecords(41), settledRunIds: ids(103, "contest-run"), taskTreeUnlocked: true },
   });
 
   assert.equal(state.chapter07.cases.length, 40);
