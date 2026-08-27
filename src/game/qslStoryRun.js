@@ -99,7 +99,9 @@ function strictArray(value, maximum, allowlist) {
 
 function caseIdFor(sourceQslId) {
   const direct = /^qsl-([A-Za-z0-9-]{1,24})$/.exec(sourceQslId);
-  return direct ? direct[1].toUpperCase() : `CASE-${hash32(sourceQslId).slice(0, 6).toUpperCase()}`;
+  const expedition = /^qsl:expedition:([A-Za-z0-9-]{1,24})$/.exec(sourceQslId);
+  return (direct?.[1] ?? expedition?.[1])?.toUpperCase()
+    ?? `CASE-${hash32(sourceQslId).slice(0, 6).toUpperCase()}`;
 }
 
 function runIdFor(sourceQslId, startedAt, retryCount) {
@@ -392,7 +394,9 @@ function normalizeIdLedger(value) {
 }
 
 export function emptyQslStoryState() {
-  return deepFreeze({ activeRun: null, cases: [], settledRunIds: [] });
+  return deepFreeze({
+    activeRun: null, cases: [], settledRunIds: [], peopleTaskTreeUnlocked: false,
+  });
 }
 
 export function normalizeQslStoryState(value) {
@@ -403,6 +407,7 @@ export function normalizeQslStoryState(value) {
       activeRun: activeValue == null ? null : normalizeQslStoryRun(activeValue),
       cases: normalizeObjectLedger(own(source, "cases") ?? [], MAX_QSL_STORY_CASES, normalizeCase),
       settledRunIds: normalizeIdLedger(own(source, "settledRunIds") ?? []),
+      peopleTaskTreeUnlocked: own(source, "peopleTaskTreeUnlocked") === true,
     });
   } catch {
     return emptyQslStoryState();

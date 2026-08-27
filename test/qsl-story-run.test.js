@@ -176,7 +176,10 @@ test("run and chapter state normalization are bounded, own-only, and JSON-idempo
   assert.equal(state.cases.length, 40);
   assert.equal(state.settledRunIds.length, 45);
   assert.deepEqual(normalizeQslStoryState(JSON.parse(JSON.stringify(state))), state);
-  assert.deepEqual(emptyQslStoryState(), { activeRun: null, cases: [], settledRunIds: [] });
+  assert.equal(normalizeQslStoryState({ peopleTaskTreeUnlocked: true }).peopleTaskTreeUnlocked, true);
+  assert.deepEqual(emptyQslStoryState(), {
+    activeRun: null, cases: [], settledRunIds: [], peopleTaskTreeUnlocked: false,
+  });
 });
 
 test("normalization rejects forged run identity and impossible phase chronology", () => {

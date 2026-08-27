@@ -183,7 +183,8 @@ test("packaged QA follows the production QSO log schema version", async () => {
     callsign: "SIM5TU",
   });
 
-  assert.equal(normalized.version, 8);
+  assert.equal(normalized.version, QSO_LOG_VERSION);
+  assert.equal(QSO_LOG_VERSION, 9);
   assert.equal(QA_QSO_LOG_VERSION, QSO_LOG_VERSION);
   const qaSource = fs.readFileSync(path.join(__dirname, "..", "electron", "qa-capture.cjs"), "utf8");
   assert.match(qaSource, /savedEquipmentSnapshot\.version !== QA_QSO_LOG_VERSION/);

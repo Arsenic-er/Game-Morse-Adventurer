@@ -32,6 +32,10 @@ function baseSave(overrides = {}) {
   };
 }
 
+function storyMission(save, id) {
+  return missionBoard(save).story.find((mission) => mission.id === id);
+}
+
 function rainLog(overrides = {}) {
   return {
     id: "rain-qso-1",
@@ -180,7 +184,7 @@ test("chapter five unlocks after chapter four and only accepts a new base lights
     },
   });
   const board = missionBoard(unlocked).story;
-  assert.equal(board.length, 6);
+  assert.equal(board.length, 7);
   assert.equal(board[4].status, "available");
   assert.equal(board[4].objective, "lights-event");
   assert.deepEqual(board[4].contract, {
@@ -238,18 +242,18 @@ test("chapter six unlocks only after chapter five and needs no optional technolo
     }),
   });
   const board = missionBoard(noGrind).story;
-  assert.equal(board.length, 6);
-  assert.equal(board.at(-1).id, "story-06");
-  assert.equal(board.at(-1).status, "available");
-  assert.equal(board.at(-1).objective, "hill-expedition");
-  assert.deepEqual(board.at(-1).contract.requiredTopics, ["QTH", "POWER", "ANTENNA"]);
+  assert.equal(board.length, 7);
+  const storySix = board.find((mission) => mission.id === "story-06");
+  assert.equal(storySix.status, "available");
+  assert.equal(storySix.objective, "hill-expedition");
+  assert.deepEqual(storySix.contract.requiredTopics, ["QTH", "POWER", "ANTENNA"]);
   assert.equal(acceptMission(noGrind, "story-06", ACCEPTED_AT).accepted, true);
 
   const locked = missionBoard(baseSave({
     missionState: normalizeMissionState({
       claimedMissionIds: ["story-01", "story-02", "story-03", "story-04"],
     }),
-  })).story.at(-1);
+  })).story.find((mission) => mission.id === "story-06");
   assert.equal(locked.id, "story-06");
   assert.equal(locked.status, "locked");
 });
@@ -272,7 +276,7 @@ test("chapter six requires a bounded, fully linked expedition settlement before 
   }), "story-06", ACCEPTED_AT);
   assert.equal(accepted.accepted, true);
   assert.deepEqual(accepted.save.missionState.activeMissions[0].baselineExpeditionRunIds, ["old-run"]);
-  assert.equal(missionBoard(accepted.save).story.at(-1).status, "active");
+  assert.equal(storyMission(accepted.save, "story-06").status, "active");
 
   const linked = withExpeditionEvidence(accepted.save);
   const summaryOnly = {
@@ -332,7 +336,7 @@ test("chapter six requires a bounded, fully linked expedition settlement before 
     summaryOnly, settledOnly, qsoOnly, qsoLedgerOnly,
     wrongRunLink, wrongSiteLink, wrongIdentityLink, wrongProofLink, forgedIdentityPair,
   ]) {
-    assert.equal(missionBoard(forged).story.at(-1).status, "active");
+    assert.equal(storyMission(forged, "story-06").status, "active");
     const rejected = claimMission(forged, "story-06", "2026-08-12T10:05:00.000Z");
     assert.equal(rejected.claimed, false);
     assert.equal(rejected.reason, "MISSION_NOT_COMPLETE");
@@ -341,7 +345,7 @@ test("chapter six requires a bounded, fully linked expedition settlement before 
     assert.equal(rejected.save.expeditionState.expeditionTreeUnlocked, false);
   }
 
-  assert.equal(missionBoard(linked).story.at(-1).status, "ready");
+  assert.equal(storyMission(linked, "story-06").status, "ready");
   const claimed = claimMission(linked, "story-06", "2026-08-12T10:05:00.000Z");
   assert.equal(claimed.claimed, true);
   assert.equal(claimed.moneyAwarded, 650);
@@ -446,7 +450,7 @@ test("chapter six mission evaluation bounds hostile expedition history scans", (
       completedRuns,
       settledQsoProofs: proofHistory,
     },
-  }).story.at(-1).status, "ready");
+  }).story.find((mission) => mission.id === "story-06").status, "ready");
 });
 
 test("chapter six ignores the global QSO ledger and relies on its bounded proof ledger", () => {
@@ -479,7 +483,7 @@ test("chapter six ignores the global QSO ledger and relies on its bounded proof 
   assert.equal(missionBoard({
     ...linked,
     qsoRecords: { ...linked.qsoRecords, settledQsoIds: guardedGlobal },
-  }).story.at(-1).status, "ready");
+  }).story.find((mission) => mission.id === "story-06").status, "ready");
 });
 
 test("chapter six fully validates every retained proof and bounds hostile proof histories", () => {
@@ -504,7 +508,7 @@ test("chapter six fully validates every retained proof and bounds hostile proof 
     assert.equal(missionBoard({
       ...linked,
       expeditionState: { ...linked.expeditionState, settledQsoProofs: proofs },
-    }).story.at(-1).status, "active");
+    }).story.find((mission) => mission.id === "story-06").status, "active");
   }
 
   const sparse = Array(80);
@@ -512,7 +516,7 @@ test("chapter six fully validates every retained proof and bounds hostile proof 
   assert.equal(missionBoard({
     ...linked,
     expeditionState: { ...linked.expeditionState, settledQsoProofs: sparse },
-  }).story.at(-1).status, "active");
+  }).story.find((mission) => mission.id === "story-06").status, "active");
 
   const inheritedTarget = Array(80);
   const inheritedPrototype = Object.create(Array.prototype);
@@ -521,7 +525,7 @@ test("chapter six fully validates every retained proof and bounds hostile proof 
   assert.equal(missionBoard({
     ...linked,
     expeditionState: { ...linked.expeditionState, settledQsoProofs: inheritedTarget },
-  }).story.at(-1).status, "active");
+  }).story.find((mission) => mission.id === "story-06").status, "active");
 
   assert.equal(missionBoard({
     ...linked,
@@ -532,7 +536,7 @@ test("chapter six fully validates every retained proof and bounds hostile proof 
         targetProof,
       ],
     },
-  }).story.at(-1).status, "active");
+  }).story.find((mission) => mission.id === "story-06").status, "active");
 
   const throwing = new Proxy([targetProof], {
     get(target, property, receiver) {
@@ -547,7 +551,7 @@ test("chapter six fully validates every retained proof and bounds hostile proof 
   assert.equal(missionBoard({
     ...linked,
     expeditionState: { ...linked.expeditionState, settledQsoProofs: throwing },
-  }).story.at(-1).status, "active");
+  }).story.find((mission) => mission.id === "story-06").status, "active");
 
   const huge = new Proxy(
     [...Array.from({ length: 9_920 }, (_, index) => unrelatedProof(index)),
@@ -564,5 +568,5 @@ test("chapter six fully validates every retained proof and bounds hostile proof 
   assert.equal(missionBoard({
     ...linked,
     expeditionState: { ...linked.expeditionState, settledQsoProofs: huge },
-  }).story.at(-1).status, "ready");
+  }).story.find((mission) => mission.id === "story-06").status, "ready");
 });

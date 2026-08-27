@@ -56,7 +56,7 @@ function entry(overrides = {}) {
   };
 }
 
-test("normalizes the complete QSO log v8 schema", () => {
+test("normalizes the complete current QSO log schema", () => {
   const normalized = normalizeQsoLogEntry(entry());
   assert.equal(normalized.version, QSO_LOG_VERSION);
   assert.equal(normalized.startedAt, "2026-07-15T00:00:00.000Z");
@@ -102,6 +102,20 @@ test("normalizes the complete QSO log v8 schema", () => {
     remoteOutcome: "copied",
     operatorProfileId: "careful-beginner",
   }]);
+});
+
+test("event QSO logs retain only allowlisted bounded event kinds", () => {
+  const qslStory = normalizeQsoLogEntry(entry({
+    eventId: "chapter-continuation",
+    eventRunId: "qsl-story:run-1",
+    eventMode: "story",
+    eventKind: "qsl-story",
+  }));
+  assert.equal(qslStory.eventKind, "qsl-story");
+  assert.equal(qslStory.eventRunId, "qsl-story:run-1");
+
+  assert.equal(normalizeQsoLogEntry(entry({ eventKind: "<script>" })).eventKind, null);
+  assert.equal(normalizeQsoLogEntry(entry()).eventKind, null);
 });
 
 test("preserves bounded lights-event identity without creating ordinary rewards", () => {
@@ -153,7 +167,7 @@ test("QSO logs reject forged fixed identity claims and let npcId take precedence
   assert.equal(forgedProcedural.stationId, "station:procedural:N1-JP-000A");
 });
 
-test("QSO identity claims stay coherent and valid v8 identities survive JSON round trips", () => {
+test("QSO identity claims stay coherent and valid current identities survive JSON round trips", () => {
   const mismatchedProcedural = normalizeQsoLogEntry(entry({
     callsign: "SIM9ZZ",
     personId: "person:procedural:N1-JP-000A",
@@ -193,7 +207,7 @@ test("QSO identity claims stay coherent and valid v8 identities survive JSON rou
   assert.deepEqual(normalizeQsoLogEntry(JSON.parse(JSON.stringify(sora))), sora);
 });
 
-test("legacy v1-v7 QSO logs safely migrate to current defaults without retroactive rewards", () => {
+test("legacy v1-v8 QSO logs safely migrate to current defaults without retroactive rewards", () => {
   for (const version of [1, 2, 3, 4, 5, 6, 7]) {
     const normalized = normalizeQsoLogEntry(entry({
     version,

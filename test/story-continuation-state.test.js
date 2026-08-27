@@ -34,7 +34,7 @@ test("empty continuation state has fixed chapter seven through ten shape", () =>
   assert.equal(STORY_CONTINUATION_STATE_VERSION, 1);
   assert.deepEqual(state, {
     version: 1,
-    chapter07: { activeRun: null, cases: [], settledRunIds: [] },
+    chapter07: { activeRun: null, cases: [], settledRunIds: [], peopleTaskTreeUnlocked: false },
     chapter08: { activeRun: null, receipts: [], settledRunIds: [], taskTreeUnlocked: false },
     chapter09: { activeRun: null, packets: [], settledRunIds: [], toolUnlocked: false },
     chapter10: { activeRun: null, records: [], settledRunIds: [], taskTreeUnlocked: false },
@@ -105,6 +105,7 @@ test("continuation state ignores inherited chapter values and never persists arb
     activeRun: null,
     cases: [qslCases(2)[1]],
     settledRunIds: ["run:001"],
+    peopleTaskTreeUnlocked: false,
   });
   assert.equal(JSON.stringify(state).includes("freeText"), false);
 });

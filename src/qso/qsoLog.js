@@ -10,7 +10,7 @@ import {
 } from "./operatorRelationships.js";
 import { personIdForOperator, stationIdentityForCallsign } from "../game/personIdentity.js";
 
-export const QSO_LOG_VERSION = 8;
+export const QSO_LOG_VERSION = 9;
 const OPTIONAL_EXCHANGE_QUESTION_IDS = Object.freeze([
   "power", "location", "weather", "name", "age", "rig", "antenna",
 ]);
@@ -76,6 +76,10 @@ function normalizeEventMode(value) {
 function normalizeEventRegion(value) {
   const normalized = String(value ?? "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
   return normalized || null;
+}
+
+function normalizeEventKind(value) {
+  return ["qsl-story", "service-net", "coordinate-relay", "contest"].includes(value) ? value : null;
 }
 
 function own(value, key) {
@@ -249,6 +253,7 @@ export function normalizeQsoLogEntry(entry) {
     eventId,
     eventRunId: eventId ? normalizeEventRunId(entry.eventRunId ?? entry.runId) : null,
     eventMode: eventId ? normalizeEventMode(entry.eventMode) : null,
+    eventKind: eventId ? normalizeEventKind(entry.eventKind) : null,
     eventRegionCode: eventId ? normalizeEventRegion(entry.eventRegionCode) : null,
     onAirCallsign: eventId ? normalizeCallsign(entry.onAirCallsign) || null : null,
     operatorCallsign: eventId ? normalizeCallsign(entry.operatorCallsign) || null : null,

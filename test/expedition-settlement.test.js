@@ -104,6 +104,10 @@ function withActiveRun(save, run) {
   };
 }
 
+function storyMission(save, id) {
+  return missionBoard(save).story.find((mission) => mission.id === id);
+}
+
 test("successful expedition settlement is atomic and links QSO, SORA relationship, and mission progress", () => {
   const run = completedRun();
   const initial = withActiveRun(acceptedStorySixSave(), run);
@@ -132,7 +136,7 @@ test("successful expedition settlement is atomic and links QSO, SORA relationshi
   assert.equal(settled.save.qsoLogs[0].expeditionSiteId, "sunward-hill");
   assert.equal(settled.save.operatorRelationships[0].personId, "person:sora");
   assert.equal(settled.save.operatorRelationships[0].completedQsos, 1);
-  assert.equal(missionBoard(settled.save).story.at(-1).status, "ready");
+  assert.equal(storyMission(settled.save, "story-06").status, "ready");
   assert.equal(settled.save.expeditionState.completedRuns[0].personId, "person:sora");
   assert.equal(settled.save.expeditionState.completedRuns[0].stationId, "station:sim6jp");
   assert.deepEqual(settled.save.expeditionState.settledQsoProofs, [{
@@ -148,7 +152,7 @@ test("successful expedition settlement is atomic and links QSO, SORA relationshi
   const normalizedOnce = normalizeSave(settled.save);
   const normalizedTwice = normalizeSave(normalizedOnce);
   assert.deepEqual(normalizedTwice, normalizedOnce);
-  assert.equal(missionBoard(normalizedTwice).story.at(-1).status, "ready");
+  assert.equal(storyMission(normalizedTwice, "story-06").status, "ready");
   assert.deepEqual({
     locationId: settled.save.locationId,
     equipmentId: settled.save.equipmentId,
@@ -187,7 +191,7 @@ test("a real expedition remains claimable when its QSO id sorts before an old le
   const settled = settleExpeditionRun(initial, run, "2026-08-25T09:06:30.000Z");
   assert.equal(settled.settled, true);
   assert.equal(settled.save.qsoRecords.settledQsoIds[0], "expedition-qso:old-ledger-run");
-  assert.equal(missionBoard(settled.save).story.at(-1).status, "ready");
+  assert.equal(storyMission(settled.save, "story-06").status, "ready");
   const duplicate = settleExpeditionRun(settled.save, run, "2026-08-25T09:07:00.000Z");
   assert.equal(duplicate.settled, false);
   assert.equal(duplicate.reason, "ALREADY_SETTLED");

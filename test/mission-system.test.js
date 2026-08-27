@@ -15,6 +15,21 @@ import {
   recentMissionDna,
   targetCallsignForActiveMission,
 } from "../src/game/missionSystem.js";
+import { createQslRecord } from "../src/game/qslRecords.js";
+import {
+  confirmQslStoryChoice,
+  createQslStoryRun,
+  normalizeQslStoryState,
+  receiveQslClarification,
+  reviewQslAccounts,
+  submitQslClarification,
+} from "../src/game/qslStoryRun.js";
+import { settleQslStoryRun } from "../src/game/qslStorySettlement.js";
+import { createSave } from "../src/game/saveStore.js";
+import { normalizeStoryContinuationState } from "../src/game/storyContinuationState.js";
+import { normalizeExpeditionState } from "../src/game/expeditionRun.js";
+import { normalizeQsoLogEntry, normalizeQsoRecords } from "../src/qso/qsoLog.js";
+import { recordCompletedOperatorRelationship } from "../src/qso/operatorRelationships.js";
 
 function log(overrides = {}) {
   return {
@@ -44,6 +59,104 @@ function save(overrides = {}) {
     qsoRecords: { total: 0 },
     missionState: emptyMissionState(),
     ...overrides,
+  };
+}
+
+const STORY_CLAIMED_THROUGH_SIX = Object.freeze([
+  "story-01", "story-02", "story-03", "story-04", "story-05", "story-06",
+]);
+
+function chapterSevenQsl() {
+  return createQslRecord({
+    id: "qsl:expedition:hill-1",
+    personId: "person:sora",
+    stationId: "station:sim6jp",
+    callsign: "SIM6JP",
+    qsoId: "expedition-qso:hill-1",
+    eventRunId: "hill-1",
+    playerNarrativeKey: "qsl.player.hill-signal",
+    operatorNarrativeKey: "qsl.operator.sora-hill-reply",
+    createdAt: "2026-08-27T23:00:00.000Z",
+    choice: "believe",
+    confirmedAt: "2026-08-27T23:01:00.000Z",
+  });
+}
+
+function chapterSevenSourceLog() {
+  return normalizeQsoLogEntry({
+    id: "expedition-qso:hill-1",
+    startedAt: "2026-08-27T22:55:00.000Z",
+    completedAt: "2026-08-27T23:00:00.000Z",
+    playerCallsign: "BH1ABC",
+    callsign: "SIM6JP",
+    personId: "person:sora",
+    stationId: "station:sim6jp",
+    sent: "599",
+    received: "599",
+    location: "JP",
+    playerLocationId: "expedition:sunward-hill",
+    expeditionRunId: "hill-1",
+    expeditionSiteId: "sunward-hill",
+    isFictional: true,
+  });
+}
+
+function chapterSevenSourceExpeditionState() {
+  return normalizeExpeditionState({
+    completedRuns: [{
+      runId: "hill-1", completedAt: "2026-08-27T23:00:00.000Z", siteId: "sunward-hill",
+      qsoId: "expedition-qso:hill-1", personId: "person:sora", stationId: "station:sim6jp",
+    }],
+    settledRunIds: ["hill-1"],
+    settledQsoProofs: [{
+      runId: "hill-1", qsoId: "expedition-qso:hill-1", siteId: "sunward-hill",
+      personId: "person:sora", stationId: "station:sim6jp",
+      completedAt: "2026-08-27T23:00:00.000Z",
+      playerLocationId: "expedition:sunward-hill", isFictional: true,
+    }],
+  });
+}
+
+function chapterSevenRun() {
+  let run = createQslStoryRun({
+    sourceQsl: chapterSevenQsl(),
+    playerCallsign: "BH1ABC",
+    startedAt: "2026-08-28T00:01:00.000Z",
+  });
+  run = reviewQslAccounts(run);
+  run = submitQslClarification(
+    run,
+    "QSL HILL-1 DE BH1ABC PSE K",
+    { safeToCommit: true },
+    "2026-08-28T00:02:00.000Z",
+  );
+  run = receiveQslClarification(run, "2026-08-28T00:03:00.000Z");
+  return confirmQslStoryChoice(run, "request-review", "2026-08-28T00:04:00.000Z");
+}
+
+function storySixClaimed({ withQsl = true } = {}) {
+  const base = createSave({ callsign: "BH1ABC", locationId: "japan-tokyo-kanto" });
+  const sourceLog = chapterSevenSourceLog();
+  return {
+    ...base,
+    money: 100,
+    technologyPoints: 2,
+    qslRecords: withQsl ? [chapterSevenQsl()] : [],
+    expeditionState: chapterSevenSourceExpeditionState(),
+    qsoLogs: [sourceLog],
+    qsoRecords: normalizeQsoRecords(null, [sourceLog]),
+    operatorRelationships: recordCompletedOperatorRelationship([], sourceLog),
+    missionState: {
+      ...emptyMissionState(),
+      claimedMissionIds: [...STORY_CLAIMED_THROUGH_SIX],
+      history: STORY_CLAIMED_THROUGH_SIX.map((id, index) => ({
+        id,
+        claimedAt: new Date(Date.UTC(2026, 7, 27, 0, index)).toISOString(),
+        moneyReward: 0,
+        technologyPointsReward: 0,
+        outcome: "completed",
+      })),
+    },
   };
 }
 
@@ -87,6 +200,62 @@ test("story chapters unlock sequentially and rewards settle once", () => {
   assert.equal(secondClaim.save.money, 410);
   assert.equal(secondClaim.save.technologyPoints, 3);
   assert.deepEqual(secondClaim.save.knownOperatorNames, ["MORSE"]);
+});
+
+test("story seven requires a confirmed hill QSL and four linked settlement facts", () => {
+  assert.equal(missionBoard(storySixClaimed({ withQsl: false })).story.at(-1).status, "locked");
+  const accepted = acceptMission(storySixClaimed(), "story-07", "2026-08-28T00:00:00.000Z");
+  assert.equal(accepted.accepted, true);
+  assert.equal(missionBoard(accepted.save).story.at(-1).status, "active");
+
+  const run = chapterSevenRun();
+  const withActiveRun = {
+    ...accepted.save,
+    storyContinuationState: normalizeStoryContinuationState({
+      ...accepted.save.storyContinuationState,
+      chapter07: normalizeQslStoryState({ activeRun: run, cases: [], settledRunIds: [] }),
+    }),
+  };
+  const settled = settleQslStoryRun(withActiveRun, run, "2026-08-28T00:05:00.000Z");
+  assert.equal(settled.settled, true);
+  assert.equal(missionBoard(settled.save).story.at(-1).status, "ready");
+
+  const claimed = claimMission(settled.save, "story-07", "2026-08-28T00:06:00.000Z");
+  assert.equal(claimed.claimed, true);
+  assert.equal(claimed.moneyAwarded, 750);
+  assert.equal(claimed.technologyPointsAwarded, 3);
+  assert.equal(claimed.save.money, 850);
+  assert.equal(claimed.save.technologyPoints, 5);
+  assert.equal(claimed.save.storyContinuationState.chapter07.peopleTaskTreeUnlocked, true);
+  assert.equal(claimMission(claimed.save, "story-07", "2026-08-28T00:07:00.000Z").reason, "MISSION_ALREADY_CLAIMED");
+});
+
+test("story seven ignores pre-acceptance and partially forged chapter evidence", () => {
+  const run = chapterSevenRun();
+  const preAcceptedBase = storySixClaimed();
+  const preAccepted = settleQslStoryRun({
+    ...preAcceptedBase,
+    storyContinuationState: normalizeStoryContinuationState({
+      ...preAcceptedBase.storyContinuationState,
+      chapter07: normalizeQslStoryState({ activeRun: run, cases: [], settledRunIds: [] }),
+    }),
+  }, run, "2026-08-28T00:05:00.000Z").save;
+  const acceptedAfter = acceptMission(preAccepted, "story-07", "2026-08-28T00:06:00.000Z");
+  assert.equal(acceptedAfter.accepted, true);
+  assert.equal(missionBoard(acceptedAfter.save).story.at(-1).status, "active");
+
+  const accepted = acceptMission(storySixClaimed(), "story-07", "2026-08-28T00:00:00.000Z").save;
+  const forged = {
+    ...accepted,
+    storyContinuationState: normalizeStoryContinuationState({
+      ...accepted.storyContinuationState,
+      chapter07: preAccepted.storyContinuationState.chapter07,
+    }),
+    qsoLogs: accepted.qsoLogs,
+    operatorRelationships: accepted.operatorRelationships,
+  };
+  assert.equal(missionBoard(forged).story.at(-1).status, "active");
+  assert.equal(claimMission(forged, "story-07").reason, "MISSION_NOT_COMPLETE");
 });
 
 test("chapter three measures genuinely different operator profiles", () => {

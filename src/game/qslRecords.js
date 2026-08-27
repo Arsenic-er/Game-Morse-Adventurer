@@ -1,3 +1,5 @@
+import { normalizeExpeditionSettlementProofs } from "./expeditionRun.js";
+
 export const QSL_RECORDS_VERSION = 1;
 export const MAX_QSL_RECORDS = 100;
 export const QSL_CHOICES = Object.freeze(["believe", "request-review", "defer"]);
@@ -129,6 +131,62 @@ export function normalizeQslRecords(value) {
       records.push(record);
     }
     return Object.freeze(records.slice(-MAX_QSL_RECORDS));
+  } catch {
+    return Object.freeze([]);
+  }
+}
+
+function retainedOwnValues(value, maximum) {
+  try {
+    if (!Array.isArray(value)) return [];
+    const result = [];
+    for (let index = Math.max(0, value.length - maximum); index < value.length; index += 1) {
+      if (!Object.hasOwn(value, index)) return [];
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor || !Object.hasOwn(descriptor, "value")) return [];
+      result.push(descriptor.value);
+    }
+    return result;
+  } catch {
+    return [];
+  }
+}
+
+export function verifiedExpeditionQslRecords(save) {
+  try {
+    const records = normalizeQslRecords(ownData(save, "qslRecords"));
+    const expeditionState = ownData(save, "expeditionState");
+    const proofs = normalizeExpeditionSettlementProofs(ownData(expeditionState, "settledQsoProofs"));
+    const settledRunIds = new Set(retainedOwnValues(ownData(expeditionState, "settledRunIds"), 100)
+      .map((value) => id(value)).filter(Boolean));
+    const logs = retainedOwnValues(ownData(save, "qsoLogs"), 200);
+    return Object.freeze(records.filter((record) => {
+      if (!record.choice || record.personId !== "person:sora" || record.stationId !== "station:sim6jp"
+        || record.callsign !== "SIM6JP") return false;
+      const proof = proofs.find((candidate) => candidate.runId === record.eventRunId
+        && candidate.qsoId === record.qsoId && settledRunIds.has(candidate.runId));
+      if (!proof || proof.personId !== record.personId || proof.stationId !== record.stationId
+        || proof.completedAt !== record.createdAt || proof.isFictional !== true) return false;
+      const expected = createExpeditionQslRecord({
+        runId: proof.runId,
+        result: { completedAt: proof.completedAt },
+        contacts: [{
+          personId: proof.personId,
+          stationId: proof.stationId,
+          callsign: record.callsign,
+        }],
+      }, proof.qsoId);
+      if (!expected || expected.id !== record.id) return false;
+      return logs.some((log) => ownData(log, "id") === proof.qsoId
+        && ownData(log, "expeditionRunId") === proof.runId
+        && ownData(log, "expeditionSiteId") === proof.siteId
+        && ownData(log, "playerLocationId") === proof.playerLocationId
+        && ownData(log, "personId") === proof.personId
+        && ownData(log, "stationId") === proof.stationId
+        && String(ownData(log, "callsign") ?? "").toUpperCase() === record.callsign
+        && iso(ownData(log, "completedAt")) === proof.completedAt
+        && ownData(log, "isFictional") === true);
+    }));
   } catch {
     return Object.freeze([]);
   }

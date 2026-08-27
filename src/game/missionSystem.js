@@ -1,10 +1,16 @@
 import { expeditionSiteById } from "./expeditionCatalog.js";
 import { normalizeExpeditionSettlementProofs } from "./expeditionRun.js";
 import { personIdForOperator, stationIdentityForCallsign } from "./personIdentity.js";
+import { verifiedExpeditionQslRecords } from "./qslRecords.js";
+import { normalizeQslStoryState } from "./qslStoryRun.js";
+import { normalizeStoryContinuationState } from "./storyContinuationState.js";
+import { normalizeOperatorRelationships } from "../qso/operatorRelationships.js";
 
 export const MISSION_STATE_VERSION = 2;
 export const MAX_ACTIVE_DAILY_MISSIONS = 2;
-export const STORY_MISSION_IDS = Object.freeze(["story-01", "story-02", "story-03", "story-04", "story-05", "story-06"]);
+export const STORY_MISSION_IDS = Object.freeze([
+  "story-01", "story-02", "story-03", "story-04", "story-05", "story-06", "story-07",
+]);
 export const RECENT_MISSION_DNA_LIMIT = 12;
 export const MISSION_EVENT_LIMIT = 120;
 
@@ -61,6 +67,16 @@ const STORY_MISSIONS = Object.freeze([
     moneyReward: 650, technologyPointsReward: 3,
     contract: Object.freeze({
       missionPhase: "hill-expedition", requiredTopics: ["QTH", "POWER", "ANTENNA"],
+      recoveryActions: ["AGN", "QRS"],
+    }),
+  }),
+  Object.freeze({
+    id: "story-07", type: "story", chapter: 7, titleKey: "story07Title", descriptionKey: "story07Description",
+    objectiveKey: "story07Objective", briefKey: "story07Brief", debriefKey: "story07Debrief",
+    objective: "qsl-clarification", target: 1, prerequisiteId: "story-06",
+    moneyReward: 750, technologyPointsReward: 3,
+    contract: Object.freeze({
+      missionPhase: "qsl-clarification", requiredTopics: ["QSL", "CHOICE"],
       recoveryActions: ["AGN", "QRS"],
     }),
   }),
@@ -212,6 +228,7 @@ function normalizeActiveMission(value) {
     baselineQsoIds: normalizeStringList(value?.baselineQsoIds, 200, 96),
     baselineLightsRunIds: normalizeStringList(value?.baselineLightsRunIds, 200, 128),
     baselineExpeditionRunIds: normalizeStringList(value?.baselineExpeditionRunIds, 200, 128),
+    baselineQslStoryRunIds: normalizeStringList(value?.baselineQslStoryRunIds, 100, 128),
     knownCallsigns: normalizeStringList(value?.knownCallsigns, 2000, 16),
     contract: normalizeMissionContract(value?.contract),
     dnaFingerprint: String(value?.dnaFingerprint ?? "").trim().slice(0, 240) || null,
@@ -371,6 +388,52 @@ function verifiedExpeditionCompletion(save, active, logs) {
   });
 }
 
+function confirmedChapterSevenSource(save) {
+  return verifiedExpeditionQslRecords(save).some((record) => (
+    record.personId === "person:sora"
+    && record.stationId === "station:sim6jp"
+    && record.callsign === "SIM6JP"
+    && record.choice != null
+    && record.playerNarrativeKey === "qsl.player.hill-signal"
+    && record.operatorNarrativeKey === "qsl.operator.sora-hill-reply"
+    && String(record.qsoId).startsWith("expedition-qso:")
+  ));
+}
+
+function verifiedQslStoryCompletion(save, active, logs) {
+  const acceptedAt = Date.parse(own(active, "acceptedAt") ?? "");
+  if (!Number.isFinite(acceptedAt)) return false;
+  const baseline = new Set(Array.isArray(own(active, "baselineQslStoryRunIds"))
+    ? own(active, "baselineQslStoryRunIds").slice(-100) : []);
+  const continuation = normalizeStoryContinuationState(own(save, "storyContinuationState"));
+  const chapter = normalizeQslStoryState(continuation.chapter07);
+  const retainedLogs = Array.isArray(logs) ? logs.slice(-200) : [];
+  const sourceRecords = verifiedExpeditionQslRecords(save);
+  const relationships = normalizeOperatorRelationships(own(save, "operatorRelationships"));
+
+  return chapter.cases.some((qslCase) => {
+    if (baseline.has(qslCase.runId) || !chapter.settledRunIds.includes(qslCase.runId)
+      || Date.parse(qslCase.completedAt) < acceptedAt) return false;
+    const source = sourceRecords.find((record) => record.id === qslCase.sourceQslId);
+    if (!source || source.personId !== qslCase.personId || source.stationId !== qslCase.stationId
+      || source.choice !== qslCase.initialChoice) return false;
+    const log = retainedLogs.find((candidate) => own(candidate, "id") === qslCase.qsoId);
+    const logCallsign = String(own(log, "callsign") ?? "").trim().toUpperCase().slice(0, 16);
+    const verifiedPerson = personIdForOperator(log ? { ...log, callsign: logCallsign } : null);
+    const verifiedStation = stationIdentityForCallsign(logCallsign, log ?? {});
+    if (!log || own(log, "eventKind") !== "qsl-story" || own(log, "eventRunId") !== qslCase.runId
+      || own(log, "personId") !== qslCase.personId || own(log, "stationId") !== qslCase.stationId
+      || verifiedPerson !== qslCase.personId || verifiedStation?.stationId !== qslCase.stationId
+      || own(log, "isFictional") !== true
+      || Date.parse(own(log, "completedAt") ?? "") !== Date.parse(qslCase.completedAt)) return false;
+    const relationship = relationships.find((candidate) => candidate.personId === qslCase.personId);
+    return Boolean(relationship)
+      && relationship.callsign === logCallsign
+      && relationship.completedQsos > 0
+      && relationship.lastQsoId === qslCase.qsoId;
+  });
+}
+
 function usedRecovery(log) {
   return safeInteger(log?.copyQueries) > 0 || safeInteger(log?.repeatRequests) > 0
     || (Array.isArray(log?.attemptHistory) && log.attemptHistory.some((attempt) => {
@@ -428,6 +491,9 @@ function evaluateObjective(definition, logs, save, active = null) {
   if (definition.objective === "hill-expedition") {
     current = verifiedExpeditionCompletion(save, active, logs) ? 1 : 0;
   }
+  if (definition.objective === "qsl-clarification") {
+    current = verifiedQslStoryCompletion(save, active, logs) ? 1 : 0;
+  }
   if (definition.objective === "clean-qso") {
     current = logs.filter((entry) => safeInteger(entry?.repeatRequests) === 0
       && Number(entry?.transmitAccuracy) >= 85 && Number(entry?.keyingScore) >= 75).length;
@@ -449,9 +515,9 @@ function evaluateObjective(definition, logs, save, active = null) {
 function evaluatedMission(save, state, definition) {
   const claimed = state.claimedMissionIds.includes(definition.id);
   const active = state.activeMissions.find((mission) => mission.id === definition.id) ?? null;
-  const locked = definition.type === "story" && definition.prerequisiteId
-    ? !state.claimedMissionIds.includes(definition.prerequisiteId)
-    : false;
+  const prerequisiteLocked = definition.type === "story" && definition.prerequisiteId
+    ? !state.claimedMissionIds.includes(definition.prerequisiteId) : false;
+  const locked = prerequisiteLocked || (definition.id === "story-07" && !confirmedChapterSevenSource(save));
   const progress = active ? evaluateObjective(definition, logsForMission(save, active), save, active) : { current: 0, complete: false };
   const status = claimed ? "claimed" : locked ? "locked" : active
     ? progress.complete ? "ready" : "active"
@@ -515,6 +581,9 @@ export function acceptMission(save, missionId, acceptedAt = new Date().toISOStri
       ? save.lightsEventState.settledRunIds.slice(-200) : []).map((id) => String(id)).filter(Boolean),
     baselineExpeditionRunIds: (Array.isArray(save?.expeditionState?.settledRunIds)
       ? save.expeditionState.settledRunIds.slice(-200) : []).map((id) => String(id)).filter(Boolean),
+    baselineQslStoryRunIds: (Array.isArray(save?.storyContinuationState?.chapter07?.settledRunIds)
+      ? save.storyContinuationState.chapter07.settledRunIds.slice(-100) : [])
+      .map((id) => String(id)).filter(Boolean),
     knownCallsigns: (Array.isArray(save?.operatorRelationships)
       ? save.operatorRelationships.slice(-2000) : [])
       .map(({ callsign }) => callsign).filter(Boolean),
@@ -558,6 +627,15 @@ export function claimMission(save, missionId, claimedAt = new Date().toISOString
   const expeditionState = definition.id === "story-06"
     ? { ...(save?.expeditionState ?? {}), expeditionTreeUnlocked: true }
     : save?.expeditionState;
+  const continuation = definition.id === "story-07"
+    ? normalizeStoryContinuationState({
+      ...normalizeStoryContinuationState(save?.storyContinuationState),
+      chapter07: normalizeQslStoryState({
+        ...normalizeStoryContinuationState(save?.storyContinuationState).chapter07,
+        peopleTaskTreeUnlocked: true,
+      }),
+    })
+    : save?.storyContinuationState;
   return {
     save: {
       ...save,
@@ -567,6 +645,7 @@ export function claimMission(save, missionId, claimedAt = new Date().toISOString
       technologyPoints: safeAdd(save?.technologyPoints, technologyPointsAwarded),
       ...(knownOperatorNames ? { knownOperatorNames } : {}),
       ...(expeditionState ? { expeditionState } : {}),
+      ...(continuation ? { storyContinuationState: continuation } : {}),
     },
     claimed: true,
     reason: null,

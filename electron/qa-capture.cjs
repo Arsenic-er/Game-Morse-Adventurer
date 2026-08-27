@@ -2,7 +2,7 @@ const fs = require("fs/promises");
 const path = require("path");
 
 const LIGHTS_QA_WPM = 12;
-const QA_QSO_LOG_VERSION = 8;
+const QA_QSO_LOG_VERSION = 9;
 const QA_STORAGE_KEYS = Object.freeze([
   "game-morse-adventurer.saves.v1",
   "game-morse-adventurer.active-save.v1",

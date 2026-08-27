@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   MAX_QSL_RECORDS, QSL_CHOICES, QSL_RECORDS_VERSION, confirmQslChoice,
-  createExpeditionQslRecord, createQslRecord, normalizeQslRecords,
+  createExpeditionQslRecord, createQslRecord, normalizeQslRecords, verifiedExpeditionQslRecords,
 } from "../src/game/qslRecords.js";
 import { createSave, normalizeSave } from "../src/game/saveStore.js";
 
@@ -58,6 +58,52 @@ test("expedition settlement creates a bounded QSL linked to both QSO and event r
   assert.equal(record.personId, BASE.personId);
   assert.equal(record.playerNarrativeKey, "qsl.player.hill-signal");
   assert.equal(record.operatorNarrativeKey, "qsl.operator.sora-hill-reply");
+});
+
+test("only QSL records linked to an expedition proof and retained QSO are story sources", () => {
+  const record = createQslRecord({
+    ...BASE,
+    id: "qsl:expedition:run-1",
+    choice: "believe",
+    confirmedAt: "2026-08-26T03:06:00.000Z",
+  });
+  const proof = {
+    runId: "run-1",
+    qsoId: BASE.qsoId,
+    siteId: "sunward-hill",
+    personId: BASE.personId,
+    stationId: BASE.stationId,
+    completedAt: BASE.createdAt,
+    playerLocationId: "expedition:sunward-hill",
+    isFictional: true,
+  };
+  const sourceLog = {
+    id: BASE.qsoId,
+    completedAt: BASE.createdAt,
+    callsign: BASE.callsign,
+    personId: BASE.personId,
+    stationId: BASE.stationId,
+    expeditionRunId: "run-1",
+    expeditionSiteId: "sunward-hill",
+    playerLocationId: "expedition:sunward-hill",
+    isFictional: true,
+  };
+  const save = {
+    qslRecords: [record],
+    expeditionState: { settledRunIds: ["run-1"], settledQsoProofs: [proof] },
+    qsoLogs: [sourceLog],
+  };
+
+  assert.deepEqual(verifiedExpeditionQslRecords(save), [record]);
+  assert.deepEqual(verifiedExpeditionQslRecords({ ...save, qsoLogs: [] }), []);
+  assert.deepEqual(verifiedExpeditionQslRecords({
+    ...save,
+    expeditionState: { settledRunIds: ["run-1"], settledQsoProofs: [] },
+  }), []);
+  assert.deepEqual(verifiedExpeditionQslRecords({
+    ...save,
+    qslRecords: [{ ...record, id: "qsl:expedition:other" }],
+  }), []);
 });
 
 test("QSL choice confirms once, reloads unchanged, and duplicate confirmation is an exact no-op", () => {
