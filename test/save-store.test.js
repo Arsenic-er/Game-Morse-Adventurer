@@ -16,6 +16,9 @@ import { LIGHTS_EVENT_STATE_VERSION, emptyLightsEventState } from "../src/game/l
 import { EVENT_RUN_ARCHIVE_VERSION, emptyEventRunArchive } from "../src/game/eventRunArchive.js";
 import { ACHIEVEMENT_REWARDS_VERSION } from "../src/game/achievements.js";
 import { EXPEDITION_STATE_VERSION, emptyExpeditionState } from "../src/game/expeditionRun.js";
+import {
+  STORY_CONTINUATION_STATE_VERSION, emptyStoryContinuationState,
+} from "../src/game/storyContinuationState.js";
 
 const SAVE_V035_FIXTURE = JSON.parse(readFileSync(
   new URL("./fixtures/save-v035-sanitized.json", import.meta.url),
@@ -74,6 +77,8 @@ test("save records preserve fixed hardware and swappable loadout ids", () => {
   assert.deepEqual(save.eventRunArchive, emptyEventRunArchive());
   assert.equal(save.expeditionStateVersion, EXPEDITION_STATE_VERSION);
   assert.deepEqual(save.expeditionState, emptyExpeditionState());
+  assert.equal(save.storyContinuationStateVersion, STORY_CONTINUATION_STATE_VERSION);
+  assert.deepEqual(save.storyContinuationState, emptyStoryContinuationState());
   assert.deepEqual(save.qsoRecords, {
     total: 0,
     longestDistanceKm: 0,
@@ -183,6 +188,27 @@ test("a sanitized v0.35 save normalizes twice without progress loss or retroacti
   assert.deepEqual(first.eventRunArchive, emptyEventRunArchive());
   assert.equal(first.expeditionStateVersion, EXPEDITION_STATE_VERSION);
   assert.deepEqual(first.expeditionState, emptyExpeditionState());
+  assert.equal(first.storyContinuationStateVersion, STORY_CONTINUATION_STATE_VERSION);
+  assert.deepEqual(first.storyContinuationState, emptyStoryContinuationState());
+});
+
+test("legacy saves gain empty continuation state without retroactive value", () => {
+  const legacy = {
+    ...createSave({ callsign: "JA1OLD", locationId: "japan-tokyo-kanto" }),
+    money: 1234,
+    technologyPoints: 7,
+  };
+  delete legacy.storyContinuationStateVersion;
+  delete legacy.storyContinuationState;
+
+  const once = normalizeSave(legacy);
+  const twice = normalizeSave(JSON.parse(JSON.stringify(once)));
+
+  assert.equal(once.storyContinuationStateVersion, STORY_CONTINUATION_STATE_VERSION);
+  assert.deepEqual(once.storyContinuationState, emptyStoryContinuationState());
+  assert.equal(once.money, 1234);
+  assert.equal(once.technologyPoints, 7);
+  assert.deepEqual(twice, once);
 });
 
 test("expedition migration is idempotent and never mutates permanent progress or back-pays legacy runs", () => {

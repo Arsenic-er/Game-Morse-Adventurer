@@ -33,6 +33,9 @@ import {
 import {
   QSL_RECORDS_VERSION, normalizeQslRecords,
 } from "./qslRecords.js";
+import {
+  STORY_CONTINUATION_STATE_VERSION, emptyStoryContinuationState, normalizeStoryContinuationState,
+} from "./storyContinuationState.js";
 
 export const SAVE_STORAGE_KEY = "game-morse-adventurer.saves.v1";
 export const ACTIVE_SAVE_KEY = "game-morse-adventurer.active-save.v1";
@@ -106,6 +109,8 @@ export function createSave({
     expeditionState: emptyExpeditionState(),
     qslRecordsVersion: QSL_RECORDS_VERSION,
     qslRecords: normalizeQslRecords([]),
+    storyContinuationStateVersion: STORY_CONTINUATION_STATE_VERSION,
+    storyContinuationState: emptyStoryContinuationState(),
     technologyPoints: 0,
     unlockedTechnologies: normalizeUnlockedTechnologies([]),
     researchProjectsVersion: RESEARCH_PROJECTS_VERSION,
@@ -207,6 +212,8 @@ export function normalizeSave(save) {
     expeditionState: normalizeExpeditionState(save?.expeditionState),
     qslRecordsVersion: QSL_RECORDS_VERSION,
     qslRecords: normalizeQslRecords(save?.qslRecords),
+    storyContinuationStateVersion: STORY_CONTINUATION_STATE_VERSION,
+    storyContinuationState: normalizeStoryContinuationState(save?.storyContinuationState),
     technologyPoints: normalizeTechnologyPoints(save?.technologyPoints),
     unlockedTechnologies: normalizeUnlockedTechnologies(save?.unlockedTechnologies, {
       // Equipment released before the research system remains available to old saves.
