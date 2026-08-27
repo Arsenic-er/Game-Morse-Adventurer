@@ -33,6 +33,11 @@ import {
   submitServiceNetText,
 } from "../src/game/serviceNetRun.js";
 import { settleServiceNetRun } from "../src/game/serviceNetSettlement.js";
+import {
+  beginCoordinateRelayRun, coordinatePacketText, createCoordinateRelayRun, normalizeCoordinateRelayState,
+  receiveCoordinatePacket, receiveRelayConfirmation, submitCoordinateRelayText,
+} from "../src/game/coordinateRelayRun.js";
+import { settleCoordinateRelayRun } from "../src/game/coordinateRelaySettlement.js";
 import { createSave } from "../src/game/saveStore.js";
 import { normalizeStoryContinuationState } from "../src/game/storyContinuationState.js";
 import { normalizeExpeditionState } from "../src/game/expeditionRun.js";
@@ -371,6 +376,62 @@ test("story eight rejects pre-acceptance and incomplete service proof sets", () 
   ]) {
     assert.equal(missionBoard(forged).story.find(({ id }) => id === "story-08").status, "active");
     assert.equal(claimMission(forged, "story-08").reason, "MISSION_NOT_COMPLETE");
+  }
+});
+
+function completedCoordinateRelayRun(seed = "mission-story-09") {
+  let run = beginCoordinateRelayRun(createCoordinateRelayRun({ playerCallsign: "BH1ABC", seed, startedAt: "2026-08-28T02:01:00.000Z" }));
+  run = receiveCoordinatePacket(run, "2026-08-28T02:01:10.000Z");
+  run = submitCoordinateRelayText(run, coordinatePacketText(run.packet), { safeToCommit: true }, "2026-08-28T02:01:20.000Z");
+  run = submitCoordinateRelayText(run, coordinatePacketText(run.packet), { safeToCommit: true }, "2026-08-28T02:01:30.000Z");
+  return receiveRelayConfirmation(run, `QSL MSG ${run.packet.packetId} CHECK ${String(run.packet.check).padStart(2, "0")} K`, "2026-08-28T02:01:40.000Z");
+}
+
+function storyEightClaimed() {
+  const base = storySevenClaimed();
+  return {
+    ...base,
+    missionState: {
+      ...base.missionState,
+      claimedMissionIds: [...base.missionState.claimedMissionIds, "story-08"],
+      history: [...base.missionState.history, { id: "story-08", claimedAt: "2026-08-28T01:30:00.000Z", moneyReward: 850, technologyPointsReward: 4, outcome: "completed" }],
+    },
+  };
+}
+
+test("story nine requires linked coordinate relay facts and rewards only once", () => {
+  const base = storyEightClaimed();
+  const accepted = acceptMission(base, "story-09", "2026-08-28T02:00:00.000Z");
+  assert.equal(accepted.accepted, true);
+  const run = completedCoordinateRelayRun();
+  const active = { ...accepted.save, storyContinuationState: normalizeStoryContinuationState({ ...accepted.save.storyContinuationState, chapter09: normalizeCoordinateRelayState({ activeRun: run }) }) };
+  const settled = settleCoordinateRelayRun(active, run, "2026-08-28T02:02:00.000Z");
+  assert.equal(settled.settled, true);
+  assert.equal(missionBoard(settled.save).story.find(({ id }) => id === "story-09").status, "ready");
+  const claimed = claimMission(settled.save, "story-09", "2026-08-28T02:03:00.000Z");
+  assert.equal(claimed.claimed, true);
+  assert.equal(claimed.moneyAwarded, 950);
+  assert.equal(claimed.technologyPointsAwarded, 4);
+  assert.equal(claimed.save.money, base.money + 950);
+  assert.equal(claimed.save.technologyPoints, base.technologyPoints + 4);
+  assert.equal(claimed.save.storyContinuationState.chapter09.toolUnlocked, true);
+  assert.equal(claimMission(claimed.save, "story-09").reason, "MISSION_ALREADY_CLAIMED");
+});
+
+test("story nine rejects pre-acceptance and partial coordinate proof sets", () => {
+  const base = storyEightClaimed();
+  const run = completedCoordinateRelayRun("mission-story-09-forged");
+  const accepted = acceptMission(base, "story-09", "2026-08-28T02:00:00.000Z").save;
+  const active = { ...accepted, storyContinuationState: normalizeStoryContinuationState({ ...accepted.storyContinuationState, chapter09: normalizeCoordinateRelayState({ activeRun: run }) }) };
+  const settled = settleCoordinateRelayRun(active, run, "2026-08-28T02:02:00.000Z").save;
+  for (const forged of [
+    { ...settled, qsoLogs: settled.qsoLogs.slice(1) },
+    { ...settled, operatorRelationships: settled.operatorRelationships.slice(1) },
+    { ...settled, storyContinuationState: normalizeStoryContinuationState({ ...settled.storyContinuationState, chapter09: normalizeCoordinateRelayState({ ...settled.storyContinuationState.chapter09, packets: [] }) }) },
+    { ...settled, storyContinuationState: normalizeStoryContinuationState({ ...settled.storyContinuationState, chapter09: normalizeCoordinateRelayState({ ...settled.storyContinuationState.chapter09, settledRunIds: [] }) }) },
+  ]) {
+    assert.equal(missionBoard(forged).story.find(({ id }) => id === "story-09").status, "active");
+    assert.equal(claimMission(forged, "story-09").reason, "MISSION_NOT_COMPLETE");
   }
 });
 

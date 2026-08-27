@@ -6,6 +6,7 @@ import {
   emptyStoryContinuationState,
   normalizeStoryContinuationState,
 } from "../src/game/storyContinuationState.js";
+import { computeCoordinatePacketCheck } from "../src/game/coordinateRelayRun.js";
 
 const minute = (index) => new Date(Date.UTC(2026, 7, 28, 0, index)).toISOString();
 const records = (count, prefix = "case") => Array.from({ length: count }, (_, index) => ({
@@ -40,6 +41,17 @@ const serviceReceipts = (count) => Array.from({ length: count }, (_, index) => (
   acknowledgedAt: minute(index),
   completedAt: minute(index),
 }));
+const coordinatePackets = (count) => Array.from({ length: count }, (_, index) => {
+  const packet = { packetId: String(index + 1).padStart(3, "0"), grid: `PX-${String(index).padStart(4, "0")}-${String(index + 1).padStart(4, "0")}`, utc: `${String(index % 24).padStart(2, "0")}${String(index % 60).padStart(2, "0")}Z`, people: index % 100 };
+  return {
+    id: `coordinate-packet:${String(index).padStart(3, "0")}`, runId: `coordinate-relay:${String(index).padStart(3, "0")}`,
+    sourceQsoId: `coordinate-source-qso:${String(index).padStart(3, "0")}`, relayQsoId: `coordinate-relay-qso:${String(index).padStart(3, "0")}`,
+    packet: { ...packet, check: computeCoordinatePacketCheck(packet) }, readbackAttempts: 1,
+    sourcePersonId: "person:procedural:chapter09-source", sourceStationId: "station:procedural:chapter09-source",
+    relayPersonId: "person:procedural:chapter09-relay", relayStationId: "station:procedural:chapter09-relay",
+    sourceCompletedAt: minute(index), completedAt: minute(index),
+  };
+});
 
 test("empty continuation state has fixed chapter seven through ten shape", () => {
   const state = emptyStoryContinuationState();
@@ -60,7 +72,7 @@ test("continuation ledgers retain bounded ordered tails and normalize twice iden
   const state = normalizeStoryContinuationState({
     chapter07: { cases: qslCases(45), settledRunIds: ids(105) },
     chapter08: { receipts: serviceReceipts(85), settledRunIds: ids(101, "service"), taskTreeUnlocked: true },
-    chapter09: { packets: records(81, "packet"), settledRunIds: ids(102, "relay"), toolUnlocked: true },
+    chapter09: { packets: coordinatePackets(81), settledRunIds: ids(102, "relay"), toolUnlocked: true },
     chapter10: { records: records(41, "contest"), settledRunIds: ids(103, "contest-run"), taskTreeUnlocked: true },
   });
 
