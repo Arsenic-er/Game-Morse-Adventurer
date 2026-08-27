@@ -3,13 +3,15 @@ import { normalizeExpeditionSettlementProofs } from "./expeditionRun.js";
 import { personIdForOperator, stationIdentityForCallsign } from "./personIdentity.js";
 import { verifiedExpeditionQslRecords } from "./qslRecords.js";
 import { normalizeQslStoryState } from "./qslStoryRun.js";
+import { normalizeServiceNetState } from "./serviceNetRun.js";
+import { verifiedServiceNetCompletion } from "./serviceNetSettlement.js";
 import { normalizeStoryContinuationState } from "./storyContinuationState.js";
 import { normalizeOperatorRelationships } from "../qso/operatorRelationships.js";
 
 export const MISSION_STATE_VERSION = 2;
 export const MAX_ACTIVE_DAILY_MISSIONS = 2;
 export const STORY_MISSION_IDS = Object.freeze([
-  "story-01", "story-02", "story-03", "story-04", "story-05", "story-06", "story-07",
+  "story-01", "story-02", "story-03", "story-04", "story-05", "story-06", "story-07", "story-08",
 ]);
 export const RECENT_MISSION_DNA_LIMIT = 12;
 export const MISSION_EVENT_LIMIT = 120;
@@ -77,6 +79,16 @@ const STORY_MISSIONS = Object.freeze([
     moneyReward: 750, technologyPointsReward: 3,
     contract: Object.freeze({
       missionPhase: "qsl-clarification", requiredTopics: ["QSL", "CHOICE"],
+      recoveryActions: ["AGN", "QRS"],
+    }),
+  }),
+  Object.freeze({
+    id: "story-08", type: "story", chapter: 8, titleKey: "story08Title", descriptionKey: "story08Description",
+    objectiveKey: "story08Objective", briefKey: "story08Brief", debriefKey: "story08Debrief",
+    objective: "service-net", target: 1, prerequisiteId: "story-07",
+    moneyReward: 850, technologyPointsReward: 4,
+    contract: Object.freeze({
+      missionPhase: "fictional-public-service", requiredTopics: ["MESSAGE_ID", "PRIORITY", "ACK"],
       recoveryActions: ["AGN", "QRS"],
     }),
   }),
@@ -229,6 +241,7 @@ function normalizeActiveMission(value) {
     baselineLightsRunIds: normalizeStringList(value?.baselineLightsRunIds, 200, 128),
     baselineExpeditionRunIds: normalizeStringList(value?.baselineExpeditionRunIds, 200, 128),
     baselineQslStoryRunIds: normalizeStringList(value?.baselineQslStoryRunIds, 100, 128),
+    baselineServiceNetRunIds: normalizeStringList(value?.baselineServiceNetRunIds, 100, 128),
     knownCallsigns: normalizeStringList(value?.knownCallsigns, 2000, 16),
     contract: normalizeMissionContract(value?.contract),
     dnaFingerprint: String(value?.dnaFingerprint ?? "").trim().slice(0, 240) || null,
@@ -494,6 +507,9 @@ function evaluateObjective(definition, logs, save, active = null) {
   if (definition.objective === "qsl-clarification") {
     current = verifiedQslStoryCompletion(save, active, logs) ? 1 : 0;
   }
+  if (definition.objective === "service-net") {
+    current = verifiedServiceNetCompletion(save, active, logs) ? 1 : 0;
+  }
   if (definition.objective === "clean-qso") {
     current = logs.filter((entry) => safeInteger(entry?.repeatRequests) === 0
       && Number(entry?.transmitAccuracy) >= 85 && Number(entry?.keyingScore) >= 75).length;
@@ -584,6 +600,9 @@ export function acceptMission(save, missionId, acceptedAt = new Date().toISOStri
     baselineQslStoryRunIds: (Array.isArray(save?.storyContinuationState?.chapter07?.settledRunIds)
       ? save.storyContinuationState.chapter07.settledRunIds.slice(-100) : [])
       .map((id) => String(id)).filter(Boolean),
+    baselineServiceNetRunIds: (Array.isArray(save?.storyContinuationState?.chapter08?.settledRunIds)
+      ? save.storyContinuationState.chapter08.settledRunIds.slice(-100) : [])
+      .map((id) => String(id)).filter(Boolean),
     knownCallsigns: (Array.isArray(save?.operatorRelationships)
       ? save.operatorRelationships.slice(-2000) : [])
       .map(({ callsign }) => callsign).filter(Boolean),
@@ -627,15 +646,21 @@ export function claimMission(save, missionId, claimedAt = new Date().toISOString
   const expeditionState = definition.id === "story-06"
     ? { ...(save?.expeditionState ?? {}), expeditionTreeUnlocked: true }
     : save?.expeditionState;
-  const continuation = definition.id === "story-07"
-    ? normalizeStoryContinuationState({
-      ...normalizeStoryContinuationState(save?.storyContinuationState),
-      chapter07: normalizeQslStoryState({
-        ...normalizeStoryContinuationState(save?.storyContinuationState).chapter07,
-        peopleTaskTreeUnlocked: true,
-      }),
-    })
-    : save?.storyContinuationState;
+  let continuation = save?.storyContinuationState;
+  if (definition.id === "story-07") {
+    const current = normalizeStoryContinuationState(save?.storyContinuationState);
+    continuation = normalizeStoryContinuationState({
+      ...current,
+      chapter07: normalizeQslStoryState({ ...current.chapter07, peopleTaskTreeUnlocked: true }),
+    });
+  }
+  if (definition.id === "story-08") {
+    const current = normalizeStoryContinuationState(save?.storyContinuationState);
+    continuation = normalizeStoryContinuationState({
+      ...current,
+      chapter08: normalizeServiceNetState({ ...current.chapter08, taskTreeUnlocked: true }),
+    });
+  }
   return {
     save: {
       ...save,

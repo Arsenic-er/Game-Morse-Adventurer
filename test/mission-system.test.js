@@ -25,6 +25,14 @@ import {
   submitQslClarification,
 } from "../src/game/qslStoryRun.js";
 import { settleQslStoryRun } from "../src/game/qslStorySettlement.js";
+import {
+  beginServiceNetRun,
+  createServiceNetRun,
+  normalizeServiceNetState,
+  receiveServiceNetMessage,
+  submitServiceNetText,
+} from "../src/game/serviceNetRun.js";
+import { settleServiceNetRun } from "../src/game/serviceNetSettlement.js";
 import { createSave } from "../src/game/saveStore.js";
 import { normalizeStoryContinuationState } from "../src/game/storyContinuationState.js";
 import { normalizeExpeditionState } from "../src/game/expeditionRun.js";
@@ -203,10 +211,10 @@ test("story chapters unlock sequentially and rewards settle once", () => {
 });
 
 test("story seven requires a confirmed hill QSL and four linked settlement facts", () => {
-  assert.equal(missionBoard(storySixClaimed({ withQsl: false })).story.at(-1).status, "locked");
+  assert.equal(missionBoard(storySixClaimed({ withQsl: false })).story.find(({ id }) => id === "story-07").status, "locked");
   const accepted = acceptMission(storySixClaimed(), "story-07", "2026-08-28T00:00:00.000Z");
   assert.equal(accepted.accepted, true);
-  assert.equal(missionBoard(accepted.save).story.at(-1).status, "active");
+  assert.equal(missionBoard(accepted.save).story.find(({ id }) => id === "story-07").status, "active");
 
   const run = chapterSevenRun();
   const withActiveRun = {
@@ -218,7 +226,7 @@ test("story seven requires a confirmed hill QSL and four linked settlement facts
   };
   const settled = settleQslStoryRun(withActiveRun, run, "2026-08-28T00:05:00.000Z");
   assert.equal(settled.settled, true);
-  assert.equal(missionBoard(settled.save).story.at(-1).status, "ready");
+  assert.equal(missionBoard(settled.save).story.find(({ id }) => id === "story-07").status, "ready");
 
   const claimed = claimMission(settled.save, "story-07", "2026-08-28T00:06:00.000Z");
   assert.equal(claimed.claimed, true);
@@ -242,7 +250,7 @@ test("story seven ignores pre-acceptance and partially forged chapter evidence",
   }, run, "2026-08-28T00:05:00.000Z").save;
   const acceptedAfter = acceptMission(preAccepted, "story-07", "2026-08-28T00:06:00.000Z");
   assert.equal(acceptedAfter.accepted, true);
-  assert.equal(missionBoard(acceptedAfter.save).story.at(-1).status, "active");
+  assert.equal(missionBoard(acceptedAfter.save).story.find(({ id }) => id === "story-07").status, "active");
 
   const accepted = acceptMission(storySixClaimed(), "story-07", "2026-08-28T00:00:00.000Z").save;
   const forged = {
@@ -254,8 +262,116 @@ test("story seven ignores pre-acceptance and partially forged chapter evidence",
     qsoLogs: accepted.qsoLogs,
     operatorRelationships: accepted.operatorRelationships,
   };
-  assert.equal(missionBoard(forged).story.at(-1).status, "active");
+  assert.equal(missionBoard(forged).story.find(({ id }) => id === "story-07").status, "active");
   assert.equal(claimMission(forged, "story-07").reason, "MISSION_NOT_COMPLETE");
+});
+
+function completedServiceNetRun(seed = "mission-story-08") {
+  let run = beginServiceNetRun(createServiceNetRun({
+    playerCallsign: "BH1ABC", seed, startedAt: "2026-08-28T01:01:00.000Z",
+  }));
+  run = submitServiceNetText(run, "BH1ABC CHECK IN K", { safeToCommit: true }, "2026-08-28T01:01:10.000Z");
+  for (let index = 0; index < 3; index += 1) {
+    run = receiveServiceNetMessage(run, `2026-08-28T01:0${index + 2}:00.000Z`);
+    const message = run.messages[run.priorityOrder[run.currentPosition]];
+    run = submitServiceNetText(run, `ACK ${message.messageId} PRI ${message.priority} K`,
+      { safeToCommit: true }, `2026-08-28T01:0${index + 2}:10.000Z`);
+  }
+  return run;
+}
+
+function storySevenClaimed() {
+  const base = storySixClaimed();
+  return {
+    ...base,
+    missionState: {
+      ...base.missionState,
+      claimedMissionIds: [...base.missionState.claimedMissionIds, "story-07"],
+      history: [...base.missionState.history, {
+        id: "story-07", claimedAt: "2026-08-28T00:30:00.000Z", moneyReward: 750,
+        technologyPointsReward: 3, outcome: "completed",
+      }],
+    },
+  };
+}
+
+test("story eight requires four linked service facts and rewards only once", () => {
+  const base = storySevenClaimed();
+  const accepted = acceptMission(base, "story-08", "2026-08-28T01:00:00.000Z");
+  assert.equal(accepted.accepted, true);
+  assert.equal(missionBoard(accepted.save).story.find(({ id }) => id === "story-08").status, "active");
+  const run = completedServiceNetRun();
+  const active = {
+    ...accepted.save,
+    storyContinuationState: normalizeStoryContinuationState({
+      ...accepted.save.storyContinuationState,
+      chapter08: normalizeServiceNetState({ activeRun: run }),
+    }),
+  };
+  const settled = settleServiceNetRun(active, run, "2026-08-28T01:06:00.000Z");
+  assert.equal(settled.settled, true);
+  assert.equal(missionBoard(settled.save).story.find(({ id }) => id === "story-08").status, "ready");
+  const claimed = claimMission(settled.save, "story-08", "2026-08-28T01:07:00.000Z");
+  assert.equal(claimed.claimed, true);
+  assert.equal(claimed.moneyAwarded, 850);
+  assert.equal(claimed.technologyPointsAwarded, 4);
+  assert.equal(claimed.save.money, base.money + 850);
+  assert.equal(claimed.save.technologyPoints, base.technologyPoints + 4);
+  assert.equal(claimed.save.storyContinuationState.chapter08.taskTreeUnlocked, true);
+  assert.equal(claimMission(claimed.save, "story-08").reason, "MISSION_ALREADY_CLAIMED");
+
+  const replay = completedServiceNetRun("mission-story-08-replay");
+  const replaySave = {
+    ...claimed.save,
+    storyContinuationState: normalizeStoryContinuationState({
+      ...claimed.save.storyContinuationState,
+      chapter08: normalizeServiceNetState({
+        ...claimed.save.storyContinuationState.chapter08, activeRun: replay,
+      }),
+    }),
+  };
+  const replayed = settleServiceNetRun(replaySave, replay, "2026-08-28T01:08:00.000Z");
+  assert.equal(replayed.settled, true);
+  assert.equal(replayed.save.money, claimed.save.money);
+  assert.equal(replayed.save.technologyPoints, claimed.save.technologyPoints);
+});
+
+test("story eight rejects pre-acceptance and incomplete service proof sets", () => {
+  const run = completedServiceNetRun("mission-story-08-forgery");
+  const base = storySevenClaimed();
+  const preAcceptedActive = {
+    ...base,
+    storyContinuationState: normalizeStoryContinuationState({
+      ...base.storyContinuationState, chapter08: normalizeServiceNetState({ activeRun: run }),
+    }),
+  };
+  const preAccepted = settleServiceNetRun(preAcceptedActive, run, "2026-08-28T01:06:00.000Z").save;
+  const acceptedAfter = acceptMission(preAccepted, "story-08", "2026-08-28T01:07:00.000Z");
+  assert.equal(missionBoard(acceptedAfter.save).story.find(({ id }) => id === "story-08").status, "active");
+
+  const accepted = acceptMission(base, "story-08", "2026-08-28T01:00:00.000Z").save;
+  const active = {
+    ...accepted,
+    storyContinuationState: normalizeStoryContinuationState({
+      ...accepted.storyContinuationState, chapter08: normalizeServiceNetState({ activeRun: run }),
+    }),
+  };
+  const settled = settleServiceNetRun(active, run, "2026-08-28T01:06:00.000Z").save;
+  for (const forged of [
+    { ...settled, qsoLogs: [] },
+    { ...settled, operatorRelationships: [] },
+    { ...settled, storyContinuationState: normalizeStoryContinuationState({
+      ...settled.storyContinuationState,
+      chapter08: normalizeServiceNetState({ ...settled.storyContinuationState.chapter08, receipts: settled.storyContinuationState.chapter08.receipts.slice(0, 2) }),
+    }) },
+    { ...settled, storyContinuationState: normalizeStoryContinuationState({
+      ...settled.storyContinuationState,
+      chapter08: normalizeServiceNetState({ ...settled.storyContinuationState.chapter08, settledRunIds: [] }),
+    }) },
+  ]) {
+    assert.equal(missionBoard(forged).story.find(({ id }) => id === "story-08").status, "active");
+    assert.equal(claimMission(forged, "story-08").reason, "MISSION_NOT_COMPLETE");
+  }
 });
 
 test("chapter three measures genuinely different operator profiles", () => {

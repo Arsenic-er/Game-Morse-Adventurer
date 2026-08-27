@@ -27,6 +27,19 @@ const qslCases = (count) => Array.from({ length: count }, (_, index) => ({
   finalChoice: "request-review",
   completedAt: minute(index),
 }));
+const serviceReceipts = (count) => Array.from({ length: count }, (_, index) => ({
+  id: `service-receipt:${String(index).padStart(3, "0")}`,
+  runId: `service-net:${String(Math.floor(index / 3)).padStart(3, "0")}`,
+  qsoId: `service-net-qso:${String(Math.floor(index / 3)).padStart(3, "0")}`,
+  messageId: String(100 + index).padStart(3, "0"),
+  priority: (index % 3) + 1,
+  sequence: index % 3,
+  people: index % 100,
+  item: ["WATER", "POWER", "MEDKIT", "SHELTER"][index % 4],
+  quantity: (index * 3) % 100,
+  acknowledgedAt: minute(index),
+  completedAt: minute(index),
+}));
 
 test("empty continuation state has fixed chapter seven through ten shape", () => {
   const state = emptyStoryContinuationState();
@@ -46,7 +59,7 @@ test("empty continuation state has fixed chapter seven through ten shape", () =>
 test("continuation ledgers retain bounded ordered tails and normalize twice identically", () => {
   const state = normalizeStoryContinuationState({
     chapter07: { cases: qslCases(45), settledRunIds: ids(105) },
-    chapter08: { receipts: records(85, "receipt"), settledRunIds: ids(101, "service"), taskTreeUnlocked: true },
+    chapter08: { receipts: serviceReceipts(85), settledRunIds: ids(101, "service"), taskTreeUnlocked: true },
     chapter09: { packets: records(81, "packet"), settledRunIds: ids(102, "relay"), toolUnlocked: true },
     chapter10: { records: records(41, "contest"), settledRunIds: ids(103, "contest-run"), taskTreeUnlocked: true },
   });

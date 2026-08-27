@@ -1,4 +1,5 @@
 import { emptyQslStoryState, normalizeQslStoryState } from "./qslStoryRun.js";
+import { emptyServiceNetState, normalizeServiceNetState } from "./serviceNetRun.js";
 
 export const STORY_CONTINUATION_STATE_VERSION = 1;
 
@@ -132,7 +133,7 @@ export function emptyStoryContinuationState() {
   return Object.freeze({
     version: STORY_CONTINUATION_STATE_VERSION,
     chapter07: emptyQslStoryState(),
-    chapter08: emptyChapter("chapter08"),
+    chapter08: emptyServiceNetState(),
     chapter09: emptyChapter("chapter09"),
     chapter10: emptyChapter("chapter10"),
   });
@@ -144,7 +145,7 @@ export function normalizeStoryContinuationState(value) {
     return Object.freeze({
       version: STORY_CONTINUATION_STATE_VERSION,
       chapter07: normalizeQslStoryState(own(source, "chapter07")),
-      chapter08: normalizeChapter(own(source, "chapter08"), "chapter08"),
+      chapter08: normalizeServiceNetState(own(source, "chapter08")),
       chapter09: normalizeChapter(own(source, "chapter09"), "chapter09"),
       chapter10: normalizeChapter(own(source, "chapter10"), "chapter10"),
     });
