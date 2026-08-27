@@ -55,6 +55,14 @@ test("chapter seven exposes its accepted investigation action with localized sto
   }
 });
 
+test("chapter eight exposes its accepted service-net action and durable replay with localized story copy", () => {
+  assert.match(source, /mission\.id === "story-08" && \(active \|\| serviceNetReplay\)/);
+  assert.match(source, /data-action="launch-service-net"/);
+  for (const key of ["story08Title", "story08Description", "story08Objective", "story08Brief", "story08Debrief", "launchServiceNet"]) {
+    assert.equal((source.match(new RegExp(`${key}:`, "g")) ?? []).length, 7, `${key} must exist in seven languages`);
+  }
+});
+
 test("new mission information keeps the established pixel-card styling", () => {
   for (const selector of [".mission-narrative", ".mission-contract", ".mission-target-identity", ".mission-relationship"]) {
     assert.ok(styles.includes(selector), `${selector} must be styled`);

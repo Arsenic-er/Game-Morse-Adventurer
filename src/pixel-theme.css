@@ -1960,6 +1960,8 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .home-expedition-button:hover, .home-expedition-button:focus-visible { color: #fff3bf; background: #513a0e; }
 .home-qsl-story-button { position: absolute; z-index: 5; right: 22px; bottom: 116px; display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 3px solid #b18ce5; color: #eadbff; background: #21152fd9; }
 .home-qsl-story-button:hover, .home-qsl-story-button:focus-visible { color: #fff; background: #40265e; }
+.home-service-net-button { position: absolute; z-index: 5; right: 22px; bottom: 164px; display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 3px solid #6ab6c7; color: #d9f7ff; background: #102b32e8; }
+.home-service-net-button:hover, .home-service-net-button:focus-visible { color: #fff; background: #174b58; }
 .people-qsl-modal { display: grid; grid-template-rows: auto 1fr auto; width: min(1050px, calc(100% - 30px)); max-height: min(760px, calc(100vh - 30px)); border: 4px solid #6bc8c5; color: #dffbf5; background: #0c1e20; }
 .people-qsl-modal > header { display: flex; align-items: center; gap: 12px; padding: 14px; border-bottom: 3px solid #315d5d; }
 .people-qsl-modal > header h2 { margin-right: auto; }
@@ -1992,6 +1994,16 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .qsl-story-error { display: flex; align-items: center; gap: 9px; color: #ffb18f; }.qsl-story-result, .qsl-story-source-required { display: flex; min-height: 260px; flex-direction: column; align-items: center; justify-content: center; gap: 16px; text-align: center; }.qsl-story-result svg { color: #a8ec87; }.qsl-story-result.failed svg, .qsl-story-source-required svg { color: #e7aa57; }
 .qsl-story-leave-dialog { width: min(470px, calc(100% - 32px)); padding: 22px; border: 4px solid #b98dce; color: #f5e9ff; background: #171222; text-align: center; }
 
+.service-net-screen { min-height: 100vh; overflow: auto; color: #e5fbff; background: radial-gradient(circle at 48% 0, #164c58 0, transparent 34%), repeating-linear-gradient(0deg, #07171b 0 3px, #0b2025 3px 6px); }
+.service-net-topbar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 18px; padding: 12px 18px; border-bottom: 4px solid #1d5663; background: #07191eef; box-shadow: 0 4px #4b9daf; }
+.service-net-topbar > div { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 10px; margin-right: auto; }.service-net-topbar h1 { grid-column: 2; margin: 0; font-size: clamp(17px, 2vw, 25px); }.service-net-topbar span, .service-net-topbar b { color: #86cad8; }
+.service-net-screen button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 8px 13px; border: 3px solid #4b9daf; color: #e8fbff; background: #12333b; box-shadow: 3px 3px #02080a; }.service-net-screen button:disabled { opacity: .4; box-shadow: none; }
+.service-net-simulation { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 18px auto 0; padding: 9px 14px; width: min(920px, calc(100% - 30px)); border: 3px solid #d7a44b; color: #ffe7ad; background: #392b10; }
+.service-net-paused { position: fixed; z-index: 5; top: 76px; left: 50%; translate: -50%; padding: 8px 16px; border: 3px solid #e9b653; color: #fff1c7; background: #3a2914; }
+.service-net-layout { display: grid; grid-template-columns: minmax(240px, 330px) minmax(0, 1fr); gap: 18px; width: min(1120px, calc(100% - 30px)); margin: 18px auto 30px; }
+.service-net-queue, .service-net-console { border: 4px solid #357886; background: #07161be8; box-shadow: 7px 7px #02080a; }.service-net-queue { padding: 14px; }.service-net-queue h2 { display: flex; align-items: center; gap: 8px; color: #9de0eb; }.service-net-queue article { display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; margin-top: 10px; padding: 11px; border: 2px solid #24525c; color: #91aeb5; background: #0c242a; }.service-net-queue article[data-queue-current="true"] { border-color: #e1bb61; color: #fff1bd; }.service-net-queue small { grid-column: 1 / -1; }
+.service-net-console { display: grid; align-content: start; gap: 16px; min-height: 430px; padding: 20px; }.service-net-meter { display: flex; align-items: center; gap: 8px; border-bottom: 2px solid #224c55; padding-bottom: 11px; }.service-net-meter b { margin-left: auto; color: #9de0eb; }.service-net-console section { display: grid; gap: 13px; }.service-net-current code, .service-net-message code { padding: 13px; color: #b5f2b2; background: #06130a; }.service-net-current dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; }.service-net-current dd { margin: 0; color: #fff0ac; }.service-net-message input { width: 100%; padding: 13px; border: 3px solid #4b9daf; color: #fff; background: #020b0d; font: inherit; }.service-net-message > div { display: flex; gap: 9px; }.service-net-error { color: #ffad8d; }.service-net-result { min-height: 280px; align-content: center !important; justify-items: center; text-align: center; }.service-net-result svg { color: #9ee592; }.service-net-result.failed svg { color: #e7aa57; }.service-net-leave-dialog { width: min(470px, calc(100% - 32px)); padding: 22px; border: 4px solid #6ab6c7; color: #e5fbff; background: #0b2025; text-align: center; }
+
 @media (max-width: 820px) {
   .expedition-screen { min-width: 0; }
   .expedition-console { grid-template-columns: 1fr; }
@@ -1999,8 +2011,10 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   .expedition-sites > div, .expedition-setup > div { grid-template-columns: 1fr; }
   .people-qsl-columns { grid-template-columns: 1fr; }
   .qsl-card-list article > div { grid-template-columns: 1fr; }
-  .home-expedition-button, .home-people-qsl-button, .home-qsl-story-button { right: 12px; max-width: calc(100% - 24px); }
+  .home-expedition-button, .home-people-qsl-button, .home-qsl-story-button, .home-service-net-button { right: 12px; max-width: calc(100% - 24px); }
   .qsl-story-screen { min-width: 0; }
   .qsl-story-accounts { grid-template-columns: 1fr; }
   .qsl-story-choices { grid-template-columns: 1fr; }
+  .service-net-screen { min-width: 0; }
+  .service-net-layout { grid-template-columns: 1fr; }
 }

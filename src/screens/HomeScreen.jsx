@@ -12,6 +12,7 @@ import { QsoRewardBreakdown } from "../components/QsoRewardBreakdown.jsx";
 import { summarizePracticeProgress } from "../practice/practiceRecords.js";
 import { expeditionReplayAvailable } from "../game/expeditionLifecycle.js";
 import { qslStoryReplayAvailable } from "../game/qslStoryRun.js";
+import { serviceNetReplayAvailable } from "../game/serviceNetRun.js";
 import { AchievementsModal } from "./AchievementsModal.jsx";
 import { MissionCenterModal } from "./MissionCenterModal.jsx";
 import { PeopleAndQslModal } from "./PeopleAndQslModal.jsx";
@@ -19,13 +20,13 @@ import { StoreModal } from "./StoreModal.jsx";
 import { TechnologyTreeModal } from "./TechnologyTreeModal.jsx";
 
 const TEXT = {
-  "zh-CN": { title: "管理中心", station: "进入发射台", expedition: "山丘远征", qslStory: "QSL调查", practice: "CW 练习与教学", practiceProgress: "课程进度", warehouse: "仓库", store: "商店", log: "通联日志", achievements: "成就", missions: "任务中心", peopleQsl: "人物与 QSL", placeholder: "功能占位", later: "该功能将在后续版本开放。", back: "返回存档", settings: "设置", local: "当地时间", close: "关闭" },
-  "zh-TW": { title: "管理中心", station: "進入發射臺", expedition: "山丘遠征", qslStory: "QSL調查", practice: "CW 練習與教學", practiceProgress: "課程進度", warehouse: "倉庫", store: "商店", log: "通聯日誌", achievements: "成就", missions: "任務中心", peopleQsl: "人物與 QSL", placeholder: "功能預留", later: "此功能將在後續版本開放。", back: "返回存檔", settings: "設定", local: "當地時間", close: "關閉" },
-  ja: { title: "管理センター", station: "運用卓へ", expedition: "丘の移動運用", qslStory: "QSL調査", practice: "CW 練習・レッスン", practiceProgress: "レッスン進捗", warehouse: "倉庫", store: "ショップ", log: "交信ログ", achievements: "実績", missions: "ミッションセンター", peopleQsl: "人物と QSL", placeholder: "準備中", later: "この機能は今後のバージョンで開放されます。", back: "セーブへ戻る", settings: "設定", local: "現地時刻", close: "閉じる" },
-  en: { title: "Management Center", station: "Enter Station", expedition: "Hilltop Expedition", qslStory: "QSL Investigation", practice: "CW Practice & Lessons", practiceProgress: "Lesson progress", warehouse: "Warehouse", store: "Store", log: "QSO Log", achievements: "Achievements", missions: "Mission Center", peopleQsl: "People & QSL", placeholder: "Coming Soon", later: "This feature will open in a later version.", back: "Back to Saves", settings: "Settings", local: "Local time", close: "Close" },
-  es: { title: "Centro de Gestión", station: "Entrar en la estación", expedition: "Expedición a la colina", qslStory: "Investigación QSL", practice: "Práctica y lecciones de CW", practiceProgress: "Progreso de lecciones", warehouse: "Almacén", store: "Tienda", log: "Registro QSO", achievements: "Logros", missions: "Centro de misiones", peopleQsl: "Personas y QSL", placeholder: "Próximamente", later: "Esta función se abrirá en una versión posterior.", back: "Volver a partidas", settings: "Ajustes", local: "Hora local", close: "Cerrar" },
-  de: { title: "Verwaltungszentrum", station: "Station betreten", expedition: "Hügelexpedition", qslStory: "QSL-Untersuchung", practice: "CW-Übung und Lektionen", practiceProgress: "Lektionsfortschritt", warehouse: "Lager", store: "Laden", log: "QSO-Logbuch", achievements: "Erfolge", missions: "Missionszentrale", peopleQsl: "Personen & QSL", placeholder: "Demnächst", later: "Diese Funktion wird in einer späteren Version geöffnet.", back: "Zurück zu Spielständen", settings: "Einstellungen", local: "Ortszeit", close: "Schließen" },
-  ru: { title: "Центр управления", station: "Войти на станцию", expedition: "Экспедиция на холм", qslStory: "Расследование QSL", practice: "Практика и уроки CW", practiceProgress: "Прогресс уроков", warehouse: "Склад", store: "Магазин", log: "Журнал QSO", achievements: "Достижения", missions: "Центр заданий", peopleQsl: "Люди и QSL", placeholder: "Скоро", later: "Эта функция появится в следующей версии.", back: "Назад к сохранениям", settings: "Настройки", local: "Местное время", close: "Закрыть" },
+  "zh-CN": { title: "管理中心", station: "进入发射台", expedition: "山丘远征", qslStory: "QSL调查", serviceNet: "公共服务台网", practice: "CW 练习与教学", practiceProgress: "课程进度", warehouse: "仓库", store: "商店", log: "通联日志", achievements: "成就", missions: "任务中心", peopleQsl: "人物与 QSL", placeholder: "功能占位", later: "该功能将在后续版本开放。", back: "返回存档", settings: "设置", local: "当地时间", close: "关闭" },
+  "zh-TW": { title: "管理中心", station: "進入發射臺", expedition: "山丘遠征", qslStory: "QSL調查", serviceNet: "公共服務臺網", practice: "CW 練習與教學", practiceProgress: "課程進度", warehouse: "倉庫", store: "商店", log: "通聯日誌", achievements: "成就", missions: "任務中心", peopleQsl: "人物與 QSL", placeholder: "功能預留", later: "此功能將在後續版本開放。", back: "返回存檔", settings: "設定", local: "當地時間", close: "關閉" },
+  ja: { title: "管理センター", station: "運用卓へ", expedition: "丘の移動運用", qslStory: "QSL調査", serviceNet: "公共サービスネット", practice: "CW 練習・レッスン", practiceProgress: "レッスン進捗", warehouse: "倉庫", store: "ショップ", log: "交信ログ", achievements: "実績", missions: "ミッションセンター", peopleQsl: "人物と QSL", placeholder: "準備中", later: "この機能は今後のバージョンで開放されます。", back: "セーブへ戻る", settings: "設定", local: "現地時刻", close: "閉じる" },
+  en: { title: "Management Center", station: "Enter Station", expedition: "Hilltop Expedition", qslStory: "QSL Investigation", serviceNet: "Public Service Net", practice: "CW Practice & Lessons", practiceProgress: "Lesson progress", warehouse: "Warehouse", store: "Store", log: "QSO Log", achievements: "Achievements", missions: "Mission Center", peopleQsl: "People & QSL", placeholder: "Coming Soon", later: "This feature will open in a later version.", back: "Back to Saves", settings: "Settings", local: "Local time", close: "Close" },
+  es: { title: "Centro de Gestión", station: "Entrar en la estación", expedition: "Expedición a la colina", qslStory: "Investigación QSL", serviceNet: "Red de servicio público", practice: "Práctica y lecciones de CW", practiceProgress: "Progreso de lecciones", warehouse: "Almacén", store: "Tienda", log: "Registro QSO", achievements: "Logros", missions: "Centro de misiones", peopleQsl: "Personas y QSL", placeholder: "Próximamente", later: "Esta función se abrirá en una versión posterior.", back: "Volver a partidas", settings: "Ajustes", local: "Hora local", close: "Cerrar" },
+  de: { title: "Verwaltungszentrum", station: "Station betreten", expedition: "Hügelexpedition", qslStory: "QSL-Untersuchung", serviceNet: "Öffentliches Servicenetz", practice: "CW-Übung und Lektionen", practiceProgress: "Lektionsfortschritt", warehouse: "Lager", store: "Laden", log: "QSO-Logbuch", achievements: "Erfolge", missions: "Missionszentrale", peopleQsl: "Personen & QSL", placeholder: "Demnächst", later: "Diese Funktion wird in einer späteren Version geöffnet.", back: "Zurück zu Spielständen", settings: "Einstellungen", local: "Ortszeit", close: "Schließen" },
+  ru: { title: "Центр управления", station: "Войти на станцию", expedition: "Экспедиция на холм", qslStory: "Расследование QSL", serviceNet: "Сеть общественной службы", practice: "Практика и уроки CW", practiceProgress: "Прогресс уроков", warehouse: "Склад", store: "Магазин", log: "Журнал QSO", achievements: "Достижения", missions: "Центр заданий", peopleQsl: "Люди и QSL", placeholder: "Скоро", later: "Эта функция появится в следующей версии.", back: "Назад к сохранениям", settings: "Настройки", local: "Местное время", close: "Закрыть" },
 };
 
 const WAREHOUSE_TEXT = {
@@ -521,13 +522,14 @@ function WarehouseModal({ language, save, onEquipItem, onUnlockTechnology, onClo
   );
 }
 
-export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onAcceptMission, onClaimMission, onAbandonMission, onEnterLights, onEnterExpedition, onEnterQslStory, onConfirmQslChoice, onEnterStation, onEnterPractice, onBack, onSettings }) {
+export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onAcceptMission, onClaimMission, onAbandonMission, onEnterLights, onEnterExpedition, onEnterQslStory, onEnterServiceNet, onConfirmQslChoice, onEnterStation, onEnterPractice, onBack, onSettings }) {
   const t = TEXT[language] ?? TEXT.en;
   const location = getLocation(save.locationId);
   const practiceProgress = summarizePracticeProgress(save.practiceRecords);
   const practiceProgressLabel = `${t.practiceProgress} ${practiceProgress.completedLessons}/${practiceProgress.totalLessons} · ${practiceProgress.percent}%`;
   const expeditionReplay = expeditionReplayAvailable(save);
   const qslStoryReplay = qslStoryReplayAvailable(save);
+  const serviceNetReplay = serviceNetReplayAvailable(save);
   const [panel, setPanel] = useState(null);
   const [clock, setClock] = useState(() => new Date());
   useEffect(() => {
@@ -571,13 +573,14 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
       <button className="home-people-qsl-button" data-action="open-people-qsl" aria-label={t.peopleQsl} onClick={() => setPanel("people-qsl")}><Users size={20} weight="fill" />{t.peopleQsl}</button>
       {expeditionReplay && <button className="home-expedition-button" data-action="enter-expedition-home" aria-label={t.expedition} onClick={onEnterExpedition}><Broadcast size={20} weight="fill" />{t.expedition}</button>}
       {qslStoryReplay && <button className="home-qsl-story-button" data-action="enter-qsl-story-home" aria-label={t.qslStory} onClick={onEnterQslStory}><FileMagnifyingGlass size={20} weight="fill" />{t.qslStory}</button>}
+      {serviceNetReplay && <button className="home-service-net-button" data-action="enter-service-net-home" aria-label={t.serviceNet} onClick={onEnterServiceNet}><Broadcast size={20} weight="fill" />{t.serviceNet}</button>}
       <span className="home-newspaper-callsign" aria-hidden="true">{save.callsign}</span>
       <span className="home-location-label"><Radio size={15} />{locationName(location, language)}</span>
       {panel === "warehouse" && <WarehouseModal language={language} save={save} onEquipItem={onEquipItem} onUnlockTechnology={onUnlockTechnology} onClose={() => setPanel(null)} />}
       {panel === "store" && <StoreModal language={language} save={save} onPurchase={onPurchase} onClose={() => setPanel(null)} />}
       {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
       {panel === "achievements" && <AchievementsModal language={language} save={save} onClose={() => setPanel(null)} />}
-      {panel === "missions" && <MissionCenterModal language={language} save={save} onAccept={onAcceptMission} onClaim={onClaimMission} onAbandon={onAbandonMission} onLaunchLights={onEnterLights} onLaunchExpedition={onEnterExpedition} onLaunchQslStory={onEnterQslStory} onClose={() => setPanel(null)} />}
+      {panel === "missions" && <MissionCenterModal language={language} save={save} onAccept={onAcceptMission} onClaim={onClaimMission} onAbandon={onAbandonMission} onLaunchLights={onEnterLights} onLaunchExpedition={onEnterExpedition} onLaunchQslStory={onEnterQslStory} onLaunchServiceNet={onEnterServiceNet} onClose={() => setPanel(null)} />}
       {panel === "people-qsl" && <PeopleAndQslModal language={language} save={save} onConfirmChoice={onConfirmQslChoice} onClose={() => setPanel(null)} />}
       {panel && !["warehouse", "store", "log", "achievements", "missions", "people-qsl"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
     </main>

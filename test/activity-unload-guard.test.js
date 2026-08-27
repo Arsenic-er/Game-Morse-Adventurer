@@ -9,6 +9,8 @@ import { createQso, QSO_PHASES } from "../src/qso/qsoEngine.js";
 import { qsoExitRisk } from "../src/qso/qsoExitGuard.js";
 import { QSL_STORY_PHASES } from "../src/game/qslStoryRun.js";
 import { qslStoryLeaveRisk } from "../src/screens/qslStoryText.js";
+import { SERVICE_NET_PHASES } from "../src/game/serviceNetRun.js";
+import { serviceNetLeaveRisk } from "../src/screens/serviceNetText.js";
 
 test("generic activity unload guard protects live and completed-unsettled lights, ordinary QSOs, and Home", () => {
   const liveLights = {
@@ -24,6 +26,9 @@ test("generic activity unload guard protects live and completed-unsettled lights
   assert.equal(qslStoryLeaveRisk({ phase: QSL_STORY_PHASES.PLAYER_FINAL_CHOICE }, false), "active");
   assert.equal(qslStoryLeaveRisk({ phase: QSL_STORY_PHASES.COMPLETED }, false), "unsaved");
   assert.equal(qslStoryLeaveRisk({ phase: QSL_STORY_PHASES.COMPLETED }, true), "none");
+  assert.equal(serviceNetLeaveRisk({ phase: SERVICE_NET_PHASES.PLAYER_ACK }, false), "active");
+  assert.equal(serviceNetLeaveRisk({ phase: SERVICE_NET_PHASES.COMPLETED }, false), "unsaved");
+  assert.equal(serviceNetLeaveRisk({ phase: SERVICE_NET_PHASES.COMPLETED }, true), "none");
   assert.equal(activityUnloadRisk({ activity: "home" }), "none");
 });
 
