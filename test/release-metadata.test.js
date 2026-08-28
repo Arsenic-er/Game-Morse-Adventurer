@@ -32,35 +32,35 @@ test("release metadata uses the package version across the game, QA, and localiz
   );
 });
 
-test("all localized v0.37 summaries separate completed, playable, foundation, and planned boundaries", () => {
+test("v0.40 metadata marks chapters seven through ten complete and eleven through fifteen planned", () => {
   const summaries = {
     "README.md": [
-      "Chapter 5 is now complete", "Chapter 6 is playable", "Chapter 7 foundation only",
-      "Full Chapter 7 and Chapters 8–15 remain planned",
+      "Chapters 5–10 are implemented", "Chapter 7 QSL investigation", "Chapter 8 fictional service net",
+      "Chapter 9 Pixel Grid coordinate relay", "Chapter 10 RUN / S&P contest", "Chapters 11–15 remain planned",
     ],
     "README.zh-CN.md": [
-      "第 5 章现已完整实现", "第 6 章现已可玩", "第 7 章仅完成基础",
-      "完整第 7 章及第 8–15 章仍在计划中",
+      "第 5–10 章已经实现", "第 7 章 QSL 复核", "第 8 章虚构公共服务点名",
+      "第 9 章 Pixel Grid 坐标中继", "第 10 章 RUN / S&P 比赛", "第 11–15 章仍在计划中",
     ],
     "README.zh-TW.md": [
-      "第 5 章現已完整實作", "第 6 章現已可玩", "第 7 章僅完成基礎",
-      "完整第 7 章及第 8–15 章仍在規劃中",
+      "第 5–10 章已經實作", "第 7 章 QSL 複核", "第 8 章虛構公共服務點名",
+      "第 9 章 Pixel Grid 座標中繼", "第 10 章 RUN / S&P 比賽", "第 11–15 章仍在規劃中",
     ],
     "README.ja.md": [
-      "第5章を完全実装", "第6章はプレイ可能", "第7章は基盤のみ",
-      "第7章の完全版と第8～15章は引き続き計画段階",
+      "第5～10章を実装", "第7章のQSL再確認", "第8章の架空公共サービスネット",
+      "第9章のPixel Grid座標中継", "第10章のRUN / S&Pコンテスト", "第11～15章は引き続き計画段階",
     ],
     "README.es.md": [
-      "El capítulo 5 ya está completo", "El capítulo 6 ya es jugable", "El capítulo 7 solo incorpora la base",
-      "El capítulo 7 completo y los capítulos 8–15 siguen planificados",
+      "Los capítulos 5–10 están implementados", "investigación QSL del capítulo 7", "red ficticia de servicio público del capítulo 8",
+      "relevo de coordenadas Pixel Grid del capítulo 9", "concurso RUN / S&P del capítulo 10", "Los capítulos 11–15 siguen planificados",
     ],
     "README.de.md": [
-      "Kapitel 5 ist jetzt vollständig umgesetzt", "Kapitel 6 ist spielbar", "Kapitel 7 enthält nur die Grundlage",
-      "Das vollständige Kapitel 7 und die Kapitel 8–15 bleiben geplant",
+      "Kapitel 5–10 sind umgesetzt", "QSL-Nachprüfung in Kapitel 7", "fiktive öffentliche Servicenetz in Kapitel 8",
+      "Pixel-Grid-Koordinatenweitergabe in Kapitel 9", "RUN-/S&P-Wettbewerb in Kapitel 10", "Kapitel 11–15 bleiben geplant",
     ],
     "README.ru.md": [
-      "Глава 5 теперь реализована полностью", "Глава 6 доступна для прохождения", "В главе 7 реализована только основа",
-      "Полная глава 7 и главы 8–15 остаются в планах",
+      "Главы 5–10 реализованы", "Проверка QSL в главе 7", "Вымышленная сеть общественной службы в главе 8",
+      "Ретрансляция координат Pixel Grid в главе 9", "Соревнование RUN / S&P в главе 10", "Главы 11–15 остаются в планах",
     ],
   };
   for (const [file, phrases] of Object.entries(summaries)) {
@@ -70,17 +70,19 @@ test("all localized v0.37 summaries separate completed, playable, foundation, an
   }
 });
 
-test("release design docs distinguish the Chapter 7 foundation from future chapters", () => {
+test("release design docs record completed Chapters 7–10 and keep Chapters 11–15 non-playable", () => {
   const design = read("docs/CW_台站模拟游戏设计文档_v0.4.md");
   const story = read("docs/story-missions-open-station-v0.1.md");
   const working = read("docs/planning/chapter-05-lights-working-design-v0.1.md");
   const chapterFive = read("docs/superpowers/specs/2026-08-25-chapter-05-lights-gameplay-design.md");
   const continuation = read("docs/superpowers/specs/2026-08-25-v037-ch5-ch7-continuation-design.md");
-  for (const source of [design, story, continuation]) {
-    assert.match(source, /第 5 章[^\n]*(?:完整实现|完整呈现)/);
-    assert.match(source, /第 6 章[^\n]*(?:可玩|纵向切片)/);
-    assert.match(source, /第 7 章[^\n]*(?:基础|跨章基础)/);
-    assert.match(source, /第 8[–-]15 章[^\n]*(?:计划|尚未实现)/);
+  for (const source of [design, story]) {
+    assert.match(source, /v0\.40\.0/);
+    assert.match(source, /第 7 章[^\n]*(?:完整实现|完整剧情|QSL 复核)/);
+    assert.match(source, /第 8 章[^\n]*(?:完整实现|公共服务点名)/);
+    assert.match(source, /第 9 章[^\n]*(?:完整实现|坐标中继)/);
+    assert.match(source, /第 10 章[^\n]*(?:完整实现|RUN \/ S&P)/);
+    assert.match(source, /第 11[–-]15 章[^\n]*(?:计划|尚未实现|不可玩)/);
   }
   assert.match(working, /v0\.37\.0[^\n]*完整实现/);
   assert.match(chapterFive, /v0\.37\.0[^\n]*complete Chapter 5/);
