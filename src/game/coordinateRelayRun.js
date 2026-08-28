@@ -1,4 +1,4 @@
-import { parseStructuredFields, tokenizeStructuredMessage } from "./structuredMessage.js";
+import { tokenizeStructuredMessage } from "./structuredMessage.js";
 
 export const COORDINATE_RELAY_STATE_VERSION = 1;
 export const COORDINATE_RELAY_DURATION_MILLISECONDS = 600_000;
@@ -87,7 +87,8 @@ export function computeCoordinatePacketCheck(packet) {
   try {
     const fields = packetFields(packet);
     if (!fields) return null;
-    const canonical = `MSG ${fields.packetId} GRID ${fields.grid} TIME ${fields.utc} PEOPLE ${String(fields.people).padStart(2, "0")}`;
+    const [east, north] = fields.grid.slice(3).split("-");
+    const canonical = `MSG ${fields.packetId} GRID PX ${east} ${north} TIME ${fields.utc} PEOPLE ${String(fields.people).padStart(2, "0")}`;
     let checksum = 0;
     for (const character of canonical) checksum = (checksum + character.charCodeAt(0)) % 97;
     return checksum;
@@ -104,7 +105,9 @@ function normalizePacket(value) {
 
 export function coordinatePacketText(packetValue) {
   const packet = normalizePacket(packetValue);
-  return packet ? `MSG ${packet.packetId} GRID ${packet.grid} TIME ${packet.utc} PEOPLE ${String(packet.people).padStart(2, "0")} CHECK ${String(packet.check).padStart(2, "0")}` : "";
+  if (!packet) return "";
+  const [east, north] = packet.grid.slice(3).split("-");
+  return `MSG ${packet.packetId} GRID PX ${east} ${north} TIME ${packet.utc} PEOPLE ${String(packet.people).padStart(2, "0")} CHECK ${String(packet.check).padStart(2, "0")}`;
 }
 
 function packetFor(seed) {
@@ -145,7 +148,7 @@ function baseRun({ playerCallsign, packet, startedAt, retryCount = 0, checked = 
   });
 }
 function transition(run, patch) { return freeze({ ...run, ...patch }); }
-function safeSemantic(result) { return result == null || result.safeToCommit === true; }
+function safeSemantic(result) { return own(result, "safeToCommit") === true; }
 function recovery(input) {
   const normalized = tokenizeStructuredMessage(input).join(" ");
   if (normalized === "AGN K") return "AGN";
@@ -153,26 +156,39 @@ function recovery(input) {
   return null;
 }
 
-const PACKET_SCHEMA = Object.freeze({
-  MSG: { pattern: /^\d{3}$/ }, GRID: { pattern: /^PX-\d{4}-\d{4}$/ },
-  TIME: { pattern: /^(?:[01]\d|2[0-3])[0-5]\dZ$/ }, PEOPLE: { pattern: /^\d{1,2}$/ }, CHECK: { pattern: /^\d{1,2}$/ },
-});
 function packetError(packet, input) {
-  const parsed = parseStructuredFields(input, PACKET_SCHEMA);
-  if (!parsed.ok) {
-    const joined = parsed.errors.join(" ");
-    if (/TIME/.test(joined)) return "TIME_MISMATCH";
-    if (/GRID/.test(joined)) return "GRID_MISMATCH";
-    if (/PEOPLE/.test(joined)) return "PEOPLE_MISMATCH";
-    if (/CHECK/.test(joined)) return "CHECK_MISMATCH";
-    if (/MSG/.test(joined)) return "MESSAGE_ID_MISMATCH";
-    return "FORMAT_INVALID";
-  }
-  if (parsed.fields.MSG !== packet.packetId) return "MESSAGE_ID_MISMATCH";
-  if (parsed.fields.GRID !== packet.grid) return "GRID_MISMATCH";
-  if (parsed.fields.TIME !== packet.utc) return "TIME_MISMATCH";
-  if (Number(parsed.fields.PEOPLE) !== packet.people) return "PEOPLE_MISMATCH";
-  if (Number(parsed.fields.CHECK) !== packet.check) return "CHECK_MISMATCH";
+  const tokens = tokenizeStructuredMessage(input);
+  const procedureWords = new Set(["DE", "PSE", "K", "KN", "AGN", "QRS"]);
+  let cursor = 0;
+  const skipProcedureWords = () => { while (procedureWords.has(tokens[cursor])) cursor += 1; };
+  const label = (expected) => {
+    skipProcedureWords();
+    if (tokens[cursor] !== expected) return false;
+    cursor += 1;
+    return true;
+  };
+  if (!label("MSG")) return "FORMAT_INVALID";
+  const packetId = tokens[cursor++];
+  if (!/^\d{3}$/.test(packetId ?? "")) return "MESSAGE_ID_MISMATCH";
+  if (!label("GRID")) return "FORMAT_INVALID";
+  const prefix = tokens[cursor++]; const east = tokens[cursor++]; const north = tokens[cursor++];
+  if (prefix !== "PX" || !/^\d{4}$/.test(east ?? "") || !/^\d{4}$/.test(north ?? "")) return "GRID_MISMATCH";
+  if (!label("TIME")) return "FORMAT_INVALID";
+  const utc = tokens[cursor++];
+  if (!/^(?:[01]\d|2[0-3])[0-5]\dZ$/.test(utc ?? "")) return "TIME_MISMATCH";
+  if (!label("PEOPLE")) return "FORMAT_INVALID";
+  const people = tokens[cursor++];
+  if (!/^\d{1,2}$/.test(people ?? "")) return "PEOPLE_MISMATCH";
+  if (!label("CHECK")) return "FORMAT_INVALID";
+  const check = tokens[cursor++];
+  if (!/^\d{1,2}$/.test(check ?? "")) return "CHECK_MISMATCH";
+  skipProcedureWords();
+  if (cursor !== tokens.length) return "FORMAT_INVALID";
+  if (packetId !== packet.packetId) return "MESSAGE_ID_MISMATCH";
+  if (`PX-${east}-${north}` !== packet.grid) return "GRID_MISMATCH";
+  if (utc !== packet.utc) return "TIME_MISMATCH";
+  if (Number(people) !== packet.people) return "PEOPLE_MISMATCH";
+  if (Number(check) !== packet.check) return "CHECK_MISMATCH";
   return null;
 }
 function failedAttempt(run, error, at, stage) {

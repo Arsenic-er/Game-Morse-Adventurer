@@ -185,7 +185,7 @@ function validateChapterQaBase(value, { qaRunId, activity }) {
   const evidence = requirePlainObject(value, `${activity} evidence`);
   if (evidence.schemaVersion !== 1 || evidence.activity !== activity) throw new Error(`${activity} QA evidence has the wrong schema or activity`);
   validateQaRunId(evidence.qaRunId, qaRunId);
-  for (const key of ["settled", "missionClaimed", "reloadPersisted", "duplicateSettlementNoOp"]) {
+  for (const key of ["settled", "missionClaimed", "reloadPersisted", "duplicateSettlementExecuted", "duplicateSettlementNoOp"]) {
     if (evidence[key] !== true) throw new Error(`${activity} QA evidence requires ${key}`);
   }
   return evidence;
@@ -216,7 +216,8 @@ function validateCoordinateRelayQaEvidence(value, { qaRunId = null } = {}) {
 
 function validateContestQaEvidence(value, { qaRunId = null } = {}) {
   const evidence = validateChapterQaBase(value, { qaRunId, activity: "contest" });
-  if (!Number.isInteger(evidence.validContacts) || evidence.validContacts < 6 || evidence.validContacts > 10
+  if (evidence.configuredWpm !== 22
+    || !Number.isInteger(evidence.validContacts) || evidence.validContacts < 6 || evidence.validContacts > 10
     || !Number.isInteger(evidence.runContacts) || evidence.runContacts < 2
     || !Number.isInteger(evidence.spContacts) || evidence.spContacts < 2
     || !Number.isInteger(evidence.uniqueRegions) || evidence.uniqueRegions < 3
@@ -771,7 +772,13 @@ const MORSE = Object.freeze({
   K: "-.-", L: ".-..", M: "--", N: "-.", O: "---", P: ".--.", Q: "--.-", R: ".-.", S: "...", T: "-",
   U: "..-", V: "...-", W: ".--", X: "-..-", Y: "-.--", Z: "--..",
   0: "-----", 1: ".----", 2: "..---", 3: "...--", 4: "....-", 5: ".....", 6: "-....", 7: "--...", 8: "---..", 9: "----.",
+  "/": "-..-.", "-": "-....-", ".": ".-.-.-", ",": "--..--", "?": "..--..",
 });
+
+function qaMorsePatternForCharacter(value) {
+  if (typeof value !== "string" || [...value].length !== 1) return null;
+  return MORSE[value.toUpperCase()] ?? null;
+}
 
 function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -966,7 +973,14 @@ async function sendAutomaticStationText(window, text, wpm = 18) {
   return result;
 }
 
-async function sendAutomaticContestText(window, text, wpm = 18) {
+async function sendAutomaticStructuredText(window, text, {
+  screenSelector,
+  phaseDataset,
+  keyingDataset = "keying",
+  label = "Structured chapter",
+  wpm = 18,
+} = {}) {
+  if (!screenSelector || !phaseDataset) throw new Error("Structured CW QA requires a screen selector and phase dataset");
   const dotMs = 1200 / wpm;
   const tapHoldMs = dotMs * 0.12;
   const words = String(text).toUpperCase().trim().split(/\s+/);
@@ -975,7 +989,7 @@ async function sendAutomaticContestText(window, text, wpm = 18) {
   for (let wordIndex = 0; wordIndex < words.length; wordIndex += 1) {
     const characters = [...words[wordIndex]];
     for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
-      const pattern = MORSE[characters[characterIndex]];
+      const pattern = qaMorsePatternForCharacter(characters[characterIndex]);
       if (!pattern) continue;
       const lastCharacter = characterIndex === characters.length - 1;
       const lastWord = wordIndex === words.length - 1;
@@ -990,9 +1004,9 @@ async function sendAutomaticContestText(window, text, wpm = 18) {
   let result = { decoded: "", pulseCount: 0 };
   for (let stepIndex = 0; stepIndex < steps.length; stepIndex += 1) {
     const step = steps[stepIndex];
-    await focusQaWindow(window, `before contest character ${stepIndex + 1}/${steps.length} (${step.character})`);
+    await focusQaWindow(window, `before ${label} character ${stepIndex + 1}/${steps.length} (${step.character})`);
     result = await window.webContents.executeJavaScript(`(async () => {
-      const screen = () => document.querySelector(".contest-screen");
+      const screen = () => document.querySelector(${JSON.stringify(screenSelector)});
       const pulseCount = () => Number(screen()?.dataset.pulseCount || 0);
       const keyCodes = ${JSON.stringify(step.keyCodes)};
       const tapHoldMs = ${JSON.stringify(tapHoldMs)};
@@ -1007,10 +1021,10 @@ async function sendAutomaticContestText(window, text, wpm = 18) {
           else if (Date.now() - started > 3000) {
             clearInterval(timer);
             reject(new Error(description + "; rendered state: " + JSON.stringify({
-              phase: screen()?.dataset.contestPhase ?? null,
+              phase: screen()?.dataset[${JSON.stringify(phaseDataset)}] ?? null,
               decoded: screen()?.dataset.decoded ?? null,
               pulseCount: screen()?.dataset.pulseCount ?? null,
-              keying: screen()?.dataset.contestKeying ?? null,
+              keying: screen()?.dataset[${JSON.stringify(keyingDataset)}] ?? null,
               documentHasFocus: document.hasFocus(), visibilityState: document.visibilityState,
             })));
           }
@@ -1026,8 +1040,8 @@ async function sendAutomaticContestText(window, text, wpm = 18) {
           window.dispatchEvent(new KeyboardEvent("keyup", { code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true }));
           await yieldTask();
         }
-        await waitUntil(() => pulseCount() >= before + keyCodes.length, "Contest automatic-key character pulses were not observed");
-        await waitUntil(() => screen()?.dataset.contestKeying === "false", "Contest automatic keyer did not become idle");
+        await waitUntil(() => pulseCount() >= before + keyCodes.length, ${JSON.stringify(label)} + " automatic-key character pulses were not observed");
+        await waitUntil(() => screen()?.dataset[${JSON.stringify(keyingDataset)}] === "false", ${JSON.stringify(label)} + " automatic keyer did not become idle");
         return { decoded: screen()?.dataset.decoded ?? "", pulseCount: pulseCount() };
       } finally {
         channel.port1.close(); channel.port2.close();
@@ -1036,9 +1050,91 @@ async function sendAutomaticContestText(window, text, wpm = 18) {
     if (step.gapMs > 0) await delay(step.gapMs);
   }
   if (result.decoded.trim().replace(/\s+/g, " ") !== expected) {
-    throw new Error(`Contest automatic input decoded '${result.decoded}' instead of '${expected}'`);
+    throw new Error(`${label} automatic input decoded '${result.decoded}' instead of '${expected}'`);
   }
   return result;
+}
+
+async function readContestQaWpm(window) {
+  const wpm = await window.webContents.executeJavaScript(
+    'Number(document.querySelector(".contest-screen")?.dataset.contestWpm)', true,
+  );
+  if (!Number.isInteger(wpm) || wpm < 5 || wpm > 60) throw new Error(`Contest QA could not read a valid configured WPM: ${wpm}`);
+  return wpm;
+}
+
+async function sendAutomaticContestText(window, text, wpm = null) {
+  const resolvedWpm = wpm ?? await readContestQaWpm(window);
+  return sendAutomaticStructuredText(window, text, {
+    screenSelector: ".contest-screen",
+    phaseDataset: "contestPhase",
+    keyingDataset: "contestKeying",
+    label: "Contest",
+    wpm: resolvedWpm,
+  });
+}
+
+async function readContestSettingsWpm(window) {
+  return window.webContents.executeJavaScript(`(() => {
+    const match = document.querySelector('.settings-modal [data-keyer-wpm]')?.textContent.match(/\\d+/);
+    return match ? Number(match[0]) : null;
+  })()`, true);
+}
+
+async function waitForContestQaWpm(window, expected, selector) {
+  return window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const value = Number(document.querySelector(${JSON.stringify(selector)})?.dataset.contestWpm ?? NaN);
+      if (value === ${expected}) { clearInterval(timer); resolve(true); }
+      else if (Date.now() - started > 5000) { clearInterval(timer); reject(new Error("Contest WPM did not become ${expected}")); }
+    }, 20);
+  })`, true);
+}
+
+async function waitForContestDraftWpm(window, expected) {
+  return window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const match = document.querySelector('.settings-modal [data-keyer-wpm]')?.textContent.match(/\\d+/);
+      if (Number(match?.[0]) === ${expected}) { clearInterval(timer); resolve(true); }
+      else if (Date.now() - started > 3000) { clearInterval(timer); reject(new Error("Settings WPM did not become ${expected}")); }
+    }, 20);
+  })`, true);
+}
+
+async function configureContestQaWpm(window, targetWpm = 22, dependencies = {}) {
+  if (!Number.isInteger(targetWpm) || targetWpm < 5 || targetWpm > 60) throw new Error(`Invalid contest QA WPM: ${targetWpm}`);
+  const {
+    focusFn = focusQaWindow,
+    pressKeyFn = pressKey,
+    waitForFn = waitFor,
+    waitForMissingFn = waitForMissing,
+    clickFn = click,
+    readDraftWpmFn = readContestSettingsWpm,
+    waitForDraftWpmFn = waitForContestDraftWpm,
+    waitForContestWpmFn = (qaWindow, expected) => waitForContestQaWpm(qaWindow, expected, '.contest-screen'),
+  } = dependencies;
+  await focusFn(window, "before opening contest settings");
+  await pressKeyFn(window, { key: "Escape", code: "Escape" });
+  await waitForFn(window, '.settings-modal [data-testid="keyer-wpm"]');
+  let current = await readDraftWpmFn(window);
+  if (!Number.isInteger(current) || current < 5 || current > 60) throw new Error(`Contest QA settings exposed invalid WPM: ${current}`);
+  const direction = current < targetWpm ? 1 : -1;
+  for (let attempts = 0; current !== targetWpm && attempts < 56; attempts += 1) {
+    const selector = direction > 0
+      ? '.settings-modal button[aria-label="Increase WPM"]'
+      : '.settings-modal button[aria-label="Decrease WPM"]';
+    await clickFn(window, selector);
+    current += direction;
+    await waitForDraftWpmFn(window, current);
+  }
+  if (current !== targetWpm) throw new Error(`Contest QA could not configure ${targetWpm} WPM`);
+  await clickFn(window, ".settings-modal footer .primary-button");
+  await waitForMissingFn(window, ".settings-modal");
+  await focusFn(window, "after applying contest settings");
+  await waitForContestWpmFn(window, targetWpm);
+  return targetWpm;
 }
 
 async function sendAutomaticStationRun(window, symbol, count, { expectClear = false } = {}) {
@@ -1373,7 +1469,7 @@ async function sendAutomaticLightsText(window, text, wpm = LIGHTS_QA_WPM) {
   for (let wordIndex = 0; wordIndex < words.length; wordIndex += 1) {
     const characters = [...words[wordIndex]];
     for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
-      const pattern = MORSE[characters[characterIndex]];
+      const pattern = qaMorsePatternForCharacter(characters[characterIndex]);
       if (!pattern) continue;
       const lastCharacter = characterIndex === characters.length - 1;
       const lastWord = wordIndex === words.length - 1;
@@ -1856,16 +1952,18 @@ async function runQslStoryQaScope(window, outputDir, shot, { qaRunId }) {
   await capture(window, outputDir, shot("qsl-accounts"));
   await click(window, '[data-action="qsl-story-review"]');
   await waitFor(window, '[data-qsl-story-phase="PLAYER_CLARIFICATION_CALL"]');
-  await setInputValue(window, '.qsl-story-message input', "QSL WRONG DE WRONG PSE K");
+  await sendAutomaticStructuredText(window, "QSL WRONG DE WRONG PSE K", {
+    screenSelector: ".qsl-story-screen", phaseDataset: "qslStoryPhase", label: "QSL story",
+  });
   await click(window, '[data-action="qsl-story-submit"]');
   await waitFor(window, '.qsl-story-error');
   await capture(window, outputDir, shot("qsl-clarification-error"));
-  const clarification = await window.webContents.executeJavaScript(`(() => {
-    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
-    const run = save.storyContinuationState.chapter07.activeRun;
-    return "QSL " + run.caseId + " DE " + run.playerCallsign + " PSE K";
-  })()`, true);
-  await setInputValue(window, '.qsl-story-message input', clarification);
+  const clarification = await window.webContents.executeJavaScript(
+    'document.querySelector(".qsl-story-message code").textContent.trim()', true,
+  );
+  await sendAutomaticStructuredText(window, clarification, {
+    screenSelector: ".qsl-story-screen", phaseDataset: "qslStoryPhase", label: "QSL story",
+  });
   await click(window, '[data-action="qsl-story-submit"]');
   await waitFor(window, '[data-qsl-story-phase="SORA_CLARIFICATION_REPLY"]');
   await capture(window, outputDir, shot("qsl-clarification-reply"));
@@ -1876,13 +1974,13 @@ async function runQslStoryQaScope(window, outputDir, shot, { qaRunId }) {
   await waitFor(window, '[data-qsl-story-phase="COMPLETED"]');
   await capture(window, outputDir, shot("qsl-result"));
   await click(window, '[data-action="qsl-story-settle"]');
-  await waitFor(window, '[data-action="qsl-story-settle"][disabled]');
+  await waitFor(window, '[data-testid="qsl-story-screen"][data-settled="true"][data-settlement-attempts="1"]');
   await capture(window, outputDir, shot("qsl-settled"));
   const beforeDuplicate = await window.webContents.executeJavaScript(
     'localStorage.getItem("game-morse-adventurer.saves.v1")', true,
   );
   await click(window, '[data-action="qsl-story-settle"]');
-  await delay(80);
+  await waitFor(window, '[data-testid="qsl-story-screen"][data-settlement-attempts="2"][data-settlement-reason="ALREADY_SETTLED"]');
   const afterDuplicate = await window.webContents.executeJavaScript(
     'localStorage.getItem("game-morse-adventurer.saves.v1")', true,
   );
@@ -1903,7 +2001,7 @@ async function runQslStoryQaScope(window, outputDir, shot, { qaRunId }) {
   })()`, true);
   const evidence = {
     schemaVersion: 1, qaRunId, activity: "qsl-story", settled: true,
-    duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts,
+    duplicateSettlementExecuted: true, duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts,
   };
   validateQslStoryQaEvidence(evidence, { qaRunId });
   await fs.writeFile(path.join(outputDir, "qsl-story-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
@@ -1918,11 +2016,6 @@ async function serviceNetCurrentMessage(window) {
   })()`, true);
 }
 
-async function submitQaTextInput(window, inputSelector, actionSelector, value) {
-  await setInputValue(window, inputSelector, value);
-  await click(window, actionSelector);
-}
-
 async function runServiceNetQaScope(window, outputDir, shot, { qaRunId }) {
   await openQaActiveSave(window);
   await click(window, '[data-action="open-missions"]');
@@ -1935,43 +2028,61 @@ async function runServiceNetQaScope(window, outputDir, shot, { qaRunId }) {
   await capture(window, outputDir, shot("service-briefing"));
   await click(window, '[data-action="service-net-begin"]');
   await waitFor(window, '[data-service-net-phase="CHECK_IN"]');
-  await submitQaTextInput(window, '.service-net-message input', '[data-action="service-net-submit"]', "WRONG CHECK IN K");
+  await sendAutomaticStructuredText(window, "WRONG CHECK IN K", {
+    screenSelector: ".service-net-screen", phaseDataset: "serviceNetPhase", label: "Service net",
+  });
+  await click(window, '[data-action="service-net-submit"]');
   await waitFor(window, '.service-net-error');
   await capture(window, outputDir, shot("service-check-in-error"));
   const playerCallsign = await window.webContents.executeJavaScript(
     'JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign', true,
   );
-  await submitQaTextInput(window, '.service-net-message input', '[data-action="service-net-submit"]', `${playerCallsign} CHECK IN K`);
+  await sendAutomaticStructuredText(window, `${playerCallsign} CHECK IN K`, {
+    screenSelector: ".service-net-screen", phaseDataset: "serviceNetPhase", label: "Service net",
+  });
+  await click(window, '[data-action="service-net-submit"]');
   await waitFor(window, '[data-service-net-phase="RECEIVE_MESSAGE"]');
   await capture(window, outputDir, shot("service-queue"));
   await click(window, '[data-action="service-net-receive"]');
   await waitFor(window, '[data-service-net-phase="PLAYER_ACK"]');
   await capture(window, outputDir, shot("service-message"));
-  await click(window, '[data-action="service-net-agn"]');
+  await sendAutomaticStructuredText(window, "AGN K", {
+    screenSelector: ".service-net-screen", phaseDataset: "serviceNetPhase", label: "Service net",
+  });
+  await click(window, '[data-action="service-net-submit"]');
   await waitFor(window, '[data-service-net-phase="RECEIVE_MESSAGE"]');
   await capture(window, outputDir, shot("service-agn"));
   await click(window, '[data-action="service-net-receive"]');
   await waitFor(window, '[data-service-net-phase="PLAYER_ACK"]');
   const first = await serviceNetCurrentMessage(window);
-  await submitQaTextInput(window, '.service-net-message input', '[data-action="service-net-submit"]', `ACK 999 PRI ${first.priority} K`);
+  await sendAutomaticStructuredText(window, `ACK 999 PRI ${first.priority} K`, {
+    screenSelector: ".service-net-screen", phaseDataset: "serviceNetPhase", label: "Service net",
+  });
+  await click(window, '[data-action="service-net-submit"]');
   await waitFor(window, '.service-net-error');
   await capture(window, outputDir, shot("service-ack-error"));
-  await submitQaTextInput(window, '.service-net-message input', '[data-action="service-net-submit"]', `ACK ${first.messageId} PRI ${first.priority} K`);
+  await sendAutomaticStructuredText(window, `ACK ${first.messageId} PRI ${first.priority} K`, {
+    screenSelector: ".service-net-screen", phaseDataset: "serviceNetPhase", label: "Service net",
+  });
+  await click(window, '[data-action="service-net-submit"]');
   for (let index = 1; index < 3; index += 1) {
     await waitFor(window, '[data-service-net-phase="RECEIVE_MESSAGE"]');
     await click(window, '[data-action="service-net-receive"]');
     await waitFor(window, '[data-service-net-phase="PLAYER_ACK"]');
     const current = await serviceNetCurrentMessage(window);
-    await submitQaTextInput(window, '.service-net-message input', '[data-action="service-net-submit"]', `ACK ${current.messageId} PRI ${current.priority} K`);
+    await sendAutomaticStructuredText(window, `ACK ${current.messageId} PRI ${current.priority} K`, {
+      screenSelector: ".service-net-screen", phaseDataset: "serviceNetPhase", label: "Service net",
+    });
+    await click(window, '[data-action="service-net-submit"]');
   }
   await waitFor(window, '[data-service-net-phase="COMPLETED"]');
   await capture(window, outputDir, shot("service-result"));
   await click(window, '[data-action="service-net-settle"]');
-  await waitFor(window, '[data-action="service-net-settle"][disabled]');
+  await waitFor(window, '[data-testid="service-net-screen"][data-settled="true"][data-settlement-attempts="1"]');
   await capture(window, outputDir, shot("service-settled"));
   const beforeDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
   await click(window, '[data-action="service-net-settle"]');
-  await delay(80);
+  await waitFor(window, '[data-testid="service-net-screen"][data-settlement-attempts="2"][data-settlement-reason="ALREADY_SETTLED"]');
   const afterDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
   await click(window, '.service-net-topbar button');
   await waitFor(window, '.home-screen');
@@ -1989,7 +2100,7 @@ async function runServiceNetQaScope(window, outputDir, shot, { qaRunId }) {
     };
   })()`, true);
   const evidence = { schemaVersion: 1, qaRunId, activity: "service-net", settled: true,
-    duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts };
+    duplicateSettlementExecuted: true, duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts };
   validateServiceNetQaEvidence(evidence, { qaRunId });
   await fs.writeFile(path.join(outputDir, "service-net-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
   return evidence;
@@ -2010,7 +2121,10 @@ async function runCoordinateRelayQaScope(window, outputDir, shot, { qaRunId }) {
   await capture(window, outputDir, shot("coordinate-packet"));
   await click(window, '[data-action="coordinate-receive"]');
   await waitFor(window, '[data-coordinate-phase="PLAYER_READBACK"]');
-  await submitQaTextInput(window, '.coordinate-relay-input input', '[data-action="coordinate-submit"]', "MSG 999 GRID PX-9999-9999 TIME 0000Z PEOPLE 99 CHECK 99");
+  await sendAutomaticStructuredText(window, "MSG 999 GRID PX-9999-9999 TIME 0000Z PEOPLE 99 CHECK 99", {
+    screenSelector: ".coordinate-relay-screen", phaseDataset: "coordinatePhase", label: "Coordinate relay",
+  });
+  await click(window, '[data-action="coordinate-submit"]');
   await waitFor(window, '[data-coordinate-phase="FIELD_CORRECTION"]');
   await capture(window, outputDir, shot("coordinate-readback-error"));
   await click(window, '[data-action="coordinate-receive"]');
@@ -2019,21 +2133,27 @@ async function runCoordinateRelayQaScope(window, outputDir, shot, { qaRunId }) {
   const packetText = await window.webContents.executeJavaScript(
     'document.querySelector(".coordinate-relay-packet code").textContent.trim()', true,
   );
-  await submitQaTextInput(window, '.coordinate-relay-input input', '[data-action="coordinate-submit"]', packetText);
+  await sendAutomaticStructuredText(window, packetText, {
+    screenSelector: ".coordinate-relay-screen", phaseDataset: "coordinatePhase", label: "Coordinate relay",
+  });
+  await click(window, '[data-action="coordinate-submit"]');
   await waitFor(window, '[data-coordinate-phase="RELAY_PACKET"]');
   await capture(window, outputDir, shot("coordinate-relay"));
-  await submitQaTextInput(window, '.coordinate-relay-input input', '[data-action="coordinate-submit"]', packetText);
+  await sendAutomaticStructuredText(window, packetText, {
+    screenSelector: ".coordinate-relay-screen", phaseDataset: "coordinatePhase", label: "Coordinate relay",
+  });
+  await click(window, '[data-action="coordinate-submit"]');
   await waitFor(window, '[data-coordinate-phase="RELAY_CONFIRMATION"]');
   await capture(window, outputDir, shot("coordinate-confirmation"));
   await click(window, '[data-action="coordinate-confirm"]');
   await waitFor(window, '[data-coordinate-phase="COMPLETED"]');
   await capture(window, outputDir, shot("coordinate-result"));
   await click(window, '[data-action="coordinate-settle"]');
-  await waitFor(window, '[data-action="coordinate-settle"][disabled]');
+  await waitFor(window, '[data-testid="coordinate-relay-screen"][data-settled="true"][data-settlement-attempts="1"]');
   await capture(window, outputDir, shot("coordinate-settled"));
   const beforeDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
   await click(window, '[data-action="coordinate-settle"]');
-  await delay(80);
+  await waitFor(window, '[data-testid="coordinate-relay-screen"][data-settlement-attempts="2"][data-settlement-reason="ALREADY_SETTLED"]');
   const afterDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
   await click(window, '.coordinate-relay-topbar button');
   await waitFor(window, '.home-screen');
@@ -2052,14 +2172,14 @@ async function runCoordinateRelayQaScope(window, outputDir, shot, { qaRunId }) {
     };
   })()`, true);
   const evidence = { schemaVersion: 1, qaRunId, activity: "coordinate-relay", settled: true,
-    duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts };
+    duplicateSettlementExecuted: true, duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts };
   validateCoordinateRelayQaEvidence(evidence, { qaRunId });
   await fs.writeFile(path.join(outputDir, "coordinate-relay-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
   return evidence;
 }
 
 async function submitContestAutomatic(window, text, expectedPhase) {
-  await sendAutomaticContestText(window, text, 18);
+  await sendAutomaticContestText(window, text);
   await waitFor(window, '[data-action="contest-submit"]:not([disabled])');
   await click(window, '[data-action="contest-submit"]');
   if (expectedPhase) await waitFor(window, `[data-contest-phase="${expectedPhase}"]`, 15000);
@@ -2085,7 +2205,13 @@ async function completeContestContact(window, mode, { requestRepeat = false } = 
   const phase = await window.webContents.executeJavaScript('document.querySelector(".contest-screen").dataset.contestPhase', true);
   if (phase === "MODE_SELECT") {
     await click(window, `[data-action="contest-mode-${mode.toLowerCase()}"]`);
-    await waitFor(window, `[data-contest-phase="${mode === "RUN" ? "RUN_PILEUP" : "SP_POOL"}"]`);
+    if (mode === "RUN") {
+      await waitFor(window, '[data-contest-phase="RUN_CQ"]');
+      const cq = await window.webContents.executeJavaScript('document.querySelector(".contest-run-cq code").textContent.trim()', true);
+      await submitContestAutomatic(window, cq, "RUN_PILEUP");
+    } else {
+      await waitFor(window, '[data-contest-phase="SP_POOL"]');
+    }
   }
   const candidate = await contestCandidate(window);
   if (!candidate?.callsign) throw new Error(`Contest QA has no ${mode} candidate`);
@@ -2093,6 +2219,7 @@ async function completeContestContact(window, mode, { requestRepeat = false } = 
   if (requestRepeat) {
     const repeatsBefore = await window.webContents.executeJavaScript(`JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].storyContinuationState.chapter10.activeRun.repeatRequests`, true);
     await click(window, '[data-action="contest-agn"]');
+    await submitContestAutomatic(window, "AGN K", "EXCHANGE");
     await window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
       const started = Date.now();
       const timer = setInterval(() => {
@@ -2116,9 +2243,12 @@ async function runContestQaScope(window, outputDir, shot, { qaRunId }) {
   await waitFor(window, '[data-mission-id="story-10"][data-mission-status="active"]');
   await click(window, '[data-action="launch-contest"]');
   await waitFor(window, '[data-testid="contest-screen"][data-contest-phase="BRIEFING"]');
+  await configureContestQaWpm(window, 22);
   await capture(window, outputDir, shot("contest-briefing"));
   await click(window, '[data-action="contest-mode-run"]');
-  await waitFor(window, '[data-contest-phase="RUN_PILEUP"]');
+  await waitFor(window, '[data-contest-phase="RUN_CQ"]');
+  const contestCq = await window.webContents.executeJavaScript('document.querySelector(".contest-run-cq code").textContent.trim()', true);
+  await submitContestAutomatic(window, contestCq, "RUN_PILEUP");
   await capture(window, outputDir, shot("contest-run-pileup"));
   await submitContestAutomatic(window, "RST", "RUN_PILEUP");
   await waitFor(window, '.contest-error');
@@ -2143,11 +2273,11 @@ async function runContestQaScope(window, outputDir, shot, { qaRunId }) {
   await waitFor(window, '[data-contest-phase="COMPLETED"]');
   await capture(window, outputDir, shot("contest-result"));
   await click(window, '[data-action="contest-settle"]');
-  await waitFor(window, '[data-action="contest-settle"][disabled]', 15000);
+  await waitFor(window, '[data-testid="contest-screen"][data-settled="true"][data-settlement-attempts="1"]', 15000);
   await capture(window, outputDir, shot("contest-settled"));
   const beforeDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
   await click(window, '[data-action="contest-settle"]');
-  await delay(80);
+  await waitFor(window, '[data-testid="contest-screen"][data-settlement-attempts="2"][data-settlement-reason="ALREADY_SETTLED"]', 15000);
   const afterDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
   await click(window, '.contest-topbar button');
   await waitFor(window, '.home-screen');
@@ -2158,6 +2288,7 @@ async function runContestQaScope(window, outputDir, shot, { qaRunId }) {
     const chapter = save.storyContinuationState.chapter10;
     const record = chapter.records.at(-1);
     return {
+      configuredWpm: save.automaticKeyWpm,
       validContacts: record.validContacts, runContacts: record.runContacts, spContacts: record.spContacts,
       uniqueRegions: record.uniqueRegions, grade: record.grade,
       eventQsoCount: save.qsoLogs.filter((log) => log.eventKind === "contest" && log.eventRunId === record.runId).length,
@@ -2166,7 +2297,7 @@ async function runContestQaScope(window, outputDir, shot, { qaRunId }) {
     };
   })()`, true);
   const evidence = { schemaVersion: 1, qaRunId, activity: "contest", settled: true,
-    duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts };
+    duplicateSettlementExecuted: true, duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts };
   validateContestQaEvidence(evidence, { qaRunId });
   await fs.writeFile(path.join(outputDir, "contest-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
   return evidence;
@@ -4350,10 +4481,12 @@ async function runQaCapture(window) {
 module.exports = {
   automaticQaGapAfterElement, automaticQaShouldWaitForIdleAfterSymbol,
   buildLightsQaMoneyFlow, buildLightsQaPlan, buildQaSegmentPlan, capture, capturePageWithVizRetry,
+  configureContestQaWpm,
   createQaStateEnvelope, exportQaStateFromRenderer, formatLightsWaitFailure, importQaStateIntoRenderer,
   focusQaWindow,
   LIGHTS_QA_WPM, QA_INITIAL_STORY_MISSION_IDS, QA_QSO_LOG_VERSION, QA_STORAGE_KEYS, QA_SUPPORTED_SCOPES,
   runLightsQaCapture, runLightsQaSegment, runQaCapture,
+  qaMorsePatternForCharacter,
   lightsKeyInputForSymbol, selectLightsCallerFromRuntimeSnapshot, startGuidedQaWatch,
   sendAutomaticStationRun, sendAutomaticStationText,
   sendAutomaticLightsText, validateExpeditionQaEvidence, validateLightsQaEvidence, validateQaStateEnvelope, validateStationEntryProbe,

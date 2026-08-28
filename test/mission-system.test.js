@@ -39,7 +39,7 @@ import {
 } from "../src/game/coordinateRelayRun.js";
 import { settleCoordinateRelayRun } from "../src/game/coordinateRelaySettlement.js";
 import {
-  CONTEST_MODES, contestExchangeText, createContestRun, finishContestRun,
+  CONTEST_MODES, contestCqText, contestExchangeText, createContestRun, finishContestRun,
   normalizeContestState, selectContestMode, submitContestText,
 } from "../src/game/contestRun.js";
 import { settleContestRun } from "../src/game/contestSettlement.js";
@@ -117,6 +117,24 @@ function chapterSevenSourceLog() {
     expeditionSiteId: "sunward-hill",
     isFictional: true,
   });
+}
+
+function withLaterOrdinaryContact(save, eventKind, id, startedAt, completedAt) {
+  const source = save.qsoLogs.find((entry) => entry.eventKind === eventKind);
+  const laterLog = normalizeQsoLogEntry({
+    ...source,
+    id,
+    eventKind: null,
+    eventRunId: null,
+    startedAt,
+    completedAt,
+  });
+  assert.ok(laterLog, `${eventKind} later QSO must normalize`);
+  return {
+    ...save,
+    qsoLogs: [...save.qsoLogs, laterLog],
+    operatorRelationships: recordCompletedOperatorRelationship(save.operatorRelationships, laterLog),
+  };
 }
 
 function chapterSevenSourceExpeditionState() {
@@ -237,8 +255,10 @@ test("story seven requires a confirmed hill QSL and four linked settlement facts
   const settled = settleQslStoryRun(withActiveRun, run, "2026-08-28T00:05:00.000Z");
   assert.equal(settled.settled, true);
   assert.equal(missionBoard(settled.save).story.find(({ id }) => id === "story-07").status, "ready");
+  const afterLaterContact = withLaterOrdinaryContact(settled.save, "qsl-story", "later-qsl-story-contact", "2026-08-28T00:05:10.000Z", "2026-08-28T00:05:20.000Z");
+  assert.equal(missionBoard(afterLaterContact).story.find(({ id }) => id === "story-07").status, "ready");
 
-  const claimed = claimMission(settled.save, "story-07", "2026-08-28T00:06:00.000Z");
+  const claimed = claimMission(afterLaterContact, "story-07", "2026-08-28T00:06:00.000Z");
   assert.equal(claimed.claimed, true);
   assert.equal(claimed.moneyAwarded, 750);
   assert.equal(claimed.technologyPointsAwarded, 3);
@@ -321,7 +341,22 @@ test("story eight requires four linked service facts and rewards only once", () 
   const settled = settleServiceNetRun(active, run, "2026-08-28T01:06:00.000Z");
   assert.equal(settled.settled, true);
   assert.equal(missionBoard(settled.save).story.find(({ id }) => id === "story-08").status, "ready");
-  const claimed = claimMission(settled.save, "story-08", "2026-08-28T01:07:00.000Z");
+  const serviceLog = settled.save.qsoLogs.find(({ eventKind }) => eventKind === "service-net");
+  const laterLog = normalizeQsoLogEntry({
+    ...serviceLog,
+    id: "later-service-controller-qso",
+    eventKind: null,
+    eventRunId: null,
+    startedAt: "2026-08-28T01:06:10.000Z",
+    completedAt: "2026-08-28T01:06:20.000Z",
+  });
+  const afterLaterContact = {
+    ...settled.save,
+    qsoLogs: [...settled.save.qsoLogs, laterLog],
+    operatorRelationships: recordCompletedOperatorRelationship(settled.save.operatorRelationships, laterLog),
+  };
+  assert.equal(missionBoard(afterLaterContact).story.find(({ id }) => id === "story-08").status, "ready");
+  const claimed = claimMission(afterLaterContact, "story-08", "2026-08-28T01:07:00.000Z");
   assert.equal(claimed.claimed, true);
   assert.equal(claimed.moneyAwarded, 850);
   assert.equal(claimed.technologyPointsAwarded, 4);
@@ -438,7 +473,9 @@ test("story nine requires linked coordinate relay facts and rewards only once", 
   const settled = settleCoordinateRelayRun(active, run, "2026-08-28T02:02:00.000Z");
   assert.equal(settled.settled, true);
   assert.equal(missionBoard(settled.save).story.find(({ id }) => id === "story-09").status, "ready");
-  const claimed = claimMission(settled.save, "story-09", "2026-08-28T02:03:00.000Z");
+  const afterLaterContact = withLaterOrdinaryContact(settled.save, "coordinate-relay", "later-coordinate-contact", "2026-08-28T02:02:10.000Z", "2026-08-28T02:02:20.000Z");
+  assert.equal(missionBoard(afterLaterContact).story.find(({ id }) => id === "story-09").status, "ready");
+  const claimed = claimMission(afterLaterContact, "story-09", "2026-08-28T02:03:00.000Z");
   assert.equal(claimed.claimed, true);
   assert.equal(claimed.moneyAwarded, 950);
   assert.equal(claimed.technologyPointsAwarded, 4);
@@ -483,6 +520,9 @@ function completedContestRun(seed = "mission-story-10") {
   for (let index = 0; index < 6; index += 1) {
     const mode = index < 3 ? CONTEST_MODES.RUN : CONTEST_MODES.SP;
     run = selectContestMode(run, mode);
+    if (mode === CONTEST_MODES.RUN) {
+      run = submitContestText(run, contestCqText(run.playerCallsign), { safeToCommit: true }, new Date(Date.parse(start) + (index * 8 + 4) * 1000).toISOString());
+    }
     const station = run.candidates[0];
     const observedAt = new Date(Date.parse(start) + (index * 8 + 5) * 1000).toISOString();
     run = submitContestText(run, station.callsign, { safeToCommit: true }, observedAt);
@@ -500,7 +540,9 @@ test("story ten requires linked contest facts, rewards once, and unlocks the tas
   const settled = settleContestRun(active, run, "2026-08-28T03:04:00.000Z");
   assert.equal(settled.settled, true);
   assert.equal(missionBoard(settled.save).story.find(({ id }) => id === "story-10").status, "ready");
-  const claimed = claimMission(settled.save, "story-10", "2026-08-28T03:05:00.000Z");
+  const afterLaterContact = withLaterOrdinaryContact(settled.save, "contest", "later-contest-contact", "2026-08-28T03:04:10.000Z", "2026-08-28T03:04:20.000Z");
+  assert.equal(missionBoard(afterLaterContact).story.find(({ id }) => id === "story-10").status, "ready");
+  const claimed = claimMission(afterLaterContact, "story-10", "2026-08-28T03:05:00.000Z");
   assert.equal(claimed.claimed, true);
   assert.equal(claimed.moneyAwarded, 1100);
   assert.equal(claimed.technologyPointsAwarded, 5);
@@ -569,7 +611,7 @@ test("daily commissions only count contacts after acceptance and enforce the act
   assert.equal(abandoned.save.missionState.activeMissions.length, 1);
 });
 
-test("mission state normalization removes corrupt, duplicate, and already claimed active records", () => {
+test("mission state normalization rejects corrupt or duplicate mission subledgers", () => {
   const normalized = normalizeMissionState({
     activeMissions: [
       { id: "story-01", acceptedAt: "2026-08-11T08:00:00Z" },
@@ -580,7 +622,124 @@ test("mission state normalization removes corrupt, duplicate, and already claime
     history: [{ id: "story-01", claimedAt: "bad" }],
   });
   assert.deepEqual(normalized.activeMissions, []);
-  assert.deepEqual(normalized.claimedMissionIds, ["story-01"]);
+  assert.deepEqual(normalized.claimedMissionIds, []);
   assert.deepEqual(normalized.history, []);
   assert.deepEqual(missionSummary(save()).storyClaimed, 0);
+
+  assert.deepEqual(normalizeMissionState({
+    claimedMissionIds: ["story-07", "story-07"],
+  }).claimedMissionIds, []);
+
+  const duplicateBaseline = normalizeMissionState({
+    activeMissions: [{
+      id: "story-07",
+      acceptedAt: "2026-08-28T00:00:00.000Z",
+      baselineQsoIds: ["q-1", "q-1"],
+    }],
+  });
+  assert.equal(duplicateBaseline.activeMissions.length, 1);
+  assert.deepEqual(duplicateBaseline.activeMissions[0].baselineQsoIds, []);
+
+  assert.deepEqual(normalizeMissionState({
+    activeMissions: [
+      { id: "story-07", acceptedAt: "2026-08-28T00:00:00.000Z" },
+      { id: "story-07", acceptedAt: "2026-08-28T00:01:00.000Z" },
+    ],
+  }).activeMissions, []);
+});
+
+test("mission state normalization rejects inherited slots and bounds hostile ledgers", () => {
+  const inheritedClaims = [];
+  inheritedClaims.length = 1;
+  Object.setPrototypeOf(inheritedClaims, Object.assign(Object.create(Array.prototype), { 0: "story-07" }));
+  const inheritedMission = Object.create({
+    id: "story-08",
+    acceptedAt: "2026-08-28T10:00:00.000Z",
+  });
+  const source = {};
+  Object.defineProperties(source, {
+    claimedMissionIds: { value: inheritedClaims, enumerable: true },
+    activeMissions: { value: [inheritedMission], enumerable: true },
+  });
+  const inherited = normalizeMissionState(source);
+  assert.deepEqual(inherited.claimedMissionIds, []);
+  assert.deepEqual(inherited.activeMissions, []);
+
+  let numericReads = 0;
+  const hugeClaims = new Proxy(Array.from({ length: 10_000 }, (_, index) => index === 9_999 ? "story-07" : "invalid"), {
+    get(target, property, receiver) {
+      if (/^\d+$/.test(String(property))) numericReads += 1;
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  const bounded = normalizeMissionState({ claimedMissionIds: hugeClaims });
+  assert.deepEqual(bounded.claimedMissionIds, []);
+  assert.equal(numericReads, 0);
+});
+
+test("mission state normalization fails closed on descriptor traps and hostile string coercion", () => {
+  const hostileSource = new Proxy({}, {
+    getOwnPropertyDescriptor() { throw new Error("source descriptor boom"); },
+  });
+  assert.doesNotThrow(() => normalizeMissionState(hostileSource));
+  assert.deepEqual(normalizeMissionState(hostileSource), emptyMissionState());
+
+  const hostileItem = new Proxy({}, {
+    getOwnPropertyDescriptor() { throw new Error("item descriptor boom"); },
+  });
+  assert.doesNotThrow(() => normalizeMissionState({ activeMissions: [hostileItem] }));
+  assert.deepEqual(normalizeMissionState({ activeMissions: [hostileItem] }).activeMissions, []);
+
+  const hostileCoercion = Object.freeze({
+    toString() { throw new Error("coercion boom"); },
+  });
+  assert.doesNotThrow(() => normalizeMissionState({ claimedMissionIds: [hostileCoercion, "story-07"] }));
+  assert.deepEqual(
+    normalizeMissionState({ claimedMissionIds: [hostileCoercion, "story-07"] }).claimedMissionIds,
+    [],
+  );
+  assert.deepEqual(normalizeMissionState({ claimedMissionIds: [{}, "story-07"] }).claimedMissionIds, []);
+  assert.deepEqual(normalizeMissionState({ claimedMissionIds: ["invalid", "story-07"] }).claimedMissionIds, []);
+});
+
+test("mission history and event ledgers fail closed on invalid, duplicate, or noncanonical records", () => {
+  const story07 = {
+    id: "story-07",
+    claimedAt: "2026-08-28T01:00:00.000Z",
+    moneyReward: 800,
+    technologyPointsReward: 4,
+  };
+  const story08 = {
+    id: "story-08",
+    claimedAt: "2026-08-28T02:00:00.000Z",
+    moneyReward: 850,
+    technologyPointsReward: 4,
+  };
+  assert.deepEqual(normalizeMissionState({ history: [{}, story07] }).history, []);
+  assert.deepEqual(normalizeMissionState({ history: [story07, story07] }).history, []);
+  assert.deepEqual(normalizeMissionState({ history: [story08, story07] }).history, []);
+  assert.deepEqual(normalizeMissionState({ history: [story07, story08] }).history.map(({ id }) => id), ["story-07", "story-08"]);
+
+  const event1 = {
+    id: "mission-qso:q-1",
+    qsoId: "q-1",
+    occurredAt: "2026-08-28T01:00:00.000Z",
+    missionIds: ["story-07"],
+  };
+  const event2 = {
+    id: "mission-qso:q-2",
+    qsoId: "q-2",
+    occurredAt: "2026-08-28T02:00:00.000Z",
+    missionIds: ["story-08"],
+  };
+  assert.deepEqual(normalizeMissionState({ events: [{}, event1] }).events, []);
+  assert.deepEqual(normalizeMissionState({ events: [event1, event1] }).events, []);
+  assert.deepEqual(normalizeMissionState({ events: [event2, event1] }).events, []);
+  assert.deepEqual(normalizeMissionState({ events: [event1, event2] }).events.map(({ id }) => id), ["mission-qso:q-1", "mission-qso:q-2"]);
+
+  const invalidMissionIds = normalizeMissionState({
+    events: [{ ...event1, missionIds: ["invalid", "story-07"] }],
+  });
+  assert.equal(invalidMissionIds.events.length, 1);
+  assert.deepEqual(invalidMissionIds.events[0].missionIds, []);
 });

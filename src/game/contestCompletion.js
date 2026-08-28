@@ -35,8 +35,13 @@ export function verifiedContestCompletion(save, active, logs = own(save, "qsoLog
       for (const proof of record.contacts) {
         const log = retainedLogs.find((entry) => own(entry, "id") === proof.qsoId);
         const relationship = relationships.find((entry) => entry.personId === proof.personId);
+        const completedAt = Date.parse(proof.completedAt);
+        const firstMetAt = Date.parse(relationship?.firstMetAt ?? "");
+        const lastMetAt = Date.parse(relationship?.lastMetAt ?? "");
         if (!verifiedLog(log, proof, record.runId) || Date.parse(proof.completedAt) < acceptedAt
-          || relationship?.completedQsos < 1 || relationship.lastQsoId !== proof.qsoId) { valid = false; break; }
+          || relationship?.completedQsos < 1
+          || !Number.isFinite(completedAt) || !Number.isFinite(firstMetAt) || !Number.isFinite(lastMetAt)
+          || firstMetAt > completedAt || lastMetAt < completedAt) { valid = false; break; }
       }
       if (valid && new Set(record.contacts.map(({ personId }) => personId)).size === record.validContacts) return true;
     }

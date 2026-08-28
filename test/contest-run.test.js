@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  CONTEST_MODES, CONTEST_PHASES, abandonContestRun, contestExchangeText,
+  CONTEST_MODES, CONTEST_PHASES, abandonContestRun, contestCqText, contestExchangeText,
   createContestRun, finishContestRun, normalizeContestRun, retryContestRun,
   scoreContestRun, selectContestMode, submitContestText, tickContestRun,
 } from "../src/game/contestRun.js";
@@ -11,8 +11,17 @@ const ISO = "2026-08-28T03:00:00.000Z";
 const later = (seconds) => new Date(Date.parse(ISO) + seconds * 1000).toISOString();
 const safe = Object.freeze({ safeToCommit: true });
 
+function startRunMode(run, seconds = 1) {
+  const selected = selectContestMode(run, CONTEST_MODES.RUN);
+  return submitContestText(selected, contestCqText(selected.playerCallsign), safe, later(seconds));
+}
+
 function contact(run, mode, seconds) {
   let next = selectContestMode(run, mode);
+  if (mode === CONTEST_MODES.RUN) {
+    assert.equal(next.phase, CONTEST_PHASES.RUN_CQ);
+    next = submitContestText(next, contestCqText(next.playerCallsign), safe, later(seconds));
+  }
   const station = next.candidates.find(({ personId }) => !next.contacts.some((entry) => entry.personId === personId));
   assert.ok(station, `${mode} needs an unworked station`);
   next = submitContestText(next, station.callsign, safe, later(seconds));
@@ -21,6 +30,22 @@ function contact(run, mode, seconds) {
   assert.equal(next.contacts.length, run.contacts.length + 1);
   return next;
 }
+
+test("RUN requires a safe keyed contest CQ before exposing the frozen pile-up", () => {
+  const fresh = createContestRun({ playerCallsign: "BH1ABC", seed: "run-cq", startedAt: ISO });
+  const selected = selectContestMode(fresh, CONTEST_MODES.RUN);
+  assert.equal(selected.phase, CONTEST_PHASES.RUN_CQ);
+  assert.deepEqual(selected.candidates, []);
+  const unsafe = submitContestText(selected, contestCqText(selected.playerCallsign), null, later(1));
+  assert.equal(unsafe.phase, CONTEST_PHASES.RUN_CQ);
+  assert.equal(unsafe.errors.at(-1), "SEMANTIC_UNSAFE");
+  const wrong = submitContestText(selected, "CQ DE WRONG K", safe, later(1));
+  assert.equal(wrong.phase, CONTEST_PHASES.RUN_CQ);
+  assert.equal(wrong.errors.at(-1), "CQ_INVALID");
+  const keyed = submitContestText(selected, contestCqText(selected.playerCallsign), safe, later(2));
+  assert.equal(keyed.phase, CONTEST_PHASES.RUN_PILEUP);
+  assert.ok(keyed.candidates.length >= 2);
+});
 
 function completeSix(run) {
   let next = run;
@@ -40,15 +65,15 @@ test("contest freezes a fictional controller and deterministic RUN and S&P stati
   assert.equal(new Set(first.stationPool.map(({ personId }) => personId)).size, 10);
   assert.ok(first.stationPool.every(({ isFictional, regionCode, powerWatts }) => isFictional && /^[A-Z]{2}$/.test(regionCode) && powerWatts >= 1 && powerWatts <= 1000));
   const running = selectContestMode(first, CONTEST_MODES.RUN);
-  assert.equal(running.phase, CONTEST_PHASES.RUN_PILEUP);
-  assert.ok(running.candidates.length >= 2 && running.candidates.length <= 3);
+  assert.equal(running.phase, CONTEST_PHASES.RUN_CQ);
+  assert.equal(running.candidates.length, 0);
   const hunting = selectContestMode(first, CONTEST_MODES.SP);
   assert.equal(hunting.phase, CONTEST_PHASES.SP_POOL);
   assert.ok(hunting.candidates.length >= 3);
 });
 
 test("hard exchange fields, serial progression, and duplicate identities fail closed", () => {
-  let run = selectContestMode(createContestRun({ playerCallsign: "BH1ABC", seed: "fields", startedAt: ISO }), CONTEST_MODES.RUN);
+  let run = startRunMode(createContestRun({ playerCallsign: "BH1ABC", seed: "fields", startedAt: ISO }));
   const station = run.candidates[0];
   run = submitContestText(run, station.callsign, safe, later(1));
   const canonical = contestExchangeText(station, run.playerCallsign, 1);
@@ -70,7 +95,7 @@ test("hard exchange fields, serial progression, and duplicate identities fail cl
 });
 
 test("exact AGN and QRS preserve the selected station when semantic safety cannot classify procedure-only text", () => {
-  let run = selectContestMode(createContestRun({ playerCallsign: "BH1ABC", seed: "recovery", startedAt: ISO }), CONTEST_MODES.RUN);
+  let run = startRunMode(createContestRun({ playerCallsign: "BH1ABC", seed: "recovery", startedAt: ISO }));
   const station = run.candidates[0];
   const interrupted = submitContestText(run, contestExchangeText(station, run.playerCallsign, 1), { safeToCommit: false }, later(1));
   assert.equal(interrupted.interruptions, 1);

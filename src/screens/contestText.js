@@ -1,16 +1,27 @@
 import { CONTEST_PHASES } from "../game/contestRun.js";
 
+export { SETTLEMENT_SAVED_TEXT as CONTEST_SETTLED_TEXT } from "./settlementText.js";
+
 const en = Object.freeze({
   title: "Crowded Air", kicker: "Chapter 10 · Five-minute contest", simulationWarning: "Fictional offline training contest. No real event, brand, or online ranking is used.", leave: "Leave", paused: "Contest clock paused while settings are open or the window is inactive.",
   controller: "Contest control", remaining: "Remaining", score: "Score", contacts: "Contacts", regions: "Regions", grade: "Grade", briefing: "Work both RUN and S&P in one five-minute session. Copy each frozen station and send its exact RST, serial, region, and power.",
-  runMode: "RUN", spMode: "S&P", beginRun: "Start in RUN", beginSp: "Start in S&P", chooseMode: "Choose operating mode", pileup: "Frozen pile-up", stationPool: "Frozen station pool", listen: "Listen to callers", candidatePrompt: "Key the target callsign, then press F2.",
+  runMode: "RUN", spMode: "S&P", beginRun: "Start in RUN", beginSp: "Start in S&P", chooseMode: "Choose operating mode", pileup: "Frozen pile-up", stationPool: "Frozen station pool", listen: "Listen to callers", candidatePrompt: "Key the target callsign, then press F2.", cqPrompt: "Key the full contest CQ before callers may answer.",
   exchange: "Contest exchange", exchangeHint: "Key the full frozen exchange", transmit: "Transmit · F2", clear: "Clear", agn: "AGN K · Repeat", qrs: "QRS K · Slower", finish: "Finish run", needMinimum: "Finish after 6 contacts, 2 RUN, 2 S&P, and 3 regions.",
   validContacts: "Valid", cleanExchanges: "Clean", repeats: "Repeats", busted: "Busted", interruptions: "Interruptions", duplicate: "Duplicates", speed: "Reply speed", keyHintAutomatic: "Z · / X —", keyHintManual: "SPACE",
   completed: "Contest complete", failed: "Contest failed", retry: "Retry frozen contest", settle: "Save contest record", personalBest: "Personal best", noBest: "No saved best yet", leaveConfirm: "This contest is active or completed but unsaved. Leave anyway?", cancel: "Stay", confirmLeave: "Leave without saving",
-  SEMANTIC_UNSAFE: "Semantic safety check rejected the transmission.", INTERRUPTION: "Transmission interrupted the current caller.", CALLSIGN_MISMATCH: "The callsign does not match.", BUSTED_CALL: "That callsign is not in the frozen pool.", DUPLICATE_STATION: "That operator was already worked.", FORMAT_INVALID: "Use the complete labelled exchange in order.", RST_MISMATCH: "RST does not match the frozen station.", SERIAL_MISMATCH: "Serial number does not match.", REGION_MISMATCH: "Region does not match.", POWER_MISMATCH: "Power does not match.", MINIMUM_NOT_MET: "Minimum contact, mode, or region conditions were not met.", TIMED_OUT: "The five-minute contest window ended before the minimum was met.",
+  SEMANTIC_UNSAFE: "Semantic safety check rejected the transmission.", CQ_INVALID: "Send the complete contest CQ with your callsign.", INTERRUPTION: "Transmission interrupted the current caller.", CALLSIGN_MISMATCH: "The callsign does not match.", BUSTED_CALL: "That callsign is not in the frozen pool.", DUPLICATE_STATION: "That operator was already worked.", FORMAT_INVALID: "Use the complete labelled exchange in order.", RST_MISMATCH: "RST does not match the frozen station.", SERIAL_MISMATCH: "Serial number does not match.", REGION_MISMATCH: "Region does not match.", POWER_MISMATCH: "Power does not match.", MINIMUM_NOT_MET: "Minimum contact, mode, or region conditions were not met.", TIMED_OUT: "The five-minute contest window ended before the minimum was met.",
 });
 
-function localized(overrides) { return Object.freeze({ ...en, ...overrides }); }
+const CQ_COPY_BY_TITLE = Object.freeze({
+  "空中的拥挤": { cqPrompt: "先用电键完整发出竞赛 CQ，来台才会应答。", CQ_INVALID: "请发出带本人呼号的完整竞赛 CQ。" },
+  "空中的擁擠": { cqPrompt: "先用電鍵完整發出競賽 CQ，來臺才會應答。", CQ_INVALID: "請發出帶本人呼號的完整競賽 CQ。" },
+  "混み合う空": { cqPrompt: "完全なコンテストCQを送信すると呼出局が応答します。", CQ_INVALID: "自局コールを含む完全なコンテストCQを送ってください。" },
+  "Aire congestionado": { cqPrompt: "Telegrafía el CQ de concurso completo antes de recibir respuestas.", CQ_INVALID: "Envía el CQ de concurso completo con tu indicativo." },
+  "Gedrängte Luft": { cqPrompt: "Erst den vollständigen Contest-CQ morsen, dann antworten Stationen.", CQ_INVALID: "Vollständigen Contest-CQ mit eigenem Rufzeichen senden." },
+  "Тесный эфир": { cqPrompt: "Сначала передайте полный контест-вызов CQ, затем ответят станции.", CQ_INVALID: "Передайте полный контест-вызов CQ со своим позывным." },
+});
+
+function localized(overrides) { return Object.freeze({ ...en, ...overrides, ...(CQ_COPY_BY_TITLE[overrides.title] ?? {}) }); }
 
 export const CONTEST_TEXT = Object.freeze({
   "zh-CN": localized({ title: "空中的拥挤", kicker: "第 10 章 · 五分钟短赛", simulationWarning: "这是虚构的离线训练比赛，不使用现实赛事、品牌或联网排名。", leave: "离开", paused: "设置开启或窗口失焦时，比赛时钟暂停。", controller: "比赛主控", remaining: "剩余", score: "得分", contacts: "联系人", regions: "地区", grade: "成绩", briefing: "在同一轮完成 RUN 与 S&P。抄准冻结台站，并发送完整的 RST、序号、地区和功率。", runMode: "RUN 主叫", spMode: "S&P 搜台", beginRun: "以 RUN 开始", beginSp: "以 S&P 开始", chooseMode: "选择操作模式", pileup: "冻结 pile-up", stationPool: "冻结台池", listen: "收听来台", candidatePrompt: "用电键发送目标呼号，再按 F2。", exchange: "比赛交换", exchangeHint: "用电键发送完整冻结交换", transmit: "发射 · F2", clear: "清空", agn: "AGN K · 重发", qrs: "QRS K · 降速", finish: "结束本轮", needMinimum: "至少完成6台、RUN与S&P各2台、3个地区。", validContacts: "有效", cleanExchanges: "干净交换", repeats: "重发", busted: "抄错呼号", interruptions: "抢发", duplicate: "重复", speed: "回发速度", keyHintManual: "空格键", completed: "比赛完成", failed: "比赛失败", retry: "重试冻结比赛", settle: "保存比赛记录", personalBest: "个人最佳", noBest: "尚无最佳记录", leaveConfirm: "比赛仍在进行或尚未保存，仍要离开吗？", cancel: "继续比赛", confirmLeave: "不保存并离开", SEMANTIC_UNSAFE: "语义安全检查拒绝了本次发射。", INTERRUPTION: "你在当前来台结束前抢发。", CALLSIGN_MISMATCH: "呼号不匹配。", BUSTED_CALL: "冻结台池中没有这个呼号。", DUPLICATE_STATION: "该操作员已经完成过通联。", FORMAT_INVALID: "请按顺序发送完整标签交换。", RST_MISMATCH: "RST 与冻结事实不符。", SERIAL_MISMATCH: "比赛序号不符。", REGION_MISMATCH: "地区不符。", POWER_MISMATCH: "功率不符。", MINIMUM_NOT_MET: "联系人、模式或地区最低条件未达到。", TIMED_OUT: "五分钟结束时尚未达到最低条件。" }),

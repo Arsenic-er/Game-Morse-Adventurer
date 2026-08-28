@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  CONTEST_MODES, contestExchangeText, createContestRun, finishContestRun,
+  CONTEST_MODES, contestCqText, contestExchangeText, createContestRun, finishContestRun,
   normalizeContestState, selectContestMode, submitContestText,
 } from "../src/game/contestRun.js";
 import { settleContestRun, verifiedContestCompletion } from "../src/game/contestSettlement.js";
@@ -19,6 +19,7 @@ export function completedContestRun(seed = "contest-settlement", count = 6) {
   for (let index = 0; index < count; index += 1) {
     const mode = index < Math.ceil(count / 2) ? CONTEST_MODES.RUN : CONTEST_MODES.SP;
     run = selectContestMode(run, mode);
+    if (mode === CONTEST_MODES.RUN) run = submitContestText(run, contestCqText(run.playerCallsign), safe, at(4 + index * 8));
     const station = run.candidates[0];
     run = submitContestText(run, station.callsign, safe, at(5 + index * 8));
     run = submitContestText(run, contestExchangeText(station, run.playerCallsign, run.nextSerial), safe, at(6 + index * 8));

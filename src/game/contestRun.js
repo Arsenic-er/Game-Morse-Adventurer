@@ -10,7 +10,7 @@ export const CONTEST_SETTLED_RUN_LIMIT = 100;
 
 export const CONTEST_MODES = Object.freeze({ RUN: "RUN", SP: "SP" });
 export const CONTEST_PHASES = Object.freeze({
-  BRIEFING: "BRIEFING", MODE_SELECT: "MODE_SELECT", RUN_PILEUP: "RUN_PILEUP",
+  BRIEFING: "BRIEFING", MODE_SELECT: "MODE_SELECT", RUN_CQ: "RUN_CQ", RUN_PILEUP: "RUN_PILEUP",
   SP_POOL: "SP_POOL", EXCHANGE: "EXCHANGE", COMPLETED: "COMPLETED",
   FAILED: "FAILED", ABANDONED: "ABANDONED",
 });
@@ -225,6 +225,11 @@ export function contestExchangeText(stationValue, playerCallsignValue, serialVal
     : "";
 }
 
+export function contestCqText(playerCallsignValue) {
+  const player = callsign(playerCallsignValue);
+  return player ? `CQ TEST DE ${player} K` : "";
+}
+
 export function createContestRun({ playerCallsign, seed, startedAt } = {}) {
   try {
     const player = callsign(playerCallsign);
@@ -239,10 +244,18 @@ export function createContestRun({ playerCallsign, seed, startedAt } = {}) {
 export function selectContestMode(value, mode) {
   const run = normalizeContestRun(value);
   if (!run || TERMINAL.has(run.phase) || ![CONTEST_PHASES.BRIEFING, CONTEST_PHASES.MODE_SELECT].includes(run.phase) || !MODES.has(mode)) return value;
+  if (mode === CONTEST_MODES.RUN) return transition(run, {
+    phase: CONTEST_PHASES.RUN_CQ,
+    mode,
+    candidates: [],
+    selectedStation: null,
+    errors: [],
+    currentExchangeRecovered: false,
+  });
   const candidates = candidateSlice(run, mode);
   if (candidates.length === 0) return finishContestRun(run, run.startedAt);
   return transition(run, {
-    phase: mode === CONTEST_MODES.RUN ? CONTEST_PHASES.RUN_PILEUP : CONTEST_PHASES.SP_POOL,
+    phase: CONTEST_PHASES.SP_POOL,
     mode, candidates, selectedStation: null, errors: [], currentExchangeRecovered: false,
   });
 }
@@ -251,8 +264,24 @@ export function submitContestText(value, decodedValue, semanticResult, observedA
   const run = normalizeContestRun(value);
   const at = iso(observedAt);
   if (!run || !at || Date.parse(at) < Date.parse(run.startedAt) || TERMINAL.has(run.phase)) return value;
-  if (![CONTEST_PHASES.RUN_PILEUP, CONTEST_PHASES.SP_POOL, CONTEST_PHASES.EXCHANGE].includes(run.phase)) return value;
+  if (![CONTEST_PHASES.RUN_CQ, CONTEST_PHASES.RUN_PILEUP, CONTEST_PHASES.SP_POOL, CONTEST_PHASES.EXCHANGE].includes(run.phase)) return value;
   const decoded = typeof decodedValue === "string" ? decodedValue.slice(0, 256) : "";
+  if (run.phase === CONTEST_PHASES.RUN_CQ) {
+    if (!safeSemantic(semanticResult)) return transition(run, {
+      errors: [...run.errors, "SEMANTIC_UNSAFE"].slice(-MAX_ERRORS),
+      exchangeErrors: run.exchangeErrors + 1,
+    });
+    if (tokenizeStructuredMessage(decoded).join(" ") !== contestCqText(run.playerCallsign)) return transition(run, {
+      errors: [...run.errors, "CQ_INVALID"].slice(-MAX_ERRORS),
+      exchangeErrors: run.exchangeErrors + 1,
+    });
+    const candidates = candidateSlice(run, CONTEST_MODES.RUN);
+    return candidates.length === 0 ? finishContestRun(run, at) : transition(run, {
+      phase: CONTEST_PHASES.RUN_PILEUP,
+      candidates,
+      errors: [],
+    });
+  }
   const recovery = recoveryCommand(decoded);
   if (recovery) return transition(run, {
     repeatRequests: run.repeatRequests + 1,
@@ -432,8 +461,9 @@ export function normalizeContestRun(value) {
     if (phase === CONTEST_PHASES.EXCHANGE && (!selectedStation || !MODES.has(mode))) return null;
     if (phase !== CONTEST_PHASES.EXCHANGE && run.currentExchangeRecovered) return null;
     if (phase !== CONTEST_PHASES.EXCHANGE && selectedStation) return null;
+    if (phase === CONTEST_PHASES.RUN_CQ && (mode !== CONTEST_MODES.RUN || candidates.length !== 0)) return null;
     if ([CONTEST_PHASES.RUN_PILEUP, CONTEST_PHASES.SP_POOL].includes(phase) && (!MODES.has(mode) || candidates.length === 0)) return null;
-    if (![CONTEST_PHASES.RUN_PILEUP, CONTEST_PHASES.SP_POOL, CONTEST_PHASES.EXCHANGE].includes(phase) && (mode || candidates.length)) return null;
+    if (![CONTEST_PHASES.RUN_CQ, CONTEST_PHASES.RUN_PILEUP, CONTEST_PHASES.SP_POOL, CONTEST_PHASES.EXCHANGE].includes(phase) && (mode || candidates.length)) return null;
     if (TERMINAL.has(phase) !== Boolean(completedAt)) return null;
     if (phase === CONTEST_PHASES.COMPLETED && !eligible(run)) return null;
     return deepFreeze(run);

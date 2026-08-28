@@ -5,6 +5,11 @@ import { analyzeKeying, detectClearInputGesture } from "./inputAnalyzer.js";
 import { dotDurationFromWpm, encodeTextToEvents, pulsesToPlaybackEvents } from "./morse.js";
 
 const EMPTY_ANALYSIS = Object.freeze({ decoded: "", morse: "", wpm: 18, dotMs: dotDurationFromWpm(18), accuracy: 0, rhythm: 0, pulseCount: 0 });
+const MAX_CW_INPUT_PULSES = 256;
+
+export function appendCwInputPulse(pulses, pulse) {
+  return [...pulses, pulse].slice(-MAX_CW_INPUT_PULSES);
+}
 
 function now() {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -33,7 +38,7 @@ export function useCwCore({ targetText = "CQ", automaticWpm = 18, clearGestureLe
   }, []);
 
   const appendPulse = useCallback((pulse) => {
-    const nextPulses = [...pulsesRef.current, pulse].slice(-160);
+    const nextPulses = appendCwInputPulse(pulsesRef.current, pulse);
     pulsesRef.current = nextPulses;
     const fallbackWpm = pulse.source === "automatic" ? automaticWpmRef.current : detectedWpmRef.current;
     const nextAnalysis = analyzeKeying(nextPulses, { fallbackWpm, targetText });

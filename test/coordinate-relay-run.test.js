@@ -26,7 +26,9 @@ test("coordinate packets freeze bounded Pixel Grid, UTC, people, and a computed 
   assert.match(first.packet.utc, /^(?:[01]\d|2[0-3])[0-5]\dZ$/);
   assert.ok(first.packet.people >= 0 && first.packet.people <= 99);
   assert.equal(first.packet.check, computeCoordinatePacketCheck(first.packet));
-  assert.match(coordinatePacketText(first.packet), new RegExp(`CHECK ${String(first.packet.check).padStart(2, "0")}`));
+  const [east, north] = first.packet.grid.slice(3).split("-");
+  assert.match(coordinatePacketText(first.packet), new RegExp(`GRID PX ${east} ${north} .* CHECK ${String(first.packet.check).padStart(2, "0")}$`));
+  assert.doesNotMatch(coordinatePacketText(first.packet), /PX-\d{4}-\d{4}/);
   assert.equal(first.simulation, "fictional-pixel-grid");
 });
 
@@ -36,10 +38,10 @@ test("readback and relay require every deterministic hard field", () => {
   const correct = submitCoordinateRelayText(run, readback(packet), safe, "2026-08-28T02:00:20.000Z");
   assert.equal(correct.phase, COORDINATE_RELAY_PHASES.RELAY_PACKET);
   for (const [field, replacement, reason] of [
-    [packet.utc, "2400Z", "TIME_MISMATCH"],
-    [packet.grid, "PX-9999-9999", "GRID_MISMATCH"],
-    [String(packet.people).padStart(2, "0"), "99", "PEOPLE_MISMATCH"],
-    [String(packet.check).padStart(2, "0"), String((packet.check + 1) % 97).padStart(2, "0"), "CHECK_MISMATCH"],
+    [`TIME ${packet.utc}`, "TIME 2400Z", "TIME_MISMATCH"],
+    [coordinatePacketText(packet).match(/GRID PX \d{4} \d{4}/)[0], "GRID PX 9999 9999", "GRID_MISMATCH"],
+    [`PEOPLE ${String(packet.people).padStart(2, "0")}`, "PEOPLE 99", "PEOPLE_MISMATCH"],
+    [`CHECK ${String(packet.check).padStart(2, "0")}`, `CHECK ${String((packet.check + 1) % 97).padStart(2, "0")}`, "CHECK_MISMATCH"],
   ]) {
     const failed = submitCoordinateRelayText(run, readback(packet).replace(field, replacement), safe, "2026-08-28T02:00:20.000Z");
     assert.equal(failed.phase, COORDINATE_RELAY_PHASES.FIELD_CORRECTION);
@@ -55,12 +57,21 @@ test("parser rejects reordered, duplicate, conflicting, oversized, and semantica
   const run = readyRun("hostile");
   const packet = run.packet;
   for (const input of [
-    `TIME ${packet.utc} MSG ${packet.packetId} GRID ${packet.grid} PEOPLE ${packet.people} CHECK ${packet.check}`,
+    `TIME ${packet.utc} MSG ${packet.packetId} GRID PX 9999 9999 PEOPLE ${packet.people} CHECK ${packet.check}`,
     `${readback(packet)} MSG ${packet.packetId}`,
     `${readback(packet)} CHECK ${packet.check}`,
     `${readback(packet)} ${"X".repeat(300)}`,
   ]) assert.equal(submitCoordinateRelayText(run, input, safe, "2026-08-28T02:00:20.000Z").phase, COORDINATE_RELAY_PHASES.FIELD_CORRECTION);
   assert.equal(submitCoordinateRelayText(run, readback(packet), { safeToCommit: false }, "2026-08-28T02:00:20.000Z").lastError, "SEMANTIC_UNSAFE");
+  let accessorReads = 0;
+  const accessor = {};
+  Object.defineProperty(accessor, "safeToCommit", { get() { accessorReads += 1; return true; } });
+  for (const semantic of [null, Object.create({ safeToCommit: true }), accessor]) {
+    const rejected = submitCoordinateRelayText(run, readback(packet), semantic, "2026-08-28T02:00:20.000Z");
+    assert.equal(rejected.phase, COORDINATE_RELAY_PHASES.FIELD_CORRECTION);
+    assert.equal(rejected.lastError, "SEMANTIC_UNSAFE");
+  }
+  assert.equal(accessorReads, 0);
 });
 
 test("exact AGN and QRS preserve the packet when semantic safety cannot classify procedure-only text", () => {
@@ -74,7 +85,7 @@ test("exact AGN and QRS preserve the packet when semantic safety cannot classify
   assert.equal(qrs.replyWpm, run.replyWpm - 3);
   run = receiveCoordinatePacket(qrs, "2026-08-28T02:00:23.000Z");
   for (let index = 0; index < 3; index += 1) {
-    run = submitCoordinateRelayText(run, "MSG 999 GRID PX-9999-9999 TIME 0000Z PEOPLE 99 CHECK 99", safe, `2026-08-28T02:00:${30 + index}.000Z`);
+    run = submitCoordinateRelayText(run, "MSG 999 GRID PX 9999 9999 TIME 0000Z PEOPLE 99 CHECK 99", safe, `2026-08-28T02:00:${30 + index}.000Z`);
     if (index < 2) run = receiveCoordinatePacket(run, `2026-08-28T02:00:${35 + index}.000Z`);
   }
   assert.equal(run.phase, COORDINATE_RELAY_PHASES.FAILED);

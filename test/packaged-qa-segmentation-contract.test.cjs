@@ -14,12 +14,14 @@ const {
   QA_INITIAL_STORY_MISSION_IDS,
   buildQaSegmentPlan,
   capture,
+  configureContestQaWpm,
   createQaStateEnvelope,
   exportQaStateFromRenderer,
   importQaStateIntoRenderer,
   runLightsQaSegment,
   sendAutomaticStationRun,
   sendAutomaticStationText,
+  qaMorsePatternForCharacter,
   validateContestQaEvidence,
   validateCoordinateRelayQaEvidence,
   validateExpeditionQaEvidence,
@@ -42,6 +44,14 @@ const {
 
 const SUFFIX = "1439x912";
 const QA_RUN_ID = "11111111-2222-4333-8444-555555555555";
+
+test("packaged CW input covers every character supported by the production Morse alphabet", async () => {
+  const { MORSE_CODE } = await import("../src/cw/morse.js");
+  for (const [character, pattern] of Object.entries(MORSE_CODE)) {
+    assert.equal(qaMorsePatternForCharacter(character), pattern, character);
+  }
+  assert.equal(qaMorsePatternForCharacter("@"), null);
+});
 
 test("bootstrap QA expects the complete Chapter 1 through 10 mission board", () => {
   assert.deepEqual(QA_INITIAL_STORY_MISSION_IDS, [
@@ -566,18 +576,54 @@ test("segmented packaged QA preserves the 102-image baseline and adds four exact
 });
 
 test("chapter seven through ten evidence validators require literal linked gameplay facts", () => {
-  const common = { schemaVersion: 1, qaRunId: QA_RUN_ID, settled: true, missionClaimed: true, reloadPersisted: true, duplicateSettlementNoOp: true };
+  const common = { schemaVersion: 1, qaRunId: QA_RUN_ID, settled: true, missionClaimed: true, reloadPersisted: true, duplicateSettlementExecuted: true, duplicateSettlementNoOp: true };
   const fixtures = [
     [validateQslStoryQaEvidence, { ...common, activity: "qsl-story", sourcePersonId: "person:sora", finalChoice: "request-review", eventQsoCount: 1 }],
     [validateServiceNetQaEvidence, { ...common, activity: "service-net", messageCount: 3, receiptCount: 3, eventQsoCount: 1 }],
     [validateCoordinateRelayQaEvidence, { ...common, activity: "coordinate-relay", packetId: "123", grid: "PX-1234-5678", eventQsoCount: 2 }],
-    [validateContestQaEvidence, { ...common, activity: "contest", validContacts: 6, runContacts: 3, spContacts: 3, uniqueRegions: 3, eventQsoCount: 6, grade: "complete" }],
+    [validateContestQaEvidence, { ...common, activity: "contest", configuredWpm: 22, validContacts: 6, runContacts: 3, spContacts: 3, uniqueRegions: 3, eventQsoCount: 6, grade: "complete" }],
   ];
   for (const [validate, evidence] of fixtures) {
     assert.deepEqual(validate(evidence, { qaRunId: QA_RUN_ID }), evidence);
     assert.throws(() => validate({ ...evidence, qaRunId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" }, { qaRunId: QA_RUN_ID }), /run id/i);
     assert.throws(() => validate({ ...evidence, settled: false }, { qaRunId: QA_RUN_ID }), /evidence/i);
   }
+  assert.throws(() => validateContestQaEvidence({ ...fixtures.at(-1)[1], configuredWpm: 18 }, { qaRunId: QA_RUN_ID }), /contest/i);
+});
+
+test("contest packaged QA configures 22 WPM through the real settings controls before the clock starts", async () => {
+  let draftWpm = 18;
+  let appliedWpm = 18;
+  const events = [];
+  const window = {};
+  const dependencies = {
+    focusFn: async (_window, context) => { events.push(`focus:${context}`); },
+    pressKeyFn: async (_window, key) => { events.push(`key:${key.code}`); },
+    waitForFn: async (_window, selector) => { events.push(`wait:${selector}`); },
+    waitForMissingFn: async (_window, selector) => { events.push(`missing:${selector}`); },
+    clickFn: async (_window, selector) => {
+      events.push(`click:${selector}`);
+      if (selector.includes("Increase WPM")) draftWpm += 1;
+      if (selector.includes("primary-button")) appliedWpm = draftWpm;
+    },
+    readDraftWpmFn: async () => draftWpm,
+    waitForDraftWpmFn: async (_window, expected) => assert.equal(draftWpm, expected),
+    waitForContestWpmFn: async (_window, expected) => assert.equal(appliedWpm, expected),
+  };
+
+  assert.equal(await configureContestQaWpm(window, 22, dependencies), 22);
+  assert.equal(events.filter((event) => event.includes("Increase WPM")).length, 4);
+  assert.equal(events.filter((event) => event.includes("primary-button")).length, 1);
+  assert.equal(events.at(0), "focus:before opening contest settings");
+  assert.equal(events.at(-1), "focus:after applying contest settings");
+});
+
+test("contest packaged recovery keys AGN through the real automatic keyer", async () => {
+  const qaCaptureSource = await fs.readFile(path.join(__dirname, "..", "electron", "qa-capture.cjs"), "utf8");
+  assert.match(
+    qaCaptureSource,
+    /await click\(window, '\[data-action="contest-agn"\]'\);[\s\S]*await submitContestAutomatic\(window, "AGN K", "EXCHANGE"\)/,
+  );
 });
 
 test("expedition evidence binds gameplay recovery, settlement, reload, relationship and one-time QSL choice to the QA run", () => {
@@ -1029,20 +1075,20 @@ async function writeSuccessfulFakeSegment(env, scope) {
   const chapterEvidence = {
     "qsl-story": ["qsl-story-qa-result.json", {
       schemaVersion: 1, qaRunId, activity: "qsl-story", settled: true, missionClaimed: true,
-      reloadPersisted: true, duplicateSettlementNoOp: true, sourcePersonId: "person:sora",
+      reloadPersisted: true, duplicateSettlementExecuted: true, duplicateSettlementNoOp: true, sourcePersonId: "person:sora",
       finalChoice: "request-review", eventQsoCount: 1,
     }],
     "service-net": ["service-net-qa-result.json", {
       schemaVersion: 1, qaRunId, activity: "service-net", settled: true, missionClaimed: true,
-      reloadPersisted: true, duplicateSettlementNoOp: true, messageCount: 3, receiptCount: 3, eventQsoCount: 1,
+      reloadPersisted: true, duplicateSettlementExecuted: true, duplicateSettlementNoOp: true, messageCount: 3, receiptCount: 3, eventQsoCount: 1,
     }],
     "coordinate-relay": ["coordinate-relay-qa-result.json", {
       schemaVersion: 1, qaRunId, activity: "coordinate-relay", settled: true, missionClaimed: true,
-      reloadPersisted: true, duplicateSettlementNoOp: true, packetId: "123", grid: "PX-1234-5678", eventQsoCount: 2,
+      reloadPersisted: true, duplicateSettlementExecuted: true, duplicateSettlementNoOp: true, packetId: "123", grid: "PX-1234-5678", eventQsoCount: 2,
     }],
     contest: ["contest-qa-result.json", {
       schemaVersion: 1, qaRunId, activity: "contest", settled: true, missionClaimed: true,
-      reloadPersisted: true, duplicateSettlementNoOp: true, validContacts: 6, runContacts: 3,
+      reloadPersisted: true, duplicateSettlementExecuted: true, duplicateSettlementNoOp: true, validContacts: 6, runContacts: 3,
       spContacts: 3, uniqueRegions: 3, eventQsoCount: 6, grade: "complete",
     }],
   }[scope];

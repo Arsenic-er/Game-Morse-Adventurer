@@ -155,8 +155,12 @@ function safeAdd(left, right, maximum = Number.MAX_SAFE_INTEGER) {
 
 function own(value, key) {
   if (!value || typeof value !== "object") return undefined;
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function ownDataArrayTail(value, maximum) {
@@ -198,24 +202,34 @@ function hashString(value) {
 }
 
 function normalizeStringList(value, maximum = 200, itemLength = 96) {
-  if (!Array.isArray(value)) return [];
-  return [...new Set(value.map((item) => String(item ?? "").trim().slice(0, itemLength)).filter(Boolean))].slice(-maximum);
+  const retained = ownDataArrayTail(value, maximum);
+  const normalized = [];
+  const seen = new Set();
+  for (const item of retained) {
+    if (typeof item !== "string") return [];
+    const text = item.trim().slice(0, itemLength);
+    if (!text) return [];
+    if (seen.has(text)) return [];
+    seen.add(text);
+    normalized.push(text);
+  }
+  return normalized;
 }
 
 function normalizeMissionContract(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return {
-    missionPhase: String(value.missionPhase ?? "standard-qso").trim().slice(0, 48) || "standard-qso",
-    targetCallsign: String(value.targetCallsign ?? "").trim().toUpperCase().slice(0, 16) || null,
-    requiredTopics: normalizeStringList(value.requiredTopics, 12, 32),
-    recoveryActions: normalizeStringList(value.recoveryActions, 8, 16),
-    maximumPropagationLevel: value.maximumPropagationLevel == null
-      ? null : Math.min(4, safeInteger(value.maximumPropagationLevel, 4)),
-    recoveryRequired: value.recoveryRequired === true,
-    requiredDistinctOperators: safeInteger(value.requiredDistinctOperators, 100),
-    eventId: String(value.eventId ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 48) || null,
-    eventMode: ["story", "annual", "practice"].includes(value.eventMode) ? value.eventMode : null,
-    minimumGrade: ["base", "silver", "gold"].includes(value.minimumGrade) ? value.minimumGrade : null,
+    missionPhase: String(own(value, "missionPhase") ?? "standard-qso").trim().slice(0, 48) || "standard-qso",
+    targetCallsign: String(own(value, "targetCallsign") ?? "").trim().toUpperCase().slice(0, 16) || null,
+    requiredTopics: normalizeStringList(own(value, "requiredTopics"), 12, 32),
+    recoveryActions: normalizeStringList(own(value, "recoveryActions"), 8, 16),
+    maximumPropagationLevel: own(value, "maximumPropagationLevel") == null
+      ? null : Math.min(4, safeInteger(own(value, "maximumPropagationLevel"), 4)),
+    recoveryRequired: own(value, "recoveryRequired") === true,
+    requiredDistinctOperators: safeInteger(own(value, "requiredDistinctOperators"), 100),
+    eventId: String(own(value, "eventId") ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 48) || null,
+    eventMode: ["story", "annual", "practice"].includes(own(value, "eventMode")) ? own(value, "eventMode") : null,
+    minimumGrade: ["base", "silver", "gold"].includes(own(value, "minimumGrade")) ? own(value, "minimumGrade") : null,
   };
 }
 
@@ -239,30 +253,52 @@ function missionDna(kind, template) {
   return Object.freeze({ ...dna, fingerprint: missionDnaFingerprint(kind, dna) });
 }
 
+function followsCanonicalRecordOrder(previous, current, timeKey) {
+  if (!previous) return true;
+  if (previous[timeKey] < current[timeKey]) return true;
+  return previous[timeKey] === current[timeKey] && previous.id < current.id;
+}
+
+function normalizeMissionHistoryEntry(value) {
+  const id = String(own(value, "id") ?? "").trim();
+  const claimedAt = normalizeIso(own(value, "claimedAt"));
+  if (!knownMissionId(id) || !claimedAt) return null;
+  return {
+    id,
+    claimedAt,
+    moneyReward: safeInteger(own(value, "moneyReward"), 1_000_000),
+    technologyPointsReward: safeInteger(own(value, "technologyPointsReward"), 1000),
+    dnaFingerprint: String(own(value, "dnaFingerprint") ?? "").trim().slice(0, 240) || null,
+    outcome: String(own(value, "outcome") ?? "completed").trim().slice(0, 48) || "completed",
+  };
+}
+
 function normalizeMissionEvent(value) {
-  const id = String(value?.id ?? "").trim().slice(0, 128);
-  const qsoId = String(value?.qsoId ?? "").trim().slice(0, 96);
-  const occurredAt = normalizeIso(value?.occurredAt);
+  const id = String(own(value, "id") ?? "").trim().slice(0, 128);
+  const qsoId = String(own(value, "qsoId") ?? "").trim().slice(0, 96);
+  const occurredAt = normalizeIso(own(value, "occurredAt"));
+  const facts = own(value, "facts");
   if (!id || !qsoId || !occurredAt) return null;
+  const missionIdCandidates = normalizeStringList(own(value, "missionIds"), 4, 48);
   return {
     id,
     qsoId,
     occurredAt,
-    callsign: String(value?.callsign ?? "").trim().toUpperCase().slice(0, 16),
-    missionIds: normalizeStringList(value?.missionIds, 4, 48).filter(knownMissionId),
-    missionPhases: normalizeStringList(value?.missionPhases, 4, 48),
-    requiredTopics: normalizeStringList(value?.requiredTopics, 12, 32),
-    recoveryActions: normalizeStringList(value?.recoveryActions, 8, 16),
-    outcome: value?.outcome === "progress" ? "progress" : "unmatched",
-    failureReasons: normalizeStringList(value?.failureReasons, 12, 48),
+    callsign: String(own(value, "callsign") ?? "").trim().toUpperCase().slice(0, 16),
+    missionIds: missionIdCandidates.every(knownMissionId) ? missionIdCandidates : [],
+    missionPhases: normalizeStringList(own(value, "missionPhases"), 4, 48),
+    requiredTopics: normalizeStringList(own(value, "requiredTopics"), 12, 32),
+    recoveryActions: normalizeStringList(own(value, "recoveryActions"), 8, 16),
+    outcome: own(value, "outcome") === "progress" ? "progress" : "unmatched",
+    failureReasons: normalizeStringList(own(value, "failureReasons"), 12, 48),
     facts: {
-      propagationLevel: Math.min(4, safeInteger(value?.facts?.propagationLevel, 4)),
-      optionalTopic: String(value?.facts?.optionalTopic ?? "").trim().slice(0, 32) || null,
-      optionalAnswered: value?.facts?.optionalAnswered === true,
-      recovered: value?.facts?.recovered === true,
-      independentWatch: value?.facts?.independentWatch === true,
-      equipmentId: String(value?.facts?.equipmentId ?? "").trim().slice(0, 48) || null,
-      antennaId: String(value?.facts?.antennaId ?? "").trim().slice(0, 48) || null,
+      propagationLevel: Math.min(4, safeInteger(own(facts, "propagationLevel"), 4)),
+      optionalTopic: String(own(facts, "optionalTopic") ?? "").trim().slice(0, 32) || null,
+      optionalAnswered: own(facts, "optionalAnswered") === true,
+      recovered: own(facts, "recovered") === true,
+      independentWatch: own(facts, "independentWatch") === true,
+      equipmentId: String(own(facts, "equipmentId") ?? "").trim().slice(0, 48) || null,
+      antennaId: String(own(facts, "antennaId") ?? "").trim().slice(0, 48) || null,
     },
   };
 }
@@ -277,21 +313,21 @@ function knownMissionId(id) {
 }
 
 function normalizeActiveMission(value) {
-  const id = String(value?.id ?? "").trim();
-  const acceptedAt = normalizeIso(value?.acceptedAt);
+  const id = String(own(value, "id") ?? "").trim();
+  const acceptedAt = normalizeIso(own(value, "acceptedAt"));
   return knownMissionId(id) && acceptedAt ? {
     id,
     acceptedAt,
-    baselineQsoIds: normalizeStringList(value?.baselineQsoIds, 200, 96),
-    baselineLightsRunIds: normalizeStringList(value?.baselineLightsRunIds, 200, 128),
-    baselineExpeditionRunIds: normalizeStringList(value?.baselineExpeditionRunIds, 200, 128),
-    baselineQslStoryRunIds: normalizeStringList(value?.baselineQslStoryRunIds, 100, 128),
-    baselineServiceNetRunIds: normalizeStringList(value?.baselineServiceNetRunIds, 100, 128),
-    baselineCoordinateRelayRunIds: normalizeStringList(value?.baselineCoordinateRelayRunIds, 100, 128),
-    baselineContestRunIds: normalizeStringList(value?.baselineContestRunIds, 100, 128),
-    knownCallsigns: normalizeStringList(value?.knownCallsigns, 2000, 16),
-    contract: normalizeMissionContract(value?.contract),
-    dnaFingerprint: String(value?.dnaFingerprint ?? "").trim().slice(0, 240) || null,
+    baselineQsoIds: normalizeStringList(own(value, "baselineQsoIds"), 200, 96),
+    baselineLightsRunIds: normalizeStringList(own(value, "baselineLightsRunIds"), 200, 128),
+    baselineExpeditionRunIds: normalizeStringList(own(value, "baselineExpeditionRunIds"), 200, 128),
+    baselineQslStoryRunIds: normalizeStringList(own(value, "baselineQslStoryRunIds"), 100, 128),
+    baselineServiceNetRunIds: normalizeStringList(own(value, "baselineServiceNetRunIds"), 100, 128),
+    baselineCoordinateRelayRunIds: normalizeStringList(own(value, "baselineCoordinateRelayRunIds"), 100, 128),
+    baselineContestRunIds: normalizeStringList(own(value, "baselineContestRunIds"), 100, 128),
+    knownCallsigns: normalizeStringList(own(value, "knownCallsigns"), 2000, 16),
+    contract: normalizeMissionContract(own(value, "contract")),
+    dnaFingerprint: String(own(value, "dnaFingerprint") ?? "").trim().slice(0, 240) || null,
   } : null;
 }
 
@@ -306,40 +342,60 @@ export function emptyMissionState() {
 }
 
 export function normalizeMissionState(value) {
-  const source = value && typeof value === "object" ? value : {};
-  const activeIds = new Set();
-  const activeMissions = [];
-  for (const candidate of Array.isArray(source.activeMissions) ? source.activeMissions : []) {
-    const normalized = normalizeActiveMission(candidate);
-    if (!normalized || activeIds.has(normalized.id)) continue;
-    activeIds.add(normalized.id);
-    activeMissions.push(normalized);
-  }
-  const claimedMissionIds = [...new Set((Array.isArray(source.claimedMissionIds) ? source.claimedMissionIds : [])
-    .map((id) => String(id ?? "").trim()).filter(knownMissionId))].slice(-400);
-  const claimed = new Set(claimedMissionIds);
-  const history = (Array.isArray(source.history) ? source.history : []).map((entry) => {
-    const id = String(entry?.id ?? "").trim();
-    const claimedAt = normalizeIso(entry?.claimedAt);
-    if (!knownMissionId(id) || !claimedAt) return null;
+  try {
+    const source = value && typeof value === "object" ? value : {};
+    const activeIds = new Set();
+    const activeMissions = [];
+    for (const candidate of ownDataArrayTail(own(source, "activeMissions"), 4)) {
+      const normalized = normalizeActiveMission(candidate);
+      if (!normalized || activeIds.has(normalized.id)) {
+        activeMissions.length = 0;
+        break;
+      }
+      activeIds.add(normalized.id);
+      activeMissions.push(normalized);
+    }
+    const claimedMissionCandidates = normalizeStringList(own(source, "claimedMissionIds"), 400, 48);
+    const claimedMissionIds = claimedMissionCandidates.every(knownMissionId)
+      ? claimedMissionCandidates
+      : [];
+    const claimed = new Set(claimedMissionIds);
+    const historyIds = new Set();
+    const history = [];
+    for (const candidate of ownDataArrayTail(own(source, "history"), 80)) {
+      const normalized = normalizeMissionHistoryEntry(candidate);
+      if (!normalized || historyIds.has(normalized.id)
+        || !followsCanonicalRecordOrder(history.at(-1), normalized, "claimedAt")) {
+        history.length = 0;
+        break;
+      }
+      historyIds.add(normalized.id);
+      history.push(normalized);
+    }
+    const eventIds = new Set();
+    const eventQsoIds = new Set();
+    const events = [];
+    for (const candidate of ownDataArrayTail(own(source, "events"), MISSION_EVENT_LIMIT)) {
+      const normalized = normalizeMissionEvent(candidate);
+      if (!normalized || eventIds.has(normalized.id) || eventQsoIds.has(normalized.qsoId)
+        || !followsCanonicalRecordOrder(events.at(-1), normalized, "occurredAt")) {
+        events.length = 0;
+        break;
+      }
+      eventIds.add(normalized.id);
+      eventQsoIds.add(normalized.qsoId);
+      events.push(normalized);
+    }
     return {
-      id,
-      claimedAt,
-      moneyReward: safeInteger(entry?.moneyReward, 1_000_000),
-      technologyPointsReward: safeInteger(entry?.technologyPointsReward, 1000),
-      dnaFingerprint: String(entry?.dnaFingerprint ?? "").trim().slice(0, 240) || null,
-      outcome: String(entry?.outcome ?? "completed").trim().slice(0, 48) || "completed",
+      version: MISSION_STATE_VERSION,
+      activeMissions: activeMissions.filter(({ id }) => !claimed.has(id)).slice(0, 4),
+      claimedMissionIds,
+      history,
+      events,
     };
-  }).filter(Boolean).slice(-80);
-  const events = (Array.isArray(source.events) ? source.events : [])
-    .map(normalizeMissionEvent).filter(Boolean).slice(-MISSION_EVENT_LIMIT);
-  return {
-    version: MISSION_STATE_VERSION,
-    activeMissions: activeMissions.filter(({ id }) => !claimed.has(id)).slice(0, 4),
-    claimedMissionIds,
-    history,
-    events,
-  };
+  } catch {
+    return emptyMissionState();
+  }
 }
 
 function dailyDefinitionForId(id) {
@@ -494,10 +550,12 @@ function verifiedQslStoryCompletion(save, active, logs) {
       || own(log, "isFictional") !== true
       || Date.parse(own(log, "completedAt") ?? "") !== Date.parse(qslCase.completedAt)) return false;
     const relationship = relationships.find((candidate) => candidate.personId === qslCase.personId);
+    const completedAt = Date.parse(qslCase.completedAt);
     return Boolean(relationship)
       && relationship.callsign === logCallsign
       && relationship.completedQsos > 0
-      && relationship.lastQsoId === qslCase.qsoId;
+      && Date.parse(relationship.firstMetAt) <= completedAt
+      && Date.parse(relationship.lastMetAt) >= completedAt;
   });
 }
 

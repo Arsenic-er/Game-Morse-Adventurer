@@ -6,7 +6,7 @@ import {
   SERVICE_NET_PHASES, beginServiceNetRun, createServiceNetRun,
   receiveServiceNetMessage, submitServiceNetText,
 } from "../src/game/serviceNetRun.js";
-import { SERVICE_NET_TEXT, serviceNetLeaveRisk } from "../src/screens/serviceNetText.js";
+import { SERVICE_NET_SETTLED_TEXT, SERVICE_NET_TEXT, serviceNetLeaveRisk } from "../src/screens/serviceNetText.js";
 
 const screenSource = readFileSync(new URL("../src/screens/ServiceNetScreen.jsx", import.meta.url), "utf8");
 const homeSource = readFileSync(new URL("../src/screens/HomeScreen.jsx", import.meta.url), "utf8");
@@ -27,8 +27,15 @@ test("Chapter 8 exposes the fictional service queue, hard fields, recovery, and 
   assert.match(screenSource, /data-service-priority=/);
   assert.match(screenSource, /data-service-receipt-count=/);
   assert.match(screenSource, /data-action="service-net-submit"/);
-  assert.match(screenSource, /data-action="service-net-agn"/);
-  assert.match(screenSource, /data-action="service-net-qrs"/);
+  assert.match(screenSource, /data-settlement-attempts=\{settlementAttempts\}/);
+  assert.match(screenSource, /data-action="service-net-settle" disabled=\{inputBlocked\}/);
+  assert.match(screenSource, /settled && <p className="service-net-settlement-banner" role="status">\{settledText\}/);
+  assert.match(screenSource, /run\.phase !== SERVICE_NET_PHASES\.COMPLETED && run\.errors\.length > 0/);
+  assert.equal(Object.keys(SERVICE_NET_SETTLED_TEXT).length, 7);
+  assert.match(screenSource, /useStructuredCwInput/);
+  assert.match(screenSource, /data-pulse-count=\{cw\.analysis\.pulseCount\}/);
+  assert.match(screenSource, /data-decoded=\{cw\.analysis\.decoded\}/);
+  assert.doesNotMatch(screenSource, /<input\b/);
   assert.match(screenSource, /data-portrait-visible="false"/);
   assert.doesNotMatch(screenSource, /<img[^>]+portrait/i);
   assert.doesNotMatch(screenSource, /911|112|POLICE|FIRE|HOSPITAL|EMERGENCY/i);

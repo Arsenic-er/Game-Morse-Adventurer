@@ -10,6 +10,7 @@ import {
   emptyQslStoryState,
   normalizeQslStoryRun,
   normalizeQslStoryState,
+  qslStoryClarificationText,
   receiveQslClarification,
   retryQslStoryRun,
   reviewQslAccounts,
@@ -49,10 +50,18 @@ function reviewedRun() {
 
 function finalChoiceRun() {
   let run = reviewedRun();
-  run = submitQslClarification(run, "QSL HILL-1 DE BH1ABC PSE K", safeSemantic(), ISO2);
+  run = submitQslClarification(run, qslStoryClarificationText(run), safeSemantic(), ISO2);
   run = receiveQslClarification(run, ISO3);
   return run;
 }
+
+test("on-air clarification preserves the exact case id because Morse supports hyphens", () => {
+  const run = reviewedRun();
+  assert.equal(run.caseId, "HILL-1");
+  assert.equal(qslStoryClarificationText(run), "QSL HILL-1 DE BH1ABC PSE K");
+  assert.equal(submitQslClarification(run, "QSL HILL1 DE BH1ABC PSE K", safeSemantic(), ISO2).errors.at(-1), "CASE_MISMATCH");
+  assert.equal(submitQslClarification(run, qslStoryClarificationText(run), safeSemantic(), ISO2).phase, QSL_STORY_PHASES.SORA_CLARIFICATION_REPLY);
+});
 
 test("Chapter 7 preserves the source choice and permits a different final stance", () => {
   let run = finalChoiceRun();

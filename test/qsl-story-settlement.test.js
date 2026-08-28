@@ -124,6 +124,7 @@ test("QSL story settlement writes linked case, event QSO, relationship, and sett
   assert.equal(storyLog.eventRunId, run.runId);
   assert.equal(storyLog.personId, "person:sora");
   assert.equal(storyLog.stationId, "station:sim6jp");
+  assert.equal(storyLog.frequencyMhz, 21.06);
   assert.equal(storyLog.credits, 0);
   assert.equal(storyLog.rewardBreakdown, null);
   assert.equal(first.save.qsoRecords.total, 2);

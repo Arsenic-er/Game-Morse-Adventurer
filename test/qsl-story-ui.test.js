@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { PassThrough } from "node:stream";
 import test, { after } from "node:test";
 import React from "react";
@@ -8,6 +9,7 @@ import { createServer } from "vite";
 import {
   QSL_STORY_PHASES, createQslStoryRun, reviewQslAccounts,
 } from "../src/game/qslStoryRun.js";
+import { QSL_STORY_SETTLED_TEXT } from "../src/screens/qslStoryText.js";
 
 const SOURCE_QSL = Object.freeze({
   id: "qsl:expedition:hill-1",
@@ -56,6 +58,18 @@ function saveWithRun(run = null) {
 }
 
 test("Chapter 7 renders both accounts, real radio input, choices, and no portrait", async () => {
+  const source = readFileSync(new URL("../src/screens/QslStoryScreen.jsx", import.meta.url), "utf8");
+  assert.match(source, /useStructuredCwInput/);
+  assert.match(source, /data-pulse-count=\{cw\.analysis\.pulseCount\}/);
+  assert.match(source, /data-decoded=\{cw\.analysis\.decoded\}/);
+  assert.doesNotMatch(source, /<input\b/);
+  assert.match(source, /data-settlement-attempts=\{settlementAttempts\}/);
+  assert.match(source, /data-settlement-reason=\{settlementReason\}/);
+  assert.match(source, /data-action="qsl-story-settle" disabled=\{inputBlocked\}/);
+  assert.match(source, /settled && <p className="qsl-story-settlement-banner" role="status">\{settledText\}/);
+  assert.match(source, /run\.phase !== QSL_STORY_PHASES\.COMPLETED && run\.errors\.length > 0/);
+  assert.deepEqual(Object.keys(QSL_STORY_SETTLED_TEXT), ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"]);
+  assert.ok(Object.values(QSL_STORY_SETTLED_TEXT).every((value) => value.trim().length > 0));
   const vite = await sharedViteServer();
     const [{ QslStoryScreen }, { QSL_STORY_TEXT }] = await Promise.all([
       vite.ssrLoadModule("/src/screens/QslStoryScreen.jsx"),

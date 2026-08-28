@@ -1,5 +1,7 @@
 import { COORDINATE_RELAY_PHASES } from "../game/coordinateRelayRun.js";
 
+export { SETTLEMENT_SAVED_TEXT as COORDINATE_RELAY_SETTLED_TEXT } from "./settlementText.js";
+
 const en = {
   title: "Coordinate Relay", kicker: "Chapter 09 · Pixel Grid", simulationWarning: "Fictional training grid. It is not a real location or emergency service.", leave: "Leave", paused: "Paused while settings or another window has focus.",
   source: "Source station", relay: "Relay station", packet: "Frozen packet", messageId: "Message", grid: "Pixel Grid", utc: "UTC", people: "People", check: "Check", elapsed: "Elapsed",

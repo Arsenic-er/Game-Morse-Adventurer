@@ -104,6 +104,12 @@ function caseIdFor(sourceQslId) {
     ?? `CASE-${hash32(sourceQslId).slice(0, 6).toUpperCase()}`;
 }
 
+export function qslStoryClarificationText(value) {
+  const caseToken = id(own(value, "caseId"), 32)?.toUpperCase() ?? null;
+  const player = callsign(own(value, "playerCallsign"));
+  return caseToken && player ? `QSL ${caseToken} DE ${player} PSE K` : "";
+}
+
 function runIdFor(sourceQslId, startedAt, retryCount) {
   return `qsl-story:${hash32(`${sourceQslId}|${startedAt}|${retryCount}`)}`;
 }

@@ -8,7 +8,7 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf
 
 test("Chapter 9 screen exposes fictional Pixel Grid source, relay, fields, recovery, and no portrait", async () => {
   const screen = read("src/screens/CoordinateRelayScreen.jsx");
-  const { COORDINATE_RELAY_TEXT } = await import("../src/screens/coordinateRelayText.js");
+  const { COORDINATE_RELAY_SETTLED_TEXT, COORDINATE_RELAY_TEXT } = await import("../src/screens/coordinateRelayText.js");
   assert.match(screen, /data-testid="coordinate-relay-screen"/);
   assert.match(screen, /data-simulation="fictional-pixel-grid"/);
   assert.match(screen, /data-coordinate-phase=/);
@@ -16,9 +16,15 @@ test("Chapter 9 screen exposes fictional Pixel Grid source, relay, fields, recov
   assert.match(screen, /data-packet-utc=/);
   assert.match(screen, /data-packet-check=/);
   assert.match(screen, /data-action="coordinate-submit"/);
-  assert.match(screen, /data-action="coordinate-agn"/);
-  assert.match(screen, /data-action="coordinate-qrs"/);
+  assert.match(screen, /useStructuredCwInput/);
+  assert.match(screen, /data-pulse-count=\{cw\.analysis\.pulseCount\}/);
+  assert.match(screen, /data-decoded=\{cw\.analysis\.decoded\}/);
+  assert.doesNotMatch(screen, /<input\b/);
   assert.match(screen, /data-action="coordinate-settle"/);
+  assert.match(screen, /data-settlement-attempts=\{settlementAttempts\}/);
+  assert.match(screen, /data-action="coordinate-settle" disabled=\{inputBlocked\}/);
+  assert.match(screen, /settled && <p className="coordinate-relay-settlement-banner" role="status">\{settledText\}/);
+  assert.equal(Object.keys(COORDINATE_RELAY_SETTLED_TEXT).length, 7);
   assert.match(screen, /cwgameSystem\?\.interpretCwTraffic/);
   assert.match(screen, /data-portrait-visible="false"/);
   assert.doesNotMatch(screen, /<img[^>]+portrait/i);

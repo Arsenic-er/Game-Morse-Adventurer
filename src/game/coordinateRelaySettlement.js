@@ -63,8 +63,14 @@ export function verifiedCoordinateRelayCompletion(save, active, logs = own(save,
         || coordinatePacketText(packet.packet) === "") continue;
       const sourceRelationship = relationships.find((entry) => entry.personId === packet.sourcePersonId);
       const relayRelationship = relationships.find((entry) => entry.personId === packet.relayPersonId);
-      if (sourceRelationship?.completedQsos > 0 && sourceRelationship.lastQsoId === packet.sourceQsoId
-        && relayRelationship?.completedQsos > 0 && relayRelationship.lastQsoId === packet.relayQsoId) return true;
+      const sourceCompletedAt = Date.parse(packet.sourceCompletedAt);
+      const relayCompletedAt = Date.parse(packet.completedAt);
+      if (sourceRelationship?.completedQsos > 0
+        && Date.parse(sourceRelationship.firstMetAt) <= sourceCompletedAt
+        && Date.parse(sourceRelationship.lastMetAt) >= sourceCompletedAt
+        && relayRelationship?.completedQsos > 0
+        && Date.parse(relayRelationship.firstMetAt) <= relayCompletedAt
+        && Date.parse(relayRelationship.lastMetAt) >= relayCompletedAt) return true;
     }
     return false;
   } catch { return false; }

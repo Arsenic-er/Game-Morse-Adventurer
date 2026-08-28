@@ -132,8 +132,10 @@ export function verifiedServiceNetCompletion(save, active, logs = own(save, "qso
         || logCallsign !== "SIM8PS" || own(log, "isFictional") !== true
         || Date.parse(own(log, "completedAt") ?? "") !== Date.parse(receipts.at(-1).acknowledgedAt)) continue;
       const relationship = relationships.find((candidate) => candidate.personId === own(log, "personId"));
+      const completedAt = Date.parse(receipts.at(-1).acknowledgedAt);
       if (relationship?.callsign === logCallsign && relationship.completedQsos > 0
-        && relationship.lastQsoId === qsoId) return true;
+        && Date.parse(relationship.firstMetAt) <= completedAt
+        && Date.parse(relationship.lastMetAt) >= completedAt) return true;
     }
     return false;
   } catch {

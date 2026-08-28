@@ -80,7 +80,7 @@ function qsoCandidate(save, run, qsoId) {
     received: "599",
     location: "JP",
     distanceKm: 0,
-    frequencyMhz: 14.06,
+    frequencyMhz: 21.06,
     basePropagationLevel: 3,
     finalPropagationLevel: 3,
     propagationSource: "QSL_STORY_FIXED",

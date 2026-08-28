@@ -10,6 +10,16 @@ export const QSL_STORY_TEXT = Object.freeze({
   ru: Object.freeze({ title: "Вопрос QSL", kicker: "Глава 07", playerAccount: "Ваша запись", operatorAccount: "Запись SORA", initialStance: "Первое решение", reviewAccounts: "Сравнить обе записи", sourceRequired: "Сначала подтвердите QSL с холма в разделе «Люди и QSL».", clarification: "Уточняющее сообщение", clarificationHint: "Передайте QSL {CASE} DE {CALL} PSE K", send: "Передать запрос", receive: "Принять ответ SORA", soraReply: "SORA подтверждает связь с холма и просит ваше итоговое решение.", choose: "Итоговое решение", believe: "Поверить записи", requestReview: "Запросить проверку", defer: "Отложить решение", settle: "Записать и закрыть", success: "Дело QSL закрыто", failed: "Уточнение не удалось", retry: "Повторить расследование", agn: "Повтор — AGN K", qrs: "Медленнее — QRS K", leave: "В центр управления", leaveConfirm: "Расследование QSL не завершено. Выйти?", cancel: "Продолжить", confirmLeave: "Выйти", paused: "Расследование QSL приостановлено настройками", case: "Дело", errors: "Ошибки", FORMAT_INVALID: "Неверный формат сообщения", CASE_MISMATCH: "Номер дела QSL не совпадает", CALLSIGN_MISMATCH: "Ваш позывной не совпадает", QSL_REQUIRED: "Сообщение должно начинаться с QSL", SEMANTIC_UNSAFE: "Проверка смысловой безопасности не пройдена" }),
 });
 
+export const QSL_STORY_SETTLED_TEXT = Object.freeze({
+  "zh-CN": "结案记录已保存",
+  "zh-TW": "結案記錄已儲存",
+  ja: "完了記録を保存しました",
+  en: "Case record saved",
+  es: "Registro del caso guardado",
+  de: "Fallakte gespeichert",
+  ru: "Запись дела сохранена",
+});
+
 export const QSL_STORY_CHOICE_KEYS = Object.freeze({
   believe: "believe", "request-review": "requestReview", defer: "defer",
 });

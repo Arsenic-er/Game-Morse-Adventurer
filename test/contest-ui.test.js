@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { CONTEST_PHASES } from "../src/game/contestRun.js";
-import { CONTEST_TEXT, contestLeaveRisk } from "../src/screens/contestText.js";
+import { CONTEST_SETTLED_TEXT, CONTEST_TEXT, contestLeaveRisk } from "../src/screens/contestText.js";
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -15,6 +15,7 @@ test("Chapter 10 screen exposes RUN, S&P, real keying, scoring, penalties, and n
   assert.match(screen, /data-contest-mode=\{run\.mode \?\? ""\}/);
   assert.match(screen, /data-contest-contact-count=\{run\.contacts\.length\}/);
   assert.match(screen, /data-contest-score=\{score\.score\}/);
+  assert.match(screen, /data-contest-wpm=\{save\.automaticKeyWpm\}/);
   assert.match(screen, /data-contest-paused=\{inputBlocked \|\| !windowActive\}/);
   assert.match(screen, /data-contest-keying=\{cw\.isKeying\}/);
   assert.match(screen, /data-action="contest-mode-run"/);
@@ -22,8 +23,15 @@ test("Chapter 10 screen exposes RUN, S&P, real keying, scoring, penalties, and n
   assert.match(screen, /data-action="contest-submit"/);
   assert.match(screen, /data-action="contest-agn"/);
   assert.match(screen, /data-action="contest-qrs"/);
+  assert.doesNotMatch(screen, /transmit\("(?:AGN|QRS) K"\)/);
+  assert.match(screen, /prepareRecovery\("AGN K"\)/);
+  assert.match(screen, /prepareRecovery\("QRS K"\)/);
   assert.match(screen, /data-action="contest-finish"/);
   assert.match(screen, /data-action="contest-settle"/);
+  assert.match(screen, /data-settlement-attempts=\{settlementAttempts\}/);
+  assert.match(screen, /data-action="contest-settle" disabled=\{inputBlocked\}/);
+  assert.match(screen, /settled && <p className="contest-settlement-banner" role="status">\{settledText\}/);
+  assert.equal(Object.keys(CONTEST_SETTLED_TEXT).length, 7);
   assert.match(screen, /useCwCore/);
   assert.match(screen, /cw\.beginAutomatic\("\."\)/);
   assert.match(screen, /cw\.beginAutomatic\("-"\)/);
