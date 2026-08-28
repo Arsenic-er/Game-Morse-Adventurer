@@ -384,6 +384,31 @@ test("story eight rejects pre-acceptance and incomplete service proof sets", () 
   }
 });
 
+test("story continuation missions reject inherited QSO log evidence", () => {
+  const run = completedServiceNetRun("mission-story-08-inherited-log");
+  const accepted = acceptMission(storySevenClaimed(), "story-08", "2026-08-28T01:00:00.000Z").save;
+  const active = {
+    ...accepted,
+    storyContinuationState: normalizeStoryContinuationState({
+      ...accepted.storyContinuationState,
+      chapter08: normalizeServiceNetState({ activeRun: run }),
+    }),
+  };
+  const settled = settleServiceNetRun(active, run, "2026-08-28T01:06:00.000Z").save;
+  const serviceLog = settled.qsoLogs.find(({ eventKind }) => eventKind === "service-net");
+  const inheritedLogs = new Array(1);
+  const inheritedPrototype = Object.create(Array.prototype);
+  Object.defineProperty(inheritedPrototype, "0", {
+    value: serviceLog, enumerable: true, configurable: true, writable: true,
+  });
+  Object.setPrototypeOf(inheritedLogs, inheritedPrototype);
+  const forged = { ...settled, qsoLogs: inheritedLogs };
+
+  assert.equal(Object.hasOwn(inheritedLogs, 0), false);
+  assert.equal(missionBoard(forged).story.find(({ id }) => id === "story-08").status, "active");
+  assert.equal(claimMission(forged, "story-08").reason, "MISSION_NOT_COMPLETE");
+});
+
 function completedCoordinateRelayRun(seed = "mission-story-09") {
   let run = beginCoordinateRelayRun(createCoordinateRelayRun({ playerCallsign: "BH1ABC", seed, startedAt: "2026-08-28T02:01:00.000Z" }));
   run = receiveCoordinatePacket(run, "2026-08-28T02:01:10.000Z");

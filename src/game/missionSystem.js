@@ -154,7 +154,28 @@ function safeAdd(left, right, maximum = Number.MAX_SAFE_INTEGER) {
 }
 
 function own(value, key) {
-  return value && Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined;
+  if (!value || typeof value !== "object") return undefined;
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
+}
+
+function ownDataArrayTail(value, maximum) {
+  try {
+    if (!Array.isArray(value)) return [];
+    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
+    const length = lengthDescriptor && Object.hasOwn(lengthDescriptor, "value")
+      ? Number(lengthDescriptor.value) : NaN;
+    if (!Number.isSafeInteger(length) || length < 0) return [];
+    const result = [];
+    for (let index = Math.max(0, length - maximum); index < length; index += 1) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor || !Object.hasOwn(descriptor, "value")) return [];
+      result.push(descriptor.value);
+    }
+    return result;
+  } catch {
+    return [];
+  }
 }
 
 function normalizeIso(value, fallback = null) {
@@ -359,15 +380,17 @@ function missionDefinition(id) {
 }
 
 function logsForMission(save, active) {
-  if (!active) return [];
-  const suppliedLogs = own(save, "qsoLogs");
-  const logs = Array.isArray(suppliedLogs) ? suppliedLogs.slice(-200) : [];
-  const acceptedAt = Date.parse(active.acceptedAt ?? "");
-  if (!Number.isFinite(acceptedAt)) return [];
-  const baseline = new Set(Array.isArray(active.baselineQsoIds)
-    ? active.baselineQsoIds.slice(-200) : []);
-  return logs.filter((entry) => !baseline.has(String(entry?.id ?? ""))
-    && Date.parse(entry?.completedAt) >= acceptedAt);
+  try {
+    if (!active) return [];
+    const logs = ownDataArrayTail(own(save, "qsoLogs"), 200);
+    const acceptedAt = Date.parse(own(active, "acceptedAt") ?? "");
+    if (!Number.isFinite(acceptedAt)) return [];
+    const baseline = new Set(ownDataArrayTail(own(active, "baselineQsoIds"), 200));
+    return logs.filter((entry) => !baseline.has(String(own(entry, "id") ?? ""))
+      && Date.parse(own(entry, "completedAt") ?? "") >= acceptedAt);
+  } catch {
+    return [];
+  }
 }
 
 function verifiedExpeditionCompletion(save, active, logs) {
@@ -458,8 +481,13 @@ function verifiedQslStoryCompletion(save, active, logs) {
       || source.choice !== qslCase.initialChoice) return false;
     const log = retainedLogs.find((candidate) => own(candidate, "id") === qslCase.qsoId);
     const logCallsign = String(own(log, "callsign") ?? "").trim().toUpperCase().slice(0, 16);
-    const verifiedPerson = personIdForOperator(log ? { ...log, callsign: logCallsign } : null);
-    const verifiedStation = stationIdentityForCallsign(logCallsign, log ?? {});
+    const identityClaim = log ? {
+      callsign: logCallsign,
+      personId: own(log, "personId"),
+      stationId: own(log, "stationId"),
+    } : null;
+    const verifiedPerson = personIdForOperator(identityClaim);
+    const verifiedStation = stationIdentityForCallsign(logCallsign, identityClaim ?? {});
     if (!log || own(log, "eventKind") !== "qsl-story" || own(log, "eventRunId") !== qslCase.runId
       || own(log, "personId") !== qslCase.personId || own(log, "stationId") !== qslCase.stationId
       || verifiedPerson !== qslCase.personId || verifiedStation?.stationId !== qslCase.stationId
