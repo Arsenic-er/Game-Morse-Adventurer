@@ -47,6 +47,7 @@ test("Chapter 9 has active mission, durable replay, tool, route, leave guard, an
   const css = read("src/pixel-theme.css");
   const { coordinateRelayLeaveRisk } = await import("../src/screens/coordinateRelayText.js");
   assert.match(app, /screen === "coordinate-relay"/);
+  assert.match(home, /import\s*\{[^}]*\bGridFour\b[^}]*\}\s*from "@phosphor-icons\/react"/);
   assert.match(home, /data-action="enter-coordinate-relay-home"/);
   assert.match(home, /data-action="open-structured-messages"/);
   assert.match(mission, /data-action="launch-coordinate-relay"/);

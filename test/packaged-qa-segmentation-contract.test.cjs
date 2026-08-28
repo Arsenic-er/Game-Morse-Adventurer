@@ -11,6 +11,7 @@ const { deflateSync } = require("node:zlib");
 const {
   QA_STORAGE_KEYS,
   QA_SUPPORTED_SCOPES,
+  QA_INITIAL_STORY_MISSION_IDS,
   buildQaSegmentPlan,
   capture,
   createQaStateEnvelope,
@@ -19,7 +20,11 @@ const {
   runLightsQaSegment,
   sendAutomaticStationRun,
   sendAutomaticStationText,
+  validateContestQaEvidence,
+  validateCoordinateRelayQaEvidence,
   validateExpeditionQaEvidence,
+  validateQslStoryQaEvidence,
+  validateServiceNetQaEvidence,
   waitForFocusedQsoState,
   waitForQsoSubmitDecision,
   waitForRendererImages,
@@ -32,10 +37,18 @@ const {
   runQaChildProcess,
   validatePixelHashGroups,
   validatePngScreenshot,
+  validateQaSegmentArtifacts,
 } = require("../scripts/run-packaged-qa.cjs");
 
 const SUFFIX = "1439x912";
 const QA_RUN_ID = "11111111-2222-4333-8444-555555555555";
+
+test("bootstrap QA expects the complete Chapter 1 through 10 mission board", () => {
+  assert.deepEqual(QA_INITIAL_STORY_MISSION_IDS, [
+    "story-01", "story-02", "story-03", "story-04", "story-05",
+    "story-06", "story-07", "story-08", "story-09", "story-10",
+  ]);
+});
 
 test("QSO QA waits for a delayed semantic submission to reach a stable DOM decision", async () => {
   let phase = "PLAYER_RST_AND_73";
@@ -242,6 +255,24 @@ const expectedCaptures = {
     "expedition-ready", "expedition-calling", "expedition-recovering", "expedition-result",
     "expedition-settled", "expedition-reloaded-qsl", "expedition-choice-confirmed",
     "expedition-choice-reloaded",
+  ],
+  "qsl-story": [
+    "qsl-mission-available", "qsl-accounts", "qsl-clarification-error", "qsl-clarification-reply",
+    "qsl-final-choice", "qsl-result", "qsl-settled", "qsl-reloaded",
+  ],
+  "service-net": [
+    "service-mission-available", "service-briefing", "service-check-in-error", "service-queue",
+    "service-message", "service-agn", "service-ack-error", "service-result", "service-settled", "service-reloaded",
+  ],
+  "coordinate-relay": [
+    "coordinate-mission-available", "coordinate-briefing", "coordinate-packet", "coordinate-readback-error",
+    "coordinate-correction", "coordinate-relay", "coordinate-confirmation", "coordinate-result",
+    "coordinate-settled", "coordinate-reloaded",
+  ],
+  contest: [
+    "contest-mission-available", "contest-briefing", "contest-run-pileup", "contest-interruption",
+    "contest-run-contact", "contest-sp-pool", "contest-agn", "contest-busted-call",
+    "contest-score-ready", "contest-result", "contest-settled", "contest-reloaded",
   ],
   lights: [
     "lights-story-launch", "lights-chase", "lights-control", "lights-failed", "lights-result",
@@ -505,13 +536,15 @@ test("ordinary station QA preserves the physical seven-dot clear gesture despite
   }
 });
 
-test("segmented packaged QA preserves all 91 legacy images and adds an exact expedition scope", () => {
+test("segmented packaged QA preserves the 102-image baseline and adds four exact chapter scopes", () => {
   assert.deepEqual(QA_SUPPORTED_SCOPES, [
     "full", "bootstrap", "inventory", "equipment", "practice", "qso", "expedition",
+    "qsl-story", "service-net", "coordinate-relay", "contest",
   ]);
   const plan = buildQaSegmentPlan({ suffix: SUFFIX });
   assert.deepEqual(plan.segments.map(({ scope }) => scope), [
-    "bootstrap", "inventory", "equipment", "practice", "qso", "expedition", "lights",
+    "bootstrap", "inventory", "equipment", "practice", "qso", "expedition",
+    "qsl-story", "service-net", "coordinate-relay", "contest", "lights",
   ]);
 
   const expectedByScope = Object.fromEntries(Object.entries(expectedCaptures)
@@ -519,13 +552,32 @@ test("segmented packaged QA preserves all 91 legacy images and adds an exact exp
   assert.deepEqual(Object.fromEntries(plan.segments.map(({ scope, screenshots }) => [scope, screenshots])), expectedByScope);
 
   const all = plan.segments.flatMap(({ screenshots }) => screenshots);
-  assert.equal(all.length, 102);
-  assert.equal(new Set(all).size, 102);
+  assert.equal(all.length, 142);
+  assert.equal(new Set(all).size, 142);
   assert.equal(plan.segments.find(({ scope }) => scope === "expedition").predecessor, "qso");
+  assert.equal(plan.segments.find(({ scope }) => scope === "qsl-story").predecessor, "expedition");
+  assert.equal(plan.segments.find(({ scope }) => scope === "service-net").predecessor, "qsl-story");
+  assert.equal(plan.segments.find(({ scope }) => scope === "coordinate-relay").predecessor, "service-net");
+  assert.equal(plan.segments.find(({ scope }) => scope === "contest").predecessor, "coordinate-relay");
   assert.equal(plan.segments.find(({ scope }) => scope === "expedition").timeoutMs, 8 * 60_000);
   assert.equal(plan.segments.find(({ scope }) => scope === "lights").timeoutMs, 8 * 60_000);
   assert.equal(plan.segments.find(({ scope }) => scope === "qso").timeoutMs, 8 * 60_000);
   assert.equal(plan.segments.find(({ scope }) => scope === "bootstrap").timeoutMs, 5 * 60_000);
+});
+
+test("chapter seven through ten evidence validators require literal linked gameplay facts", () => {
+  const common = { schemaVersion: 1, qaRunId: QA_RUN_ID, settled: true, missionClaimed: true, reloadPersisted: true, duplicateSettlementNoOp: true };
+  const fixtures = [
+    [validateQslStoryQaEvidence, { ...common, activity: "qsl-story", sourcePersonId: "person:sora", finalChoice: "request-review", eventQsoCount: 1 }],
+    [validateServiceNetQaEvidence, { ...common, activity: "service-net", messageCount: 3, receiptCount: 3, eventQsoCount: 1 }],
+    [validateCoordinateRelayQaEvidence, { ...common, activity: "coordinate-relay", packetId: "123", grid: "PX-1234-5678", eventQsoCount: 2 }],
+    [validateContestQaEvidence, { ...common, activity: "contest", validContacts: 6, runContacts: 3, spContacts: 3, uniqueRegions: 3, eventQsoCount: 6, grade: "complete" }],
+  ];
+  for (const [validate, evidence] of fixtures) {
+    assert.deepEqual(validate(evidence, { qaRunId: QA_RUN_ID }), evidence);
+    assert.throws(() => validate({ ...evidence, qaRunId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee" }, { qaRunId: QA_RUN_ID }), /run id/i);
+    assert.throws(() => validate({ ...evidence, settled: false }, { qaRunId: QA_RUN_ID }), /evidence/i);
+  }
 });
 
 test("expedition evidence binds gameplay recovery, settlement, reload, relationship and one-time QSL choice to the QA run", () => {
@@ -756,6 +808,28 @@ test("pixel-hash duplicate policy rejects copied, unapproved, and over-broad scr
     ...emptyLogWarmup,
     { path: "segments/inventory/home-log-empty-copy-1439x912.png", pixelHash: "same-pixels" },
   ], { suffix: "1439x912" }), /duplicate|allowlist|member/i);
+
+  const chapterHandoff = [
+    { path: "segments/qsl-story/qsl-reloaded-1439x912.png", pixelHash: "same-pixels" },
+    { path: "segments/service-net/service-mission-available-1439x912.png", pixelHash: "same-pixels" },
+  ];
+  assert.doesNotThrow(() => validatePixelHashGroups(chapterHandoff, { suffix: "1439x912" }));
+  assert.throws(() => validatePixelHashGroups([
+    ...chapterHandoff,
+    { path: "segments/service-net/service-briefing-1439x912.png", pixelHash: "same-pixels" },
+  ], { suffix: "1439x912" }), /duplicate|allowlist|member/i);
+
+  for (const handoff of [
+    ["segments/service-net/service-reloaded", "segments/coordinate-relay/coordinate-mission-available"],
+    ["segments/coordinate-relay/coordinate-reloaded", "segments/contest/contest-mission-available"],
+  ]) {
+    const pair = handoff.map((stem) => ({ path: `${stem}-1439x912.png`, pixelHash: "same-pixels" }));
+    assert.doesNotThrow(() => validatePixelHashGroups(pair, { suffix: "1439x912" }));
+    assert.throws(() => validatePixelHashGroups([
+      ...pair,
+      { path: `${handoff[1]}-copy-1439x912.png`, pixelHash: "same-pixels" },
+    ], { suffix: "1439x912" }), /duplicate|allowlist|member/i);
+  }
 });
 
 test("practice guidance capture opens a visually distinct aid before taking evidence", async () => {
@@ -952,6 +1026,29 @@ async function writeSuccessfulFakeSegment(env, scope) {
       replayEntryPersisted: true, replayRewardNoOp: true,
     })}\n`);
   }
+  const chapterEvidence = {
+    "qsl-story": ["qsl-story-qa-result.json", {
+      schemaVersion: 1, qaRunId, activity: "qsl-story", settled: true, missionClaimed: true,
+      reloadPersisted: true, duplicateSettlementNoOp: true, sourcePersonId: "person:sora",
+      finalChoice: "request-review", eventQsoCount: 1,
+    }],
+    "service-net": ["service-net-qa-result.json", {
+      schemaVersion: 1, qaRunId, activity: "service-net", settled: true, missionClaimed: true,
+      reloadPersisted: true, duplicateSettlementNoOp: true, messageCount: 3, receiptCount: 3, eventQsoCount: 1,
+    }],
+    "coordinate-relay": ["coordinate-relay-qa-result.json", {
+      schemaVersion: 1, qaRunId, activity: "coordinate-relay", settled: true, missionClaimed: true,
+      reloadPersisted: true, duplicateSettlementNoOp: true, packetId: "123", grid: "PX-1234-5678", eventQsoCount: 2,
+    }],
+    contest: ["contest-qa-result.json", {
+      schemaVersion: 1, qaRunId, activity: "contest", settled: true, missionClaimed: true,
+      reloadPersisted: true, duplicateSettlementNoOp: true, validContacts: 6, runContacts: 3,
+      spContacts: 3, uniqueRegions: 3, eventQsoCount: 6, grade: "complete",
+    }],
+  }[scope];
+  if (chapterEvidence) {
+    await fs.writeFile(path.join(outputDir, chapterEvidence[0]), `${JSON.stringify(chapterEvidence[1])}\n`);
+  }
   if (env.CWGAME_QA_STATE_OUT) {
     const state = createQaStateEnvelope({
       qaRunId,
@@ -970,6 +1067,16 @@ async function writeSuccessfulFakeSegment(env, scope) {
     completedAt: "2026-08-26T00:00:00.000Z",
   })}\n`);
 }
+
+test("chapter segment validation fails closed when its gameplay result is missing", async () => {
+  const outputDir = await fs.mkdtemp(path.join(os.tmpdir(), "cwgame-chapter-result-missing-"));
+  const env = { CWGAME_QA_OUTPUT: outputDir, CWGAME_QA_RUN_ID: QA_RUN_ID, CWGAME_QA_SUFFIX: SUFFIX,
+    CWGAME_QA_STATE_OUT: path.join(outputDir, "qa-state-out.json") };
+  await writeSuccessfulFakeSegment(env, "qsl-story");
+  await fs.rm(path.join(outputDir, "qsl-story-qa-result.json"));
+  const segment = buildQaSegmentPlan({ suffix: SUFFIX }).segments.find(({ scope }) => scope === "qsl-story");
+  await assert.rejects(() => validateQaSegmentArtifacts(segment, outputDir, { qaRunId: QA_RUN_ID }), /missing gameplay evidence/);
+});
 
 test("external supervisor launches fresh ordered segment processes and stops at the first child failure", async () => {
   const outputRoot = await freshOutputRoot("cwgame-supervisor-order-");

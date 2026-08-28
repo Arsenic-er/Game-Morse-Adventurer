@@ -253,7 +253,6 @@ export function submitContestText(value, decodedValue, semanticResult, observedA
   if (!run || !at || Date.parse(at) < Date.parse(run.startedAt) || TERMINAL.has(run.phase)) return value;
   if (![CONTEST_PHASES.RUN_PILEUP, CONTEST_PHASES.SP_POOL, CONTEST_PHASES.EXCHANGE].includes(run.phase)) return value;
   const decoded = typeof decodedValue === "string" ? decodedValue.slice(0, 256) : "";
-  if (!safeSemantic(semanticResult)) return transition(run, { errors: [...run.errors, "SEMANTIC_UNSAFE"].slice(-MAX_ERRORS), exchangeErrors: run.exchangeErrors + 1 });
   const recovery = recoveryCommand(decoded);
   if (recovery) return transition(run, {
     repeatRequests: run.repeatRequests + 1,
@@ -278,6 +277,7 @@ export function submitContestText(value, decodedValue, semanticResult, observedA
       ? transition(run, { phase: CONTEST_PHASES.EXCHANGE, selectedStation, errors: [], currentExchangeRecovered: false })
       : transition(run, { bustedCalls: run.bustedCalls + 1, errors: [...run.errors, "BUSTED_CALL"].slice(-MAX_ERRORS) });
   }
+  if (!safeSemantic(semanticResult)) return transition(run, { errors: [...run.errors, "SEMANTIC_UNSAFE"].slice(-MAX_ERRORS), exchangeErrors: run.exchangeErrors + 1 });
   const reason = exchangeError(run, decoded);
   if (reason) return transition(run, {
     bustedCalls: run.bustedCalls + (reason === "CALLSIGN_MISMATCH" ? 1 : 0),

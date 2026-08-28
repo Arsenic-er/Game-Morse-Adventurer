@@ -144,7 +144,7 @@ export function ContestScreen({ language, save, inputBlocked = false, onActivity
   return <main className="screen contest-screen" data-testid="contest-screen" data-simulation="fictional-five-minute-contest"
     data-contest-phase={run.phase} data-contest-mode={run.mode ?? ""} data-contest-contact-count={run.contacts.length}
     data-contest-score={score.score} data-contest-paused={inputBlocked || !windowActive} data-pulse-count={cw.analysis.pulseCount}
-    data-decoded={cw.analysis.decoded} data-portrait-visible="false">
+    data-decoded={cw.analysis.decoded} data-contest-keying={cw.isKeying} data-portrait-visible="false">
     <header className="contest-topbar"><div><Trophy size={28} weight="fill" /><span>{t.kicker}</span><h1>{t.title}</h1></div><b>{save.callsign}</b><button onClick={requestLeave}><ArrowLeft />{t.leave}</button></header>
     <p className="contest-simulation"><Warning weight="fill" />{t.simulationWarning}</p>
     {(inputBlocked || !windowActive) && <div className="contest-paused" role="status">{t.paused}</div>}

@@ -117,17 +117,17 @@ test("three failed clarification submissions fail closed and retry starts a fres
   assert.equal(retryQslStoryRun(retried, ISO5), retried);
 });
 
-test("AGN and QRS replay one frozen clarification without rerolling facts", () => {
+test("exact AGN and QRS replay one frozen clarification when semantic safety cannot classify procedure-only text", () => {
   let run = finalChoiceRun();
   const frozenKey = run.replyNarrativeKey;
   const initialWpm = run.replyWpm;
 
-  run = submitQslClarification(run, "AGN K", safeSemantic(), ISO4);
+  run = submitQslClarification(run, "AGN K", { safeToCommit: false }, ISO4);
   assert.equal(run.phase, QSL_STORY_PHASES.SORA_CLARIFICATION_REPLY);
   assert.equal(run.replyNarrativeKey, frozenKey);
   assert.equal(run.replyWpm, initialWpm);
   run = receiveQslClarification(run, ISO4);
-  run = submitQslClarification(run, "QRS K", safeSemantic(), ISO5);
+  run = submitQslClarification(run, "QRS K", { safeToCommit: false }, ISO5);
   assert.equal(run.replyNarrativeKey, frozenKey);
   assert.ok(run.replyWpm < initialWpm);
   assert.deepEqual(run.recoveryActions, ["AGN", "QRS"]);

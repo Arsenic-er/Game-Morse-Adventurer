@@ -204,7 +204,6 @@ export function submitQslClarification(value, decoded, semanticResult, observedA
   const recovery = submitted.length === 2 && submitted[1] === "K" && RECOVERY_ACTIONS.has(submitted[0])
     ? submitted[0] : null;
   if (run.phase === QSL_STORY_PHASES.PLAYER_FINAL_CHOICE && recovery) {
-    if (!safeSemantic(semanticResult)) return failure(run, "SEMANTIC_UNSAFE", at);
     return transition(run, {
       phase: QSL_STORY_PHASES.SORA_CLARIFICATION_REPLY,
       replyWpm: recovery === "QRS" ? Math.max(5, run.replyWpm - 3) : run.replyWpm,

@@ -69,17 +69,17 @@ test("hard exchange fields, serial progression, and duplicate identities fail cl
   assert.equal(duplicateAttempt.duplicateAttempts, 1);
 });
 
-test("AGN and QRS preserve the selected station while premature exchange is an interruption", () => {
+test("exact AGN and QRS preserve the selected station when semantic safety cannot classify procedure-only text", () => {
   let run = selectContestMode(createContestRun({ playerCallsign: "BH1ABC", seed: "recovery", startedAt: ISO }), CONTEST_MODES.RUN);
   const station = run.candidates[0];
-  const interrupted = submitContestText(run, contestExchangeText(station, run.playerCallsign, 1), safe, later(1));
+  const interrupted = submitContestText(run, contestExchangeText(station, run.playerCallsign, 1), { safeToCommit: false }, later(1));
   assert.equal(interrupted.interruptions, 1);
   assert.equal(interrupted.contacts.length, 0);
-  run = submitContestText(interrupted, station.callsign, safe, later(2));
-  const repeated = submitContestText(run, "AGN K", safe, later(3));
+  run = submitContestText(interrupted, station.callsign, { safeToCommit: false }, later(2));
+  const repeated = submitContestText(run, "AGN K", { safeToCommit: false }, later(3));
   assert.equal(repeated.repeatRequests, 1);
   assert.equal(repeated.selectedStation.personId, station.personId);
-  const slowed = submitContestText(repeated, "QRS K", safe, later(4));
+  const slowed = submitContestText(repeated, "QRS K", { safeToCommit: false }, later(4));
   assert.equal(slowed.repeatRequests, 2);
   assert.ok(slowed.replyWpm < repeated.replyWpm);
   const completed = submitContestText(

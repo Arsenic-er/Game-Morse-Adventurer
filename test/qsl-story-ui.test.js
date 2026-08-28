@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
-import test from "node:test";
+import test, { after } from "node:test";
 import React from "react";
 import { renderToPipeableStream } from "react-dom/server";
 import { createServer } from "vite";
@@ -22,6 +22,13 @@ const SOURCE_QSL = Object.freeze({
   confirmedAt: "2026-08-28T09:01:00.000Z",
   choice: "request-review",
 });
+
+let viteServer = null;
+async function sharedViteServer() {
+  viteServer ??= await createServer({ appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
+  return viteServer;
+}
+after(async () => { if (viteServer) await viteServer.close(); });
 
 function render(element) {
   return new Promise((resolve, reject) => {
@@ -49,8 +56,7 @@ function saveWithRun(run = null) {
 }
 
 test("Chapter 7 renders both accounts, real radio input, choices, and no portrait", async () => {
-  const vite = await createServer({ appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
-  try {
+  const vite = await sharedViteServer();
     const [{ QslStoryScreen }, { QSL_STORY_TEXT }] = await Promise.all([
       vite.ssrLoadModule("/src/screens/QslStoryScreen.jsx"),
       vite.ssrLoadModule("/src/screens/qslStoryText.js"),
@@ -76,9 +82,6 @@ test("Chapter 7 renders both accounts, real radio input, choices, and no portrai
       assert.deepEqual(Object.keys(dictionary), keys);
       assert.ok(Object.values(dictionary).every((value) => typeof value === "string" && value.trim()));
     }
-  } finally {
-    await vite.close();
-  }
 });
 
 test("Chapter 7 leave risk protects live and completed-unsettled cases", async () => {
@@ -92,8 +95,7 @@ test("Chapter 7 leave risk protects live and completed-unsettled cases", async (
 });
 
 test("accepted Chapter 7 and its durable unlock expose only the intended entry actions", async () => {
-  const vite = await createServer({ appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
-  try {
+  const vite = await sharedViteServer();
     const [{ HomeScreen }, { MissionCenterModal }] = await Promise.all([
       vite.ssrLoadModule("/src/screens/HomeScreen.jsx"),
       vite.ssrLoadModule("/src/screens/MissionCenterModal.jsx"),
@@ -140,7 +142,4 @@ test("accepted Chapter 7 and its durable unlock expose only the intended entry a
     };
     const homeHtml = await render(React.createElement(HomeScreen, { language: "en", save: replaySave, ...callbacks }));
     assert.match(homeHtml, /data-action="enter-qsl-story-home"/);
-  } finally {
-    await vite.close();
-  }
 });

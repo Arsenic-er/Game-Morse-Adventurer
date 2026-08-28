@@ -9,8 +9,13 @@ const QA_STORAGE_KEYS = Object.freeze([
   "game-morse-adventurer.language.v1",
 ]);
 const QA_LANGUAGE_IDS = Object.freeze(["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"]);
+const QA_INITIAL_STORY_MISSION_IDS = Object.freeze([
+  "story-01", "story-02", "story-03", "story-04", "story-05",
+  "story-06", "story-07", "story-08", "story-09", "story-10",
+]);
 const QA_SUPPORTED_SCOPES = Object.freeze([
   "full", "bootstrap", "inventory", "equipment", "practice", "qso", "expedition",
+  "qsl-story", "service-net", "coordinate-relay", "contest",
 ]);
 const QA_SEGMENT_PREDECESSORS = Object.freeze({
   inventory: "bootstrap",
@@ -18,6 +23,10 @@ const QA_SEGMENT_PREDECESSORS = Object.freeze({
   practice: "equipment",
   qso: "practice",
   expedition: "qso",
+  "qsl-story": "expedition",
+  "service-net": "qsl-story",
+  "coordinate-relay": "service-net",
+  contest: "coordinate-relay",
 });
 const QA_RUN_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -61,6 +70,24 @@ const QA_CAPTURE_STEMS = Object.freeze({
     "expedition-settled", "expedition-reloaded-qsl", "expedition-choice-confirmed",
     "expedition-choice-reloaded",
   ],
+  "qsl-story": [
+    "qsl-mission-available", "qsl-accounts", "qsl-clarification-error", "qsl-clarification-reply",
+    "qsl-final-choice", "qsl-result", "qsl-settled", "qsl-reloaded",
+  ],
+  "service-net": [
+    "service-mission-available", "service-briefing", "service-check-in-error", "service-queue",
+    "service-message", "service-agn", "service-ack-error", "service-result", "service-settled", "service-reloaded",
+  ],
+  "coordinate-relay": [
+    "coordinate-mission-available", "coordinate-briefing", "coordinate-packet", "coordinate-readback-error",
+    "coordinate-correction", "coordinate-relay", "coordinate-confirmation", "coordinate-result",
+    "coordinate-settled", "coordinate-reloaded",
+  ],
+  contest: [
+    "contest-mission-available", "contest-briefing", "contest-run-pileup", "contest-interruption",
+    "contest-run-contact", "contest-sp-pool", "contest-agn", "contest-busted-call",
+    "contest-score-ready", "contest-result", "contest-settled", "contest-reloaded",
+  ],
 });
 
 function buildQaSegmentPlan({ suffix = "qa" } = {}) {
@@ -69,7 +96,7 @@ function buildQaSegmentPlan({ suffix = "qa" } = {}) {
     scope,
     mode: "qa-capture",
     predecessor: QA_SEGMENT_PREDECESSORS[scope] ?? null,
-    timeoutMs: ["qso", "expedition"].includes(scope) ? 8 * 60_000 : 5 * 60_000,
+    timeoutMs: ["qso", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest"].includes(scope) ? 8 * 60_000 : 5 * 60_000,
     screenshots: QA_CAPTURE_STEMS[scope].map((stem) => `${stem}-${suffix}.png`),
   }));
   segments.push({
@@ -146,12 +173,58 @@ function validateQaStateShape(value, { qaRunId = null } = {}) {
   if (!isPlainObject(value)) throw new Error("QA state input must be a plain object");
   if (value.schemaVersion !== 1) throw new Error("QA state schemaVersion is unsupported");
   validateQaRunId(value.qaRunId, qaRunId);
-  if (!["bootstrap", "inventory", "equipment", "practice", "qso", "expedition"].includes(value.producerScope)) {
+  if (!QA_SUPPORTED_SCOPES.slice(1).includes(value.producerScope)) {
     throw new Error("QA state producerScope is unsupported");
   }
   const { activeSave } = validateQaStorage(value.storage);
   validateQaFacts(value.facts, activeSave, value.producerScope);
   return value;
+}
+
+function validateChapterQaBase(value, { qaRunId, activity }) {
+  const evidence = requirePlainObject(value, `${activity} evidence`);
+  if (evidence.schemaVersion !== 1 || evidence.activity !== activity) throw new Error(`${activity} QA evidence has the wrong schema or activity`);
+  validateQaRunId(evidence.qaRunId, qaRunId);
+  for (const key of ["settled", "missionClaimed", "reloadPersisted", "duplicateSettlementNoOp"]) {
+    if (evidence[key] !== true) throw new Error(`${activity} QA evidence requires ${key}`);
+  }
+  return evidence;
+}
+
+function validateQslStoryQaEvidence(value, { qaRunId = null } = {}) {
+  const evidence = validateChapterQaBase(value, { qaRunId, activity: "qsl-story" });
+  if (evidence.sourcePersonId !== "person:sora" || !["believe", "request-review", "defer"].includes(evidence.finalChoice)
+    || evidence.eventQsoCount !== 1) throw new Error("qsl-story QA evidence facts are incomplete");
+  return evidence;
+}
+
+function validateServiceNetQaEvidence(value, { qaRunId = null } = {}) {
+  const evidence = validateChapterQaBase(value, { qaRunId, activity: "service-net" });
+  if (evidence.messageCount !== 3 || evidence.receiptCount !== 3 || evidence.eventQsoCount !== 1) {
+    throw new Error("service-net QA evidence facts are incomplete");
+  }
+  return evidence;
+}
+
+function validateCoordinateRelayQaEvidence(value, { qaRunId = null } = {}) {
+  const evidence = validateChapterQaBase(value, { qaRunId, activity: "coordinate-relay" });
+  if (!/^\d{3}$/.test(evidence.packetId) || !/^PX-\d{4}-\d{4}$/.test(evidence.grid) || evidence.eventQsoCount !== 2) {
+    throw new Error("coordinate-relay QA evidence facts are incomplete");
+  }
+  return evidence;
+}
+
+function validateContestQaEvidence(value, { qaRunId = null } = {}) {
+  const evidence = validateChapterQaBase(value, { qaRunId, activity: "contest" });
+  if (!Number.isInteger(evidence.validContacts) || evidence.validContacts < 6 || evidence.validContacts > 10
+    || !Number.isInteger(evidence.runContacts) || evidence.runContacts < 2
+    || !Number.isInteger(evidence.spContacts) || evidence.spContacts < 2
+    || !Number.isInteger(evidence.uniqueRegions) || evidence.uniqueRegions < 3
+    || evidence.eventQsoCount !== evidence.validContacts
+    || !["complete", "silver", "gold"].includes(evidence.grade)) {
+    throw new Error("contest QA evidence facts are incomplete");
+  }
+  return evidence;
 }
 
 function createQaStateEnvelope({ qaRunId, producerScope, storage, facts = {} }) {
@@ -889,6 +962,81 @@ async function sendAutomaticStationText(window, text, wpm = 18) {
   }
   if (result.decoded.trim().replace(/\s+/g, " ") !== expected) {
     throw new Error(`Station automatic input decoded '${result.decoded}' instead of '${expected}'`);
+  }
+  return result;
+}
+
+async function sendAutomaticContestText(window, text, wpm = 18) {
+  const dotMs = 1200 / wpm;
+  const tapHoldMs = dotMs * 0.12;
+  const words = String(text).toUpperCase().trim().split(/\s+/);
+  const expected = words.join(" ");
+  const steps = [];
+  for (let wordIndex = 0; wordIndex < words.length; wordIndex += 1) {
+    const characters = [...words[wordIndex]];
+    for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
+      const pattern = MORSE[characters[characterIndex]];
+      if (!pattern) continue;
+      const lastCharacter = characterIndex === characters.length - 1;
+      const lastWord = wordIndex === words.length - 1;
+      steps.push({
+        character: characters[characterIndex],
+        keyCodes: [...pattern].map((symbol) => (symbol === "." ? "Z" : "X")),
+        gapMs: !lastCharacter ? automaticQaGapAfterElement("character", wpm)
+          : !lastWord ? automaticQaGapAfterElement("word", wpm) : 0,
+      });
+    }
+  }
+  let result = { decoded: "", pulseCount: 0 };
+  for (let stepIndex = 0; stepIndex < steps.length; stepIndex += 1) {
+    const step = steps[stepIndex];
+    await focusQaWindow(window, `before contest character ${stepIndex + 1}/${steps.length} (${step.character})`);
+    result = await window.webContents.executeJavaScript(`(async () => {
+      const screen = () => document.querySelector(".contest-screen");
+      const pulseCount = () => Number(screen()?.dataset.pulseCount || 0);
+      const keyCodes = ${JSON.stringify(step.keyCodes)};
+      const tapHoldMs = ${JSON.stringify(tapHoldMs)};
+      const channel = new MessageChannel();
+      const waiters = [];
+      channel.port1.onmessage = () => waiters.shift()?.();
+      const yieldTask = () => new Promise((resolve) => { waiters.push(resolve); channel.port2.postMessage(null); });
+      const waitUntil = (predicate, description) => new Promise((resolve, reject) => {
+        const started = Date.now();
+        const timer = setInterval(() => {
+          if (predicate()) { clearInterval(timer); resolve(true); }
+          else if (Date.now() - started > 3000) {
+            clearInterval(timer);
+            reject(new Error(description + "; rendered state: " + JSON.stringify({
+              phase: screen()?.dataset.contestPhase ?? null,
+              decoded: screen()?.dataset.decoded ?? null,
+              pulseCount: screen()?.dataset.pulseCount ?? null,
+              keying: screen()?.dataset.contestKeying ?? null,
+              documentHasFocus: document.hasFocus(), visibilityState: document.visibilityState,
+            })));
+          }
+        }, 20);
+      });
+      const before = pulseCount();
+      try {
+        for (const keyCode of keyCodes) {
+          const code = "Key" + keyCode;
+          window.dispatchEvent(new KeyboardEvent("keydown", { code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true }));
+          const started = performance.now();
+          while (performance.now() - started < tapHoldMs) {}
+          window.dispatchEvent(new KeyboardEvent("keyup", { code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true }));
+          await yieldTask();
+        }
+        await waitUntil(() => pulseCount() >= before + keyCodes.length, "Contest automatic-key character pulses were not observed");
+        await waitUntil(() => screen()?.dataset.contestKeying === "false", "Contest automatic keyer did not become idle");
+        return { decoded: screen()?.dataset.decoded ?? "", pulseCount: pulseCount() };
+      } finally {
+        channel.port1.close(); channel.port2.close();
+      }
+    })()`, true);
+    if (step.gapMs > 0) await delay(step.gapMs);
+  }
+  if (result.decoded.trim().replace(/\s+/g, " ") !== expected) {
+    throw new Error(`Contest automatic input decoded '${result.decoded}' instead of '${expected}'`);
   }
   return result;
 }
@@ -1675,6 +1823,355 @@ async function runLightsQaSegment(window, outputDir, suffix, {
   }
 }
 
+async function openQaActiveSave(window) {
+  await waitFor(window, ".start-screen");
+  await click(window, ".menu-primary");
+  await waitFor(window, ".save-select-screen");
+  await click(window, ".save-primary-action");
+  await waitFor(window, ".home-screen");
+}
+
+async function claimQaStoryAndReload(window, missionId) {
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, `[data-mission-id="${missionId}"][data-mission-status="ready"]`);
+  await click(window, `[data-action="claim-mission"][data-mission-action-id="${missionId}"]`);
+  await waitFor(window, `[data-mission-id="${missionId}"][data-mission-status="claimed"]`);
+  await click(window, '[data-action="close-missions-footer"]');
+  await waitForMissing(window, '[data-testid="mission-center-modal"]');
+  await window.reload();
+  await openQaActiveSave(window);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, `[data-mission-id="${missionId}"][data-mission-status="claimed"]`);
+}
+
+async function runQslStoryQaScope(window, outputDir, shot, { qaRunId }) {
+  await openQaActiveSave(window);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-07"][data-mission-status="available"]');
+  await capture(window, outputDir, shot("qsl-mission-available"));
+  await click(window, '[data-action="accept-mission"][data-mission-action-id="story-07"]');
+  await waitFor(window, '[data-mission-id="story-07"][data-mission-status="active"]');
+  await click(window, '[data-action="launch-qsl-story"]');
+  await waitFor(window, '[data-testid="qsl-story-screen"][data-qsl-story-phase="CASE_OPEN"]');
+  await capture(window, outputDir, shot("qsl-accounts"));
+  await click(window, '[data-action="qsl-story-review"]');
+  await waitFor(window, '[data-qsl-story-phase="PLAYER_CLARIFICATION_CALL"]');
+  await setInputValue(window, '.qsl-story-message input', "QSL WRONG DE WRONG PSE K");
+  await click(window, '[data-action="qsl-story-submit"]');
+  await waitFor(window, '.qsl-story-error');
+  await capture(window, outputDir, shot("qsl-clarification-error"));
+  const clarification = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const run = save.storyContinuationState.chapter07.activeRun;
+    return "QSL " + run.caseId + " DE " + run.playerCallsign + " PSE K";
+  })()`, true);
+  await setInputValue(window, '.qsl-story-message input', clarification);
+  await click(window, '[data-action="qsl-story-submit"]');
+  await waitFor(window, '[data-qsl-story-phase="SORA_CLARIFICATION_REPLY"]');
+  await capture(window, outputDir, shot("qsl-clarification-reply"));
+  await click(window, '[data-action="qsl-story-receive"]');
+  await waitFor(window, '[data-qsl-story-phase="PLAYER_FINAL_CHOICE"]');
+  await capture(window, outputDir, shot("qsl-final-choice"));
+  await click(window, '.qsl-story-choices [data-qsl-choice="request-review"]');
+  await waitFor(window, '[data-qsl-story-phase="COMPLETED"]');
+  await capture(window, outputDir, shot("qsl-result"));
+  await click(window, '[data-action="qsl-story-settle"]');
+  await waitFor(window, '[data-action="qsl-story-settle"][disabled]');
+  await capture(window, outputDir, shot("qsl-settled"));
+  const beforeDuplicate = await window.webContents.executeJavaScript(
+    'localStorage.getItem("game-morse-adventurer.saves.v1")', true,
+  );
+  await click(window, '[data-action="qsl-story-settle"]');
+  await delay(80);
+  const afterDuplicate = await window.webContents.executeJavaScript(
+    'localStorage.getItem("game-morse-adventurer.saves.v1")', true,
+  );
+  await click(window, '.qsl-story-topbar button');
+  await waitFor(window, '.home-screen');
+  await claimQaStoryAndReload(window, "story-07");
+  await capture(window, outputDir, shot("qsl-reloaded"));
+  const facts = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const record = save.storyContinuationState.chapter07.cases.at(-1);
+    return {
+      sourcePersonId: record.personId,
+      finalChoice: record.finalChoice,
+      eventQsoCount: save.qsoLogs.filter((log) => log.eventKind === "qsl-story").length,
+      missionClaimed: save.missionState.claimedMissionIds.includes("story-07"),
+      reloadPersisted: save.storyContinuationState.chapter07.settledRunIds.includes(record.runId),
+    };
+  })()`, true);
+  const evidence = {
+    schemaVersion: 1, qaRunId, activity: "qsl-story", settled: true,
+    duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts,
+  };
+  validateQslStoryQaEvidence(evidence, { qaRunId });
+  await fs.writeFile(path.join(outputDir, "qsl-story-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  return evidence;
+}
+
+async function serviceNetCurrentMessage(window) {
+  return window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const run = save.storyContinuationState.chapter08.activeRun;
+    return run.messages[run.priorityOrder[run.currentPosition]];
+  })()`, true);
+}
+
+async function submitQaTextInput(window, inputSelector, actionSelector, value) {
+  await setInputValue(window, inputSelector, value);
+  await click(window, actionSelector);
+}
+
+async function runServiceNetQaScope(window, outputDir, shot, { qaRunId }) {
+  await openQaActiveSave(window);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-08"][data-mission-status="available"]');
+  await capture(window, outputDir, shot("service-mission-available"));
+  await click(window, '[data-action="accept-mission"][data-mission-action-id="story-08"]');
+  await waitFor(window, '[data-mission-id="story-08"][data-mission-status="active"]');
+  await click(window, '[data-action="launch-service-net"]');
+  await waitFor(window, '[data-testid="service-net-screen"][data-service-net-phase="BRIEFING"]');
+  await capture(window, outputDir, shot("service-briefing"));
+  await click(window, '[data-action="service-net-begin"]');
+  await waitFor(window, '[data-service-net-phase="CHECK_IN"]');
+  await submitQaTextInput(window, '.service-net-message input', '[data-action="service-net-submit"]', "WRONG CHECK IN K");
+  await waitFor(window, '.service-net-error');
+  await capture(window, outputDir, shot("service-check-in-error"));
+  const playerCallsign = await window.webContents.executeJavaScript(
+    'JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign', true,
+  );
+  await submitQaTextInput(window, '.service-net-message input', '[data-action="service-net-submit"]', `${playerCallsign} CHECK IN K`);
+  await waitFor(window, '[data-service-net-phase="RECEIVE_MESSAGE"]');
+  await capture(window, outputDir, shot("service-queue"));
+  await click(window, '[data-action="service-net-receive"]');
+  await waitFor(window, '[data-service-net-phase="PLAYER_ACK"]');
+  await capture(window, outputDir, shot("service-message"));
+  await click(window, '[data-action="service-net-agn"]');
+  await waitFor(window, '[data-service-net-phase="RECEIVE_MESSAGE"]');
+  await capture(window, outputDir, shot("service-agn"));
+  await click(window, '[data-action="service-net-receive"]');
+  await waitFor(window, '[data-service-net-phase="PLAYER_ACK"]');
+  const first = await serviceNetCurrentMessage(window);
+  await submitQaTextInput(window, '.service-net-message input', '[data-action="service-net-submit"]', `ACK 999 PRI ${first.priority} K`);
+  await waitFor(window, '.service-net-error');
+  await capture(window, outputDir, shot("service-ack-error"));
+  await submitQaTextInput(window, '.service-net-message input', '[data-action="service-net-submit"]', `ACK ${first.messageId} PRI ${first.priority} K`);
+  for (let index = 1; index < 3; index += 1) {
+    await waitFor(window, '[data-service-net-phase="RECEIVE_MESSAGE"]');
+    await click(window, '[data-action="service-net-receive"]');
+    await waitFor(window, '[data-service-net-phase="PLAYER_ACK"]');
+    const current = await serviceNetCurrentMessage(window);
+    await submitQaTextInput(window, '.service-net-message input', '[data-action="service-net-submit"]', `ACK ${current.messageId} PRI ${current.priority} K`);
+  }
+  await waitFor(window, '[data-service-net-phase="COMPLETED"]');
+  await capture(window, outputDir, shot("service-result"));
+  await click(window, '[data-action="service-net-settle"]');
+  await waitFor(window, '[data-action="service-net-settle"][disabled]');
+  await capture(window, outputDir, shot("service-settled"));
+  const beforeDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, '[data-action="service-net-settle"]');
+  await delay(80);
+  const afterDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, '.service-net-topbar button');
+  await waitFor(window, '.home-screen');
+  await claimQaStoryAndReload(window, "story-08");
+  await capture(window, outputDir, shot("service-reloaded"));
+  const facts = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const chapter = save.storyContinuationState.chapter08;
+    return {
+      messageCount: 3,
+      receiptCount: chapter.receipts.filter((receipt) => receipt.runId === chapter.settledRunIds.at(-1)).length,
+      eventQsoCount: save.qsoLogs.filter((log) => log.eventKind === "service-net").length,
+      missionClaimed: save.missionState.claimedMissionIds.includes("story-08"),
+      reloadPersisted: chapter.settledRunIds.length === 1 && chapter.receipts.length === 3,
+    };
+  })()`, true);
+  const evidence = { schemaVersion: 1, qaRunId, activity: "service-net", settled: true,
+    duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts };
+  validateServiceNetQaEvidence(evidence, { qaRunId });
+  await fs.writeFile(path.join(outputDir, "service-net-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  return evidence;
+}
+
+async function runCoordinateRelayQaScope(window, outputDir, shot, { qaRunId }) {
+  await openQaActiveSave(window);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-09"][data-mission-status="available"]');
+  await capture(window, outputDir, shot("coordinate-mission-available"));
+  await click(window, '[data-action="accept-mission"][data-mission-action-id="story-09"]');
+  await waitFor(window, '[data-mission-id="story-09"][data-mission-status="active"]');
+  await click(window, '[data-action="launch-coordinate-relay"]');
+  await waitFor(window, '[data-testid="coordinate-relay-screen"][data-coordinate-phase="BRIEFING"]');
+  await capture(window, outputDir, shot("coordinate-briefing"));
+  await click(window, '[data-action="coordinate-begin"]');
+  await waitFor(window, '[data-coordinate-phase="RECEIVE_PACKET"]');
+  await capture(window, outputDir, shot("coordinate-packet"));
+  await click(window, '[data-action="coordinate-receive"]');
+  await waitFor(window, '[data-coordinate-phase="PLAYER_READBACK"]');
+  await submitQaTextInput(window, '.coordinate-relay-input input', '[data-action="coordinate-submit"]', "MSG 999 GRID PX-9999-9999 TIME 0000Z PEOPLE 99 CHECK 99");
+  await waitFor(window, '[data-coordinate-phase="FIELD_CORRECTION"]');
+  await capture(window, outputDir, shot("coordinate-readback-error"));
+  await click(window, '[data-action="coordinate-receive"]');
+  await waitFor(window, '[data-coordinate-phase="PLAYER_READBACK"]');
+  await capture(window, outputDir, shot("coordinate-correction"));
+  const packetText = await window.webContents.executeJavaScript(
+    'document.querySelector(".coordinate-relay-packet code").textContent.trim()', true,
+  );
+  await submitQaTextInput(window, '.coordinate-relay-input input', '[data-action="coordinate-submit"]', packetText);
+  await waitFor(window, '[data-coordinate-phase="RELAY_PACKET"]');
+  await capture(window, outputDir, shot("coordinate-relay"));
+  await submitQaTextInput(window, '.coordinate-relay-input input', '[data-action="coordinate-submit"]', packetText);
+  await waitFor(window, '[data-coordinate-phase="RELAY_CONFIRMATION"]');
+  await capture(window, outputDir, shot("coordinate-confirmation"));
+  await click(window, '[data-action="coordinate-confirm"]');
+  await waitFor(window, '[data-coordinate-phase="COMPLETED"]');
+  await capture(window, outputDir, shot("coordinate-result"));
+  await click(window, '[data-action="coordinate-settle"]');
+  await waitFor(window, '[data-action="coordinate-settle"][disabled]');
+  await capture(window, outputDir, shot("coordinate-settled"));
+  const beforeDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, '[data-action="coordinate-settle"]');
+  await delay(80);
+  const afterDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, '.coordinate-relay-topbar button');
+  await waitFor(window, '.home-screen');
+  await claimQaStoryAndReload(window, "story-09");
+  await capture(window, outputDir, shot("coordinate-reloaded"));
+  const facts = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const chapter = save.storyContinuationState.chapter09;
+    const packet = chapter.packets.at(-1);
+    return {
+      packetId: packet.packet.packetId,
+      grid: packet.packet.grid,
+      eventQsoCount: save.qsoLogs.filter((log) => log.eventKind === "coordinate-relay").length,
+      missionClaimed: save.missionState.claimedMissionIds.includes("story-09"),
+      reloadPersisted: chapter.settledRunIds.includes(packet.runId),
+    };
+  })()`, true);
+  const evidence = { schemaVersion: 1, qaRunId, activity: "coordinate-relay", settled: true,
+    duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts };
+  validateCoordinateRelayQaEvidence(evidence, { qaRunId });
+  await fs.writeFile(path.join(outputDir, "coordinate-relay-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  return evidence;
+}
+
+async function submitContestAutomatic(window, text, expectedPhase) {
+  await sendAutomaticContestText(window, text, 18);
+  await waitFor(window, '[data-action="contest-submit"]:not([disabled])');
+  await click(window, '[data-action="contest-submit"]');
+  if (expectedPhase) await waitFor(window, `[data-contest-phase="${expectedPhase}"]`, 15000);
+}
+
+async function contestCandidate(window) {
+  return window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const contacts = save.storyContinuationState.chapter10.activeRun.contacts;
+    const usedPeople = new Set(contacts.map(({ personId }) => personId));
+    const usedRegions = new Set(contacts.map(({ regionCode }) => regionCode));
+    const rendered = Array.from(document.querySelectorAll("[data-contest-candidate]"), (node) => ({
+      callsign: node.dataset.contestCandidate,
+      regionCode: node.querySelector("span")?.textContent.trim() ?? "",
+    }));
+    return rendered.find((candidate) => !usedRegions.has(candidate.regionCode))
+      ?? rendered.find((candidate) => !usedPeople.has(candidate.personId))
+      ?? rendered[0] ?? null;
+  })()`, true);
+}
+
+async function completeContestContact(window, mode, { requestRepeat = false } = {}) {
+  const phase = await window.webContents.executeJavaScript('document.querySelector(".contest-screen").dataset.contestPhase', true);
+  if (phase === "MODE_SELECT") {
+    await click(window, `[data-action="contest-mode-${mode.toLowerCase()}"]`);
+    await waitFor(window, `[data-contest-phase="${mode === "RUN" ? "RUN_PILEUP" : "SP_POOL"}"]`);
+  }
+  const candidate = await contestCandidate(window);
+  if (!candidate?.callsign) throw new Error(`Contest QA has no ${mode} candidate`);
+  await submitContestAutomatic(window, candidate.callsign, "EXCHANGE");
+  if (requestRepeat) {
+    const repeatsBefore = await window.webContents.executeJavaScript(`JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].storyContinuationState.chapter10.activeRun.repeatRequests`, true);
+    await click(window, '[data-action="contest-agn"]');
+    await window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+      const started = Date.now();
+      const timer = setInterval(() => {
+        const run = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].storyContinuationState.chapter10.activeRun;
+        if (run.repeatRequests > ${repeatsBefore}) { clearInterval(timer); resolve(true); }
+        else if (Date.now() - started > 10000) { clearInterval(timer); reject(new Error("Contest AGN did not persist")); }
+      }, 40);
+    })`, true);
+  }
+  const exchange = await window.webContents.executeJavaScript('document.querySelector(".contest-exchange code").textContent.trim()', true);
+  await submitContestAutomatic(window, exchange, "MODE_SELECT");
+  return candidate;
+}
+
+async function runContestQaScope(window, outputDir, shot, { qaRunId }) {
+  await openQaActiveSave(window);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-10"][data-mission-status="available"]');
+  await capture(window, outputDir, shot("contest-mission-available"));
+  await click(window, '[data-action="accept-mission"][data-mission-action-id="story-10"]');
+  await waitFor(window, '[data-mission-id="story-10"][data-mission-status="active"]');
+  await click(window, '[data-action="launch-contest"]');
+  await waitFor(window, '[data-testid="contest-screen"][data-contest-phase="BRIEFING"]');
+  await capture(window, outputDir, shot("contest-briefing"));
+  await click(window, '[data-action="contest-mode-run"]');
+  await waitFor(window, '[data-contest-phase="RUN_PILEUP"]');
+  await capture(window, outputDir, shot("contest-run-pileup"));
+  await submitContestAutomatic(window, "RST", "RUN_PILEUP");
+  await waitFor(window, '.contest-error');
+  await capture(window, outputDir, shot("contest-interruption"));
+  await completeContestContact(window, "RUN");
+  await capture(window, outputDir, shot("contest-run-contact"));
+  await completeContestContact(window, "RUN");
+  await completeContestContact(window, "RUN");
+  await click(window, '[data-action="contest-mode-sp"]');
+  await waitFor(window, '[data-contest-phase="SP_POOL"]');
+  await capture(window, outputDir, shot("contest-sp-pool"));
+  await submitContestAutomatic(window, "ZZ9ZZ", "SP_POOL");
+  await waitFor(window, '.contest-error');
+  await capture(window, outputDir, shot("contest-busted-call"));
+  await completeContestContact(window, "SP", { requestRepeat: true });
+  await capture(window, outputDir, shot("contest-agn"));
+  await completeContestContact(window, "SP");
+  await completeContestContact(window, "SP");
+  await waitFor(window, '[data-contest-phase="MODE_SELECT"] [data-action="contest-finish"]');
+  await capture(window, outputDir, shot("contest-score-ready"));
+  await click(window, '[data-action="contest-finish"]');
+  await waitFor(window, '[data-contest-phase="COMPLETED"]');
+  await capture(window, outputDir, shot("contest-result"));
+  await click(window, '[data-action="contest-settle"]');
+  await waitFor(window, '[data-action="contest-settle"][disabled]', 15000);
+  await capture(window, outputDir, shot("contest-settled"));
+  const beforeDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, '[data-action="contest-settle"]');
+  await delay(80);
+  const afterDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, '.contest-topbar button');
+  await waitFor(window, '.home-screen');
+  await claimQaStoryAndReload(window, "story-10");
+  await capture(window, outputDir, shot("contest-reloaded"));
+  const facts = await window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    const chapter = save.storyContinuationState.chapter10;
+    const record = chapter.records.at(-1);
+    return {
+      validContacts: record.validContacts, runContacts: record.runContacts, spContacts: record.spContacts,
+      uniqueRegions: record.uniqueRegions, grade: record.grade,
+      eventQsoCount: save.qsoLogs.filter((log) => log.eventKind === "contest" && log.eventRunId === record.runId).length,
+      missionClaimed: save.missionState.claimedMissionIds.includes("story-10"),
+      reloadPersisted: chapter.settledRunIds.includes(record.runId) && chapter.taskTreeUnlocked === true,
+    };
+  })()`, true);
+  const evidence = { schemaVersion: 1, qaRunId, activity: "contest", settled: true,
+    duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts };
+  validateContestQaEvidence(evidence, { qaRunId });
+  await fs.writeFile(path.join(outputDir, "contest-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  return evidence;
+}
+
 async function runQaCapture(window) {
   const outputDir = process.env.CWGAME_QA_OUTPUT || path.join(process.cwd(), "qa-artifacts");
   const qaRunId = process.env.CWGAME_QA_RUN_ID;
@@ -2014,8 +2511,8 @@ async function runQaCapture(window) {
     chapterFourClues: Array.from(document.querySelectorAll('[data-mission-id="story-04"] [data-contract-clue]'), (node) => node.dataset.contractClue),
     chapterFourRelationshipStats: document.querySelectorAll('[data-mission-id="story-04"] [data-relationship-stat]').length,
   }))()`, true);
-  if (initialMissionState.storyCount !== 6 || initialMissionState.available !== "available"
-    || JSON.stringify(initialMissionState.locked) !== JSON.stringify(["story-02", "story-03", "story-04", "story-05", "story-06"])
+  if (initialMissionState.storyCount !== QA_INITIAL_STORY_MISSION_IDS.length || initialMissionState.available !== "available"
+    || JSON.stringify(initialMissionState.locked) !== JSON.stringify(QA_INITIAL_STORY_MISSION_IDS.slice(1))
     || initialMissionState.chapterFourNarrative !== "brief"
     || JSON.stringify(initialMissionState.chapterFourClues) !== JSON.stringify(["propagation", "topics", "recovery"])
     || initialMissionState.chapterFourRelationshipStats !== 2) {
@@ -3802,6 +4299,23 @@ async function runQaCapture(window) {
       return finishScope({ practiceWrongTarget: wrongPracticeTarget });
     }
 
+    if (scope === "qsl-story") {
+      await runQslStoryQaScope(window, outputDir, shot, { qaRunId });
+      return finishScope({ practiceWrongTarget: wrongPracticeTarget });
+    }
+    if (scope === "service-net") {
+      await runServiceNetQaScope(window, outputDir, shot, { qaRunId });
+      return finishScope({ practiceWrongTarget: wrongPracticeTarget });
+    }
+    if (scope === "coordinate-relay") {
+      await runCoordinateRelayQaScope(window, outputDir, shot, { qaRunId });
+      return finishScope({ practiceWrongTarget: wrongPracticeTarget });
+    }
+    if (scope === "contest") {
+      await runContestQaScope(window, outputDir, shot, { qaRunId });
+      return finishScope({ practiceWrongTarget: wrongPracticeTarget });
+    }
+
   const lightsQaResult = await runLightsQaCapture(window, outputDir, suffix, { qaRunId });
 
   return {
@@ -3838,11 +4352,12 @@ module.exports = {
   buildLightsQaMoneyFlow, buildLightsQaPlan, buildQaSegmentPlan, capture, capturePageWithVizRetry,
   createQaStateEnvelope, exportQaStateFromRenderer, formatLightsWaitFailure, importQaStateIntoRenderer,
   focusQaWindow,
-  LIGHTS_QA_WPM, QA_QSO_LOG_VERSION, QA_STORAGE_KEYS, QA_SUPPORTED_SCOPES,
+  LIGHTS_QA_WPM, QA_INITIAL_STORY_MISSION_IDS, QA_QSO_LOG_VERSION, QA_STORAGE_KEYS, QA_SUPPORTED_SCOPES,
   runLightsQaCapture, runLightsQaSegment, runQaCapture,
   lightsKeyInputForSymbol, selectLightsCallerFromRuntimeSnapshot, startGuidedQaWatch,
   sendAutomaticStationRun, sendAutomaticStationText,
   sendAutomaticLightsText, validateExpeditionQaEvidence, validateLightsQaEvidence, validateQaStateEnvelope, validateStationEntryProbe,
+  validateContestQaEvidence, validateCoordinateRelayQaEvidence, validateQslStoryQaEvidence, validateServiceNetQaEvidence,
   waitForFocusedQsoState, waitForQsoSubmitDecision, waitForRendererImages,
   writeQaSegmentResult,
 };

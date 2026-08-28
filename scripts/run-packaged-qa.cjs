@@ -7,9 +7,13 @@ const { inflateSync } = require("node:zlib");
 const {
   buildQaSegmentPlan,
   createQaStateEnvelope,
+  validateContestQaEvidence,
+  validateCoordinateRelayQaEvidence,
   validateExpeditionQaEvidence,
   validateLightsQaEvidence,
+  validateQslStoryQaEvidence,
   validateQaStateEnvelope,
+  validateServiceNetQaEvidence,
 } = require("../electron/qa-capture.cjs");
 
 function parseJson(text, label) {
@@ -276,6 +280,18 @@ const ALLOWED_PIXEL_DUPLICATE_STEMS = Object.freeze([
     "segments/qso/qso-result-unsaved-warmup",
     "segments/qso/qso-result-unsaved",
   ]),
+  Object.freeze([
+    "segments/qsl-story/qsl-reloaded",
+    "segments/service-net/service-mission-available",
+  ]),
+  Object.freeze([
+    "segments/service-net/service-reloaded",
+    "segments/coordinate-relay/coordinate-mission-available",
+  ]),
+  Object.freeze([
+    "segments/coordinate-relay/coordinate-reloaded",
+    "segments/contest/contest-mission-available",
+  ]),
 ]);
 
 function validatePixelHashGroups(entries, { suffix }) {
@@ -440,10 +456,18 @@ async function validateQaSegmentArtifacts(segment, outputDir, { qaRunId }) {
     if (validated.producerScope !== segment.scope || validated.qaRunId !== qaRunId) {
       throw new Error(`${segment.scope} state output has the wrong producer or QA run id`);
     }
-    if (segment.scope === "expedition") {
-      const expeditionFile = path.join(outputDir, "expedition-qa-result.json");
-      if (!await pathExists(expeditionFile)) throw new Error("expedition is missing gameplay evidence");
-      validateExpeditionQaEvidence(await readJson(expeditionFile, "Expedition QA evidence"), { qaRunId });
+    const chapterEvidence = {
+      expedition: ["expedition-qa-result.json", "Expedition", validateExpeditionQaEvidence],
+      "qsl-story": ["qsl-story-qa-result.json", "QSL story", validateQslStoryQaEvidence],
+      "service-net": ["service-net-qa-result.json", "Service net", validateServiceNetQaEvidence],
+      "coordinate-relay": ["coordinate-relay-qa-result.json", "Coordinate relay", validateCoordinateRelayQaEvidence],
+      contest: ["contest-qa-result.json", "Contest", validateContestQaEvidence],
+    }[segment.scope];
+    if (chapterEvidence) {
+      const [filename, label, validate] = chapterEvidence;
+      const evidenceFile = path.join(outputDir, filename);
+      if (!await pathExists(evidenceFile)) throw new Error(`${segment.scope} is missing gameplay evidence`);
+      validate(await readJson(evidenceFile, `${label} QA evidence`), { qaRunId });
     }
   } else {
     const lightsFile = path.join(outputDir, "lights-qa-result.json");
@@ -542,6 +566,13 @@ async function runPackagedQa({
     segments: results.map(({ screenshotPixelHashes: _pixelHashes, ...result }) => result),
     approvedPixelDuplicateGroups,
     lightsResult: path.join("segments", "lights", "lights-qa-result.json"),
+    chapterResults: {
+      expedition: path.join("segments", "expedition", "expedition-qa-result.json"),
+      qslStory: path.join("segments", "qsl-story", "qsl-story-qa-result.json"),
+      serviceNet: path.join("segments", "service-net", "service-net-qa-result.json"),
+      coordinateRelay: path.join("segments", "coordinate-relay", "coordinate-relay-qa-result.json"),
+      contest: path.join("segments", "contest", "contest-qa-result.json"),
+    },
     completedAt: new Date().toISOString(),
   };
   await fs.writeFile(path.join(resolvedOutput, "runtime-console-errors.json"), "[]\n", "utf8");

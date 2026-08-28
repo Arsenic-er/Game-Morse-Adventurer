@@ -291,8 +291,8 @@ export function submitServiceNetText(value, decoded, semanticResult, observedAt)
   const at = iso(observedAt);
   if (!run || !at || Date.parse(at) < Date.parse(run.startedAt) || TERMINAL_PHASES.has(run.phase)) return value;
   if (![SERVICE_NET_PHASES.CHECK_IN, SERVICE_NET_PHASES.PLAYER_ACK].includes(run.phase)) return value;
-  if (!safeSemantic(semanticResult)) return failInput(run, "SEMANTIC_UNSAFE", at);
   if (run.phase === SERVICE_NET_PHASES.CHECK_IN) {
+    if (!safeSemantic(semanticResult)) return failInput(run, "SEMANTIC_UNSAFE", at);
     const reason = checkInError(run, decoded);
     return reason ? failInput(run, reason, at) : transition(run, {
       phase: SERVICE_NET_PHASES.RECEIVE_MESSAGE,
@@ -306,6 +306,7 @@ export function submitServiceNetText(value, decoded, semanticResult, observedAt)
     recoveryActions: [...run.recoveryActions, recovery].slice(-MAX_RECOVERIES),
     replyWpm: recovery === "QRS" ? Math.max(5, run.replyWpm - 3) : run.replyWpm,
   });
+  if (!safeSemantic(semanticResult)) return failInput(run, "SEMANTIC_UNSAFE", at);
   const reason = acknowledgementError(run, decoded);
   if (reason) return failInput(run, reason, at);
   const message = run.messages[run.priorityOrder[run.currentPosition]];

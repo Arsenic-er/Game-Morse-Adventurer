@@ -148,9 +148,9 @@ jobs:
             throw "Packaged QA did not produce qa-result.json"
           }
           $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
-          if ($result.totalPhysicalCaptures -ne 102 -or @($result.captures).Count -ne 102) {
+          if ($result.totalPhysicalCaptures -ne 142 -or @($result.captures).Count -ne 142) {
             $result | ConvertTo-Json -Depth 5
-            throw "Packaged QA manifest did not preserve 91 legacy screenshots plus 11 expedition screenshots"
+            throw "Packaged QA manifest did not preserve the exact 142-screenshot chapter evidence set"
           }
           foreach ($relativeCapture in $result.captures) {
             $capturePath = Join-Path $qaOutput $relativeCapture
@@ -183,6 +183,22 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Packaged expedition result failed gameplay fact/schema validation"
           }
+          $chapterValidators = @(
+            @{ Path = "segments/qsl-story/qsl-story-qa-result.json"; Export = "validateQslStoryQaEvidence" },
+            @{ Path = "segments/service-net/service-net-qa-result.json"; Export = "validateServiceNetQaEvidence" },
+            @{ Path = "segments/coordinate-relay/coordinate-relay-qa-result.json"; Export = "validateCoordinateRelayQaEvidence" },
+            @{ Path = "segments/contest/contest-qa-result.json"; Export = "validateContestQaEvidence" }
+          )
+          foreach ($chapter in $chapterValidators) {
+            $chapterPath = Join-Path $qaOutput $chapter.Path
+            if (!(Test-Path -LiteralPath $chapterPath)) {
+              throw "Packaged QA did not produce $($chapter.Path)"
+            }
+            node -e "const fs=require('fs'); const qa=require('./electron/qa-capture.cjs'); qa[process.argv[2]](JSON.parse(fs.readFileSync(process.argv[1], 'utf8')));" $chapterPath $chapter.Export
+            if ($LASTEXITCODE -ne 0) {
+              throw "Packaged chapter result failed gameplay validation: $($chapter.Path)"
+            }
+          }
           $consoleLog = Join-Path $qaOutput "runtime-console-errors.json"
           if (!(Test-Path -LiteralPath $consoleLog)) {
             throw "Packaged QA did not produce the runtime console report"
@@ -193,7 +209,7 @@ jobs:
             throw "Packaged QA recorded renderer warnings or errors"
           }
 
-          "Packaged QA preserved 91 legacy screens, added 11 expedition screens, and passed Lights + expedition gameplay checkpoints." |
+          "Packaged QA produced 142 exact screenshots and passed Lights plus Chapters 6–10 gameplay checkpoints." |
             Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
 
       - name: Verify executable and write checksum

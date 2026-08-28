@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  ArrowLeft, Books, Broadcast, Check, ClipboardText, Coins, FileMagnifyingGlass, GearSix, Laptop, MapPin, Notebook,
+  ArrowLeft, Books, Broadcast, Check, ClipboardText, Coins, FileMagnifyingGlass, GearSix, GridFour, Laptop, MapPin, Notebook,
   Package, Radio, Storefront, TreeStructure, Trophy, Users, Warehouse, Wrench, X,
 } from "@phosphor-icons/react";
 import { ANTENNAS, antennaName, getAntenna } from "../game/antennaCatalog.js";

@@ -203,7 +203,6 @@ export function submitCoordinateRelayText(value, input, semanticResult, observed
   const run = normalizeCoordinateRelayRun(value); const at = iso(observedAt);
   if (!run || !at || Date.parse(at) < Date.parse(run.startedAt) || TERMINAL.has(run.phase)) return value;
   if (![COORDINATE_RELAY_PHASES.PLAYER_READBACK, COORDINATE_RELAY_PHASES.RELAY_PACKET].includes(run.phase)) return value;
-  if (!safeSemantic(semanticResult)) return failedAttempt(run, "SEMANTIC_UNSAFE", at, run.phase === COORDINATE_RELAY_PHASES.RELAY_PACKET ? "RELAY" : "READBACK");
   const command = recovery(input);
   if (command) return transition(run, {
     phase: COORDINATE_RELAY_PHASES.RECEIVE_PACKET,
@@ -211,6 +210,7 @@ export function submitCoordinateRelayText(value, input, semanticResult, observed
     replyWpm: command === "QRS" ? Math.max(5, run.replyWpm - 3) : run.replyWpm,
     lastError: null,
   });
+  if (!safeSemantic(semanticResult)) return failedAttempt(run, "SEMANTIC_UNSAFE", at, run.phase === COORDINATE_RELAY_PHASES.RELAY_PACKET ? "RELAY" : "READBACK");
   const error = packetError(run.packet, input);
   if (error) return failedAttempt(run, error, at, run.phase === COORDINATE_RELAY_PHASES.RELAY_PACKET ? "RELAY" : "READBACK");
   return run.phase === COORDINATE_RELAY_PHASES.PLAYER_READBACK

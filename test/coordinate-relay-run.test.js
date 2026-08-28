@@ -63,14 +63,14 @@ test("parser rejects reordered, duplicate, conflicting, oversized, and semantica
   assert.equal(submitCoordinateRelayText(run, readback(packet), { safeToCommit: false }, "2026-08-28T02:00:20.000Z").lastError, "SEMANTIC_UNSAFE");
 });
 
-test("AGN and QRS preserve the packet, three complete failures end the run, and retry keeps it frozen", () => {
+test("exact AGN and QRS preserve the packet when semantic safety cannot classify procedure-only text", () => {
   let run = readyRun("recovery");
   const packet = run.packet;
-  const agn = submitCoordinateRelayText(run, "AGN K", safe, "2026-08-28T02:00:20.000Z");
+  const agn = submitCoordinateRelayText(run, "AGN K", { safeToCommit: false }, "2026-08-28T02:00:20.000Z");
   assert.equal(agn.phase, COORDINATE_RELAY_PHASES.RECEIVE_PACKET);
   assert.deepEqual(agn.packet, packet);
   run = receiveCoordinatePacket(agn, "2026-08-28T02:00:21.000Z");
-  const qrs = submitCoordinateRelayText(run, "QRS K", safe, "2026-08-28T02:00:22.000Z");
+  const qrs = submitCoordinateRelayText(run, "QRS K", { safeToCommit: false }, "2026-08-28T02:00:22.000Z");
   assert.equal(qrs.replyWpm, run.replyWpm - 3);
   run = receiveCoordinatePacket(qrs, "2026-08-28T02:00:23.000Z");
   for (let index = 0; index < 3; index += 1) {

@@ -16,6 +16,7 @@ test("Chapter 10 screen exposes RUN, S&P, real keying, scoring, penalties, and n
   assert.match(screen, /data-contest-contact-count=\{run\.contacts\.length\}/);
   assert.match(screen, /data-contest-score=\{score\.score\}/);
   assert.match(screen, /data-contest-paused=\{inputBlocked \|\| !windowActive\}/);
+  assert.match(screen, /data-contest-keying=\{cw\.isKeying\}/);
   assert.match(screen, /data-action="contest-mode-run"/);
   assert.match(screen, /data-action="contest-mode-sp"/);
   assert.match(screen, /data-action="contest-submit"/);

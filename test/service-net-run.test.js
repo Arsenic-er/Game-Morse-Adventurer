@@ -84,17 +84,17 @@ test("check-in and acknowledgements require exact deterministic hard fields", ()
   assert.equal(outOfOrder.receipts.length, 0);
 });
 
-test("AGN and QRS replay the same message without reordering or consuming a receipt", () => {
+test("exact AGN and QRS replay the same message even when the model cannot approve procedure-only text", () => {
   let run = receiveServiceNetMessage(checkedIn("recovery"), ISO3);
   const order = run.priorityOrder;
-  run = submitServiceNetText(run, "QRS K", safeSemantic(), ISO3);
+  run = submitServiceNetText(run, "QRS K", { safeToCommit: false }, ISO3);
   assert.equal(run.phase, SERVICE_NET_PHASES.RECEIVE_MESSAGE);
   assert.deepEqual(run.priorityOrder, order);
   assert.equal(run.currentPosition, 0);
   assert.equal(run.receipts.length, 0);
   assert.equal(run.replyWpm, 13);
   run = receiveServiceNetMessage(run, "2026-08-28T10:00:30.000Z");
-  run = submitServiceNetText(run, "AGN K", safeSemantic(), "2026-08-28T10:00:31.000Z");
+  run = submitServiceNetText(run, "AGN K", { safeToCommit: false }, "2026-08-28T10:00:31.000Z");
   assert.equal(run.phase, SERVICE_NET_PHASES.RECEIVE_MESSAGE);
   assert.deepEqual(run.recoveryActions, ["QRS", "AGN"]);
 });
