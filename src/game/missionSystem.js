@@ -15,13 +15,15 @@ import { normalizeStormRelayState } from "./stormRelayRun.js";
 import { verifiedStormRelayCompletion } from "./stormRelayCompletion.js";
 import { normalizeNightOperationsState } from "./nightOperationsRun.js";
 import { verifiedNightOperationsCompletion } from "./nightOperationsCompletion.js";
+import { normalizeFinalPromiseState } from "./finalPromiseRun.js";
+import { verifiedFinalPromiseCompletion } from "./finalPromiseSettlement.js";
 import { normalizeStoryContinuationState } from "./storyContinuationState.js";
 import { normalizeOperatorRelationships } from "../qso/operatorRelationships.js";
 
 export const MISSION_STATE_VERSION = 2;
 export const MAX_ACTIVE_DAILY_MISSIONS = 2;
 export const STORY_MISSION_IDS = Object.freeze([
-  "story-01", "story-02", "story-03", "story-04", "story-05", "story-06", "story-07", "story-08", "story-09", "story-10", "story-11", "story-12", "story-13",
+  "story-01", "story-02", "story-03", "story-04", "story-05", "story-06", "story-07", "story-08", "story-09", "story-10", "story-11", "story-12", "story-13", "story-14",
 ]);
 export const RECENT_MISSION_DNA_LIMIT = 12;
 export const MISSION_EVENT_LIMIT = 120;
@@ -151,6 +153,16 @@ const STORY_MISSIONS = Object.freeze([
     contract: Object.freeze({
       missionPhase: "night-operations", requiredDistinctOperators: 3,
       requiredTopics: ["CALLSIGN", "RST", "BAND", "SCHEDULE"], recoveryActions: ["AGN", "QRS"],
+    }),
+  }),
+  Object.freeze({
+    id: "story-14", type: "story", chapter: 14, titleKey: "story14Title", descriptionKey: "story14Description",
+    objectiveKey: "story14Objective", briefKey: "story14Brief", debriefKey: "story14Debrief",
+    objective: "final-promise", target: 1, targetCallsign: "SIM14FP", prerequisiteId: "story-13",
+    moneyReward: 1700, technologyPointsReward: 7,
+    contract: Object.freeze({
+      missionPhase: "final-promise", targetCallsign: "SIM14FP",
+      requiredTopics: ["CALLSIGN", "ACCOUNT", "CHOICE"], recoveryActions: ["AGN", "QRS"],
     }),
   }),
 ]);
@@ -365,6 +377,7 @@ function normalizeActiveMission(value) {
     baselineListeningRunIds: normalizeStringList(own(value, "baselineListeningRunIds"), 100, 128),
     baselineStormRelayRunIds: normalizeStringList(own(value, "baselineStormRelayRunIds"), 100, 128),
     baselineNightOperationsRunIds: normalizeStringList(own(value, "baselineNightOperationsRunIds"), 100, 128),
+    baselineFinalPromiseRunIds: normalizeStringList(own(value, "baselineFinalPromiseRunIds"), 100, 128),
     knownCallsigns: normalizeStringList(own(value, "knownCallsigns"), 2000, 16),
     contract: normalizeMissionContract(own(value, "contract")),
     dnaFingerprint: String(own(value, "dnaFingerprint") ?? "").trim().slice(0, 240) || null,
@@ -677,6 +690,9 @@ function evaluateObjective(definition, logs, save, active = null) {
   if (definition.objective === "night-operations") {
     current = verifiedNightOperationsCompletion(save, active) ? 1 : 0;
   }
+  if (definition.objective === "final-promise") {
+    current = verifiedFinalPromiseCompletion(save, active) ? 1 : 0;
+  }
   if (definition.objective === "clean-qso") {
     current = logs.filter((entry) => safeInteger(entry?.repeatRequests) === 0
       && Number(entry?.transmitAccuracy) >= 85 && Number(entry?.keyingScore) >= 75).length;
@@ -785,6 +801,9 @@ export function acceptMission(save, missionId, acceptedAt = new Date().toISOStri
     baselineNightOperationsRunIds: (Array.isArray(save?.storyContinuationState?.chapter13?.settledRunIds)
       ? save.storyContinuationState.chapter13.settledRunIds.slice(-100) : [])
       .map((id) => String(id)).filter(Boolean),
+    baselineFinalPromiseRunIds: (Array.isArray(save?.storyContinuationState?.chapter14?.settledRunIds)
+      ? save.storyContinuationState.chapter14.settledRunIds.slice(-100) : [])
+      .map((id) => String(id)).filter(Boolean),
     knownCallsigns: (Array.isArray(save?.operatorRelationships)
       ? save.operatorRelationships.slice(-2000) : [])
       .map(({ callsign }) => callsign).filter(Boolean),
@@ -876,6 +895,13 @@ export function claimMission(save, missionId, claimedAt = new Date().toISOString
     continuation = normalizeStoryContinuationState({
       ...current,
       chapter13: normalizeNightOperationsState({ ...current.chapter13, taskTreeUnlocked: true }),
+    });
+  }
+  if (definition.id === "story-14") {
+    const current = normalizeStoryContinuationState(save?.storyContinuationState);
+    continuation = normalizeStoryContinuationState({
+      ...current,
+      chapter14: normalizeFinalPromiseState({ ...current.chapter14, taskTreeUnlocked: true }),
     });
   }
   return {

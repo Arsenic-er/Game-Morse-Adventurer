@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { ArrowLeft, CheckCircle, IdentificationCard, Radio, Users, X } from "@phosphor-icons/react";
 import { QSL_CHOICES } from "../game/qslRecords.js";
+import { FINAL_PROMISE_TEXT } from "./finalPromiseText.js";
 
 export const QSL_TEXT = {
   "zh-CN": { title: "人物与 QSL", people: "人物关系", cards: "QSL 卡片", empty: "还没有收到 QSL 记录。", qsos: "通联", lastCall: "最近呼号", believe: "相信这段叙述", requestReview: "请求复核", defer: "暂不判断", confirmed: "选择已确认", close: "返回管理中心", "qsl.player.hill-signal": "你从山丘临时台发出了完整的通联交换。", "qsl.operator.sora-hill-reply": "Sora 回忆起山风中的信号，并确认了这次通联。", "qsl.player.lights-contact": "你在灯火纪念台完成了这次通联。", "qsl.operator.lights-reply": "对方确认了灯火纪念台的信号。", "qsl.player.clarification-request": "你依据案件编号请求SORA澄清QSL记录。", "qsl.operator.sora-clarification": "SORA在空中重新核对了山丘通联。" },
@@ -18,6 +19,9 @@ export function PeopleAndQslModal({ language, save, onConfirmChoice, onClose }) 
   const t = QSL_TEXT[language] ?? QSL_TEXT.en;
   const records = save.qslRecords ?? [];
   const relationships = save.operatorRelationships ?? [];
+  const chapter14 = save.storyContinuationState?.chapter14 ?? {};
+  const finalPages = chapter14.archive ?? [];
+  const finalText = FINAL_PROMISE_TEXT[language] ?? FINAL_PROMISE_TEXT.en;
   useEffect(() => {
     function onKeyDown(event) {
       if (event.key !== "Escape" || event.repeat) return;
@@ -32,6 +36,7 @@ export function PeopleAndQslModal({ language, save, onConfirmChoice, onClose }) 
     <div className="people-qsl-columns">
       <section><h3><IdentificationCard />{t.people}</h3><div className="people-list">{relationships.map((relationship) => <article key={relationship.personId}><Radio /><strong>{relationship.lastCallsign ?? relationship.callsign ?? relationship.personId}</strong><small>{t.qsos}: {relationship.completedQsos ?? 0}</small><code>{relationship.personId}</code></article>)}</div></section>
       <section><h3><Radio />{t.cards}</h3>{records.length === 0 ? <p>{t.empty}</p> : <div className="qsl-card-list">{records.map((record) => <article key={record.id} data-qsl-id={record.id}><header><strong>{record.callsign}</strong><code>{record.personId}</code></header><p data-narrative-key={record.playerNarrativeKey}>{t[record.playerNarrativeKey]}</p><p data-narrative-key={record.operatorNarrativeKey}>{t[record.operatorNarrativeKey]}</p><small>{new Date(record.createdAt).toLocaleString(language)}</small>{record.choice ? <><b><CheckCircle />{t.confirmed}: {t[choiceKey[record.choice]]}</b>{window.cwgameSystem?.qaCapture && <button hidden data-action="qa-confirm-qsl-duplicate" onClick={() => onConfirmChoice(record.id, record.choice)}>QA duplicate confirmation</button>}</> : <div>{QSL_CHOICES.map((choice) => <button key={choice} data-qsl-choice={choice} onClick={() => onConfirmChoice(record.id, choice)}>{t[choiceKey[choice]]}</button>)}</div>}</article>)}</div>}</section>
+      <section className="final-page-archive"><h3><CheckCircle />{finalText.completed}</h3>{finalPages.length === 0 ? <p>{t.empty}</p> : <div>{finalPages.map((page) => <article key={page.id} data-final-page-run-id={page.runId}><header><strong>{page.targetCallsign}</strong><code>{page.personId}</code></header><p data-final-message-key={page.messageKey}>{finalText[page.messageKey]}</p><small>{new Date(page.completedAt).toLocaleString(language)} · {finalText[page.tone]}</small></article>)}</div>}</section>
     </div>
     <footer><button onClick={onClose}><ArrowLeft />{t.close}</button></footer>
   </section></div>;

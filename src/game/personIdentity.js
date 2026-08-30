@@ -1,6 +1,8 @@
 export const PERSON_ID_SORA = "person:sora";
 export const STATION_ID_SIM6JP = "station:sim6jp";
 export const STATION_ID_LIGHTS_SIM5LT = "station:lights-sim5lt";
+export const PERSON_ID_FINAL_RECIPIENT = "person:chapter14:final-recipient";
+export const STATION_ID_FINAL_RECIPIENT = "station:chapter14:sim14fp";
 
 const MAX_ID_LENGTH = 96;
 const MAX_CALLSIGN_LENGTH = 16;
@@ -43,7 +45,7 @@ function normalizeNpcId(value) {
 export function normalizePersonId(value) {
   if (typeof value !== "string" || value.length > MAX_ID_LENGTH) return null;
   const normalized = value.trim();
-  if (normalized === PERSON_ID_SORA) return normalized;
+  if ([PERSON_ID_SORA, PERSON_ID_FINAL_RECIPIENT].includes(normalized)) return normalized;
   const procedural = normalized.match(/^person:procedural:([A-Za-z0-9:_-]+)$/);
   if (procedural) return compactId(PERSON_PROCEDURAL_PREFIX, procedural[1]);
   const legacy = normalized.match(/^person:legacy:([A-Z0-9][A-Z0-9/-]*)$/);
@@ -54,7 +56,7 @@ export function normalizePersonId(value) {
 export function normalizeStationId(value) {
   if (typeof value !== "string" || value.length > MAX_ID_LENGTH) return null;
   const normalized = value.trim();
-  if ([STATION_ID_SIM6JP, STATION_ID_LIGHTS_SIM5LT].includes(normalized)) return normalized;
+  if ([STATION_ID_SIM6JP, STATION_ID_LIGHTS_SIM5LT, STATION_ID_FINAL_RECIPIENT].includes(normalized)) return normalized;
   const procedural = normalized.match(/^station:procedural:([A-Za-z0-9:_-]+)$/);
   if (procedural) return compactId(STATION_PROCEDURAL_PREFIX, procedural[1]);
   const legacy = normalized.match(/^station:legacy:([A-Z0-9][A-Z0-9/-]*)$/);
@@ -77,6 +79,9 @@ function fixedIdentity(callsign) {
   }
   if (callsign === "SIM5LT") {
     return { personId: PERSON_ID_SORA, stationId: STATION_ID_LIGHTS_SIM5LT, callsign };
+  }
+  if (callsign === "SIM14FP") {
+    return { personId: PERSON_ID_FINAL_RECIPIENT, stationId: STATION_ID_FINAL_RECIPIENT, callsign };
   }
   return null;
 }
