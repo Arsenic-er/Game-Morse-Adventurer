@@ -532,3 +532,7 @@ export function normalizeListeningState(value) {
     taskTreeUnlocked: own(source, "taskTreeUnlocked") === true,
   });
 }
+
+export function listeningReplayAvailable(save) {
+  return normalizeListeningState(own(own(save, "storyContinuationState"), "chapter11")).taskTreeUnlocked;
+}

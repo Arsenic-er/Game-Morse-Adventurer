@@ -8,6 +8,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          const normalizedId = id.replaceAll("\\", "/");
+          if (/\/src\/game\/(?:listening(?:Run|Completion)|stormRelay(?:Run|Completion)|nightOperations(?:Run|Completion)|finalPromise(?:Run|Completion)|firstPage(?:State|Completion)|openStationState)\.js$/u.test(normalizedId)) {
+            return "story-continuation-engine";
+          }
           if (!id.includes("node_modules")) return undefined;
           if (id.includes("@phosphor-icons")) return "vendor-icons";
           if (id.includes("react")) return "vendor-react";

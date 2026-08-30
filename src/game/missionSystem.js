@@ -10,7 +10,7 @@ import { verifiedCoordinateRelayCompletion } from "./coordinateRelaySettlement.j
 import { normalizeContestState } from "./contestRun.js";
 import { verifiedContestCompletion } from "./contestCompletion.js";
 import { normalizeListeningState } from "./listeningRun.js";
-import { verifiedListeningCompletion } from "./listeningSettlement.js";
+import { verifiedListeningCompletion } from "./listeningCompletion.js";
 import { normalizeStoryContinuationState } from "./storyContinuationState.js";
 import { normalizeOperatorRelationships } from "../qso/operatorRelationships.js";
 
