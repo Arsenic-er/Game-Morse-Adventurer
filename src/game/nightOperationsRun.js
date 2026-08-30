@@ -172,10 +172,11 @@ function normalizeStringList(value, maximum, allowed = null) {
   const items = strictArray(value, maximum, (entry) => text(entry, 128));
   return !items || new Set(items).size !== items.length || allowed && items.some((entry) => !allowed.has(entry)) ? null : items;
 }
-function normalizeContact(value, windows, runIdValue, startedAt, activeMilliseconds) {
+function normalizeContact(value, windows, runIdValue, startedAt) {
   const window = windows.find(({ id }) => id === own(value, "windowId")); const completedAt = iso(own(value, "completedAt"));
   const recoveryActions = strictArray(own(value, "recoveryActions"), 8, (entry) => ["AGN", "QRS"].includes(entry) ? entry : null);
-  if (!window || own(value, "id") !== `night-contact:${runIdValue.slice("night-operations:".length)}:${window.order}` || own(value, "runId") !== runIdValue || own(value, "callsign") !== window.callsign || own(value, "npcId") !== window.npcId || own(value, "personId") !== window.personId || own(value, "stationId") !== window.stationId || own(value, "band") !== window.band || own(value, "propagationGrade") !== window.propagationGrade || !recoveryActions || !completedAt || Date.parse(completedAt) < Date.parse(startedAt) || activeMilliseconds < window.opensAtMilliseconds || activeMilliseconds >= window.closesAtMilliseconds || own(value, "isFictional") !== true) return null;
+  const completedAtMilliseconds = completedAt ? Date.parse(completedAt) - Date.parse(startedAt) : -1;
+  if (!window || own(value, "id") !== `night-contact:${runIdValue.slice("night-operations:".length)}:${window.order}` || own(value, "runId") !== runIdValue || own(value, "callsign") !== window.callsign || own(value, "npcId") !== window.npcId || own(value, "personId") !== window.personId || own(value, "stationId") !== window.stationId || own(value, "band") !== window.band || own(value, "propagationGrade") !== window.propagationGrade || !recoveryActions || !completedAt || completedAtMilliseconds < window.opensAtMilliseconds || completedAtMilliseconds >= window.closesAtMilliseconds || own(value, "isFictional") !== true) return null;
   return { id: own(value, "id"), runId: runIdValue, windowId: window.id, callsign: window.callsign, npcId: window.npcId, personId: window.personId, stationId: window.stationId, band: window.band, propagationGrade: window.propagationGrade, recoveryActions, completedAt, isFictional: true };
 }
 export function normalizeNightOperationsSummary(value, run = null) {
@@ -203,7 +204,7 @@ export function normalizeNightOperationsRun(value) {
     for (let index = 1; index < windows.length; index += 1) if (windows[index - 1].closesAtMilliseconds > windows[index].opensAtMilliseconds) return null;
     if (JSON.stringify(windows) !== JSON.stringify(createSchedule(knownPersonIds, seed))) return null;
     const allowedWindowIds = new Set(windows.map(({ id }) => id));
-    const contacts = strictArray(own(value, "contacts"), 3, (entry) => normalizeContact(entry, windows, expectedRunId, startedAt, activeMilliseconds));
+    const contacts = strictArray(own(value, "contacts"), 3, (entry) => normalizeContact(entry, windows, expectedRunId, startedAt));
     const missedWindowIds = normalizeStringList(own(value, "missedWindowIds"), 4, allowedWindowIds);
     const recoveryActions = strictArray(own(value, "recoveryActions"), 8, (entry) => ["AGN", "QRS"].includes(entry) ? entry : null);
     if (!contacts || !missedWindowIds || !recoveryActions || new Set(contacts.map(({ personId }) => personId)).size !== contacts.length || contacts.some(({ windowId }) => missedWindowIds.includes(windowId))) return null;
@@ -220,10 +221,34 @@ export function normalizeNightOperationsRun(value) {
     return deepFreeze(partial);
   } catch { return null; }
 }
+export function normalizeNightOperationsRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runIdValue = text(own(value, "runId"), 64); const playerCallsign = callsign(own(value, "playerCallsign"));
+  const scheduleSeed = text(own(value, "scheduleSeed")); const knownPersonIds = normalizeStringList(own(value, "knownPersonIds"), STORY_OPERATORS.length, new Set(STORY_OPERATORS.map(({ personId }) => personId)));
+  const completedAt = iso(own(value, "completedAt"));
+  if (!runIdValue || own(value, "id") !== `night-record:${runIdValue}` || !playerCallsign || !scheduleSeed || !knownPersonIds || !completedAt || own(value, "isFictional") !== true) return null;
+  const windows = strictArray(own(value, "windows"), 4, normalizeWindow);
+  if (windows?.length !== 4 || JSON.stringify(windows) !== JSON.stringify(createSchedule(knownPersonIds, scheduleSeed))) return null;
+  const contacts = strictArray(own(value, "contacts"), 3, (entry) => {
+    const window = windows.find(({ id }) => id === own(entry, "windowId")); const contactCompletedAt = iso(own(entry, "completedAt"));
+    const qsoId = text(own(entry, "qsoId"), 96); const contactId = text(own(entry, "contactId"), 96);
+    if (!window || !qsoId || !contactId || own(entry, "personId") !== window.personId || own(entry, "stationId") !== window.stationId
+      || own(entry, "npcId") !== window.npcId || own(entry, "callsign") !== window.callsign || own(entry, "band") !== window.band
+      || own(entry, "propagationGrade") !== window.propagationGrade || !contactCompletedAt) return null;
+    return { qsoId, contactId, windowId: window.id, personId: window.personId, stationId: window.stationId, npcId: window.npcId,
+      callsign: window.callsign, band: window.band, propagationGrade: window.propagationGrade, completedAt: contactCompletedAt };
+  });
+  if (contacts?.length !== 3 || new Set(contacts.map(({ personId }) => personId)).size !== 3 || new Set(contacts.map(({ qsoId }) => qsoId)).size !== 3) return null;
+  return deepFreeze({ id: own(value, "id"), runId: runIdValue, playerCallsign, scheduleSeed, knownPersonIds, windows, contacts, completedAt, isFictional: true });
+}
 function normalizeProof(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const runIdValue = text(own(value, "runId"), 64); const contactIds = normalizeStringList(own(value, "contactIds"), 3); const completedAt = iso(own(value, "completedAt"));
-  return runIdValue && contactIds?.length === 3 && completedAt ? deepFreeze({ runId: runIdValue, contactIds, completedAt }) : null;
+  const runIdValue = text(own(value, "runId"), 64); const contactIds = normalizeStringList(own(value, "contactIds"), 3);
+  const qsoIds = normalizeStringList(own(value, "qsoIds"), 3); const windowIds = normalizeStringList(own(value, "windowIds"), 3);
+  const personIds = normalizeStringList(own(value, "personIds"), 3); const completedAt = iso(own(value, "completedAt"));
+  return runIdValue && own(value, "recordId") === `night-record:${runIdValue}` && contactIds?.length === 3 && qsoIds?.length === 3
+    && windowIds?.length === 3 && personIds?.length === 3 && completedAt
+    ? deepFreeze({ runId: runIdValue, recordId: own(value, "recordId"), contactIds, qsoIds, windowIds, personIds, completedAt }) : null;
 }
 function orderedUnique(entries) { const ids = new Set(); let previous = null; for (const entry of entries) { const id = typeof entry === "string" ? entry : entry.runId; if (ids.has(id)) return false; if (typeof entry !== "string" && previous && (entry.completedAt < previous.completedAt || entry.completedAt === previous.completedAt && id <= previous.runId)) return false; ids.add(id); previous = entry; } return true; }
 const frozenEmptyArray = () => Object.freeze([]);
@@ -235,7 +260,7 @@ export function normalizeNightOperationsState(value) {
     const completedRuns = strictArrayTail(own(source, "completedRuns") ?? [], 80, normalizeNightOperationsSummary);
     const settledRunIds = strictArrayTail(own(source, "settledRunIds") ?? [], 80, (entry) => text(entry, 64));
     const settlementProofs = strictArrayTail(own(source, "settlementProofs") ?? [], 80, normalizeProof);
-    const archive = strictArrayTail(own(source, "archive") ?? [], 80, normalizeNightOperationsSummary);
+    const archive = strictArrayTail(own(source, "archive") ?? [], 80, normalizeNightOperationsRecord);
     if (activeValue !== null && activeValue !== undefined && !activeRun || !completedRuns || !settledRunIds || !settlementProofs || !archive || !orderedUnique(completedRuns) || !orderedUnique(settlementProofs) || !orderedUnique(archive) || !orderedUnique(settledRunIds)) return emptyNightOperationsState();
     return deepFreeze({ version: NIGHT_OPERATIONS_STATE_VERSION, activeRun, completedRuns, settledRunIds, settlementProofs, archive, taskTreeUnlocked: own(source, "taskTreeUnlocked") === true });
   } catch { return emptyNightOperationsState(); }
