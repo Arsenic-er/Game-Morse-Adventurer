@@ -9,13 +9,15 @@ import { normalizeCoordinateRelayState } from "./coordinateRelayRun.js";
 import { verifiedCoordinateRelayCompletion } from "./coordinateRelaySettlement.js";
 import { normalizeContestState } from "./contestRun.js";
 import { verifiedContestCompletion } from "./contestCompletion.js";
+import { normalizeListeningState } from "./listeningRun.js";
+import { verifiedListeningCompletion } from "./listeningSettlement.js";
 import { normalizeStoryContinuationState } from "./storyContinuationState.js";
 import { normalizeOperatorRelationships } from "../qso/operatorRelationships.js";
 
 export const MISSION_STATE_VERSION = 2;
 export const MAX_ACTIVE_DAILY_MISSIONS = 2;
 export const STORY_MISSION_IDS = Object.freeze([
-  "story-01", "story-02", "story-03", "story-04", "story-05", "story-06", "story-07", "story-08", "story-09", "story-10",
+  "story-01", "story-02", "story-03", "story-04", "story-05", "story-06", "story-07", "story-08", "story-09", "story-10", "story-11",
 ]);
 export const RECENT_MISSION_DNA_LIMIT = 12;
 export const MISSION_EVENT_LIMIT = 120;
@@ -114,6 +116,16 @@ const STORY_MISSIONS = Object.freeze([
     contract: Object.freeze({
       missionPhase: "fictional-five-minute-contest", requiredTopics: ["RST", "SERIAL", "REGION", "POWER"],
       recoveryActions: ["AGN", "QRS"],
+    }),
+  }),
+  Object.freeze({
+    id: "story-11", type: "story", chapter: 11, titleKey: "story11Title", descriptionKey: "story11Description",
+    objectiveKey: "story11Objective", briefKey: "story11Brief", debriefKey: "story11Debrief",
+    objective: "listening-silence", target: 1, targetCallsign: "SIM11LS", prerequisiteId: "story-10",
+    moneyReward: 1200, technologyPointsReward: 5,
+    contract: Object.freeze({
+      missionPhase: "listening-silence", targetCallsign: "SIM11LS",
+      requiredTopics: ["CALLSIGN", "LISTENING"], recoveryActions: ["AGN"],
     }),
   }),
 ]);
@@ -325,6 +337,7 @@ function normalizeActiveMission(value) {
     baselineServiceNetRunIds: normalizeStringList(own(value, "baselineServiceNetRunIds"), 100, 128),
     baselineCoordinateRelayRunIds: normalizeStringList(own(value, "baselineCoordinateRelayRunIds"), 100, 128),
     baselineContestRunIds: normalizeStringList(own(value, "baselineContestRunIds"), 100, 128),
+    baselineListeningRunIds: normalizeStringList(own(value, "baselineListeningRunIds"), 100, 128),
     knownCallsigns: normalizeStringList(own(value, "knownCallsigns"), 2000, 16),
     contract: normalizeMissionContract(own(value, "contract")),
     dnaFingerprint: String(own(value, "dnaFingerprint") ?? "").trim().slice(0, 240) || null,
@@ -628,6 +641,9 @@ function evaluateObjective(definition, logs, save, active = null) {
   if (definition.objective === "five-minute-contest") {
     current = verifiedContestCompletion(save, active, logs) ? 1 : 0;
   }
+  if (definition.objective === "listening-silence") {
+    current = verifiedListeningCompletion(save, active) ? 1 : 0;
+  }
   if (definition.objective === "clean-qso") {
     current = logs.filter((entry) => safeInteger(entry?.repeatRequests) === 0
       && Number(entry?.transmitAccuracy) >= 85 && Number(entry?.keyingScore) >= 75).length;
@@ -727,6 +743,9 @@ export function acceptMission(save, missionId, acceptedAt = new Date().toISOStri
     baselineContestRunIds: (Array.isArray(save?.storyContinuationState?.chapter10?.settledRunIds)
       ? save.storyContinuationState.chapter10.settledRunIds.slice(-100) : [])
       .map((id) => String(id)).filter(Boolean),
+    baselineListeningRunIds: (Array.isArray(save?.storyContinuationState?.chapter11?.settledRunIds)
+      ? save.storyContinuationState.chapter11.settledRunIds.slice(-100) : [])
+      .map((id) => String(id)).filter(Boolean),
     knownCallsigns: (Array.isArray(save?.operatorRelationships)
       ? save.operatorRelationships.slice(-2000) : [])
       .map(({ callsign }) => callsign).filter(Boolean),
@@ -797,6 +816,13 @@ export function claimMission(save, missionId, claimedAt = new Date().toISOString
     continuation = normalizeStoryContinuationState({
       ...current,
       chapter10: normalizeContestState({ ...current.chapter10, taskTreeUnlocked: true }),
+    });
+  }
+  if (definition.id === "story-11") {
+    const current = normalizeStoryContinuationState(save?.storyContinuationState);
+    continuation = normalizeStoryContinuationState({
+      ...current,
+      chapter11: normalizeListeningState({ ...current.chapter11, taskTreeUnlocked: true }),
     });
   }
   return {

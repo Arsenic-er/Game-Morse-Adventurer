@@ -384,6 +384,113 @@ export function normalizeListeningRun(value) {
   return deepFreeze({ ...partial, summary });
 }
 
+function strictArrayTail(value, maxLength, normalizeItem) {
+  const length = ownArrayLength(value);
+  if (length === null) return null;
+  const result = [];
+  const start = Math.max(0, length - maxLength);
+  for (let index = start; index < length; index += 1) {
+    let descriptor;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    } catch {
+      return null;
+    }
+    if (!descriptor || !Object.hasOwn(descriptor, "value")) return null;
+    const item = normalizeItem(descriptor.value, index - start);
+    if (item === null) return null;
+    result.push(item);
+  }
+  return Object.freeze(result);
+}
+
+export function normalizeListeningSummary(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runId = boundedText(own(value, "runId"), 64);
+  const playerCallsign = normalizeCallsign(own(value, "playerCallsign"));
+  const observationIds = normalizedObservedIds(own(value, "observationIds"));
+  const callCount = safeInteger(own(value, "callCount"), 1, MAX_CALLS);
+  const activeMilliseconds = safeInteger(own(value, "activeMilliseconds"), 0, ACTIVE_TIMEOUT_MS);
+  const completedAt = normalizeIso(own(value, "completedAt"));
+  if (
+    !runId || !playerCallsign || own(value, "targetCallsign") !== TARGET_CALLSIGN
+    || own(value, "stationId") !== TARGET_STATION_ID || own(value, "personId") !== TARGET_PERSON_ID
+    || !observationIds || observationIds.length !== LISTENING_WINDOWS.length
+    || callCount === null || activeMilliseconds === null
+    || own(value, "conclusionKey") !== CONCLUSION_KEY || !completedAt
+  ) return null;
+  return deepFreeze({
+    runId, playerCallsign, targetCallsign: TARGET_CALLSIGN, stationId: TARGET_STATION_ID,
+    personId: TARGET_PERSON_ID, observationIds, callCount, activeMilliseconds,
+    conclusionKey: CONCLUSION_KEY, completedAt,
+  });
+}
+
+function normalizeListeningProof(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runId = boundedText(own(value, "runId"), 64);
+  const recordId = boundedText(own(value, "recordId"), 96);
+  const playerCallsign = normalizeCallsign(own(value, "playerCallsign"));
+  const completedAt = normalizeIso(own(value, "completedAt"));
+  const observationCount = safeInteger(own(value, "observationCount"), 3, 3);
+  const callCount = safeInteger(own(value, "callCount"), 1, MAX_CALLS);
+  if (
+    !runId || recordId !== `listening-record:${runId}` || !playerCallsign || !completedAt
+    || own(value, "targetCallsign") !== TARGET_CALLSIGN
+    || own(value, "stationId") !== TARGET_STATION_ID || own(value, "personId") !== TARGET_PERSON_ID
+    || observationCount === null || callCount === null || own(value, "conclusionKey") !== CONCLUSION_KEY
+  ) return null;
+  return deepFreeze({
+    runId, recordId, playerCallsign, targetCallsign: TARGET_CALLSIGN,
+    stationId: TARGET_STATION_ID, personId: TARGET_PERSON_ID, observationCount,
+    callCount, conclusionKey: CONCLUSION_KEY, completedAt,
+  });
+}
+
+function normalizeListeningRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runId = boundedText(own(value, "runId"), 64);
+  const id = boundedText(own(value, "id"), 96);
+  const playerCallsign = normalizeCallsign(own(value, "playerCallsign"));
+  const observationIds = normalizedObservedIds(own(value, "observationIds"));
+  const callCount = safeInteger(own(value, "callCount"), 1, MAX_CALLS);
+  const activeMilliseconds = safeInteger(own(value, "activeMilliseconds"), 0, ACTIVE_TIMEOUT_MS);
+  const completedAt = normalizeIso(own(value, "completedAt"));
+  if (
+    !runId || id !== `listening-record:${runId}` || !playerCallsign || !observationIds
+    || observationIds.length !== LISTENING_WINDOWS.length || callCount === null
+    || activeMilliseconds === null || !completedAt
+    || own(value, "targetCallsign") !== TARGET_CALLSIGN
+    || own(value, "stationId") !== TARGET_STATION_ID || own(value, "personId") !== TARGET_PERSON_ID
+    || own(value, "conclusionKey") !== CONCLUSION_KEY
+  ) return null;
+  return deepFreeze({
+    id, runId, playerCallsign, targetCallsign: TARGET_CALLSIGN, stationId: TARGET_STATION_ID,
+    personId: TARGET_PERSON_ID, observationIds, callCount, activeMilliseconds,
+    conclusionKey: CONCLUSION_KEY, completedAt,
+  });
+}
+
+function orderedUnique(entries, idKey, timeKey) {
+  let previous = null;
+  const ids = new Set();
+  for (const entry of entries) {
+    if (ids.has(entry[idKey])) return false;
+    if (previous && (entry[timeKey] < previous[timeKey]
+      || (entry[timeKey] === previous[timeKey] && entry[idKey] <= previous[idKey]))) return false;
+    ids.add(entry[idKey]);
+    previous = entry;
+  }
+  return true;
+}
+
+function normalizeRunIds(value) {
+  const ids = strictArrayTail(value, 80, (entry) => boundedText(entry, 64));
+  if (!ids) return null;
+  for (let index = 1; index < ids.length; index += 1) if (ids[index - 1] >= ids[index]) return null;
+  return ids;
+}
+
 function frozenEmptyArray() {
   return Object.freeze([]);
 }
@@ -402,5 +509,26 @@ export function emptyListeningState() {
 
 export function normalizeListeningState(value) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  return Object.freeze({ ...emptyListeningState(), taskTreeUnlocked: own(source, "taskTreeUnlocked") === true });
+  const activeValue = own(source, "activeRun");
+  const activeRun = activeValue === null || activeValue === undefined ? null : normalizeListeningRun(activeValue);
+  const completedRuns = strictArrayTail(own(source, "completedRuns") ?? [], 80, normalizeListeningSummary);
+  const settledRunIds = normalizeRunIds(own(source, "settledRunIds") ?? []);
+  const settlementProofs = strictArrayTail(own(source, "settlementProofs") ?? [], 80, normalizeListeningProof);
+  const archive = strictArrayTail(own(source, "archive") ?? [], 80, normalizeListeningRecord);
+  if (
+    (activeValue !== null && activeValue !== undefined && !activeRun)
+    || !completedRuns || !settledRunIds || !settlementProofs || !archive
+    || !orderedUnique(completedRuns, "runId", "completedAt")
+    || !orderedUnique(settlementProofs, "runId", "completedAt")
+    || !orderedUnique(archive, "runId", "completedAt")
+  ) return emptyListeningState();
+  return deepFreeze({
+    version: LISTENING_STATE_VERSION,
+    activeRun,
+    completedRuns,
+    settledRunIds,
+    settlementProofs,
+    archive,
+    taskTreeUnlocked: own(source, "taskTreeUnlocked") === true,
+  });
 }
