@@ -14,14 +14,14 @@ function own(value, key) {
   return descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
 }
 
-function normalizeGoal(value) {
+export function normalizeOpenStationGoal(value) {
   return typeof value === "string" && OPEN_STATION_GOALS.includes(value) ? value : null;
 }
 
 function normalizeTimestamp(value) {
   if (typeof value !== "string" || value.length > 40) return null;
   const time = Date.parse(value);
-  return Number.isFinite(time) ? new Date(time).toISOString() : null;
+  return Number.isFinite(time) && new Date(time).toISOString() === value ? value : null;
 }
 
 export function emptyOpenStationState() {
@@ -36,14 +36,16 @@ export function emptyOpenStationState() {
 
 export function normalizeOpenStationState(value) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  const unlocked = own(source, "unlocked") === true;
-  const firstGoal = unlocked ? normalizeGoal(own(source, "firstGoal")) : null;
-  const activeGoal = unlocked ? normalizeGoal(own(source, "activeGoal")) : null;
+  const requestedUnlock = own(source, "unlocked") === true;
+  const firstGoal = requestedUnlock ? normalizeOpenStationGoal(own(source, "firstGoal")) : null;
+  const activeGoal = requestedUnlock ? normalizeOpenStationGoal(own(source, "activeGoal")) : null;
+  const goalUpdatedAt = activeGoal ? normalizeTimestamp(own(source, "goalUpdatedAt")) : null;
+  const unlocked = Boolean(requestedUnlock && firstGoal && activeGoal && goalUpdatedAt);
   return Object.freeze({
     version: OPEN_STATION_STATE_VERSION,
     unlocked,
-    firstGoal,
-    activeGoal,
-    goalUpdatedAt: activeGoal ? normalizeTimestamp(own(source, "goalUpdatedAt")) : null,
+    firstGoal: unlocked ? firstGoal : null,
+    activeGoal: unlocked ? activeGoal : null,
+    goalUpdatedAt: unlocked ? goalUpdatedAt : null,
   });
 }

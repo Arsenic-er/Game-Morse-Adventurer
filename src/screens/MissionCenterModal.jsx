@@ -15,6 +15,7 @@ import { finalPromiseReplayAvailable } from "../game/finalPromiseRun.js";
 import { lightsEntryModes } from "../game/lightsEventCatalog.js";
 import { lightsNarrativeBeat } from "../game/lightsNarrative.js";
 import { lightsText } from "./lightsEventText.js";
+import { OPEN_STATION_TEXT } from "./openStationText.js";
 
 const TEXT = {
   "zh-CN": {
@@ -309,7 +310,7 @@ function missionContractClues(mission, t) {
   ].filter(Boolean);
 }
 
-function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, expeditionReplay, serviceNetReplay, coordinateRelayReplay, contestReplay, listeningReplay, stormRelayReplay, nightOperationsReplay, finalPromiseReplay, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onLaunchNightOperations, onLaunchFinalPromise, onLaunchFirstPageQso }) {
+function MissionCard({ mission, t, lightsCopy, openStationTitle, dailyLimitReached, lightsModes, expeditionReplay, serviceNetReplay, coordinateRelayReplay, contestReplay, listeningReplay, stormRelayReplay, nightOperationsReplay, finalPromiseReplay, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onLaunchNightOperations, onLaunchFinalPromise, onLaunchFirstPageQso, onOpenStation }) {
   const ready = mission.status === "ready";
   const active = mission.status === "active";
   const available = mission.status === "available";
@@ -368,6 +369,7 @@ function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, e
         {mission.id === "story-13" && (active || nightOperationsReplay) && <button data-action="launch-night-operations" onClick={onLaunchNightOperations}><Play size={17} weight="fill" />{t[mission.titleKey]}</button>}
         {mission.id === "story-14" && (active || finalPromiseReplay) && <button data-action="launch-final-promise" onClick={onLaunchFinalPromise}><Play size={17} weight="fill" />{t[mission.titleKey]}</button>}
         {mission.id === "story-15" && active && <button data-action="launch-first-page-qso" onClick={onLaunchFirstPageQso}><Radio size={17} weight="fill" />{t[mission.titleKey]}</button>}
+        {mission.id === "story-15" && mission.status === "claimed" && <button data-action="open-station-dashboard" onClick={onOpenStation}><Radio size={17} weight="fill" />{openStationTitle}</button>}
         {active && <button className="mission-abandon" data-action="abandon-mission" data-mission-action-id={mission.id} onClick={() => onAbandon(mission.id)}><Trash size={17} />{t.abandon}</button>}
         {ready && <button className="mission-claim" data-action="claim-mission" data-mission-action-id={mission.id} onClick={() => onClaim(mission.id)}><CheckCircle size={17} weight="fill" />{t.claim}</button>}
         {mission.id === "story-05" && mission.status === "claimed" && <>
@@ -379,9 +381,10 @@ function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, e
   );
 }
 
-export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onLaunchNightOperations, onLaunchFinalPromise, onLaunchFirstPageQso, onClose }) {
+export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onLaunchNightOperations, onLaunchFinalPromise, onLaunchFirstPageQso, onOpenStation, onClose }) {
   const t = TEXT[language] ?? TEXT.en;
   const lightsCopy = lightsText(language);
+  const openStationTitle = (OPEN_STATION_TEXT[language] ?? OPEN_STATION_TEXT.en).title;
   const [tab, setTab] = useState("story");
   const board = useMemo(() => missionBoard(save), [save]);
   const summary = useMemo(() => missionSummary(save), [save]);
@@ -419,7 +422,7 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
         <div className="mission-center-body">
           {tab === "daily" && <p className="mission-daily-note">{t.dailyNote}</p>}
           <div className="mission-list">
-            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} lightsCopy={lightsCopy} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} expeditionReplay={expeditionReplay} serviceNetReplay={serviceNetReplay} coordinateRelayReplay={coordinateRelayReplay} contestReplay={contestReplay} listeningReplay={listeningReplay} stormRelayReplay={stormRelayReplay} nightOperationsReplay={nightOperationsReplay} finalPromiseReplay={finalPromiseReplay} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} onLaunchQslStory={onLaunchQslStory} onLaunchServiceNet={onLaunchServiceNet} onLaunchCoordinateRelay={onLaunchCoordinateRelay} onLaunchContest={onLaunchContest} onLaunchListening={onLaunchListening} onLaunchStormRelay={onLaunchStormRelay} onLaunchNightOperations={onLaunchNightOperations} onLaunchFinalPromise={onLaunchFinalPromise} onLaunchFirstPageQso={onLaunchFirstPageQso} />)}
+            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} lightsCopy={lightsCopy} openStationTitle={openStationTitle} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} expeditionReplay={expeditionReplay} serviceNetReplay={serviceNetReplay} coordinateRelayReplay={coordinateRelayReplay} contestReplay={contestReplay} listeningReplay={listeningReplay} stormRelayReplay={stormRelayReplay} nightOperationsReplay={nightOperationsReplay} finalPromiseReplay={finalPromiseReplay} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} onLaunchQslStory={onLaunchQslStory} onLaunchServiceNet={onLaunchServiceNet} onLaunchCoordinateRelay={onLaunchCoordinateRelay} onLaunchContest={onLaunchContest} onLaunchListening={onLaunchListening} onLaunchStormRelay={onLaunchStormRelay} onLaunchNightOperations={onLaunchNightOperations} onLaunchFinalPromise={onLaunchFinalPromise} onLaunchFirstPageQso={onLaunchFirstPageQso} onOpenStation={onOpenStation} />)}
           </div>
         </div>
         <footer><span>{save.callsign} // {summary.ready} {t.ready}</span><button data-action="close-missions-footer" onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.close}</button></footer>
