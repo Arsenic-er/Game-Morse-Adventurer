@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  STORY_MISSION_IDS,
   acceptMission,
   claimMission,
   dailyMissionDefinitions,
@@ -184,7 +185,7 @@ test("chapter five unlocks after chapter four and only accepts a new base lights
     },
   });
   const board = missionBoard(unlocked).story;
-  assert.equal(board.length, 10);
+  assert.equal(board.length, STORY_MISSION_IDS.length);
   assert.equal(board[4].status, "available");
   assert.equal(board[4].objective, "lights-event");
   assert.deepEqual(board[4].contract, {
@@ -242,7 +243,7 @@ test("chapter six unlocks only after chapter five and needs no optional technolo
     }),
   });
   const board = missionBoard(noGrind).story;
-  assert.equal(board.length, 10);
+  assert.equal(board.length, STORY_MISSION_IDS.length);
   const storySix = board.find((mission) => mission.id === "story-06");
   assert.equal(storySix.status, "available");
   assert.equal(storySix.objective, "hill-expedition");

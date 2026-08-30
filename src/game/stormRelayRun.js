@@ -26,10 +26,12 @@ const ERROR_CODES = new Set([
 const FAILURE_REASONS = new Set(["TIMED_OUT", "RELAY_ERROR_LIMIT"]);
 
 const CONTROL = Object.freeze({
-  callsign: "SIM12CS", personId: "person:chapter12:control", stationId: "station:chapter12:sim12cs",
+  callsign: "SIM12CS", npcId: "chapter12-control",
+  personId: "person:procedural:chapter12-control", stationId: "station:procedural:chapter12-control",
 });
 const RELAY = Object.freeze({
-  callsign: "SIM12RL", personId: "person:chapter12:relay", stationId: "station:chapter12:sim12rl",
+  callsign: "SIM12RL", npcId: "chapter12-relay",
+  personId: "person:procedural:chapter12-relay", stationId: "station:procedural:chapter12-relay",
 });
 
 function packetCheck({ msgId, revision, grid, people, item, quantity }) {
@@ -315,7 +317,8 @@ export function retryStormRelayRun(run, startedAt) {
 }
 
 function normalizeIdentity(value, expected) {
-  if (own(value, "callsign") !== expected.callsign || own(value, "personId") !== expected.personId || own(value, "stationId") !== expected.stationId) return null;
+  if (own(value, "callsign") !== expected.callsign || own(value, "npcId") !== expected.npcId
+    || own(value, "personId") !== expected.personId || own(value, "stationId") !== expected.stationId) return null;
   return { ...expected };
 }
 
@@ -398,6 +401,119 @@ export function normalizeStormRelayRun(value) {
   return deepFreeze({ ...partial, summary });
 }
 
+function strictArrayTail(value, maximum, normalizeItem) {
+  const length = ownArrayLength(value);
+  if (length === null) return null;
+  const result = [];
+  const start = Math.max(0, length - maximum);
+  for (let index = start; index < length; index += 1) {
+    let descriptor;
+    try { descriptor = Object.getOwnPropertyDescriptor(value, String(index)); } catch { return null; }
+    if (!descriptor || !Object.hasOwn(descriptor, "value")) return null;
+    const item = normalizeItem(descriptor.value);
+    if (item === null) return null;
+    result.push(item);
+  }
+  return Object.freeze(result);
+}
+
+function normalizeQsoIds(value) {
+  const ids = strictArray(value, 2, (entry) => boundedText(entry, 96));
+  return ids?.length === 2 && ids[0] !== ids[1] ? ids : null;
+}
+
+export function normalizeStormRelaySummary(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runIdValue = boundedText(own(value, "runId"), 64);
+  const playerCallsign = callsign(own(value, "playerCallsign"));
+  const recoveryActions = strictArray(own(value, "recoveryActions"), 8, (entry) => (["AGN", "QRS"].includes(entry) ? entry : null));
+  const activeMilliseconds = integer(own(value, "activeMilliseconds"), 0, TIMEOUT_MS);
+  const completedAt = iso(own(value, "completedAt"));
+  const canonical = PACKETS[2];
+  if (!runIdValue || !playerCallsign || !recoveryActions || activeMilliseconds === null || !completedAt
+    || own(value, "controlPersonId") !== CONTROL.personId || own(value, "controlStationId") !== CONTROL.stationId
+    || own(value, "relayPersonId") !== RELAY.personId || own(value, "relayStationId") !== RELAY.stationId
+    || own(value, "canonicalPacketId") !== canonical.id || own(value, "msgId") !== canonical.msgId
+    || own(value, "revision") !== canonical.revision || own(value, "grid") !== canonical.grid
+    || own(value, "people") !== canonical.people || own(value, "item") !== canonical.item
+    || own(value, "quantity") !== canonical.quantity || own(value, "check") !== canonical.check
+    || own(value, "verificationRequested") !== true || own(value, "isFictional") !== true) return null;
+  return deepFreeze({
+    runId: runIdValue, playerCallsign,
+    controlPersonId: CONTROL.personId, controlStationId: CONTROL.stationId,
+    relayPersonId: RELAY.personId, relayStationId: RELAY.stationId,
+    canonicalPacketId: canonical.id, msgId: canonical.msgId, revision: canonical.revision,
+    grid: canonical.grid, people: canonical.people, item: canonical.item,
+    quantity: canonical.quantity, check: canonical.check, verificationRequested: true,
+    recoveryActions, activeMilliseconds, completedAt, isFictional: true,
+  });
+}
+
+function normalizeStormProof(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runIdValue = boundedText(own(value, "runId"), 64);
+  const recordId = boundedText(own(value, "recordId"), 96);
+  const playerCallsign = callsign(own(value, "playerCallsign"));
+  const qsoIds = normalizeQsoIds(own(value, "qsoIds"));
+  const completedAt = iso(own(value, "completedAt"));
+  if (!runIdValue || recordId !== `storm-record:${runIdValue}` || !playerCallsign || !qsoIds || !completedAt
+    || own(value, "controlPersonId") !== CONTROL.personId || own(value, "controlStationId") !== CONTROL.stationId
+    || own(value, "relayPersonId") !== RELAY.personId || own(value, "relayStationId") !== RELAY.stationId
+    || own(value, "canonicalPacketId") !== PACKETS[2].id || own(value, "check") !== PACKETS[2].check) return null;
+  return deepFreeze({
+    runId: runIdValue, recordId, qsoIds, playerCallsign,
+    controlPersonId: CONTROL.personId, controlStationId: CONTROL.stationId,
+    relayPersonId: RELAY.personId, relayStationId: RELAY.stationId,
+    canonicalPacketId: PACKETS[2].id, check: PACKETS[2].check, completedAt,
+  });
+}
+
+function normalizeStormRecord(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runIdValue = boundedText(own(value, "runId"), 64);
+  const id = boundedText(own(value, "id"), 96);
+  const playerCallsign = callsign(own(value, "playerCallsign"));
+  const qsoIds = normalizeQsoIds(own(value, "qsoIds"));
+  const completedAt = iso(own(value, "completedAt"));
+  const canonical = PACKETS[2];
+  if (!runIdValue || id !== `storm-record:${runIdValue}` || !playerCallsign || !qsoIds || !completedAt
+    || own(value, "controlPersonId") !== CONTROL.personId || own(value, "controlStationId") !== CONTROL.stationId
+    || own(value, "relayPersonId") !== RELAY.personId || own(value, "relayStationId") !== RELAY.stationId
+    || own(value, "canonicalPacketId") !== canonical.id || own(value, "msgId") !== canonical.msgId
+    || own(value, "revision") !== canonical.revision || own(value, "grid") !== canonical.grid
+    || own(value, "people") !== canonical.people || own(value, "item") !== canonical.item
+    || own(value, "quantity") !== canonical.quantity || own(value, "check") !== canonical.check
+    || own(value, "isFictional") !== true) return null;
+  return deepFreeze({
+    id, runId: runIdValue, qsoIds, playerCallsign,
+    controlPersonId: CONTROL.personId, controlStationId: CONTROL.stationId,
+    relayPersonId: RELAY.personId, relayStationId: RELAY.stationId,
+    canonicalPacketId: canonical.id, msgId: canonical.msgId, revision: canonical.revision,
+    grid: canonical.grid, people: canonical.people, item: canonical.item,
+    quantity: canonical.quantity, check: canonical.check, completedAt, isFictional: true,
+  });
+}
+
+function orderedUnique(entries) {
+  let previous = null;
+  const ids = new Set();
+  for (const entry of entries) {
+    if (ids.has(entry.runId)) return false;
+    if (previous && (entry.completedAt < previous.completedAt
+      || (entry.completedAt === previous.completedAt && entry.runId <= previous.runId))) return false;
+    ids.add(entry.runId);
+    previous = entry;
+  }
+  return true;
+}
+
+function normalizeRunIds(value) {
+  const ids = strictArrayTail(value, 80, (entry) => boundedText(entry, 64));
+  if (!ids) return null;
+  for (let index = 1; index < ids.length; index += 1) if (ids[index - 1] >= ids[index]) return null;
+  return ids;
+}
+
 const frozenEmptyArray = () => Object.freeze([]);
 
 export function emptyStormRelayState() {
@@ -414,5 +530,23 @@ export function emptyStormRelayState() {
 
 export function normalizeStormRelayState(value) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
-  return Object.freeze({ ...emptyStormRelayState(), taskTreeUnlocked: own(source, "taskTreeUnlocked") === true });
+  const activeValue = own(source, "activeRun");
+  const activeRun = activeValue === null || activeValue === undefined ? null : normalizeStormRelayRun(activeValue);
+  const completedRuns = strictArrayTail(own(source, "completedRuns") ?? [], 80, normalizeStormRelaySummary);
+  const settledRunIds = normalizeRunIds(own(source, "settledRunIds") ?? []);
+  const settlementProofs = strictArrayTail(own(source, "settlementProofs") ?? [], 80, normalizeStormProof);
+  const archive = strictArrayTail(own(source, "archive") ?? [], 80, normalizeStormRecord);
+  if ((activeValue !== null && activeValue !== undefined && !activeRun)
+    || !completedRuns || !settledRunIds || !settlementProofs || !archive
+    || !orderedUnique(completedRuns) || !orderedUnique(settlementProofs) || !orderedUnique(archive)) {
+    return emptyStormRelayState();
+  }
+  return deepFreeze({
+    version: STORM_RELAY_STATE_VERSION, activeRun, completedRuns, settledRunIds,
+    settlementProofs, archive, taskTreeUnlocked: own(source, "taskTreeUnlocked") === true,
+  });
+}
+
+export function stormRelayReplayAvailable(save) {
+  return normalizeStormRelayState(own(own(save, "storyContinuationState"), "chapter12")).taskTreeUnlocked;
 }

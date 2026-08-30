@@ -16,10 +16,12 @@ import { serviceNetReplayAvailable } from "../game/serviceNetRun.js";
 import { coordinateRelayReplayAvailable, normalizeCoordinateRelayState } from "../game/coordinateRelayRun.js";
 import { contestReplayAvailable } from "../game/contestRun.js";
 import { listeningReplayAvailable } from "../game/listeningRun.js";
+import { normalizeStormRelayState, stormRelayReplayAvailable } from "../game/stormRelayRun.js";
 import { AchievementsModal } from "./AchievementsModal.jsx";
 import { MissionCenterModal } from "./MissionCenterModal.jsx";
 import { PeopleAndQslModal } from "./PeopleAndQslModal.jsx";
 import { StructuredMessageLogModal } from "./StructuredMessageLogModal.jsx";
+import { STORM_RELAY_TEXT } from "./stormRelayText.js";
 import { StoreModal } from "./StoreModal.jsx";
 import { TechnologyTreeModal } from "./TechnologyTreeModal.jsx";
 
@@ -526,7 +528,7 @@ function WarehouseModal({ language, save, onEquipItem, onUnlockTechnology, onClo
   );
 }
 
-export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onAcceptMission, onClaimMission, onAbandonMission, onEnterLights, onEnterExpedition, onEnterQslStory, onEnterServiceNet, onEnterCoordinateRelay, onEnterContest, onEnterListening, onConfirmQslChoice, onEnterStation, onEnterPractice, onBack, onSettings }) {
+export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onAcceptMission, onClaimMission, onAbandonMission, onEnterLights, onEnterExpedition, onEnterQslStory, onEnterServiceNet, onEnterCoordinateRelay, onEnterContest, onEnterListening, onEnterStormRelay, onConfirmQslChoice, onEnterStation, onEnterPractice, onBack, onSettings }) {
   const t = TEXT[language] ?? TEXT.en;
   const location = getLocation(save.locationId);
   const practiceProgress = summarizePracticeProgress(save.practiceRecords);
@@ -537,6 +539,9 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
   const coordinateRelayReplay = coordinateRelayReplayAvailable(save);
   const contestReplay = contestReplayAvailable(save);
   const listeningReplay = listeningReplayAvailable(save);
+  const stormRelayReplay = stormRelayReplayAvailable(save);
+  const stormState = normalizeStormRelayState(save.storyContinuationState?.chapter12);
+  const stormText = STORM_RELAY_TEXT[language] ?? STORM_RELAY_TEXT.en;
   const coordinateState = normalizeCoordinateRelayState(save.storyContinuationState?.chapter09);
   const [panel, setPanel] = useState(null);
   const [clock, setClock] = useState(() => new Date());
@@ -585,6 +590,7 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
       {coordinateRelayReplay && <button className="home-coordinate-relay-button" data-action="enter-coordinate-relay-home" aria-label={t.coordinateRelay} onClick={onEnterCoordinateRelay}><GridFour size={20} weight="fill" />{t.coordinateRelay}</button>}
       {contestReplay && <button className="home-contest-button" data-action="enter-contest-home" aria-label={t.contest} onClick={onEnterContest}><Trophy size={20} weight="fill" />{t.contest}</button>}
       {listeningReplay && <button className="home-listening-button" data-action="enter-listening-home" aria-label={t.listening} onClick={onEnterListening}><Broadcast size={20} weight="fill" />{t.listening}</button>}
+      {stormRelayReplay && <button className="home-storm-relay-button" data-action="enter-storm-relay-home" aria-label={stormText.title} onClick={onEnterStormRelay}><Broadcast size={20} weight="fill" />{stormText.title}</button>}
       {coordinateState.toolUnlocked && <button className="home-structured-message-button" data-action="open-structured-messages" aria-label={t.structuredMessages} onClick={() => setPanel("structured-messages")}><ClipboardText size={20} weight="fill" />{t.structuredMessages}</button>}
       <span className="home-newspaper-callsign" aria-hidden="true">{save.callsign}</span>
       <span className="home-location-label"><Radio size={15} />{locationName(location, language)}</span>
@@ -592,9 +598,9 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
       {panel === "store" && <StoreModal language={language} save={save} onPurchase={onPurchase} onClose={() => setPanel(null)} />}
       {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
       {panel === "achievements" && <AchievementsModal language={language} save={save} onClose={() => setPanel(null)} />}
-      {panel === "missions" && <MissionCenterModal language={language} save={save} onAccept={onAcceptMission} onClaim={onClaimMission} onAbandon={onAbandonMission} onLaunchLights={onEnterLights} onLaunchExpedition={onEnterExpedition} onLaunchQslStory={onEnterQslStory} onLaunchServiceNet={onEnterServiceNet} onLaunchCoordinateRelay={onEnterCoordinateRelay} onLaunchContest={onEnterContest} onLaunchListening={onEnterListening} onClose={() => setPanel(null)} />}
+      {panel === "missions" && <MissionCenterModal language={language} save={save} onAccept={onAcceptMission} onClaim={onClaimMission} onAbandon={onAbandonMission} onLaunchLights={onEnterLights} onLaunchExpedition={onEnterExpedition} onLaunchQslStory={onEnterQslStory} onLaunchServiceNet={onEnterServiceNet} onLaunchCoordinateRelay={onEnterCoordinateRelay} onLaunchContest={onEnterContest} onLaunchListening={onEnterListening} onLaunchStormRelay={onEnterStormRelay} onClose={() => setPanel(null)} />}
       {panel === "people-qsl" && <PeopleAndQslModal language={language} save={save} onConfirmChoice={onConfirmQslChoice} onClose={() => setPanel(null)} />}
-      {panel === "structured-messages" && <StructuredMessageLogModal language={language} packets={coordinateState.packets} onClose={() => setPanel(null)} />}
+      {panel === "structured-messages" && <StructuredMessageLogModal language={language} packets={coordinateState.packets} stormRecords={stormState.archive} onClose={() => setPanel(null)} />}
       {panel && !["warehouse", "store", "log", "achievements", "missions", "people-qsl", "structured-messages"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
     </main>
   );

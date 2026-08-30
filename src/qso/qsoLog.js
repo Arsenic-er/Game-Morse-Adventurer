@@ -79,7 +79,7 @@ function normalizeEventRegion(value) {
 }
 
 function normalizeEventKind(value) {
-  return ["qsl-story", "service-net", "coordinate-relay", "contest"].includes(value) ? value : null;
+  return ["qsl-story", "service-net", "coordinate-relay", "contest", "storm-relay"].includes(value) ? value : null;
 }
 
 function own(value, key) {

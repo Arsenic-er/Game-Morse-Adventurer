@@ -3,7 +3,7 @@ import { ArrowLeft, Clock, GridFour, Hash, Notebook, Users, X } from "@phosphor-
 import { normalizeCoordinateRelayState } from "../game/coordinateRelayRun.js";
 import { COORDINATE_RELAY_TEXT } from "./coordinateRelayText.js";
 
-export function StructuredMessageLogModal({ language, packets, onClose }) {
+export function StructuredMessageLogModal({ language, packets, stormRecords = [], onClose }) {
   const t = COORDINATE_RELAY_TEXT[language] ?? COORDINATE_RELAY_TEXT.en;
   const records = useMemo(() => normalizeCoordinateRelayState({ packets }).packets, [packets]);
   useEffect(() => {
@@ -23,6 +23,16 @@ export function StructuredMessageLogModal({ language, packets, onClose }) {
             <dt><Clock />{t.utc}</dt><dd>{record.packet.utc}</dd>
             <dt><Users />{t.people}</dt><dd>{record.packet.people}</dd>
             <dt>{t.check}</dt><dd>{String(record.packet.check).padStart(2, "0")}</dd>
+          </dl>
+          <time dateTime={record.completedAt}>{new Date(record.completedAt).toLocaleString(language)}</time>
+        </article>)}
+        {[...stormRecords].reverse().map((record) => <article key={record.id} data-storm-record-id={record.id}>
+          <h3><Hash />MSG {record.msgId} · REV {record.revision}</h3>
+          <dl>
+            <dt><GridFour />{t.grid}</dt><dd>{record.grid}</dd>
+            <dt><Users />{t.people}</dt><dd>{record.people}</dd>
+            <dt>ITEM</dt><dd>{record.item} × {record.quantity}</dd>
+            <dt>{t.check}</dt><dd>{record.check}</dd>
           </dl>
           <time dateTime={record.completedAt}>{new Date(record.completedAt).toLocaleString(language)}</time>
         </article>)}

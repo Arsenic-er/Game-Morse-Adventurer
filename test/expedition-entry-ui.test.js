@@ -43,7 +43,10 @@ const callbacks = {
 };
 
 test("Home and Mission Center render a durable expedition replay entry, never a pre-acceptance shortcut", async () => {
-  const vite = await createServer({ appType: "custom", logLevel: "silent", server: { middlewareMode: true } });
+  const vite = await createServer({
+    appType: "custom", logLevel: "silent", optimizeDeps: { noDiscovery: true },
+    server: { middlewareMode: true },
+  });
   try {
     const [{ HomeScreen }, { MissionCenterModal }] = await Promise.all([
       vite.ssrLoadModule("/src/screens/HomeScreen.jsx"),

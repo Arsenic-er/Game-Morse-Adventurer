@@ -9,6 +9,7 @@ import { serviceNetReplayAvailable } from "../game/serviceNetRun.js";
 import { coordinateRelayReplayAvailable } from "../game/coordinateRelayRun.js";
 import { contestReplayAvailable } from "../game/contestRun.js";
 import { listeningReplayAvailable } from "../game/listeningRun.js";
+import { stormRelayReplayAvailable } from "../game/stormRelayRun.js";
 import { lightsEntryModes } from "../game/lightsEventCatalog.js";
 import { lightsNarrativeBeat } from "../game/lightsNarrative.js";
 import { lightsText } from "./lightsEventText.js";
@@ -36,6 +37,7 @@ const TEXT = {
     story09Title: "坐标", story09Description: "一条虚构像素网格报文必须在两个台站之间原样抵达。", story09Objective: "读回网格、UTC、人数和校验，再完成双台站中继。", story09Brief: "从 SIM9CR 抄收冻结报文，纠正硬字段后将同一规范报文中继给 SIM9RL。", story09Debrief: "两个台站和一条完整报文被同一组校验字段连接起来。",
     story10Title: "空中的拥挤", story10Description: "SIM0CT 打开一个虚构的五分钟短赛窗口。速度必须服从准确与礼貌。", story10Objective: "完成至少六台、RUN与S&P各两台、三个地区的比赛通联。", story10Brief: "在RUN pile-up和S&P台池间切换，发送准确的RST、序号、地区和功率；需要时用AGN或QRS。", story10Debrief: "拥挤的频率重新安静下来。分数记录了速度，也记录了你为准确与礼貌留下的每一次停顿。",
     story11Title: "听不见的人", story11Description: "SIM11LS不会回应。静默本身也是需要耐心记录的证据。", story11Objective: "观察三个窗口，发送一次定向呼叫，等待并记录静默。", story11Brief: "先观察传播与噪声，再用真实CW呼叫SIM11LS。最多允许第二次呼叫；不要把静默编成回复。", story11Debrief: "记录只说明没有听到回复。你学会了停止呼叫，也学会了认真倾听。",
+    story12Title: "风暴中继", story12Description: "两份冲突报文抵达台网。先核实来源，再把唯一有效的修订版送达。", story12Objective: "报到、识别冲突、请求修订核实，并中继完整的MSG 214修订版二。", story12Brief: "这是虚构离线演练。逐项核对REV、GRID、PEOPLE、ITEM、QTY与CHECK，不要猜测。", story12Debrief: "你没有选择最先听到的数字，而是核实来源后送出了可追溯的修订版。",
     weatherTitle: "空中天气簿", weatherDescription: "替台站收下一份来自远方的天气记录。", weatherObjective: "完成一次 WEATHER 问答并让对方确认抄收。",
     relayTitle: "衰落中的接力", relayDescription: "信号跌入噪声时，耐心比功率更重要。", relayObjective: "在 P0–P2 完成一次使用 AGN 或 QRS 恢复的 QSO。",
     equipmentTitle: "设备试航", equipmentDescription: "让新电台或配件在真实通联里留下第一条记录。", equipmentObjective: "使用非初始电台或已安装配件完成一次 QSO。",
@@ -69,6 +71,7 @@ const TEXT = {
     story09Title: "座標", story09Description: "一則虛構像素網格報文必須在兩個臺站之間原樣抵達。", story09Objective: "讀回網格、UTC、人數與校驗，再完成雙臺站中繼。", story09Brief: "從 SIM9CR 抄收凍結報文，修正硬欄位後把同一規範報文中繼給 SIM9RL。", story09Debrief: "兩個臺站與一則完整報文由同一組校驗欄位連接起來。",
     story10Title: "空中的擁擠", story10Description: "SIM0CT 開啟虛構五分鐘短賽；速度必須服從準確與禮貌。", story10Objective: "完成至少六臺、RUN與S&P各兩臺、三個地區的比賽通聯。", story10Brief: "在RUN pile-up與S&P臺池間切換，準確發送RST、序號、地區和功率；需要時用AGN或QRS。", story10Debrief: "擁擠頻率重新安靜。分數記錄速度，也記錄你為準確和禮貌留下的停頓。",
     story11Title: "聽不見的人", story11Description: "SIM11LS不會回應。靜默本身也是需要耐心記錄的證據。", story11Objective: "觀察三個視窗，傳送一次定向呼叫，等待並記錄靜默。", story11Brief: "先觀察傳播與雜訊，再用真實CW呼叫SIM11LS。最多允許第二次呼叫；不要把靜默編成回覆。", story11Debrief: "記錄只說明沒有聽到回覆。你學會停止呼叫，也學會仔細聆聽。",
+    story12Title: "風暴中繼", story12Description: "兩份衝突報文抵達臺網。先核實來源，再把唯一有效的修訂版送達。", story12Objective: "報到、辨識衝突、請求修訂核實，並中繼完整的MSG 214修訂版二。", story12Brief: "這是虛構離線演練。逐項核對REV、GRID、PEOPLE、ITEM、QTY與CHECK，不要猜測。", story12Debrief: "你沒有選擇最先聽到的數字，而是核實來源後送出可追溯的修訂版。",
     weatherTitle: "空中天氣簿", weatherDescription: "替臺站收下一份來自遠方的天氣記錄。", weatherObjective: "完成一次 WEATHER 問答並讓對方確認抄收。",
     relayTitle: "衰落中的接力", relayDescription: "訊號跌入雜訊時，耐心比功率更重要。", relayObjective: "在 P0–P2 完成一次使用 AGN 或 QRS 恢復的 QSO。",
     equipmentTitle: "設備試航", equipmentDescription: "讓新電臺或配件在真實通聯裡留下第一條記錄。", equipmentObjective: "使用非初始電臺或已安裝配件完成一次 QSO。",
@@ -102,6 +105,7 @@ const TEXT = {
     story09Title: "座標", story09Description: "架空のピクセルグリッド電文を二局間でそのまま届けます。", story09Objective: "グリッド、UTC、人数、チェックを復唱し、二局の中継を完了する。", story09Brief: "SIM9CR の固定電文を受信し、硬い項目を訂正して同じ標準電文を SIM9RL へ中継します。", story09Debrief: "二局と完全な一通の電文が同じチェック項目で結ばれました。",
     story10Title: "混み合う空", story10Description: "SIM0CTが架空の5分窓を開きます。速度は正確さと礼儀に従います。", story10Objective: "6局以上、RUN/S&P各2局、3地域を満たして完走する。", story10Brief: "RUN pile-upとS&P局プールを切り替え、RST、連番、地域、電力を正確に送ります。必要ならAGN/QRSを使います。", story10Debrief: "混み合った周波数は静かになりました。得点には速さだけでなく、正確さと礼儀のための間も残りました。",
     story11Title: "聞こえない人", story11Description: "SIM11LSは応答しません。沈黙そのものも忍耐強く記録する証拠です。", story11Objective: "3つの窓を観測し、指向呼出を1回送り、待って沈黙を記録する。", story11Brief: "伝搬と雑音を観測してから実際のCWでSIM11LSを呼びます。2回目までは許されますが、沈黙を応答に変えてはいけません。", story11Debrief: "記録は応答を聞かなかったことだけを示します。呼ぶのを止め、よく聞くことを学びました。",
+    story12Title: "嵐のリレー", story12Description: "競合する二つの電文がネットに届きます。送信元を確認し、唯一有効な改訂を届けます。", story12Objective: "チェックインし、競合を認識し、改訂を確認してMSG 214改訂2を完全に中継する。", story12Brief: "架空のオフライン訓練です。REV、GRID、PEOPLE、ITEM、QTY、CHECKを推測せず照合します。", story12Debrief: "最初に聞いた数字を選ばず、送信元を確認して追跡可能な改訂を送りました。",
     weatherTitle: "空の気象ログ", weatherDescription: "遠方から届く気象記録を局のログに残します。", weatherObjective: "WEATHER の質問と回答を完了し、相手に受信を確認してもらう。",
     relayTitle: "フェージング・リレー", relayDescription: "信号が雑音へ沈むとき、出力より忍耐が役立ちます。", relayObjective: "P0–P2 で AGN または QRS を使って復帰し、QSOを完了する。",
     equipmentTitle: "機材の実地試験", equipmentDescription: "新しい無線機や付属品で最初の実交信を記録します。", equipmentObjective: "初期機以外の無線機、または装着した付属品を使ってQSOする。",
@@ -135,6 +139,7 @@ const TEXT = {
     story09Title: "Coordinates", story09Description: "A fictional Pixel Grid packet must arrive unchanged between two stations.", story09Objective: "Read back grid, UTC, people, and check, then complete the two-station relay.", story09Brief: "Copy the frozen packet from SIM9CR, correct every hard field, and relay the same canonical packet to SIM9RL.", story09Debrief: "Two stations and one complete packet now share the same verified fields.",
     story10Title: "Crowded Air", story10Description: "SIM0CT opens a fictional five-minute window where speed must answer to accuracy and courtesy.", story10Objective: "Complete at least six contacts, two each in RUN and S&P, across three regions.", story10Brief: "Switch between a RUN pile-up and S&P pool. Send exact RST, serial, region, and power; use AGN or QRS when needed.", story10Debrief: "The crowded frequency falls quiet. The score remembers speed, but also every pause made for accuracy and courtesy.",
     story11Title: "The One Who Cannot Hear", story11Description: "SIM11LS will not answer. Silence itself is evidence that deserves patient recording.", story11Objective: "Observe three windows, send one directed call, wait, and record silence.", story11Brief: "Observe propagation and noise before calling SIM11LS with real CW. A second call is tolerated; never invent a reply from silence.", story11Debrief: "The record says only that no reply was heard. You learned when to stop calling and how to keep listening.",
+    story12Title: "The Storm Relay", story12Description: "Two conflicting messages reach the net. Verify the source, then deliver the only valid revision.", story12Objective: "Check in, identify the conflict, request revision verification, and relay complete MSG 214 revision two.", story12Brief: "This is a fictional offline exercise. Verify REV, GRID, PEOPLE, ITEM, QTY, and CHECK without guessing.", story12Debrief: "You did not choose the first numbers heard. You verified the source and sent a traceable revision.",
     weatherTitle: "Weather on the Air", weatherDescription: "Add one distant weather observation to the station log.", weatherObjective: "Complete a WEATHER question and answer that the other station acknowledges.",
     relayTitle: "Relay Through the Fade", relayDescription: "When a signal falls into noise, patience matters more than power.", relayObjective: "At P0–P2, recover with AGN or QRS and complete the QSO.",
     equipmentTitle: "Equipment Shakedown", equipmentDescription: "Give a new radio or accessory its first record in a real contact.", equipmentObjective: "Complete a QSO with a non-starter radio or an installed accessory.",
@@ -168,6 +173,7 @@ const TEXT = {
     story09Title: "Coordenadas", story09Description: "Un paquete ficticio de Cuadrícula Pixel debe llegar intacto entre dos estaciones.", story09Objective: "Repite cuadrícula, UTC, personas y control, y completa el relevo entre dos estaciones.", story09Brief: "Copia el paquete fijo de SIM9CR, corrige los campos y relévalo sin cambios a SIM9RL.", story09Debrief: "Dos estaciones y un paquete completo quedaron unidos por los mismos campos verificados.",
     story10Title: "Aire congestionado", story10Description: "SIM0CT abre una ventana ficticia de cinco minutos donde la velocidad obedece a la precisión y la cortesía.", story10Objective: "Completa seis contactos, dos en RUN y dos en S&P, en tres regiones.", story10Brief: "Alterna entre pile-up RUN y grupo S&P. Envía RST, número, región y potencia exactos; usa AGN o QRS si hace falta.", story10Debrief: "La frecuencia queda en silencio. La puntuación recuerda la velocidad y también las pausas por precisión y cortesía.",
     story11Title: "Quien no puede oír", story11Description: "SIM11LS no responderá. El silencio también es evidencia que merece paciencia.", story11Objective: "Observa tres ventanas, envía una llamada dirigida, espera y registra el silencio.", story11Brief: "Observa propagación y ruido antes de llamar a SIM11LS con CW real. Se tolera una segunda llamada; nunca inventes una respuesta.", story11Debrief: "El registro solo dice que no se oyó respuesta. Aprendiste cuándo dejar de llamar y seguir escuchando.",
+    story12Title: "El relevo de la tormenta", story12Description: "Dos mensajes contradictorios llegan a la red. Verifica la fuente y entrega la única revisión válida.", story12Objective: "Regístrate, identifica el conflicto, solicita verificación y retransmite MSG 214 revisión dos.", story12Brief: "Es un ejercicio ficticio sin conexión. Comprueba REV, GRID, PEOPLE, ITEM, QTY y CHECK sin adivinar.", story12Debrief: "No elegiste los primeros números recibidos; verificaste la fuente y enviaste una revisión rastreable.",
     weatherTitle: "El tiempo en el aire", weatherDescription: "Añade al registro una observación meteorológica llegada desde lejos.", weatherObjective: "Completa una pregunta y respuesta WEATHER que la otra estación confirme.",
     relayTitle: "Relevo entre desvanecimientos", relayDescription: "Cuando la señal cae en el ruido, la paciencia importa más que la potencia.", relayObjective: "En P0–P2, recupérate con AGN o QRS y completa el QSO.",
     equipmentTitle: "Prueba de equipo", equipmentDescription: "Da a una radio o accesorio nuevo su primer contacto real.", equipmentObjective: "Completa un QSO con una radio distinta de la inicial o un accesorio instalado.",
@@ -201,6 +207,7 @@ const TEXT = {
     story09Title: "Koordinaten", story09Description: "Ein fiktives Pixelraster-Paket muss unverändert zwischen zwei Stationen ankommen.", story09Objective: "Raster, UTC, Personen und Prüfwert zurücklesen und das Zwei-Stationen-Relais abschließen.", story09Brief: "Nimm das feste Paket von SIM9CR auf, korrigiere alle Felder und leite dasselbe kanonische Paket an SIM9RL weiter.", story09Debrief: "Zwei Stationen und ein vollständiges Paket sind durch dieselben geprüften Felder verbunden.",
     story10Title: "Gedrängte Luft", story10Description: "SIM0CT öffnet ein fiktives Fünf-Minuten-Fenster, in dem Tempo Genauigkeit und Höflichkeit folgt.", story10Objective: "Mindestens sechs Kontakte, je zwei RUN/S&P und drei Regionen abschließen.", story10Brief: "Wechsle zwischen RUN-Pile-up und S&P-Pool. Sende RST, Nummer, Region und Leistung exakt; nutze bei Bedarf AGN/QRS.", story10Debrief: "Die gedrängte Frequenz wird still. Die Wertung bewahrt Tempo und jede Pause für Genauigkeit und Höflichkeit.",
     story11Title: "Der Mensch, der nicht hören kann", story11Description: "SIM11LS antwortet nicht. Auch Stille ist ein Befund, der geduldig erfasst werden muss.", story11Objective: "Drei Fenster beobachten, einmal gerichtet rufen, warten und die Stille erfassen.", story11Brief: "Beobachte Ausbreitung und Rauschen, bevor du SIM11LS mit echtem CW rufst. Ein zweiter Ruf ist erlaubt; erfinde nie eine Antwort.", story11Debrief: "Das Protokoll sagt nur, dass keine Antwort gehört wurde. Du hast gelernt aufzuhören und weiter zuzuhören.",
+    story12Title: "Das Sturmrelais", story12Description: "Zwei widersprüchliche Meldungen erreichen das Netz. Prüfe die Quelle und leite nur die gültige Revision weiter.", story12Objective: "Einchecken, Konflikt erkennen, Revision prüfen und MSG 214 Revision zwei vollständig weitergeben.", story12Brief: "Fiktive Offline-Übung. Prüfe REV, GRID, PEOPLE, ITEM, QTY und CHECK ohne zu raten.", story12Debrief: "Du hast nicht die ersten Zahlen gewählt, sondern die Quelle geprüft und eine nachvollziehbare Revision gesendet.",
     weatherTitle: "Wetter über Funk", weatherDescription: "Füge dem Stationslog eine Wetterbeobachtung aus der Ferne hinzu.", weatherObjective: "Einen bestätigten WEATHER-Frage-und-Antwort-Austausch abschließen.",
     relayTitle: "Staffel durch den Schwund", relayDescription: "Sinkt das Signal ins Rauschen, zählt Geduld mehr als Leistung.", relayObjective: "Bei P0–P2 mit AGN oder QRS zurückfinden und das QSO abschließen.",
     equipmentTitle: "Geräteerprobung", equipmentDescription: "Gib einem neuen Funkgerät oder Zubehör den ersten echten Kontakt.", equipmentObjective: "Ein QSO mit einem anderen als dem Startgerät oder mit montiertem Zubehör abschließen.",
@@ -234,6 +241,7 @@ const TEXT = {
     story09Title: "Координаты", story09Description: "Вымышленный пакет Пиксельной сетки должен без изменений пройти между двумя станциями.", story09Objective: "Повторите сетку, UTC, число людей и проверку, затем завершите ретрансляцию.", story09Brief: "Примите пакет SIM9CR, исправьте жёсткие поля и передайте тот же канонический пакет SIM9RL.", story09Debrief: "Две станции и один полный пакет теперь связаны одинаковыми проверенными полями.",
     story10Title: "Тесный эфир", story10Description: "SIM0CT открывает вымышленное пятиминутное окно, где скорость подчиняется точности и вежливости.", story10Objective: "Проведите шесть связей, по две RUN/S&P, минимум с тремя регионами.", story10Brief: "Переключайтесь между RUN-пайлапом и S&P-пулом. Точно передавайте RST, номер, регион и мощность; при необходимости используйте AGN/QRS.", story10Debrief: "Тесная частота затихла. Счёт запомнил скорость и паузы ради точности и вежливости.",
     story11Title: "Тот, кто не слышит", story11Description: "SIM11LS не ответит. Тишина тоже является наблюдением, которое требует терпения.", story11Objective: "Наблюдайте три окна, передайте один направленный вызов, подождите и запишите тишину.", story11Brief: "Сначала наблюдайте прохождение и шум, затем вызовите SIM11LS настоящим CW. Второй вызов допустим; не выдумывайте ответ.", story11Debrief: "Запись говорит лишь, что ответа не было слышно. Вы научились прекращать вызов и продолжать слушать.",
+    story12Title: "Штормовая ретрансляция", story12Description: "В сеть поступают два противоречивых сообщения. Проверьте источник и передайте единственную верную редакцию.", story12Objective: "Зарегистрируйтесь, выявите конфликт, запросите проверку и передайте MSG 214 редакции два.", story12Brief: "Это вымышленное автономное упражнение. Проверяйте REV, GRID, PEOPLE, ITEM, QTY и CHECK без догадок.", story12Debrief: "Вы не выбрали первые услышанные цифры, а проверили источник и передали отслеживаемую редакцию.",
     weatherTitle: "Погода в эфире", weatherDescription: "Добавьте в журнал станции наблюдение погоды издалека.", weatherObjective: "Завершите вопрос и ответ WEATHER с подтверждением другой станции.",
     relayTitle: "Эстафета сквозь замирания", relayDescription: "Когда сигнал тонет в шуме, терпение важнее мощности.", relayObjective: "При P0–P2 восстановите связь через AGN или QRS и завершите QSO.",
     equipmentTitle: "Испытание аппаратуры", equipmentDescription: "Дайте новой радиостанции или аксессуару первый настоящий контакт.", equipmentObjective: "Проведите QSO не на начальной станции или с установленным аксессуаром.",
@@ -278,7 +286,7 @@ function missionContractClues(mission, t) {
   ].filter(Boolean);
 }
 
-function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, expeditionReplay, serviceNetReplay, coordinateRelayReplay, contestReplay, listeningReplay, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening }) {
+function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, expeditionReplay, serviceNetReplay, coordinateRelayReplay, contestReplay, listeningReplay, stormRelayReplay, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay }) {
   const ready = mission.status === "ready";
   const active = mission.status === "active";
   const available = mission.status === "available";
@@ -333,6 +341,7 @@ function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, e
         {mission.id === "story-09" && (active || coordinateRelayReplay) && <button data-action="launch-coordinate-relay" onClick={onLaunchCoordinateRelay}><Play size={17} weight="fill" />{t.launchCoordinateRelay}</button>}
         {mission.id === "story-10" && (active || contestReplay) && <button data-action="launch-contest" onClick={onLaunchContest}><Play size={17} weight="fill" />{t.launchContest}</button>}
         {mission.id === "story-11" && (active || listeningReplay) && <button data-action="launch-listening" onClick={onLaunchListening}><Play size={17} weight="fill" />{t.launchListening}</button>}
+        {mission.id === "story-12" && (active || stormRelayReplay) && <button data-action="launch-storm-relay" onClick={onLaunchStormRelay}><Play size={17} weight="fill" />{t[mission.titleKey]}</button>}
         {active && <button className="mission-abandon" data-action="abandon-mission" data-mission-action-id={mission.id} onClick={() => onAbandon(mission.id)}><Trash size={17} />{t.abandon}</button>}
         {ready && <button className="mission-claim" data-action="claim-mission" data-mission-action-id={mission.id} onClick={() => onClaim(mission.id)}><CheckCircle size={17} weight="fill" />{t.claim}</button>}
         {mission.id === "story-05" && mission.status === "claimed" && <>
@@ -344,7 +353,7 @@ function MissionCard({ mission, t, lightsCopy, dailyLimitReached, lightsModes, e
   );
 }
 
-export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onClose }) {
+export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onClose }) {
   const t = TEXT[language] ?? TEXT.en;
   const lightsCopy = lightsText(language);
   const [tab, setTab] = useState("story");
@@ -356,6 +365,7 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
   const coordinateRelayReplay = coordinateRelayReplayAvailable(save);
   const contestReplay = contestReplayAvailable(save);
   const listeningReplay = listeningReplayAvailable(save);
+  const stormRelayReplay = stormRelayReplayAvailable(save);
   const activeDaily = board.daily.filter(({ status }) => ["active", "ready"].includes(status)).length;
   const missions = tab === "story" ? board.story : board.daily;
 
@@ -381,7 +391,7 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
         <div className="mission-center-body">
           {tab === "daily" && <p className="mission-daily-note">{t.dailyNote}</p>}
           <div className="mission-list">
-            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} lightsCopy={lightsCopy} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} expeditionReplay={expeditionReplay} serviceNetReplay={serviceNetReplay} coordinateRelayReplay={coordinateRelayReplay} contestReplay={contestReplay} listeningReplay={listeningReplay} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} onLaunchQslStory={onLaunchQslStory} onLaunchServiceNet={onLaunchServiceNet} onLaunchCoordinateRelay={onLaunchCoordinateRelay} onLaunchContest={onLaunchContest} onLaunchListening={onLaunchListening} />)}
+            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} lightsCopy={lightsCopy} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} expeditionReplay={expeditionReplay} serviceNetReplay={serviceNetReplay} coordinateRelayReplay={coordinateRelayReplay} contestReplay={contestReplay} listeningReplay={listeningReplay} stormRelayReplay={stormRelayReplay} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} onLaunchQslStory={onLaunchQslStory} onLaunchServiceNet={onLaunchServiceNet} onLaunchCoordinateRelay={onLaunchCoordinateRelay} onLaunchContest={onLaunchContest} onLaunchListening={onLaunchListening} onLaunchStormRelay={onLaunchStormRelay} />)}
           </div>
         </div>
         <footer><span>{save.callsign} // {summary.ready} {t.ready}</span><button data-action="close-missions-footer" onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.close}</button></footer>

@@ -2086,3 +2086,39 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
   .contest-scoreboard dl { grid-column: 1 / -1; }
   .contest-candidates > div { grid-template-columns: 1fr; }
 }
+/* Chapter 12 · fictional storm relay */
+.storm-relay-screen { min-height: 100vh; padding: 18px; color: #f6ead0; background: radial-gradient(circle at 50% 0, #243348 0, #121a29 54%, #080d16 100%); }
+.storm-relay-topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 3px solid #d49b45; background: #101a29; box-shadow: 6px 6px 0 #05080e; }
+.storm-relay-topbar > div { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 10px; }
+.storm-relay-topbar h1 { grid-column: 2; margin: 0; font-size: clamp(20px, 3vw, 34px); }
+.storm-relay-topbar span { color: #e0ae5b; font-size: 11px; letter-spacing: .08em; }
+.storm-relay-warning, .storm-relay-paused { display: flex; align-items: center; gap: 8px; margin: 12px 0; padding: 9px 12px; border: 2px solid #a96739; background: #2b1c1b; }
+.storm-relay-paused { border-color: #e4be62; background: #30270f; }
+.storm-relay-layout { display: grid; grid-template-columns: minmax(150px, .65fr) minmax(0, 2.2fr) minmax(130px, .55fr); gap: 14px; }
+.storm-relay-stations, .storm-relay-console, .storm-relay-ledger { border: 3px solid #536b78; background: rgba(9, 18, 29, .95); box-shadow: 5px 5px 0 #05080e; padding: 14px; }
+.storm-relay-stations { display: flex; flex-direction: column; gap: 12px; }
+.storm-relay-stations article { display: grid; gap: 4px; padding: 10px; border: 2px solid #315466; background: #101f2e; }
+.storm-relay-stations strong, .storm-relay-ledger strong { color: #ffd374; font-size: 18px; }
+.storm-packet-board { display: grid; gap: 10px; }
+.storm-packet-board h2 { margin: 0 0 4px; }
+.storm-packet-board article { display: grid; gap: 7px; padding: 10px; border: 2px solid #874948; background: #25191c; }
+.storm-packet-board article[data-authoritative="true"] { border-color: #69b98b; background: #10281f; }
+.storm-packet-board code, .storm-relay-keyer code, .storm-relay-result code { display: block; overflow-wrap: anywhere; color: #fff0b5; line-height: 1.65; }
+.storm-relay-keyer { display: grid; gap: 10px; margin-top: 14px; padding: 14px; border: 2px solid #d49b45; background: #171d26; }
+.storm-relay-keyer h2 { margin: 0; font-size: 17px; }
+.storm-relay-keyer > strong { min-height: 44px; padding: 9px; color: #73e7b0; background: #050b10; border: 2px inset #31414d; overflow-wrap: anywhere; }
+.storm-relay-keyer div, .storm-relay-result { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.storm-relay-error { color: #ff9c83; }
+.storm-relay-result { margin-top: 14px; padding: 16px; border: 2px solid #57b986; background: #10261f; }
+.storm-relay-result.failed { border-color: #ba534e; background: #2c1718; }
+.storm-relay-ledger { display: flex; flex-direction: column; gap: 12px; }
+.storm-relay-leave-dialog { max-width: 460px; padding: 20px; border: 3px solid #d49b45; background: #111b2a; }
+
+@media (max-width: 820px) {
+  .storm-relay-screen { padding: 9px; }
+  .storm-relay-topbar { align-items: flex-start; flex-wrap: wrap; }
+  .storm-relay-layout { grid-template-columns: 1fr; }
+  .storm-relay-stations { display: grid; grid-template-columns: 1fr 1fr; }
+  .storm-relay-stations > span, .storm-relay-stations > b { grid-column: 1 / -1; }
+  .storm-relay-ledger { flex-direction: row; flex-wrap: wrap; }
+}
