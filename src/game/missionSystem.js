@@ -17,13 +17,16 @@ import { normalizeNightOperationsState } from "./nightOperationsRun.js";
 import { verifiedNightOperationsCompletion } from "./nightOperationsCompletion.js";
 import { normalizeFinalPromiseState } from "./finalPromiseRun.js";
 import { verifiedFinalPromiseCompletion } from "./finalPromiseSettlement.js";
+import { normalizeFirstPageState } from "./firstPageState.js";
+import { verifiedFirstPageCompletion } from "./firstPageSettlement.js";
+import { normalizeOpenStationState } from "./openStationState.js";
 import { normalizeStoryContinuationState } from "./storyContinuationState.js";
 import { normalizeOperatorRelationships } from "../qso/operatorRelationships.js";
 
 export const MISSION_STATE_VERSION = 2;
 export const MAX_ACTIVE_DAILY_MISSIONS = 2;
 export const STORY_MISSION_IDS = Object.freeze([
-  "story-01", "story-02", "story-03", "story-04", "story-05", "story-06", "story-07", "story-08", "story-09", "story-10", "story-11", "story-12", "story-13", "story-14",
+  "story-01", "story-02", "story-03", "story-04", "story-05", "story-06", "story-07", "story-08", "story-09", "story-10", "story-11", "story-12", "story-13", "story-14", "story-15",
 ]);
 export const RECENT_MISSION_DNA_LIMIT = 12;
 export const MISSION_EVENT_LIMIT = 120;
@@ -164,6 +167,13 @@ const STORY_MISSIONS = Object.freeze([
       missionPhase: "final-promise", targetCallsign: "SIM14FP",
       requiredTopics: ["CALLSIGN", "ACCOUNT", "CHOICE"], recoveryActions: ["AGN", "QRS"],
     }),
+  }),
+  Object.freeze({
+    id: "story-15", type: "story", chapter: 15, titleKey: "story15Title", descriptionKey: "story15Description",
+    objectiveKey: "story15Objective", briefKey: "story15Brief", debriefKey: "story15Debrief",
+    objective: "ordinary-first-page", target: 1, prerequisiteId: "story-14",
+    moneyReward: 2000, technologyPointsReward: 8,
+    contract: Object.freeze({ missionPhase: "ordinary-first-page", requiredTopics: ["CALLSIGN", "RST"] }),
   }),
 ]);
 
@@ -693,6 +703,9 @@ function evaluateObjective(definition, logs, save, active = null) {
   if (definition.objective === "final-promise") {
     current = verifiedFinalPromiseCompletion(save, active) ? 1 : 0;
   }
+  if (definition.objective === "ordinary-first-page") {
+    current = verifiedFirstPageCompletion(save, active) ? 1 : 0;
+  }
   if (definition.objective === "clean-qso") {
     current = logs.filter((entry) => safeInteger(entry?.repeatRequests) === 0
       && Number(entry?.transmitAccuracy) >= 85 && Number(entry?.keyingScore) >= 75).length;
@@ -902,6 +915,18 @@ export function claimMission(save, missionId, claimedAt = new Date().toISOString
     continuation = normalizeStoryContinuationState({
       ...current,
       chapter14: normalizeFinalPromiseState({ ...current.chapter14, taskTreeUnlocked: true }),
+    });
+  }
+  if (definition.id === "story-15") {
+    const current = normalizeStoryContinuationState(save?.storyContinuationState);
+    const chapter15 = normalizeFirstPageState(current.chapter15);
+    const goal = chapter15.archive.at(-1)?.goal ?? null;
+    continuation = normalizeStoryContinuationState({
+      ...current,
+      chapter15: normalizeFirstPageState({ ...chapter15, taskTreeUnlocked: true }),
+      openStation: normalizeOpenStationState({
+        unlocked: true, firstGoal: goal, activeGoal: goal, goalUpdatedAt: normalizeIso(claimedAt),
+      }),
     });
   }
   return {

@@ -1690,6 +1690,18 @@ export function App() {
     return transaction;
   }
 
+  async function settleFirstPageForActiveSave(input) {
+    if (!activeSaveId) return null;
+    const { settleFirstPage } = await import("./game/firstPageSettlement.js");
+    let transaction = null;
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      transaction = settleFirstPage(save, input);
+      return transaction.settled ? { ...transaction.save, updatedAt: new Date().toISOString() } : save;
+    }));
+    return transaction;
+  }
+
 
   function applySettings(next) {
     const nextWpm = normalizeAutomaticKeyWpm(next.automaticKeyWpm);
@@ -1730,7 +1742,7 @@ export function App() {
   let currentScreen;
   if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => enterPractice("start")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onAcceptMission={acceptMissionForActiveSave} onClaimMission={claimMissionForActiveSave} onAbandonMission={abandonMissionForActiveSave} onEnterLights={enterLights} onEnterExpedition={() => setScreen("expedition")} onEnterQslStory={() => setScreen("qsl-story")} onEnterServiceNet={() => setScreen("service-net")} onEnterCoordinateRelay={() => setScreen("coordinate-relay")} onEnterContest={() => setScreen("contest")} onEnterListening={() => setScreen("listening")} onEnterStormRelay={() => setScreen("storm-relay")} onEnterNightOperations={() => setScreen("night-operations")} onEnterFinalPromise={() => setScreen("final-promise")} onConfirmQslChoice={confirmQslChoiceForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onAcceptMission={acceptMissionForActiveSave} onClaimMission={claimMissionForActiveSave} onAbandonMission={abandonMissionForActiveSave} onEnterLights={enterLights} onEnterExpedition={() => setScreen("expedition")} onEnterQslStory={() => setScreen("qsl-story")} onEnterServiceNet={() => setScreen("service-net")} onEnterCoordinateRelay={() => setScreen("coordinate-relay")} onEnterContest={() => setScreen("contest")} onEnterListening={() => setScreen("listening")} onEnterStormRelay={() => setScreen("storm-relay")} onEnterNightOperations={() => setScreen("night-operations")} onEnterFinalPromise={() => setScreen("final-promise")} onSettleFirstPage={settleFirstPageForActiveSave} onConfirmQslChoice={confirmQslChoiceForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") {
     const persistentStats = practiceStatsByMode(activeSave?.practiceRecords);
     if (activeSave?.practiceRecords) {

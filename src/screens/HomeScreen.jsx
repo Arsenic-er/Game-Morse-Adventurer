@@ -19,9 +19,11 @@ import { listeningReplayAvailable } from "../game/listeningRun.js";
 import { normalizeStormRelayState, stormRelayReplayAvailable } from "../game/stormRelayRun.js";
 import { nightOperationsReplayAvailable, normalizeNightOperationsState } from "../game/nightOperationsRun.js";
 import { finalPromiseReplayAvailable } from "../game/finalPromiseRun.js";
+import { firstPageCandidate } from "../game/firstPageSettlement.js";
 import { AchievementsModal } from "./AchievementsModal.jsx";
 import { MissionCenterModal } from "./MissionCenterModal.jsx";
 import { PeopleAndQslModal } from "./PeopleAndQslModal.jsx";
+import { FirstPageModal } from "./FirstPageModal.jsx";
 import { StructuredMessageLogModal } from "./StructuredMessageLogModal.jsx";
 import { StationOperationsModal } from "./StationOperationsModal.jsx";
 import { STORM_RELAY_TEXT } from "./stormRelayText.js";
@@ -533,7 +535,7 @@ function WarehouseModal({ language, save, onEquipItem, onUnlockTechnology, onClo
   );
 }
 
-export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onAcceptMission, onClaimMission, onAbandonMission, onEnterLights, onEnterExpedition, onEnterQslStory, onEnterServiceNet, onEnterCoordinateRelay, onEnterContest, onEnterListening, onEnterStormRelay, onEnterNightOperations, onEnterFinalPromise, onConfirmQslChoice, onEnterStation, onEnterPractice, onBack, onSettings }) {
+export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onAcceptMission, onClaimMission, onAbandonMission, onEnterLights, onEnterExpedition, onEnterQslStory, onEnterServiceNet, onEnterCoordinateRelay, onEnterContest, onEnterListening, onEnterStormRelay, onEnterNightOperations, onEnterFinalPromise, onSettleFirstPage, onConfirmQslChoice, onEnterStation, onEnterPractice, onBack, onSettings }) {
   const t = TEXT[language] ?? TEXT.en;
   const location = getLocation(save.locationId);
   const practiceProgress = summarizePracticeProgress(save.practiceRecords);
@@ -552,6 +554,7 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
   const nightText = NIGHT_OPERATIONS_TEXT[language] ?? NIGHT_OPERATIONS_TEXT.en;
   const finalPromiseReplay = finalPromiseReplayAvailable(save);
   const finalPromiseText = FINAL_PROMISE_TEXT[language] ?? FINAL_PROMISE_TEXT.en;
+  const pendingFirstPage = firstPageCandidate(save);
   const coordinateState = normalizeCoordinateRelayState(save.storyContinuationState?.chapter09);
   const [panel, setPanel] = useState(null);
   const [clock, setClock] = useState(() => new Date());
@@ -603,6 +606,7 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
       {stormRelayReplay && <button className="home-storm-relay-button" data-action="enter-storm-relay-home" aria-label={stormText.title} onClick={onEnterStormRelay}><Broadcast size={20} weight="fill" />{stormText.title}</button>}
       {nightReplay && <button className="home-night-operations-button" data-action="enter-night-operations-home" aria-label={nightText.title} onClick={onEnterNightOperations}><Broadcast size={20} weight="fill" />{nightText.title}</button>}
       {finalPromiseReplay && <button className="home-final-promise-button" data-action="enter-final-promise-home" aria-label={finalPromiseText.title} onClick={onEnterFinalPromise}><BookOpenText size={20} weight="fill" />{finalPromiseText.title}</button>}
+      {pendingFirstPage && <button className="home-first-page-button" data-action="open-first-page" aria-label="First page" onClick={() => setPanel("first-page")}><BookOpenText size={20} weight="fill" />{pendingFirstPage.callsign}</button>}
       {nightState.taskTreeUnlocked && <button className="home-station-operations-button" data-action="open-station-operations" aria-label={nightText.board} onClick={() => setPanel("station-operations")}><ClipboardText size={20} weight="fill" />{nightText.board}</button>}
       {coordinateState.toolUnlocked && <button className="home-structured-message-button" data-action="open-structured-messages" aria-label={t.structuredMessages} onClick={() => setPanel("structured-messages")}><ClipboardText size={20} weight="fill" />{t.structuredMessages}</button>}
       <span className="home-newspaper-callsign" aria-hidden="true">{save.callsign}</span>
@@ -611,11 +615,12 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
       {panel === "store" && <StoreModal language={language} save={save} onPurchase={onPurchase} onClose={() => setPanel(null)} />}
       {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
       {panel === "achievements" && <AchievementsModal language={language} save={save} onClose={() => setPanel(null)} />}
-      {panel === "missions" && <MissionCenterModal language={language} save={save} onAccept={onAcceptMission} onClaim={onClaimMission} onAbandon={onAbandonMission} onLaunchLights={onEnterLights} onLaunchExpedition={onEnterExpedition} onLaunchQslStory={onEnterQslStory} onLaunchServiceNet={onEnterServiceNet} onLaunchCoordinateRelay={onEnterCoordinateRelay} onLaunchContest={onEnterContest} onLaunchListening={onEnterListening} onLaunchStormRelay={onEnterStormRelay} onLaunchNightOperations={onEnterNightOperations} onLaunchFinalPromise={onEnterFinalPromise} onClose={() => setPanel(null)} />}
+      {panel === "missions" && <MissionCenterModal language={language} save={save} onAccept={onAcceptMission} onClaim={onClaimMission} onAbandon={onAbandonMission} onLaunchLights={onEnterLights} onLaunchExpedition={onEnterExpedition} onLaunchQslStory={onEnterQslStory} onLaunchServiceNet={onEnterServiceNet} onLaunchCoordinateRelay={onEnterCoordinateRelay} onLaunchContest={onEnterContest} onLaunchListening={onEnterListening} onLaunchStormRelay={onEnterStormRelay} onLaunchNightOperations={onEnterNightOperations} onLaunchFinalPromise={onEnterFinalPromise} onLaunchFirstPageQso={onEnterStation} onClose={() => setPanel(null)} />}
+      {panel === "first-page" && <FirstPageModal language={language} save={save} onSettle={onSettleFirstPage} onClose={() => setPanel(null)} />}
       {panel === "people-qsl" && <PeopleAndQslModal language={language} save={save} onConfirmChoice={onConfirmQslChoice} onClose={() => setPanel(null)} />}
       {panel === "structured-messages" && <StructuredMessageLogModal language={language} packets={coordinateState.packets} stormRecords={stormState.archive} onClose={() => setPanel(null)} />}
       {panel === "station-operations" && <StationOperationsModal language={language} records={nightState.archive} onClose={() => setPanel(null)} />}
-      {panel && !["warehouse", "store", "log", "achievements", "missions", "people-qsl", "structured-messages"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
+      {panel && !["warehouse", "store", "log", "achievements", "missions", "people-qsl", "structured-messages", "first-page"].includes(panel) && <HomePlaceholder kind={panel} language={language} onClose={() => setPanel(null)} />}
     </main>
   );
 }
