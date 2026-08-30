@@ -15,7 +15,8 @@ const QA_INITIAL_STORY_MISSION_IDS = Object.freeze([
 ]);
 const QA_SUPPORTED_SCOPES = Object.freeze([
   "full", "bootstrap", "inventory", "equipment", "practice", "qso", "expedition",
-  "qsl-story", "service-net", "coordinate-relay", "contest",
+  "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay",
+  "night-operations", "final-promise", "first-page",
 ]);
 const QA_SEGMENT_PREDECESSORS = Object.freeze({
   inventory: "bootstrap",
@@ -27,6 +28,11 @@ const QA_SEGMENT_PREDECESSORS = Object.freeze({
   "service-net": "qsl-story",
   "coordinate-relay": "service-net",
   contest: "coordinate-relay",
+  listening: "contest",
+  "storm-relay": "listening",
+  "night-operations": "storm-relay",
+  "final-promise": "night-operations",
+  "first-page": "final-promise",
 });
 const QA_RUN_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -88,6 +94,32 @@ const QA_CAPTURE_STEMS = Object.freeze({
     "contest-run-contact", "contest-sp-pool", "contest-agn", "contest-busted-call",
     "contest-score-ready", "contest-result", "contest-settled", "contest-reloaded",
   ],
+  listening: [
+    "listening-mission-available", "listening-briefing", "listening-window-one", "listening-window-three",
+    "listening-call", "listening-waiting", "listening-decision", "listening-result",
+    "listening-settled", "listening-records", "listening-reloaded",
+  ],
+  "storm-relay": [
+    "storm-mission-available", "storm-briefing", "storm-check-in-error", "storm-conflict",
+    "storm-verify-error", "storm-source-verified", "storm-relay-error", "storm-canonical-relay",
+    "storm-result", "storm-settled", "storm-archive", "storm-reloaded",
+  ],
+  "night-operations": [
+    "night-mission-available", "night-board", "night-first-window", "night-call-error",
+    "night-first-contact", "night-second-window", "night-second-contact", "night-third-window",
+    "night-third-contact", "night-result", "night-settled", "night-reloaded",
+  ],
+  "final-promise": [
+    "final-promise-mission-available", "final-promise-review", "final-promise-call-error",
+    "final-promise-account", "final-promise-repeat", "final-promise-choice",
+    "final-promise-message-error", "final-promise-result", "final-promise-settled",
+    "final-promise-archive", "final-promise-reloaded",
+  ],
+  "first-page": [
+    "first-page-mission-available", "first-page-mission-active", "first-page-station",
+    "first-page-qso-result", "first-page-candidate", "first-page-goal", "first-page-settled",
+    "first-page-open-station", "first-page-reloaded",
+  ],
 });
 
 function buildQaSegmentPlan({ suffix = "qa" } = {}) {
@@ -96,7 +128,8 @@ function buildQaSegmentPlan({ suffix = "qa" } = {}) {
     scope,
     mode: "qa-capture",
     predecessor: QA_SEGMENT_PREDECESSORS[scope] ?? null,
-    timeoutMs: ["qso", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest"].includes(scope) ? 8 * 60_000 : 5 * 60_000,
+    timeoutMs: ["qso", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest",
+      "listening", "storm-relay", "night-operations", "final-promise", "first-page"].includes(scope) ? 8 * 60_000 : 5 * 60_000,
     screenshots: QA_CAPTURE_STEMS[scope].map((stem) => `${stem}-${suffix}.png`),
   }));
   segments.push({
@@ -224,6 +257,63 @@ function validateContestQaEvidence(value, { qaRunId = null } = {}) {
     || evidence.eventQsoCount !== evidence.validContacts
     || !["complete", "silver", "gold"].includes(evidence.grade)) {
     throw new Error("contest QA evidence facts are incomplete");
+  }
+  return evidence;
+}
+
+function validateFinalChapterQaBase(value, { qaRunId, activity }) {
+  const evidence = validateChapterQaBase(value, { qaRunId, activity });
+  if (evidence.focusPauseVerified !== true || evidence.replayRewardNoOp !== true
+    || evidence.rawPlayerTextPersisted !== false) {
+    throw new Error(`${activity} QA evidence requires pause, replay, and bounded persistence facts`);
+  }
+  return evidence;
+}
+
+function validateListeningQaEvidence(value, { qaRunId = null } = {}) {
+  const evidence = validateFinalChapterQaBase(value, { qaRunId, activity: "listening" });
+  if (evidence.observationCount !== 3 || evidence.callCount !== 1 || evidence.eventQsoCount !== 0
+    || evidence.conclusionKey !== "chapter11.conclusion.no-reply-after-listening") {
+    throw new Error("listening QA evidence facts are incomplete");
+  }
+  return evidence;
+}
+
+function validateStormRelayQaEvidence(value, { qaRunId = null } = {}) {
+  const evidence = validateFinalChapterQaBase(value, { qaRunId, activity: "storm-relay" });
+  if (evidence.canonicalRevision !== 2 || evidence.eventQsoCount !== 2 || evidence.relationshipCount !== 2
+    || evidence.failureRecoveryVerified !== true) {
+    throw new Error("storm-relay QA evidence facts are incomplete");
+  }
+  return evidence;
+}
+
+function validateNightOperationsQaEvidence(value, { qaRunId = null } = {}) {
+  const evidence = validateFinalChapterQaBase(value, { qaRunId, activity: "night-operations" });
+  if (evidence.contactCount !== 3 || evidence.eventQsoCount !== 3 || evidence.relationshipCount !== 3
+    || evidence.distinctPersonCount !== 3) {
+    throw new Error("night-operations QA evidence facts are incomplete");
+  }
+  return evidence;
+}
+
+function validateFinalPromiseQaEvidence(value, { qaRunId = null } = {}) {
+  const evidence = validateFinalChapterQaBase(value, { qaRunId, activity: "final-promise" });
+  if (evidence.recipientPersonId !== "person:chapter14:final-recipient" || evidence.tone !== "steady"
+    || evidence.eventQsoCount !== 1 || evidence.relationshipCount !== 1 || evidence.qslLinked !== true
+    || evidence.accountRepeatVerified !== true) {
+    throw new Error("final-promise QA evidence facts are incomplete");
+  }
+  return evidence;
+}
+
+function validateFirstPageQaEvidence(value, { qaRunId = null } = {}) {
+  const evidence = validateFinalChapterQaBase(value, { qaRunId, activity: "first-page" });
+  if (evidence.ordinaryQsoIncrease !== 1 || evidence.countedQsoCreditsPositive !== true
+    || evidence.countedQsoPostAcceptance !== true || evidence.countedQsoEventFree !== true
+    || evidence.firstGoal !== "world-log" || evidence.openStationUnlocked !== true
+    || evidence.activeGoalUpdatedAfterReload !== true) {
+    throw new Error("first-page QA evidence facts are incomplete");
   }
   return evidence;
 }
@@ -2300,6 +2390,542 @@ async function runContestQaScope(window, outputDir, shot, { qaRunId }) {
     duplicateSettlementExecuted: true, duplicateSettlementNoOp: beforeDuplicate === afterDuplicate, ...facts };
   validateContestQaEvidence(evidence, { qaRunId });
   await fs.writeFile(path.join(outputDir, "contest-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  return evidence;
+}
+
+async function finalChapterSaveFacts(window, expression) {
+  return window.webContents.executeJavaScript(`(() => {
+    const save = JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0];
+    return (${expression});
+  })()`, true);
+}
+
+async function verifyFinalChapterPause(window, { screenSelector, pausedAttribute, chapterKey }) {
+  await pressKey(window, { key: "Escape", code: "Escape" });
+  await waitFor(window, ".settings-modal");
+  await waitFor(window, `${screenSelector}[${pausedAttribute}="true"]`);
+  const before = await finalChapterSaveFacts(window, `save.storyContinuationState.${chapterKey}.activeRun?.activeMilliseconds ?? null`);
+  await delay(700);
+  const after = await finalChapterSaveFacts(window, `save.storyContinuationState.${chapterKey}.activeRun?.activeMilliseconds ?? null`);
+  if (!Number.isSafeInteger(before) || after !== before) {
+    throw new Error(`${chapterKey} active time changed while Settings paused it: ${JSON.stringify({ before, after })}`);
+  }
+  await pressKey(window, { key: "Escape", code: "Escape" });
+  await waitForMissing(window, ".settings-modal");
+  await focusQaWindow(window, `after closing ${chapterKey} settings`);
+  await waitFor(window, `${screenSelector}[${pausedAttribute}="false"]`);
+  return true;
+}
+
+async function finalChapterRewardSnapshot(window) {
+  return finalChapterSaveFacts(window, `({
+    money: save.money,
+    technologyPoints: save.technologyPoints,
+    claimedMissionIds: save.missionState.claimedMissionIds,
+    missionHistory: save.missionState.history,
+  })`);
+}
+
+async function verifyFinalChapterReplayNoReward(window, {
+  entrySelector, screenSelector, topbarSelector, confirmSelector,
+}) {
+  const before = await finalChapterRewardSnapshot(window);
+  await click(window, '[data-action="close-missions-footer"]');
+  await waitForMissing(window, '[data-testid="mission-center-modal"]');
+  await click(window, entrySelector);
+  await waitFor(window, screenSelector);
+  const after = await finalChapterRewardSnapshot(window);
+  if (JSON.stringify(after) !== JSON.stringify(before)) {
+    throw new Error(`Opening a final-chapter replay changed rewards: ${JSON.stringify({ before, after })}`);
+  }
+  await click(window, topbarSelector);
+  const destination = await window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (document.querySelector(${JSON.stringify(confirmSelector)})) { clearInterval(timer); resolve("confirm"); }
+      else if (document.querySelector(".home-screen")) { clearInterval(timer); resolve("home"); }
+      else if (Date.now() - started > 10000) { clearInterval(timer); reject(new Error("Replay did not expose Home or a leave confirmation")); }
+    }, 25);
+  })`, true);
+  if (destination === "confirm") {
+    await click(window, confirmSelector);
+    await waitFor(window, ".home-screen");
+  }
+  return true;
+}
+
+async function submitFinalChapterText(window, text, {
+  screenSelector, phaseDataset, label, submitSelector, expectedSelector = null, timeout = 15_000,
+}) {
+  await sendAutomaticStructuredText(window, text, { screenSelector, phaseDataset, label });
+  await waitFor(window, `${submitSelector}:not([disabled])`, timeout);
+  await click(window, submitSelector);
+  if (expectedSelector) await waitFor(window, expectedSelector, timeout);
+}
+
+async function runListeningQaScope(window, outputDir, shot, { qaRunId }) {
+  await openQaActiveSave(window);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-11"][data-mission-status="available"]');
+  await capture(window, outputDir, shot("listening-mission-available"));
+  await click(window, '[data-action="accept-mission"][data-mission-action-id="story-11"]');
+  await waitFor(window, '[data-mission-id="story-11"][data-mission-status="active"]');
+  await click(window, '[data-action="launch-listening"]');
+  await waitFor(window, '[data-testid="listening-screen"][data-listening-phase="BRIEFING"]');
+  await capture(window, outputDir, shot("listening-briefing"));
+  const focusPauseVerified = await verifyFinalChapterPause(window, {
+    screenSelector: ".listening-screen", pausedAttribute: "data-listening-paused", chapterKey: "chapter11",
+  });
+  await click(window, '[data-action="listening-observe"]');
+  await waitFor(window, '[data-listening-window="window-1"][data-observed="true"]');
+  await capture(window, outputDir, shot("listening-window-one"));
+  await click(window, '[data-action="listening-observe"]');
+  await click(window, '[data-action="listening-observe"]');
+  await waitFor(window, '[data-listening-phase="CALL_READY"]');
+  await capture(window, outputDir, shot("listening-window-three"));
+  const call = await window.webContents.executeJavaScript('document.querySelector(".listening-keyer code").textContent.trim()', true);
+  await sendAutomaticStructuredText(window, call, { screenSelector: ".listening-screen", phaseDataset: "listeningPhase", label: "Listening" });
+  await capture(window, outputDir, shot("listening-call"));
+  await click(window, '[data-action="listening-submit"]');
+  await waitFor(window, '[data-listening-phase="WAITING"]');
+  await capture(window, outputDir, shot("listening-waiting"));
+  await waitFor(window, '[data-listening-phase="DECISION"]', 10_000);
+  await capture(window, outputDir, shot("listening-decision"));
+  await click(window, '[data-action="listening-record-silence"]');
+  await waitFor(window, '[data-listening-phase="COMPLETED"]');
+  await capture(window, outputDir, shot("listening-result"));
+  await click(window, '[data-action="listening-settle"]');
+  await waitFor(window, '[data-testid="listening-screen"][data-settled="true"][data-settlement-attempts="1"]');
+  await capture(window, outputDir, shot("listening-settled"));
+  const beforeDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, '[data-action="listening-settle"]');
+  await waitFor(window, '[data-settlement-attempts="2"][data-settlement-reason="ALREADY_SETTLED"]');
+  const afterDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, ".listening-topbar button");
+  await waitFor(window, ".home-screen");
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-11"][data-mission-status="ready"]');
+  await capture(window, outputDir, shot("listening-records"));
+  await claimQaStoryAndReload(window, "story-11");
+  await capture(window, outputDir, shot("listening-reloaded"));
+  const facts = await finalChapterSaveFacts(window, `(() => {
+    const chapter = save.storyContinuationState.chapter11;
+    const record = chapter.archive.at(-1);
+    return {
+      observationCount: record.observationIds.length, callCount: record.callCount,
+      conclusionKey: record.conclusionKey,
+      eventQsoCount: save.qsoLogs.filter((log) => log.eventKind === "listening").length,
+      missionClaimed: save.missionState.claimedMissionIds.includes("story-11"),
+      reloadPersisted: chapter.settledRunIds.includes(record.runId) && chapter.taskTreeUnlocked === true,
+      rawPlayerTextPersisted: JSON.stringify(chapter).includes(${JSON.stringify("SIM11LS DE BH1ABC K")}),
+    };
+  })()`);
+  const replayRewardNoOp = await verifyFinalChapterReplayNoReward(window, {
+    entrySelector: '[data-action="enter-listening-home"]', screenSelector: '[data-testid="listening-screen"]',
+    topbarSelector: ".listening-topbar button", confirmSelector: '[data-action="listening-confirm-leave"]',
+  });
+  const evidence = { schemaVersion: 1, qaRunId, activity: "listening", settled: true,
+    duplicateSettlementExecuted: true, duplicateSettlementNoOp: beforeDuplicate === afterDuplicate,
+    focusPauseVerified, replayRewardNoOp, ...facts };
+  validateListeningQaEvidence(evidence, { qaRunId });
+  await fs.writeFile(path.join(outputDir, "listening-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  return evidence;
+}
+
+async function runStormRelayQaScope(window, outputDir, shot, { qaRunId }) {
+  await openQaActiveSave(window);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-12"][data-mission-status="available"]');
+  await capture(window, outputDir, shot("storm-mission-available"));
+  await click(window, '[data-action="accept-mission"][data-mission-action-id="story-12"]');
+  await click(window, '[data-action="launch-storm-relay"]');
+  await waitFor(window, '[data-testid="storm-relay-screen"][data-storm-phase="CHECK_IN"]');
+  await capture(window, outputDir, shot("storm-briefing"));
+  const focusPauseVerified = await verifyFinalChapterPause(window, {
+    screenSelector: ".storm-relay-screen", pausedAttribute: "data-storm-paused", chapterKey: "chapter12",
+  });
+  await submitFinalChapterText(window, "WRONG CHECK IN K", { screenSelector: ".storm-relay-screen", phaseDataset: "stormPhase", label: "Storm relay", submitSelector: '[data-action="storm-submit"]' });
+  await waitFor(window, ".storm-relay-error");
+  await capture(window, outputDir, shot("storm-check-in-error"));
+  let expected = await window.webContents.executeJavaScript('document.querySelector(".storm-relay-keyer code").textContent.trim()', true);
+  await submitFinalChapterText(window, expected, { screenSelector: ".storm-relay-screen", phaseDataset: "stormPhase", label: "Storm relay", submitSelector: '[data-action="storm-submit"]', expectedSelector: '[data-storm-phase="RECEIVING"]' });
+  await click(window, '[data-action="storm-receive-conflict"]');
+  await waitFor(window, '[data-storm-phase="CONFLICT"]');
+  await capture(window, outputDir, shot("storm-conflict"));
+  await submitFinalChapterText(window, "AGN MSG 999 REV K", { screenSelector: ".storm-relay-screen", phaseDataset: "stormPhase", label: "Storm relay", submitSelector: '[data-action="storm-submit"]' });
+  await waitFor(window, ".storm-relay-error");
+  await capture(window, outputDir, shot("storm-verify-error"));
+  expected = await window.webContents.executeJavaScript('document.querySelector(".storm-relay-keyer code").textContent.trim()', true);
+  await submitFinalChapterText(window, expected, { screenSelector: ".storm-relay-screen", phaseDataset: "stormPhase", label: "Storm relay", submitSelector: '[data-action="storm-submit"]', expectedSelector: '[data-storm-phase="RELAY"]' });
+  await capture(window, outputDir, shot("storm-source-verified"));
+  await submitFinalChapterText(window, "MSG 214 REV 1 GRID PX-31 PEOPLE 4 ITEM WATER QTY 8 CHECK 00", { screenSelector: ".storm-relay-screen", phaseDataset: "stormPhase", label: "Storm relay", submitSelector: '[data-action="storm-submit"]' });
+  await waitFor(window, ".storm-relay-error");
+  await capture(window, outputDir, shot("storm-relay-error"));
+  expected = await window.webContents.executeJavaScript('document.querySelector(".storm-relay-keyer code").textContent.trim()', true);
+  await capture(window, outputDir, shot("storm-canonical-relay"));
+  await submitFinalChapterText(window, expected, { screenSelector: ".storm-relay-screen", phaseDataset: "stormPhase", label: "Storm relay", submitSelector: '[data-action="storm-submit"]', expectedSelector: '[data-storm-phase="COMPLETED"]' });
+  await capture(window, outputDir, shot("storm-result"));
+  await click(window, '[data-action="storm-settle"]');
+  await waitFor(window, '[data-testid="storm-relay-screen"][data-settled="true"][data-settlement-attempts="1"]');
+  await capture(window, outputDir, shot("storm-settled"));
+  const beforeDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, '[data-action="storm-settle"]');
+  await waitFor(window, '[data-settlement-attempts="2"][data-settlement-reason="ALREADY_SETTLED"]');
+  const afterDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, ".storm-relay-topbar button"); await waitFor(window, ".home-screen");
+  await click(window, '[data-action="open-structured-messages"]');
+  await waitFor(window, '[data-testid="structured-message-log"]');
+  await capture(window, outputDir, shot("storm-archive"));
+  await click(window, '[data-testid="structured-message-log"] header button');
+  await waitForMissing(window, '[data-testid="structured-message-log"]');
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-12"][data-mission-status="ready"]');
+  await claimQaStoryAndReload(window, "story-12");
+  await capture(window, outputDir, shot("storm-reloaded"));
+  const facts = await finalChapterSaveFacts(window, `(() => {
+    const chapter = save.storyContinuationState.chapter12; const record = chapter.archive.at(-1);
+    const people = ["person:procedural:chapter12-control", "person:procedural:chapter12-relay"];
+    return { canonicalRevision: record.revision,
+      eventQsoCount: save.qsoLogs.filter((log) => log.eventKind === "storm-relay" && log.eventRunId === record.runId).length,
+      relationshipCount: save.operatorRelationships.filter((entry) => people.includes(entry.personId)).length,
+      missionClaimed: save.missionState.claimedMissionIds.includes("story-12"),
+      reloadPersisted: chapter.settledRunIds.includes(record.runId) && chapter.taskTreeUnlocked === true,
+      rawPlayerTextPersisted: JSON.stringify(chapter).includes("AGN MSG 214 REV K"), failureRecoveryVerified: true };
+  })()`);
+  const replayRewardNoOp = await verifyFinalChapterReplayNoReward(window, {
+    entrySelector: '[data-action="enter-storm-relay-home"]', screenSelector: '[data-testid="storm-relay-screen"]',
+    topbarSelector: ".storm-relay-topbar button", confirmSelector: '[data-action="storm-confirm-leave"]',
+  });
+  const evidence = { schemaVersion: 1, qaRunId, activity: "storm-relay", settled: true,
+    duplicateSettlementExecuted: true, duplicateSettlementNoOp: beforeDuplicate === afterDuplicate,
+    focusPauseVerified, replayRewardNoOp, ...facts };
+  validateStormRelayQaEvidence(evidence, { qaRunId });
+  await fs.writeFile(path.join(outputDir, "storm-relay-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  return evidence;
+}
+
+async function nightExpectedText(window) {
+  return window.webContents.executeJavaScript('document.querySelector(".night-operations-keyer code").textContent.trim()', true);
+}
+
+async function completeNightQaContact(window, { captureBeforeExchange = null, outputDir = null, shot = null } = {}) {
+  await click(window, '[data-action="night-select-window"]');
+  await waitFor(window, '[data-night-phase="CALL"]');
+  let expected = await nightExpectedText(window);
+  await submitFinalChapterText(window, expected, { screenSelector: ".night-operations-screen", phaseDataset: "nightPhase", label: "Night operations", submitSelector: '[data-action="night-submit"]', expectedSelector: '[data-night-phase="EXCHANGE"]' });
+  if (captureBeforeExchange) await capture(window, outputDir, shot(captureBeforeExchange));
+  expected = await nightExpectedText(window);
+  await submitFinalChapterText(window, expected, { screenSelector: ".night-operations-screen", phaseDataset: "nightPhase", label: "Night operations", submitSelector: '[data-action="night-submit"]' });
+}
+
+async function runNightOperationsQaScope(window, outputDir, shot, { qaRunId }) {
+  await openQaActiveSave(window);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-13"][data-mission-status="available"]');
+  await capture(window, outputDir, shot("night-mission-available"));
+  await click(window, '[data-action="accept-mission"][data-mission-action-id="story-13"]');
+  await click(window, '[data-action="launch-night-operations"]');
+  await waitFor(window, '[data-testid="night-operations-screen"][data-night-phase="BOARD"]');
+  await capture(window, outputDir, shot("night-board"));
+  const focusPauseVerified = await verifyFinalChapterPause(window, {
+    screenSelector: ".night-operations-screen", pausedAttribute: "data-night-paused", chapterKey: "chapter13",
+  });
+  await waitFor(window, '[data-action="night-select-window"]', 50_000);
+  await capture(window, outputDir, shot("night-first-window"));
+  await click(window, '[data-action="night-select-window"]');
+  await waitFor(window, '[data-night-phase="CALL"]');
+  await submitFinalChapterText(window, "WRONG K", { screenSelector: ".night-operations-screen", phaseDataset: "nightPhase", label: "Night operations", submitSelector: '[data-action="night-submit"]' });
+  await waitFor(window, '[data-night-phase="CALL"]');
+  await capture(window, outputDir, shot("night-call-error"));
+  let expected = await nightExpectedText(window);
+  await submitFinalChapterText(window, expected, { screenSelector: ".night-operations-screen", phaseDataset: "nightPhase", label: "Night operations", submitSelector: '[data-action="night-submit"]', expectedSelector: '[data-night-phase="EXCHANGE"]' });
+  expected = await nightExpectedText(window);
+  await submitFinalChapterText(window, expected, { screenSelector: ".night-operations-screen", phaseDataset: "nightPhase", label: "Night operations", submitSelector: '[data-action="night-submit"]' });
+  await waitFor(window, '[data-night-phase="WINDOW_CLOSED"], [data-night-phase="WINDOW_OPEN"]');
+  await capture(window, outputDir, shot("night-first-contact"));
+  await waitFor(window, '[data-action="night-select-window"]', 110_000);
+  await capture(window, outputDir, shot("night-second-window"));
+  await completeNightQaContact(window);
+  await waitFor(window, '[data-night-phase="WINDOW_CLOSED"], [data-night-phase="WINDOW_OPEN"]');
+  await capture(window, outputDir, shot("night-second-contact"));
+  await waitFor(window, '[data-action="night-select-window"]', 110_000);
+  await capture(window, outputDir, shot("night-third-window"));
+  await completeNightQaContact(window, { captureBeforeExchange: "night-third-contact", outputDir, shot });
+  await waitFor(window, '[data-night-phase="COMPLETED"]');
+  await capture(window, outputDir, shot("night-result"));
+  await click(window, '[data-action="night-settle"]');
+  await waitFor(window, '[data-testid="night-operations-screen"][data-settled="true"]');
+  await capture(window, outputDir, shot("night-settled"));
+  const beforeDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, '[data-action="night-settle"]');
+  await waitFor(window, '[data-settlement-reason="ALREADY_SETTLED"]');
+  const afterDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, ".night-operations-topbar button"); await waitFor(window, ".home-screen");
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-13"][data-mission-status="ready"]');
+  await claimQaStoryAndReload(window, "story-13");
+  await capture(window, outputDir, shot("night-reloaded"));
+  const facts = await finalChapterSaveFacts(window, `(() => {
+    const chapter = save.storyContinuationState.chapter13; const record = chapter.archive.at(-1);
+    const people = new Set(record.contacts.map((contact) => contact.personId));
+    return { contactCount: record.contacts.length, distinctPersonCount: people.size,
+      eventQsoCount: save.qsoLogs.filter((log) => log.eventKind === "night-operations" && log.eventRunId === record.runId).length,
+      relationshipCount: save.operatorRelationships.filter((entry) => people.has(entry.personId)).length,
+      missionClaimed: save.missionState.claimedMissionIds.includes("story-13"),
+      reloadPersisted: chapter.settledRunIds.includes(record.runId) && chapter.taskTreeUnlocked === true,
+      rawPlayerTextPersisted: JSON.stringify(chapter).includes(" DE BH1ABC 599 ") };
+  })()`);
+  const replayRewardNoOp = await verifyFinalChapterReplayNoReward(window, {
+    entrySelector: '[data-action="enter-night-operations-home"]', screenSelector: '[data-testid="night-operations-screen"]',
+    topbarSelector: ".night-operations-topbar button", confirmSelector: '[data-action="night-confirm-leave"]',
+  });
+  const evidence = { schemaVersion: 1, qaRunId, activity: "night-operations", settled: true,
+    duplicateSettlementExecuted: true, duplicateSettlementNoOp: beforeDuplicate === afterDuplicate,
+    focusPauseVerified, replayRewardNoOp, ...facts };
+  validateNightOperationsQaEvidence(evidence, { qaRunId });
+  await fs.writeFile(path.join(outputDir, "night-operations-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  return evidence;
+}
+
+async function runFinalPromiseQaScope(window, outputDir, shot, { qaRunId }) {
+  await openQaActiveSave(window);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-14"][data-mission-status="available"]');
+  await capture(window, outputDir, shot("final-promise-mission-available"));
+  await click(window, '[data-action="accept-mission"][data-mission-action-id="story-14"]');
+  await click(window, '[data-action="launch-final-promise"]');
+  await waitFor(window, '[data-testid="final-promise-screen"][data-final-promise-phase="REVIEW"]');
+  await capture(window, outputDir, shot("final-promise-review"));
+  const focusPauseVerified = await verifyFinalChapterPause(window, {
+    screenSelector: ".final-promise-screen", pausedAttribute: "data-final-promise-paused", chapterKey: "chapter14",
+  });
+  await click(window, '[data-action="final-promise-review"]');
+  await waitFor(window, '[data-final-promise-phase="CALL"]');
+  await submitFinalChapterText(window, "WRONG DE WRONG K", { screenSelector: ".final-promise-screen", phaseDataset: "finalPromisePhase", label: "Final promise", submitSelector: '[data-action="final-promise-submit"]' });
+  await waitFor(window, '[data-final-promise-phase="CALL"]');
+  await capture(window, outputDir, shot("final-promise-call-error"));
+  let expected = await window.webContents.executeJavaScript('document.querySelector(".final-promise-keyer code").textContent.trim()', true);
+  await submitFinalChapterText(window, expected, { screenSelector: ".final-promise-screen", phaseDataset: "finalPromisePhase", label: "Final promise", submitSelector: '[data-action="final-promise-submit"]', expectedSelector: '[data-final-promise-phase="ACCOUNT"]' });
+  await capture(window, outputDir, shot("final-promise-account"));
+  await click(window, '[data-action="final-promise-receive"]');
+  await waitFor(window, '[data-final-promise-phase="FINAL_CHOICE"]');
+  await submitFinalChapterText(window, "AGN K", { screenSelector: ".final-promise-screen", phaseDataset: "finalPromisePhase", label: "Final promise", submitSelector: '[data-action="final-promise-submit"]', expectedSelector: '[data-final-promise-phase="ACCOUNT"]' });
+  await capture(window, outputDir, shot("final-promise-repeat"));
+  await click(window, '[data-action="final-promise-receive"]');
+  await waitFor(window, '[data-final-promise-phase="FINAL_CHOICE"]');
+  await capture(window, outputDir, shot("final-promise-choice"));
+  await click(window, '[data-action="final-promise-tone"][data-tone="steady"]');
+  await waitFor(window, '[data-final-promise-phase="FINAL_MESSAGE"]');
+  await submitFinalChapterText(window, "E", { screenSelector: ".final-promise-screen", phaseDataset: "finalPromisePhase", label: "Final promise", submitSelector: '[data-action="final-promise-submit"]' });
+  await waitFor(window, '[data-final-promise-phase="FINAL_MESSAGE"]');
+  await capture(window, outputDir, shot("final-promise-message-error"));
+  expected = await window.webContents.executeJavaScript('document.querySelector(".final-promise-keyer code").textContent.trim()', true);
+  await submitFinalChapterText(window, expected, { screenSelector: ".final-promise-screen", phaseDataset: "finalPromisePhase", label: "Final promise", submitSelector: '[data-action="final-promise-submit"]', expectedSelector: '[data-final-promise-phase="COMPLETED"]' });
+  await capture(window, outputDir, shot("final-promise-result"));
+  await click(window, '[data-action="final-promise-settle"]');
+  await waitFor(window, '[data-testid="final-promise-screen"][data-settled="true"]');
+  await capture(window, outputDir, shot("final-promise-settled"));
+  const beforeDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, '[data-action="final-promise-settle"]');
+  await waitFor(window, '[data-settlement-reason="ALREADY_SETTLED"]');
+  const afterDuplicate = await window.webContents.executeJavaScript('localStorage.getItem("game-morse-adventurer.saves.v1")', true);
+  await click(window, ".final-promise-topbar button"); await waitFor(window, ".home-screen");
+  await click(window, '[data-action="open-people-qsl"]');
+  await waitFor(window, '[data-testid="people-qsl-modal"] [data-final-page-run-id]');
+  await capture(window, outputDir, shot("final-promise-archive"));
+  await click(window, '[data-testid="people-qsl-modal"] header button');
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-14"][data-mission-status="ready"]');
+  await claimQaStoryAndReload(window, "story-14");
+  await capture(window, outputDir, shot("final-promise-reloaded"));
+  const facts = await finalChapterSaveFacts(window, `(() => {
+    const chapter = save.storyContinuationState.chapter14; const record = chapter.archive.at(-1);
+    const logs = save.qsoLogs.filter((log) => log.eventKind === "final-promise" && log.eventRunId === record.runId);
+    return { recipientPersonId: record.personId, tone: record.tone, eventQsoCount: logs.length,
+      relationshipCount: save.operatorRelationships.filter((entry) => entry.personId === record.personId).length,
+      qslLinked: save.qslRecords.some((entry) => entry.id === record.sourceQslId), accountRepeatVerified: record.recoveryActions.includes("AGN"),
+      missionClaimed: save.missionState.claimedMissionIds.includes("story-14"),
+      reloadPersisted: chapter.settledRunIds.includes(record.runId) && chapter.taskTreeUnlocked === true,
+      rawPlayerTextPersisted: JSON.stringify(chapter).includes(" DE BH1ABC ") };
+  })()`);
+  const replayRewardNoOp = await verifyFinalChapterReplayNoReward(window, {
+    entrySelector: '[data-action="enter-final-promise-home"]', screenSelector: '[data-testid="final-promise-screen"]',
+    topbarSelector: ".final-promise-topbar button", confirmSelector: '[data-action="final-promise-confirm-leave"]',
+  });
+  const evidence = { schemaVersion: 1, qaRunId, activity: "final-promise", settled: true,
+    duplicateSettlementExecuted: true, duplicateSettlementNoOp: beforeDuplicate === afterDuplicate,
+    focusPauseVerified, replayRewardNoOp, ...facts };
+  validateFinalPromiseQaEvidence(evidence, { qaRunId });
+  await fs.writeFile(path.join(outputDir, "final-promise-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
+  return evidence;
+}
+
+async function verifyFirstPageStationPause(window) {
+  const selector = ".station-screen";
+  const before = await window.webContents.executeJavaScript(`(() => {
+    const station = document.querySelector(${JSON.stringify(selector)});
+    return { phase: station?.dataset.qsoPhase ?? null, pulses: Number(station?.dataset.pulseCount ?? 0) };
+  })()`, true);
+  await pressKey(window, { key: "Escape", code: "Escape" });
+  await waitFor(window, ".settings-modal");
+  await delay(700);
+  const paused = await window.webContents.executeJavaScript(`(() => {
+    const station = document.querySelector(${JSON.stringify(selector)});
+    return { phase: station?.dataset.qsoPhase ?? null, pulses: Number(station?.dataset.pulseCount ?? 0) };
+  })()`, true);
+  if (paused.phase !== before.phase || paused.pulses !== before.pulses) {
+    throw new Error(`First-page station advanced while Settings was open: ${JSON.stringify({ before, paused })}`);
+  }
+  await pressKey(window, { key: "Escape", code: "Escape" });
+  await waitForMissing(window, ".settings-modal");
+  await focusQaWindow(window, "after closing first-page station settings");
+  return true;
+}
+
+async function runFirstPageQaScope(window, outputDir, shot, { qaRunId }) {
+  await openQaActiveSave(window);
+  const baseline = await finalChapterSaveFacts(window, `({
+    qsoTotal: save.qsoRecords?.total ?? 0,
+    qsoIds: (save.qsoLogs ?? []).map((entry) => entry.id),
+  })`);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-15"][data-mission-status="available"]');
+  await capture(window, outputDir, shot("first-page-mission-available"));
+  await click(window, '[data-action="accept-mission"][data-mission-action-id="story-15"]');
+  await waitFor(window, '[data-mission-id="story-15"][data-mission-status="active"]');
+  const acceptedAt = await finalChapterSaveFacts(window,
+    'save.missionState.activeMissions.find((entry) => entry.id === "story-15")?.acceptedAt ?? null');
+  if (!acceptedAt) throw new Error("First-page mission has no acceptedAt timestamp");
+  await capture(window, outputDir, shot("first-page-mission-active"));
+  await click(window, '[data-action="launch-first-page-qso"]');
+  await waitFor(window, ".station-screen");
+  await waitFor(window, ".qso-briefing-modal");
+  await startGuidedQaWatch(window);
+  await waitForFocusedQsoState(window, '[data-qso-phase="PLAYER_CQ"][data-receiver-active="true"]', {
+    context: "before the first-page ordinary QSO",
+  });
+  const focusPauseVerified = await verifyFirstPageStationPause(window);
+  await capture(window, outputDir, shot("first-page-station"));
+  const identity = await window.webContents.executeJavaScript(`(() => ({
+    player: JSON.parse(localStorage.getItem("game-morse-adventurer.saves.v1"))[0].callsign,
+  }))()`, true);
+  if (!identity.player) throw new Error("First-page ordinary QSO has no player callsign");
+  const compactCq = `CQCQDE${identity.player}${identity.player}PSEK`;
+  await sendAutomaticStationText(window, compactCq);
+  await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10_000);
+  await click(window, '[data-action="submit-reply"]');
+  await waitForFocusedQsoState(window, '[data-qso-phase="PLAYER_RST_AND_73"]', {
+    context: "while receiving the first-page reply", timeout: 30_000,
+  });
+  const npc = await window.webContents.executeJavaScript(
+    'document.querySelector(".station-screen")?.dataset.qaNpcCallsign ?? null', true,
+  );
+  if (!npc) throw new Error("First-page ordinary QSO has no NPC callsign");
+  const report = `${npc} DE ${identity.player} RST 599 73 K`;
+  await sendAutomaticStationText(window, report);
+  await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10_000);
+  await click(window, '[data-action="submit-reply"]');
+  const reportPhase = await waitForQsoSubmitDecision(window);
+  if (reportPhase === "PLAYER_RST_AND_73") {
+    await click(window, '[data-action="clear-input"]');
+    await sendAutomaticStationText(window, report);
+    await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10_000);
+    await click(window, '[data-action="submit-reply"]');
+  }
+  await waitForFocusedQsoState(window, '[data-qso-phase="PLAYER_OPTIONAL_ANSWER"], .qso-result-modal.success', {
+    context: "while receiving the first-page optional exchange", timeout: 30_000,
+  });
+  const optionalQuestion = await window.webContents.executeJavaScript(
+    'document.querySelector(".station-screen")?.dataset.optionalExchangeQuestion ?? null', true,
+  );
+  if (optionalQuestion) {
+    const optionalAnswer = ({
+      power: "PWR 4321 W K",
+      location: "QTH PRIVATE RIDGE K",
+      weather: "WX PRIVATE K",
+      name: "NAME PRIVATE K",
+      age: "AGE 117 K",
+    })[optionalQuestion];
+    if (!optionalAnswer) throw new Error(`Unsupported first-page optional question: ${optionalQuestion}`);
+    await sendAutomaticStationText(window, optionalAnswer);
+    await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10_000);
+    await click(window, '[data-action="submit-reply"]');
+    await waitForFocusedQsoState(window, ".qso-result-modal.success", {
+      context: "while completing the first-page ordinary QSO", timeout: 30_000,
+    });
+  }
+  await capture(window, outputDir, shot("first-page-qso-result"));
+  await click(window, ".qso-result-primary");
+  await waitFor(window, ".qso-result-modal.success header .icon-button", 10_000);
+  await click(window, ".qso-result-modal.success header .icon-button");
+  await waitForMissing(window, ".qso-result-modal");
+  await click(window, '[data-action="back-home"]');
+  await waitFor(window, ".home-screen");
+  await waitFor(window, '[data-action="open-first-page"]');
+  await click(window, '[data-action="open-first-page"]');
+  await waitFor(window, '[data-testid="first-page-modal"][data-first-page-goal="world-log"]');
+  await capture(window, outputDir, shot("first-page-candidate"));
+  await click(window, '[data-action="select-first-page-goal"][data-goal="people-network"]');
+  await waitFor(window, '[data-testid="first-page-modal"][data-first-page-goal="people-network"]');
+  await capture(window, outputDir, shot("first-page-goal"));
+  await click(window, '[data-action="select-first-page-goal"][data-goal="world-log"]');
+  await waitFor(window, '[data-testid="first-page-modal"][data-first-page-goal="world-log"]');
+  await window.webContents.executeJavaScript(`(() => {
+    const button = document.querySelector('[data-action="settle-first-page"]');
+    button.click(); button.click();
+  })()`, true);
+  await waitForMissing(window, '[data-testid="first-page-modal"]');
+  await capture(window, outputDir, shot("first-page-settled"));
+  const afterSettlement = await finalChapterSaveFacts(window, `(() => {
+    const chapter = save.storyContinuationState.chapter15;
+    const record = chapter.archive.at(-1);
+    const qso = save.qsoLogs.find((entry) => entry.id === record.qsoId);
+    return { record, qso, settledRunIds: chapter.settledRunIds };
+  })()`);
+  const duplicateSettlementNoOp = afterSettlement.settledRunIds.length === 1
+    && Boolean(afterSettlement.record) && Boolean(afterSettlement.qso);
+  await click(window, '[data-action="open-missions"]');
+  await waitFor(window, '[data-mission-id="story-15"][data-mission-status="ready"]');
+  await claimQaStoryAndReload(window, "story-15");
+  await click(window, '[data-action="close-missions-footer"]');
+  await waitForMissing(window, '[data-testid="mission-center-modal"]');
+  await waitFor(window, '[data-action="open-open-station"]');
+  await click(window, '[data-action="open-open-station"]');
+  await waitFor(window, '[data-testid="open-station-modal"][data-open-station-active-goal="world-log"]');
+  await capture(window, outputDir, shot("first-page-open-station"));
+  const rewardsBeforeGoalUpdate = await finalChapterRewardSnapshot(window);
+  await click(window, '[data-action="update-open-station-goal"][data-goal="people-network"]');
+  await waitFor(window, '[data-testid="open-station-modal"][data-open-station-active-goal="people-network"]');
+  const rewardsAfterGoalUpdate = await finalChapterRewardSnapshot(window);
+  const replayRewardNoOp = JSON.stringify(rewardsAfterGoalUpdate) === JSON.stringify(rewardsBeforeGoalUpdate);
+  await window.reload();
+  await openQaActiveSave(window);
+  await click(window, '[data-action="open-open-station"]');
+  await waitFor(window, '[data-testid="open-station-modal"][data-open-station-active-goal="people-network"]');
+  await capture(window, outputDir, shot("first-page-reloaded"));
+  const facts = await finalChapterSaveFacts(window, `(() => {
+    const chapter = save.storyContinuationState.chapter15;
+    const record = chapter.archive.at(-1);
+    const qso = save.qsoLogs.find((entry) => entry.id === record.qsoId);
+    const openStation = save.storyContinuationState.openStation;
+    return {
+      ordinaryQsoIncrease: (save.qsoRecords?.total ?? 0) - ${Number(baseline.qsoTotal)},
+      countedQsoCreditsPositive: Number(qso?.credits ?? 0) > 0,
+      countedQsoPostAcceptance: Date.parse(qso?.completedAt ?? "") >= Date.parse(${JSON.stringify(acceptedAt)}),
+      countedQsoEventFree: qso?.eventKind == null && qso?.eventRunId == null,
+      firstGoal: openStation.firstGoal,
+      openStationUnlocked: openStation.unlocked === true,
+      activeGoalUpdatedAfterReload: openStation.activeGoal === "people-network",
+      missionClaimed: save.missionState.claimedMissionIds.includes("story-15"),
+      reloadPersisted: chapter.settledRunIds.includes(record.runId) && openStation.unlocked === true,
+      rawPlayerTextPersisted: JSON.stringify(chapter).includes(${JSON.stringify(compactCq)}) || JSON.stringify(chapter).includes(${JSON.stringify(report)}),
+    };
+  })()`);
+  const evidence = { schemaVersion: 1, qaRunId, activity: "first-page", settled: true,
+    duplicateSettlementExecuted: true, duplicateSettlementNoOp, focusPauseVerified,
+    replayRewardNoOp, ...facts };
+  validateFirstPageQaEvidence(evidence, { qaRunId });
+  await fs.writeFile(path.join(outputDir, "first-page-qa-result.json"), `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
   return evidence;
 }
 
@@ -4446,6 +5072,26 @@ async function runQaCapture(window) {
       await runContestQaScope(window, outputDir, shot, { qaRunId });
       return finishScope({ practiceWrongTarget: wrongPracticeTarget });
     }
+    if (scope === "listening") {
+      await runListeningQaScope(window, outputDir, shot, { qaRunId });
+      return finishScope({ practiceWrongTarget: wrongPracticeTarget });
+    }
+    if (scope === "storm-relay") {
+      await runStormRelayQaScope(window, outputDir, shot, { qaRunId });
+      return finishScope({ practiceWrongTarget: wrongPracticeTarget });
+    }
+    if (scope === "night-operations") {
+      await runNightOperationsQaScope(window, outputDir, shot, { qaRunId });
+      return finishScope({ practiceWrongTarget: wrongPracticeTarget });
+    }
+    if (scope === "final-promise") {
+      await runFinalPromiseQaScope(window, outputDir, shot, { qaRunId });
+      return finishScope({ practiceWrongTarget: wrongPracticeTarget });
+    }
+    if (scope === "first-page") {
+      await runFirstPageQaScope(window, outputDir, shot, { qaRunId });
+      return finishScope({ practiceWrongTarget: wrongPracticeTarget });
+    }
 
   const lightsQaResult = await runLightsQaCapture(window, outputDir, suffix, { qaRunId });
 
@@ -4491,6 +5137,8 @@ module.exports = {
   sendAutomaticStationRun, sendAutomaticStationText,
   sendAutomaticLightsText, validateExpeditionQaEvidence, validateLightsQaEvidence, validateQaStateEnvelope, validateStationEntryProbe,
   validateContestQaEvidence, validateCoordinateRelayQaEvidence, validateQslStoryQaEvidence, validateServiceNetQaEvidence,
+  validateFinalPromiseQaEvidence, validateFirstPageQaEvidence, validateListeningQaEvidence,
+  validateNightOperationsQaEvidence, validateStormRelayQaEvidence,
   waitForFocusedQsoState, waitForQsoSubmitDecision, waitForRendererImages,
   writeQaSegmentResult,
 };

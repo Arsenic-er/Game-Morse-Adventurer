@@ -25,8 +25,13 @@ const {
   validateContestQaEvidence,
   validateCoordinateRelayQaEvidence,
   validateExpeditionQaEvidence,
+  validateFinalPromiseQaEvidence,
+  validateFirstPageQaEvidence,
+  validateListeningQaEvidence,
+  validateNightOperationsQaEvidence,
   validateQslStoryQaEvidence,
   validateServiceNetQaEvidence,
+  validateStormRelayQaEvidence,
   waitForFocusedQsoState,
   waitForQsoSubmitDecision,
   waitForRendererImages,
@@ -283,6 +288,31 @@ const expectedCaptures = {
     "contest-mission-available", "contest-briefing", "contest-run-pileup", "contest-interruption",
     "contest-run-contact", "contest-sp-pool", "contest-agn", "contest-busted-call",
     "contest-score-ready", "contest-result", "contest-settled", "contest-reloaded",
+  ],
+  listening: [
+    "listening-mission-available", "listening-briefing", "listening-window-one", "listening-window-three",
+    "listening-call", "listening-waiting", "listening-decision", "listening-result", "listening-settled",
+    "listening-records", "listening-reloaded",
+  ],
+  "storm-relay": [
+    "storm-mission-available", "storm-briefing", "storm-check-in-error", "storm-conflict",
+    "storm-verify-error", "storm-source-verified", "storm-relay-error", "storm-canonical-relay",
+    "storm-result", "storm-settled", "storm-archive", "storm-reloaded",
+  ],
+  "night-operations": [
+    "night-mission-available", "night-board", "night-first-window", "night-call-error",
+    "night-first-contact", "night-second-window", "night-second-contact", "night-third-window",
+    "night-third-contact", "night-result", "night-settled", "night-reloaded",
+  ],
+  "final-promise": [
+    "final-promise-mission-available", "final-promise-review", "final-promise-call-error",
+    "final-promise-account", "final-promise-repeat", "final-promise-choice", "final-promise-message-error",
+    "final-promise-result", "final-promise-settled", "final-promise-archive", "final-promise-reloaded",
+  ],
+  "first-page": [
+    "first-page-mission-available", "first-page-mission-active", "first-page-station",
+    "first-page-qso-result", "first-page-candidate", "first-page-goal", "first-page-settled",
+    "first-page-open-station", "first-page-reloaded",
   ],
   lights: [
     "lights-story-launch", "lights-chase", "lights-control", "lights-failed", "lights-result",
@@ -546,15 +576,17 @@ test("ordinary station QA preserves the physical seven-dot clear gesture despite
   }
 });
 
-test("segmented packaged QA preserves the 102-image baseline and adds four exact chapter scopes", () => {
+test("segmented packaged QA preserves the 142-image baseline and adds five exact final chapter scopes", () => {
   assert.deepEqual(QA_SUPPORTED_SCOPES, [
     "full", "bootstrap", "inventory", "equipment", "practice", "qso", "expedition",
-    "qsl-story", "service-net", "coordinate-relay", "contest",
+    "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay",
+    "night-operations", "final-promise", "first-page",
   ]);
   const plan = buildQaSegmentPlan({ suffix: SUFFIX });
   assert.deepEqual(plan.segments.map(({ scope }) => scope), [
     "bootstrap", "inventory", "equipment", "practice", "qso", "expedition",
-    "qsl-story", "service-net", "coordinate-relay", "contest", "lights",
+    "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay",
+    "night-operations", "final-promise", "first-page", "lights",
   ]);
 
   const expectedByScope = Object.fromEntries(Object.entries(expectedCaptures)
@@ -562,13 +594,18 @@ test("segmented packaged QA preserves the 102-image baseline and adds four exact
   assert.deepEqual(Object.fromEntries(plan.segments.map(({ scope, screenshots }) => [scope, screenshots])), expectedByScope);
 
   const all = plan.segments.flatMap(({ screenshots }) => screenshots);
-  assert.equal(all.length, 142);
-  assert.equal(new Set(all).size, 142);
+  assert.equal(all.length, 197);
+  assert.equal(new Set(all).size, 197);
   assert.equal(plan.segments.find(({ scope }) => scope === "expedition").predecessor, "qso");
   assert.equal(plan.segments.find(({ scope }) => scope === "qsl-story").predecessor, "expedition");
   assert.equal(plan.segments.find(({ scope }) => scope === "service-net").predecessor, "qsl-story");
   assert.equal(plan.segments.find(({ scope }) => scope === "coordinate-relay").predecessor, "service-net");
   assert.equal(plan.segments.find(({ scope }) => scope === "contest").predecessor, "coordinate-relay");
+  assert.equal(plan.segments.find(({ scope }) => scope === "listening").predecessor, "contest");
+  assert.equal(plan.segments.find(({ scope }) => scope === "storm-relay").predecessor, "listening");
+  assert.equal(plan.segments.find(({ scope }) => scope === "night-operations").predecessor, "storm-relay");
+  assert.equal(plan.segments.find(({ scope }) => scope === "final-promise").predecessor, "night-operations");
+  assert.equal(plan.segments.find(({ scope }) => scope === "first-page").predecessor, "final-promise");
   assert.equal(plan.segments.find(({ scope }) => scope === "expedition").timeoutMs, 8 * 60_000);
   assert.equal(plan.segments.find(({ scope }) => scope === "lights").timeoutMs, 8 * 60_000);
   assert.equal(plan.segments.find(({ scope }) => scope === "qso").timeoutMs, 8 * 60_000);
@@ -1089,7 +1126,41 @@ async function writeSuccessfulFakeSegment(env, scope) {
     contest: ["contest-qa-result.json", {
       schemaVersion: 1, qaRunId, activity: "contest", settled: true, missionClaimed: true,
       reloadPersisted: true, duplicateSettlementExecuted: true, duplicateSettlementNoOp: true, validContacts: 6, runContacts: 3,
-      spContacts: 3, uniqueRegions: 3, eventQsoCount: 6, grade: "complete",
+      spContacts: 3, uniqueRegions: 3, eventQsoCount: 6, grade: "complete", configuredWpm: 22,
+    }],
+    listening: ["listening-qa-result.json", {
+      schemaVersion: 1, qaRunId, activity: "listening", settled: true, missionClaimed: true,
+      reloadPersisted: true, duplicateSettlementExecuted: true, duplicateSettlementNoOp: true,
+      focusPauseVerified: true, replayRewardNoOp: true, rawPlayerTextPersisted: false,
+      observationCount: 3, callCount: 1, eventQsoCount: 0,
+      conclusionKey: "chapter11.conclusion.no-reply-after-listening",
+    }],
+    "storm-relay": ["storm-relay-qa-result.json", {
+      schemaVersion: 1, qaRunId, activity: "storm-relay", settled: true, missionClaimed: true,
+      reloadPersisted: true, duplicateSettlementExecuted: true, duplicateSettlementNoOp: true,
+      focusPauseVerified: true, replayRewardNoOp: true, rawPlayerTextPersisted: false,
+      canonicalRevision: 2, eventQsoCount: 2, relationshipCount: 2, failureRecoveryVerified: true,
+    }],
+    "night-operations": ["night-operations-qa-result.json", {
+      schemaVersion: 1, qaRunId, activity: "night-operations", settled: true, missionClaimed: true,
+      reloadPersisted: true, duplicateSettlementExecuted: true, duplicateSettlementNoOp: true,
+      focusPauseVerified: true, replayRewardNoOp: true, rawPlayerTextPersisted: false,
+      contactCount: 3, eventQsoCount: 3, relationshipCount: 3, distinctPersonCount: 3,
+    }],
+    "final-promise": ["final-promise-qa-result.json", {
+      schemaVersion: 1, qaRunId, activity: "final-promise", settled: true, missionClaimed: true,
+      reloadPersisted: true, duplicateSettlementExecuted: true, duplicateSettlementNoOp: true,
+      focusPauseVerified: true, replayRewardNoOp: true, rawPlayerTextPersisted: false,
+      recipientPersonId: "person:chapter14:final-recipient", tone: "steady", eventQsoCount: 1,
+      relationshipCount: 1, qslLinked: true, accountRepeatVerified: true,
+    }],
+    "first-page": ["first-page-qa-result.json", {
+      schemaVersion: 1, qaRunId, activity: "first-page", settled: true, missionClaimed: true,
+      reloadPersisted: true, duplicateSettlementExecuted: true, duplicateSettlementNoOp: true,
+      focusPauseVerified: true, replayRewardNoOp: true, rawPlayerTextPersisted: false,
+      ordinaryQsoIncrease: 1, countedQsoCreditsPositive: true, countedQsoPostAcceptance: true,
+      countedQsoEventFree: true, firstGoal: "world-log", openStationUnlocked: true,
+      activeGoalUpdatedAfterReload: true,
     }],
   }[scope];
   if (chapterEvidence) {

@@ -10,10 +10,15 @@ const {
   validateContestQaEvidence,
   validateCoordinateRelayQaEvidence,
   validateExpeditionQaEvidence,
+  validateFinalPromiseQaEvidence,
+  validateFirstPageQaEvidence,
   validateLightsQaEvidence,
+  validateListeningQaEvidence,
+  validateNightOperationsQaEvidence,
   validateQslStoryQaEvidence,
   validateQaStateEnvelope,
   validateServiceNetQaEvidence,
+  validateStormRelayQaEvidence,
 } = require("../electron/qa-capture.cjs");
 
 function parseJson(text, label) {
@@ -462,6 +467,11 @@ async function validateQaSegmentArtifacts(segment, outputDir, { qaRunId }) {
       "service-net": ["service-net-qa-result.json", "Service net", validateServiceNetQaEvidence],
       "coordinate-relay": ["coordinate-relay-qa-result.json", "Coordinate relay", validateCoordinateRelayQaEvidence],
       contest: ["contest-qa-result.json", "Contest", validateContestQaEvidence],
+      listening: ["listening-qa-result.json", "Listening", validateListeningQaEvidence],
+      "storm-relay": ["storm-relay-qa-result.json", "Storm relay", validateStormRelayQaEvidence],
+      "night-operations": ["night-operations-qa-result.json", "Night operations", validateNightOperationsQaEvidence],
+      "final-promise": ["final-promise-qa-result.json", "Final promise", validateFinalPromiseQaEvidence],
+      "first-page": ["first-page-qa-result.json", "First page", validateFirstPageQaEvidence],
     }[segment.scope];
     if (chapterEvidence) {
       const [filename, label, validate] = chapterEvidence;
@@ -572,6 +582,11 @@ async function runPackagedQa({
       serviceNet: path.join("segments", "service-net", "service-net-qa-result.json"),
       coordinateRelay: path.join("segments", "coordinate-relay", "coordinate-relay-qa-result.json"),
       contest: path.join("segments", "contest", "contest-qa-result.json"),
+      listening: path.join("segments", "listening", "listening-qa-result.json"),
+      stormRelay: path.join("segments", "storm-relay", "storm-relay-qa-result.json"),
+      nightOperations: path.join("segments", "night-operations", "night-operations-qa-result.json"),
+      finalPromise: path.join("segments", "final-promise", "final-promise-qa-result.json"),
+      firstPage: path.join("segments", "first-page", "first-page-qa-result.json"),
     },
     completedAt: new Date().toISOString(),
   };

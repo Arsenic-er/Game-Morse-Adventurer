@@ -148,9 +148,9 @@ jobs:
             throw "Packaged QA did not produce qa-result.json"
           }
           $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
-          if ($result.totalPhysicalCaptures -ne 142 -or @($result.captures).Count -ne 142) {
+          if ($result.totalPhysicalCaptures -ne 197 -or @($result.captures).Count -ne 197) {
             $result | ConvertTo-Json -Depth 5
-            throw "Packaged QA manifest did not preserve the exact 142-screenshot chapter evidence set"
+            throw "Packaged QA manifest did not preserve the exact 197-screenshot chapter evidence set"
           }
           foreach ($relativeCapture in $result.captures) {
             $capturePath = Join-Path $qaOutput $relativeCapture
@@ -187,7 +187,12 @@ jobs:
             @{ Path = "segments/qsl-story/qsl-story-qa-result.json"; Export = "validateQslStoryQaEvidence" },
             @{ Path = "segments/service-net/service-net-qa-result.json"; Export = "validateServiceNetQaEvidence" },
             @{ Path = "segments/coordinate-relay/coordinate-relay-qa-result.json"; Export = "validateCoordinateRelayQaEvidence" },
-            @{ Path = "segments/contest/contest-qa-result.json"; Export = "validateContestQaEvidence" }
+            @{ Path = "segments/contest/contest-qa-result.json"; Export = "validateContestQaEvidence" },
+            @{ Path = "segments/listening/listening-qa-result.json"; Export = "validateListeningQaEvidence" },
+            @{ Path = "segments/storm-relay/storm-relay-qa-result.json"; Export = "validateStormRelayQaEvidence" },
+            @{ Path = "segments/night-operations/night-operations-qa-result.json"; Export = "validateNightOperationsQaEvidence" },
+            @{ Path = "segments/final-promise/final-promise-qa-result.json"; Export = "validateFinalPromiseQaEvidence" },
+            @{ Path = "segments/first-page/first-page-qa-result.json"; Export = "validateFirstPageQaEvidence" }
           )
           foreach ($chapter in $chapterValidators) {
             $chapterPath = Join-Path $qaOutput $chapter.Path
@@ -209,7 +214,7 @@ jobs:
             throw "Packaged QA recorded renderer warnings or errors"
           }
 
-          "Packaged QA produced 142 exact screenshots and passed Lights plus Chapters 6–10 gameplay checkpoints." |
+          "Packaged QA produced 197 exact screenshots and passed Lights plus Chapters 6–15 gameplay checkpoints." |
             Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Encoding utf8
 
       - name: Verify executable and write checksum
@@ -332,4 +337,3 @@ jobs:
               --notes-file $notes `
               --repo "$env:GITHUB_REPOSITORY"
           }
-
