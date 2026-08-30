@@ -7,6 +7,12 @@ import {
   normalizeStoryContinuationState,
 } from "../src/game/storyContinuationState.js";
 import { computeCoordinatePacketCheck } from "../src/game/coordinateRelayRun.js";
+import { emptyListeningState } from "../src/game/listeningRun.js";
+import { emptyStormRelayState } from "../src/game/stormRelayRun.js";
+import { emptyNightOperationsState } from "../src/game/nightOperationsRun.js";
+import { emptyFinalPromiseState } from "../src/game/finalPromiseRun.js";
+import { emptyFirstPageState } from "../src/game/firstPageState.js";
+import { emptyOpenStationState } from "../src/game/openStationState.js";
 
 const minute = (index) => new Date(Date.UTC(2026, 7, 28, 0, index)).toISOString();
 const records = (count, prefix = "case") => Array.from({ length: count }, (_, index) => ({
@@ -83,19 +89,39 @@ const contestRecords = (count) => Array.from({ length: count }, (_, index) => {
   };
 });
 
-test("empty continuation state has fixed chapter seven through ten shape", () => {
+test("empty continuation state has fixed chapter seven through fifteen shape", () => {
   const state = emptyStoryContinuationState();
 
-  assert.equal(STORY_CONTINUATION_STATE_VERSION, 1);
-  assert.deepEqual(state, {
-    version: 1,
-    chapter07: { activeRun: null, cases: [], settledRunIds: [], peopleTaskTreeUnlocked: false },
-    chapter08: { activeRun: null, receipts: [], settledRunIds: [], taskTreeUnlocked: false },
-    chapter09: { activeRun: null, packets: [], settledRunIds: [], toolUnlocked: false },
-    chapter10: { activeRun: null, records: [], settledRunIds: [], personalBest: null, taskTreeUnlocked: false },
-  });
+  assert.equal(STORY_CONTINUATION_STATE_VERSION, 2);
+  assert.equal(state.version, 2);
+  assert.deepEqual(state.chapter07, { activeRun: null, cases: [], settledRunIds: [], peopleTaskTreeUnlocked: false });
+  assert.deepEqual(state.chapter08, { activeRun: null, receipts: [], settledRunIds: [], taskTreeUnlocked: false });
+  assert.deepEqual(state.chapter09, { activeRun: null, packets: [], settledRunIds: [], toolUnlocked: false });
+  assert.deepEqual(state.chapter10, { activeRun: null, records: [], settledRunIds: [], personalBest: null, taskTreeUnlocked: false });
+  assert.deepEqual(state.chapter11, emptyListeningState());
+  assert.deepEqual(state.chapter12, emptyStormRelayState());
+  assert.deepEqual(state.chapter13, emptyNightOperationsState());
+  assert.deepEqual(state.chapter14, emptyFinalPromiseState());
+  assert.deepEqual(state.chapter15, emptyFirstPageState());
+  assert.deepEqual(state.openStation, emptyOpenStationState());
   assert.equal(Object.isFrozen(state), true);
   assert.equal(Object.isFrozen(state.chapter07.cases), true);
+  assert.equal(Object.isFrozen(state.chapter15.settlementProofs), true);
+});
+
+test("continuation v2 ignores inherited final chapter state", () => {
+  const source = Object.create({
+    chapter11: {
+      taskTreeUnlocked: true,
+      archive: [{ id: "inherited-monitoring-record" }],
+    },
+    openStation: { unlocked: true, activeGoal: "world-log" },
+  });
+
+  const state = normalizeStoryContinuationState(source);
+
+  assert.deepEqual(state.chapter11, emptyListeningState());
+  assert.deepEqual(state.openStation, emptyOpenStationState());
 });
 
 test("continuation ledgers retain bounded ordered tails and normalize twice identically", () => {

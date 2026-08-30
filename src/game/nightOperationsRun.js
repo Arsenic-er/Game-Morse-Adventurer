@@ -1,0 +1,33 @@
+export const NIGHT_OPERATIONS_STATE_VERSION = 1;
+
+function own(value, key) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
+}
+
+const frozenEmptyArray = () => Object.freeze([]);
+
+export function normalizeNightOperationsRun() {
+  return null;
+}
+
+export function emptyNightOperationsState() {
+  return Object.freeze({
+    version: NIGHT_OPERATIONS_STATE_VERSION,
+    activeRun: null,
+    completedRuns: frozenEmptyArray(),
+    settledRunIds: frozenEmptyArray(),
+    settlementProofs: frozenEmptyArray(),
+    archive: frozenEmptyArray(),
+    taskTreeUnlocked: false,
+  });
+}
+
+export function normalizeNightOperationsState(value) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return Object.freeze({
+    ...emptyNightOperationsState(),
+    taskTreeUnlocked: own(source, "taskTreeUnlocked") === true,
+  });
+}
