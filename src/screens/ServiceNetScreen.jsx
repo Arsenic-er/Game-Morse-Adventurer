@@ -125,7 +125,7 @@ export function ServiceNetScreen({ language, save, inputBlocked = false, onActiv
   return <main className="screen service-net-screen" data-testid="service-net-screen"
     data-service-net-phase={run.phase} data-service-message-id={current?.messageId ?? ""}
     data-service-priority={current?.priority ?? ""} data-service-receipt-count={run.receipts.length}
-    data-service-paused={inputBlocked || !windowActive} data-simulation="fictional-public-service" data-pulse-count={cw.analysis.pulseCount} data-decoded={cw.analysis.decoded} data-keying={cw.isKeying}
+    data-service-paused={inputBlocked || !windowActive} data-simulation="fictional-public-service" data-pulse-count={cw.analysis.pulseCount} data-decoded={cw.analysis.decoded} data-keying={cw.isKeying} data-keyer-wpm={save.automaticKeyWpm}
     data-portrait-visible="false" data-settled={settled} data-settlement-attempts={settlementAttempts} data-settlement-reason={settlementReason}>
     <header className="service-net-topbar"><div><Broadcast size={28} weight="fill" /><span>{t.kicker}</span><h1>{t.title}</h1></div><b>{save.callsign}</b><button onClick={requestLeave}><ArrowLeft />{t.leave}</button></header>
     <p className="service-net-simulation"><Warning weight="fill" />{t.simulationWarning}</p>

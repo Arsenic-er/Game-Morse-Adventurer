@@ -32,6 +32,8 @@ function completedSave() {
     ["person:procedural:chapter08-net-control", "SIM8NC", "chapter08-net-control"],
     ["person:procedural:chapter09-source", "SIM9CR", "chapter09-source"],
     ["person:procedural:chapter09-relay", "SIM9RL", "chapter09-relay"],
+    ["person:procedural:chapter12-control", "SIM12CS", "chapter12-control"],
+    ["person:procedural:chapter12-relay", "SIM12RL", "chapter12-relay"],
   ];
   const schedule = createNightOperationsRun({
     save: {
@@ -137,8 +139,10 @@ test("Chapter 14 recalls fixed prior facts and accepts each canonical final tone
   assert.equal(initial.sourceQslId, "qsl:expedition:chapter14-source");
   assert.deepEqual(initial.scheduledPersonIds, [
     "person:procedural:chapter08-net-control", "person:procedural:chapter09-relay",
-    "person:procedural:chapter09-source", "person:sora",
+    "person:procedural:chapter09-source", "person:procedural:chapter12-control",
+    "person:procedural:chapter12-relay", "person:sora",
   ]);
+  assert.deepEqual(normalizeFinalPromiseRun(initial), initial);
   assert.equal(finalPromiseCallText(initial), "SIM14FP DE BH1ABC K");
 
   for (const tone of ["brief", "steady", "warm"]) {
@@ -183,14 +187,19 @@ test("hard call, tone, message, and semantic fields fail closed", () => {
 
 test("AGN and QRS repeat the same frozen account and retry preserves recalls", () => {
   const choice = atChoice();
-  const agn = requestFinalPromiseRepeat(choice, "AGN K", safe);
+  const semanticallyUnclassified = { safeToCommit: false };
+  const agn = requestFinalPromiseRepeat(choice, "AGN K", semanticallyUnclassified);
   assert.equal(agn.phase, FINAL_PROMISE_PHASES.ACCOUNT);
   assert.equal(agn.accountKey, choice.accountKey);
   assert.deepEqual(agn.recoveryActions, ["AGN"]);
   const choiceAgain = receiveFinalPromiseAccount(agn, T3);
-  const qrs = requestFinalPromiseRepeat(choiceAgain, "QRS K", safe);
+  const qrs = requestFinalPromiseRepeat(choiceAgain, "QRS K", semanticallyUnclassified);
   assert.equal(qrs.accountWpm, choice.accountWpm - 3);
   assert.equal(qrs.accountKey, choice.accountKey);
+
+  for (const malformed of ["AGN", "AGN K EXTRA", "QRS", "QRS K EXTRA", null]) {
+    assert.strictEqual(requestFinalPromiseRepeat(choiceAgain, malformed, safe), choiceAgain);
+  }
 
   const abandoned = abandonFinalPromiseRun(qrs, "2026-08-31T14:04:00.000Z");
   const retry = retryFinalPromiseRun(abandoned, "2026-08-31T15:00:00.000Z");
@@ -204,6 +213,8 @@ test("AGN and QRS repeat the same frozen account and retry preserves recalls", (
 test("paused time is free, active timeout fails, and terminal runs do not mutate", () => {
   const run = fresh();
   assert.strictEqual(tickFinalPromiseRun(run, { milliseconds: 599000, paused: true }, T1), run);
+  const sampled = tickFinalPromiseRun(run, { milliseconds: 250.4 }, T1);
+  assert.equal(sampled.activeMilliseconds, 250);
   const almost = tickFinalPromiseRun(run, { milliseconds: 599000 }, T1);
   assert.equal(almost.activeMilliseconds, 599000);
   const failed = tickFinalPromiseRun(almost, { milliseconds: 1000 }, T2);

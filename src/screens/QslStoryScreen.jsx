@@ -96,7 +96,7 @@ export function QslStoryScreen({
     if (result?.settled || result?.reason === "ALREADY_SETTLED") setSettled(true);
   }
 
-  return <main className="screen qsl-story-screen" data-testid="qsl-story-screen" data-qsl-story-phase={phase} data-qsl-story-paused={inputBlocked} data-portrait-visible="false" data-pulse-count={cw.analysis.pulseCount} data-decoded={cw.analysis.decoded} data-keying={cw.isKeying} data-settled={settled} data-settlement-attempts={settlementAttempts} data-settlement-reason={settlementReason}>
+  return <main className="screen qsl-story-screen" data-testid="qsl-story-screen" data-qsl-story-phase={phase} data-qsl-story-paused={inputBlocked} data-portrait-visible="false" data-pulse-count={cw.analysis.pulseCount} data-decoded={cw.analysis.decoded} data-keying={cw.isKeying} data-keyer-wpm={save.automaticKeyWpm} data-settled={settled} data-settlement-attempts={settlementAttempts} data-settlement-reason={settlementReason}>
     <header className="qsl-story-topbar"><div><FileMagnifyingGlass size={28} weight="fill" /><span>{t.kicker}</span><h1>{t.title}</h1></div><b>{save.callsign}</b><button onClick={requestLeave}><ArrowLeft size={19} />{t.leave}</button></header>
     {inputBlocked && <div className="qsl-story-paused" role="status">{t.paused}</div>}
     {!run ? <section className="qsl-story-source-required"><Warning size={42} /><p>{t.sourceRequired}</p>{source && <button onClick={() => onConfirmSourceChoice(source.id, "request-review")}>{t.requestReview}</button>}</section> : <>

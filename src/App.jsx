@@ -119,7 +119,7 @@ const ASSETS = {
 
 const QA_OPTIONAL_NPC_CALLSIGNS = new Set(["SIM3RA", "SIM5TU", "SIM2DX", "SIM8CW", "SIM6JP"]);
 
-const BUILD_VERSION = "0.40.0";
+const BUILD_VERSION = "0.45.0";
 const ANTENNA_STATUS = {
   "zh-CN": { missing: "未装备天线，射频通联已停用", equip: "请在管理中心的仓库内装备天线" },
   "zh-TW": { missing: "未裝備天線，射頻通聯已停用", equip: "請在管理中心的倉庫內裝備天線" },
@@ -1113,6 +1113,8 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
       data-qa-npc-callsign={window.cwgameSystem?.qaCapture ? qso.npc.callsign : undefined}
       data-decoded={cw.analysis.decoded}
       data-pulse-count={cw.analysis.pulseCount}
+      data-keying={cw.isKeying}
+      data-keyer-wpm={save.automaticKeyWpm}
       data-receiver-active={cw.isListening}
       data-npc-playback-recovering={npcPlaybackRecovering}
       data-accessory-id={accessory.id}

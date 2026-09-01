@@ -107,8 +107,10 @@ function terminal(run) { return TERMINAL_PHASES.has(run?.phase); }
 function availableWindow(run) { return run.windows.find((window) => run.activeMilliseconds >= window.opensAtMilliseconds && run.activeMilliseconds < window.closesAtMilliseconds && !run.missedWindowIds.includes(window.id) && !run.contacts.some(({ windowId }) => windowId === window.id)); }
 
 export function tickNightOperationsRun(run, delta = {}, at = null) {
-  if (!run || terminal(run)) return run; const milliseconds = own(delta, "milliseconds");
-  if (!Number.isSafeInteger(milliseconds) || milliseconds <= 0) return run;
+  if (!run || terminal(run)) return run; const sampleMilliseconds = own(delta, "milliseconds");
+  if (!Number.isFinite(sampleMilliseconds) || sampleMilliseconds <= 0) return run;
+  const milliseconds = Math.round(Math.min(RUN_TIMEOUT_MS, sampleMilliseconds));
+  if (milliseconds <= 0) return run;
   const activeMilliseconds = Math.min(RUN_TIMEOUT_MS, run.activeMilliseconds + milliseconds); const missedWindowIds = [...run.missedWindowIds];
   for (const window of run.windows) if (window.closesAtMilliseconds <= activeMilliseconds && !run.contacts.some(({ windowId }) => windowId === window.id) && !missedWindowIds.includes(window.id)) missedWindowIds.push(window.id);
   const completedAt = iso(at, true) ?? new Date(Date.parse(run.startedAt) + activeMilliseconds).toISOString();

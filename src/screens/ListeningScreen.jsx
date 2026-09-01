@@ -93,9 +93,15 @@ export function ListeningScreen({
   }, [cw.stopAll, inputBlocked, windowActive]);
   useEffect(() => {
     if (run.phase !== LISTENING_PHASES.WAITING || inputBlocked || !windowActive) return undefined;
-    const timer = globalThis.setTimeout(() => update(finishListeningWait(run, nowIso())), 4_000);
+    const timer = globalThis.setTimeout(() => {
+      setRun((current) => {
+        const next = finishListeningWait(current, nowIso());
+        if (next !== current) onRunChangeRef.current(next);
+        return next;
+      });
+    }, 4_000);
     return () => globalThis.clearTimeout(timer);
-  }, [inputBlocked, run, update, windowActive]);
+  }, [inputBlocked, run.phase, windowActive]);
 
   const transmit = useCallback(async (message = cw.analysis.decoded) => {
     if (!canTransmit || semanticBusy || inputBlocked || cw.isKeying || cw.isPlaying || !String(message).trim()) return;
@@ -160,7 +166,7 @@ export function ListeningScreen({
   return <main className="screen listening-screen" data-testid="listening-screen"
     data-simulation="fictional-listening-story" data-listening-phase={run.phase}
     data-listening-paused={inputBlocked || !windowActive} data-pulse-count={cw.analysis.pulseCount}
-    data-decoded={cw.analysis.decoded} data-portrait-visible="false" data-settled={settled}
+    data-decoded={cw.analysis.decoded} data-keying={cw.isKeying} data-keyer-wpm={save.automaticKeyWpm} data-portrait-visible="false" data-settled={settled}
     data-settlement-attempts={settlementAttempts} data-settlement-reason={settlementReason}>
     <header className="listening-topbar"><div><Ear size={30} weight="fill" /><span>{t.kicker}</span><h1>{t.title}</h1></div><b>{save.callsign}</b><button onClick={requestLeave}><ArrowLeft />{t.leave}</button></header>
     <p className="listening-simulation"><Warning weight="fill" />{t.simulationWarning}</p>
@@ -172,7 +178,7 @@ export function ListeningScreen({
           const done = run.observedWindowIds.includes(windowFact.id);
           return <article key={windowFact.id} data-listening-window={windowFact.id} data-observed={done}><strong>{windowFact.id}</strong><span>{t.propagation}: {windowFact.propagationLevel}</span><small>{t.noise}: {t[windowFact.noiseLevel]}</small>{done && <b>{t.observed}</b>}</article>;
         })}</div>{[LISTENING_PHASES.BRIEFING, LISTENING_PHASES.LISTENING].includes(run.phase) && <button data-action="listening-observe" disabled={inputBlocked} onClick={observeNext}>{t.observe}</button>}</section>
-        {canTransmit && <section className="listening-keyer"><h2>{t.callPrompt}</h2><code>{callText(run)}</code><small>{save.keyType === "automatic" ? t.keyAuto : t.keyManual}</small><strong>{cw.analysis.decoded || "_"}</strong><div><button onClick={cw.clearInput}>{t.clear}</button><button data-action="listening-submit" disabled={!cw.analysis.pulseCount || semanticBusy || inputBlocked} onClick={() => transmit()}>{t.transmit}</button></div></section>}
+        {canTransmit && <section className="listening-keyer"><h2>{t.callPrompt}</h2><code>{callText(run)}</code><small>{save.keyType === "automatic" ? t.keyAuto : t.keyManual}</small><strong>{cw.analysis.decoded || "_"}</strong><div><button onClick={cw.clearInput}>{t.clear}</button><button data-action="listening-submit" disabled={!cw.analysis.pulseCount || cw.isKeying || semanticBusy || inputBlocked} onClick={() => transmit()}>{t.transmit}</button></div></section>}
         {run.phase === LISTENING_PHASES.WAITING && <section className="listening-wait" role="status"><Ear size={42} /><p>{t.waiting}</p></section>}
         {run.phase === LISTENING_PHASES.DECISION && !callAgainArmed && <section className="listening-decision"><p>{t.decision}</p><div>{run.callCount < 2 && <button data-action="listening-call-again" disabled={inputBlocked} onClick={armSecondCall}>{t.callAgain}</button>}<button data-action="listening-record-silence" disabled={inputBlocked} onClick={recordSilence}>{t.recordSilence}</button></div></section>}
         {lastError && <p className="listening-error"><Warning />{t[lastError] ?? lastError}</p>}

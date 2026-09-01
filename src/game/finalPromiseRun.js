@@ -143,7 +143,7 @@ export function receiveFinalPromiseAccount(run, at) {
 }
 export function requestFinalPromiseRepeat(run, message, semantic) {
   const normalized = normalizeFinalPromiseRun(run); const action = compact(message)?.split(" ")[0];
-  if (!normalized || ![FINAL_PROMISE_PHASES.ACCOUNT, FINAL_PROMISE_PHASES.FINAL_CHOICE].includes(normalized.phase) || own(semantic, "safeToCommit") !== true || !["AGN", "QRS"].includes(action) || compact(message) !== `${action} K` || normalized.recoveryActions.length >= MAX_RECOVERY_ACTIONS) return run;
+  if (!normalized || ![FINAL_PROMISE_PHASES.ACCOUNT, FINAL_PROMISE_PHASES.FINAL_CHOICE].includes(normalized.phase) || !["AGN", "QRS"].includes(action) || compact(message) !== `${action} K` || normalized.recoveryActions.length >= MAX_RECOVERY_ACTIONS) return run;
   return deepFreeze({ ...normalized, phase: FINAL_PROMISE_PHASES.ACCOUNT, accountWpm: action === "QRS" ? Math.max(5, normalized.accountWpm - 3) : normalized.accountWpm, recoveryActions: [...normalized.recoveryActions, action] });
 }
 export function chooseFinalPromiseTone(run, tone) {
@@ -164,7 +164,10 @@ export function submitFinalPromiseMessage(run, message, semantic, at) {
 export function tickFinalPromiseRun(run, delta = {}, at = null) {
   const normalized = normalizeFinalPromiseRun(run);
   if (!normalized || terminal(normalized) || own(delta, "paused") === true) return run;
-  const milliseconds = own(delta, "milliseconds"); if (!Number.isSafeInteger(milliseconds) || milliseconds <= 0) return run;
+  const sampleMilliseconds = own(delta, "milliseconds");
+  if (!Number.isFinite(sampleMilliseconds) || sampleMilliseconds <= 0) return run;
+  const milliseconds = Math.round(Math.min(ACTIVE_TIMEOUT_MS, sampleMilliseconds));
+  if (milliseconds <= 0) return run;
   const activeMilliseconds = Math.min(ACTIVE_TIMEOUT_MS, normalized.activeMilliseconds + milliseconds);
   if (activeMilliseconds < ACTIVE_TIMEOUT_MS) return deepFreeze({ ...normalized, activeMilliseconds });
   const completedAt = iso(at) ?? new Date(Date.parse(normalized.startedAt) + activeMilliseconds).toISOString();
@@ -188,7 +191,7 @@ function normalizeRecallKeys(value) {
 }
 function normalizePersonIds(value) {
   const allowed = new Set(["person:sora", "person:procedural:chapter08-net-control", "person:procedural:chapter09-source", "person:procedural:chapter09-relay", "person:procedural:chapter12-control", "person:procedural:chapter12-relay"]);
-  const result = strictArray(value, 4, (entry) => allowed.has(entry) ? entry : null); return result && new Set(result).size === result.length ? result : null;
+  const result = strictArray(value, allowed.size, (entry) => allowed.has(entry) ? entry : null); return result && new Set(result).size === result.length ? result : null;
 }
 function normalizeRecovery(value) { return strictArray(value, MAX_RECOVERY_ACTIONS, (entry) => ["AGN", "QRS"].includes(entry) ? entry : null); }
 export function normalizeFinalPromiseSummary(value, run = null) {

@@ -68,6 +68,7 @@ test("final chapter packaged scopes use the physical CW helper and emit literal 
     assert.match(qaSource, new RegExp(`run${scope}QaScope`));
   }
   assert.match(qaSource, /sendAutomaticStructuredText/);
+  assert.match(qaSource, /runFirstPageQaScope[\s\S]*sendAutomaticFirstPageText/);
   for (const filename of [
     "listening-qa-result.json", "storm-relay-qa-result.json", "night-operations-qa-result.json",
     "final-promise-qa-result.json", "first-page-qa-result.json",
@@ -76,4 +77,42 @@ test("final chapter packaged scopes use the physical CW helper and emit literal 
     assert.match(supervisorSource, new RegExp(filename.replaceAll(".", "\\.")));
   }
   assert.doesNotMatch(qaSource, /set(?:Listening|Storm|Night|FinalPromise|FirstPage).*decoded/i);
+});
+
+test("final chapter transmit controls expose and respect the live automatic-key session", async () => {
+  for (const filename of [
+    "ListeningScreen.jsx", "StormRelayScreen.jsx", "NightOperationsScreen.jsx", "FinalPromiseScreen.jsx",
+  ]) {
+    const source = await fs.readFile(path.join(__dirname, "../src/screens", filename), "utf8");
+    assert.match(source, /data-keying=\{cw\.isKeying\}/, filename);
+    assert.match(source, /disabled=\{[^}]*cw\.isKeying[^}]*\}/, filename);
+  }
+});
+
+test("listening QA restores the real window before its active-time wait can finish", async () => {
+  const qaSource = await fs.readFile(path.join(__dirname, "../electron/qa-capture.cjs"), "utf8");
+  assert.match(
+    qaSource,
+    /shot\("listening-waiting"\)[\s\S]*focusQaWindow\(window, "before listening wait completion"\)[\s\S]*data-listening-paused="false"[\s\S]*data-listening-phase="DECISION"/,
+  );
+});
+
+test("final promise QA clears each rejected physical-CW message before transmitting its correction", async () => {
+  const qaSource = await fs.readFile(path.join(__dirname, "../electron/qa-capture.cjs"), "utf8");
+  assert.match(
+    qaSource,
+    /shot\("final-promise-call-error"\)[\s\S]*click\(window, '\[data-action="final-promise-clear"\]'\)[\s\S]*data-decoded=""[\s\S]*nightExpectedText|shot\("final-promise-call-error"\)[\s\S]*click\(window, '\[data-action="final-promise-clear"\]'\)[\s\S]*data-decoded=""[\s\S]*final-promise-keyer code/,
+  );
+  assert.match(
+    qaSource,
+    /shot\("final-promise-message-error"\)[\s\S]*click\(window, '\[data-action="final-promise-clear"\]'\)[\s\S]*data-decoded=""[\s\S]*final-promise-keyer code/,
+  );
+});
+
+test("final promise QA verifies the repeat from the completed summary instead of the display archive", async () => {
+  const qaSource = await fs.readFile(path.join(__dirname, "../electron/qa-capture.cjs"), "utf8");
+  assert.match(
+    qaSource,
+    /const summary = chapter\.completedRuns\.find\(\(entry\) => entry\.runId === record\.runId\)[\s\S]*accountRepeatVerified: Boolean\(summary\?\.recoveryActions\.includes\("AGN"\)\)/,
+  );
 });

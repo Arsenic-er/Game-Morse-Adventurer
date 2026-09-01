@@ -41,6 +41,7 @@ export class AutomaticKeyer {
     this.timer = null;
     this.active = null;
     this.lastSymbol = null;
+    this.nextElementAt = null;
     this.token = 0;
   }
 
@@ -87,6 +88,7 @@ export class AutomaticKeyer {
     this.queue = [];
     this.phase = "idle";
     this.active = null;
+    this.nextElementAt = null;
     if (wasBusy) this.onSessionChange(false);
   }
 
@@ -107,13 +109,15 @@ export class AutomaticKeyer {
       this.phase = "idle";
       this.timer = null;
       this.active = null;
+      this.nextElementAt = null;
       if (wasBusy) this.onSessionChange(false);
       return;
     }
 
     const wpm = normalizeAutomaticKeyWpm(this.getWpm());
     const durationMs = automaticSymbolDuration(symbol, wpm);
-    const downAt = this.now();
+    const downAt = Number.isFinite(this.nextElementAt) ? this.nextElementAt : this.now();
+    this.nextElementAt = null;
     const token = ++this.token;
     const wasIdle = this.phase === "idle";
     this.phase = "tone";
@@ -135,11 +139,12 @@ export class AutomaticKeyer {
     this.onElementEnd(this.active);
     this.onPulse(pulse);
     const gapMs = dotDurationFromWpm(this.active.wpm);
+    this.nextElementAt = pulse.upAt + gapMs;
     this.phase = "gap";
     this.active = null;
     this.timer = this.setTimer(() => {
       this.timer = null;
       this.startNext();
-    }, gapMs);
+    }, Math.max(0, this.nextElementAt - this.now()));
   }
 }

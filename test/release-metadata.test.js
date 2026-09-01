@@ -32,35 +32,38 @@ test("release metadata uses the package version across the game, QA, and localiz
   );
 });
 
-test("v0.40 metadata marks chapters seven through ten complete and eleven through fifteen planned", () => {
+test("v0.45 metadata marks chapters five through fifteen and initial Open Station complete", () => {
   const summaries = {
     "README.md": [
-      "Chapters 5–10 are implemented", "Chapter 7 QSL investigation", "Chapter 8 fictional service net",
-      "Chapter 9 Pixel Grid coordinate relay", "Chapter 10 RUN / S&P contest", "Chapters 11–15 remain planned",
+      "Chapters 5–15 and the initial Open Station dashboard are implemented", "Chapter 11 listening watch",
+      "Chapter 12 storm relay", "Chapter 13 night operations", "Chapter 14 final promise", "Chapter 15 ordinary QSO",
     ],
     "README.zh-CN.md": [
-      "第 5–10 章已经实现", "第 7 章 QSL 复核", "第 8 章虚构公共服务点名",
-      "第 9 章 Pixel Grid 坐标中继", "第 10 章 RUN / S&P 比赛", "第 11–15 章仍在计划中",
+      "第 5–15 章与初始开放台站面板已经实现", "第 11 章守听", "第 12 章风暴中继",
+      "第 13 章夜间操作", "第 14 章最后约定", "第 15 章普通 QSO",
     ],
     "README.zh-TW.md": [
-      "第 5–10 章已經實作", "第 7 章 QSL 複核", "第 8 章虛構公共服務點名",
-      "第 9 章 Pixel Grid 座標中繼", "第 10 章 RUN / S&P 比賽", "第 11–15 章仍在規劃中",
+      "第 5–15 章與初始開放台站面板已經實作", "第 11 章守聽", "第 12 章風暴中繼",
+      "第 13 章夜間操作", "第 14 章最後約定", "第 15 章普通 QSO",
     ],
     "README.ja.md": [
-      "第5～10章を実装", "第7章のQSL再確認", "第8章の架空公共サービスネット",
-      "第9章のPixel Grid座標中継", "第10章のRUN / S&Pコンテスト", "第11～15章は引き続き計画段階",
+      "第5～15章と初期Open Stationダッシュボードを実装", "第11章のリスニング監視",
+      "第12章のストーム中継", "第13章の夜間運用", "第14章の最後の約束", "第15章の通常QSO",
     ],
     "README.es.md": [
-      "Los capítulos 5–10 están implementados", "investigación QSL del capítulo 7", "red ficticia de servicio público del capítulo 8",
-      "relevo de coordenadas Pixel Grid del capítulo 9", "concurso RUN / S&P del capítulo 10", "Los capítulos 11–15 siguen planificados",
+      "Los capítulos 5–15 y el panel inicial de Open Station están implementados", "escucha del capítulo 11",
+      "relevo de tormenta del capítulo 12", "operaciones nocturnas del capítulo 13",
+      "promesa final del capítulo 14", "QSO ordinario del capítulo 15",
     ],
     "README.de.md": [
-      "Kapitel 5–10 sind umgesetzt", "QSL-Nachprüfung in Kapitel 7", "fiktive öffentliche Servicenetz in Kapitel 8",
-      "Pixel-Grid-Koordinatenweitergabe in Kapitel 9", "RUN-/S&P-Wettbewerb in Kapitel 10", "Kapitel 11–15 bleiben geplant",
+      "Kapitel 5–15 und das erste Open-Station-Dashboard sind umgesetzt", "Hörwache in Kapitel 11",
+      "Sturmrelais in Kapitel 12", "Nachtbetrieb in Kapitel 13", "letzte Versprechen in Kapitel 14",
+      "gewöhnliche QSO in Kapitel 15",
     ],
     "README.ru.md": [
-      "Главы 5–10 реализованы", "Проверка QSL в главе 7", "Вымышленная сеть общественной службы в главе 8",
-      "Ретрансляция координат Pixel Grid в главе 9", "Соревнование RUN / S&P в главе 10", "Главы 11–15 остаются в планах",
+      "Главы 5–15 и начальная панель Open Station реализованы", "Прослушивание в главе 11",
+      "штормовая ретрансляция в главе 12", "ночная работа в главе 13",
+      "последнее обещание в главе 14", "обычный QSO в главе 15",
     ],
   };
   for (const [file, phrases] of Object.entries(summaries)) {
@@ -70,19 +73,20 @@ test("v0.40 metadata marks chapters seven through ten complete and eleven throug
   }
 });
 
-test("release design docs record completed Chapters 7–10 and keep Chapters 11–15 non-playable", () => {
+test("release design docs record completed Chapters 11–15 and the bounded Open Station dashboard", () => {
   const design = read("docs/CW_台站模拟游戏设计文档_v0.4.md");
   const story = read("docs/story-missions-open-station-v0.1.md");
   const working = read("docs/planning/chapter-05-lights-working-design-v0.1.md");
   const chapterFive = read("docs/superpowers/specs/2026-08-25-chapter-05-lights-gameplay-design.md");
   const continuation = read("docs/superpowers/specs/2026-08-25-v037-ch5-ch7-continuation-design.md");
   for (const source of [design, story]) {
-    assert.match(source, /v0\.40\.0/);
-    assert.match(source, /第 7 章[^\n]*(?:完整实现|完整剧情|QSL 复核)/);
-    assert.match(source, /第 8 章[^\n]*(?:完整实现|公共服务点名)/);
-    assert.match(source, /第 9 章[^\n]*(?:完整实现|坐标中继)/);
-    assert.match(source, /第 10 章[^\n]*(?:完整实现|RUN \/ S&P)/);
-    assert.match(source, /第 11[–-]15 章[^\n]*(?:计划|尚未实现|不可玩)/);
+    assert.match(source, /v0\.45\.0/);
+    assert.match(source, /第 11 章[^\n]*(?:完整实现|守听)/);
+    assert.match(source, /第 12 章[^\n]*(?:完整实现|风暴中继)/);
+    assert.match(source, /第 13 章[^\n]*(?:完整实现|夜间操作)/);
+    assert.match(source, /第 14 章[^\n]*(?:完整实现|最后约定)/);
+    assert.match(source, /第 15 章[^\n]*(?:完整实现|普通 QSO)/);
+    assert.match(source, /开放台站[^\n]*(?:面板|仪表板|已实现|解锁)/);
   }
   assert.match(working, /v0\.37\.0[^\n]*完整实现/);
   assert.match(chapterFive, /v0\.37\.0[^\n]*complete Chapter 5/);

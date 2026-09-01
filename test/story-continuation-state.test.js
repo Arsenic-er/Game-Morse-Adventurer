@@ -12,7 +12,10 @@ import { emptyStormRelayState } from "../src/game/stormRelayRun.js";
 import { emptyNightOperationsState } from "../src/game/nightOperationsRun.js";
 import { emptyFinalPromiseState } from "../src/game/finalPromiseRun.js";
 import { emptyFirstPageState } from "../src/game/firstPageState.js";
-import { emptyOpenStationState } from "../src/game/openStationState.js";
+import {
+  emptyOpenStationState,
+  normalizeOpenStationState,
+} from "../src/game/openStationState.js";
 
 const minute = (index) => new Date(Date.UTC(2026, 7, 28, 0, index)).toISOString();
 const records = (count, prefix = "case") => Array.from({ length: count }, (_, index) => ({
@@ -107,6 +110,17 @@ test("empty continuation state has fixed chapter seven through fifteen shape", (
   assert.equal(Object.isFrozen(state), true);
   assert.equal(Object.isFrozen(state.chapter07.cases), true);
   assert.equal(Object.isFrozen(state.chapter15.settlementProofs), true);
+});
+
+test("open station state fails closed when an own-property descriptor traps", () => {
+  const hostile = new Proxy({}, {
+    getOwnPropertyDescriptor() {
+      throw new Error("descriptor trap");
+    },
+  });
+
+  assert.doesNotThrow(() => normalizeOpenStationState(hostile));
+  assert.deepEqual(normalizeOpenStationState(hostile), emptyOpenStationState());
 });
 
 test("continuation v2 ignores inherited final chapter state", () => {

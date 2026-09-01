@@ -112,6 +112,14 @@ test("only active monotonic ticks consume windows; missing two contacts fails", 
   assert.equal(run.failureReason, "MISSED_TWO_CONTACTS");
 });
 
+test("fractional browser clock samples advance the integer night schedule", () => {
+  const run = createNightOperationsRun({ save: knownPeopleSave(), seed: "fractional-clock", startedAt: STARTED });
+  const advanced = tickNightOperationsRun(run, { milliseconds: 250.4 }, STARTED);
+  assert.notStrictEqual(advanced, run);
+  assert.equal(advanced.activeMilliseconds, 250);
+  assert.equal(advanced.phase, NIGHT_OPERATIONS_PHASES.BOARD);
+});
+
 test("retry preserves the frozen schedule but clears attempt work", () => {
   let run = createNightOperationsRun({ save: knownPeopleSave(), seed: "retry", startedAt: STARTED });
   run = advanceTo(run, run.windows[0].opensAtMilliseconds);

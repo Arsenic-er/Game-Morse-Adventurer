@@ -12,6 +12,7 @@ const QA_LANGUAGE_IDS = Object.freeze(["zh-CN", "zh-TW", "ja", "en", "es", "de",
 const QA_INITIAL_STORY_MISSION_IDS = Object.freeze([
   "story-01", "story-02", "story-03", "story-04", "story-05",
   "story-06", "story-07", "story-08", "story-09", "story-10",
+  "story-11", "story-12", "story-13", "story-14", "story-15",
 ]);
 const QA_SUPPORTED_SCOPES = Object.freeze([
   "full", "bootstrap", "inventory", "equipment", "practice", "qso", "expedition",
@@ -1071,35 +1072,41 @@ async function sendAutomaticStructuredText(window, text, {
   wpm = 18,
 } = {}) {
   if (!screenSelector || !phaseDataset) throw new Error("Structured CW QA requires a screen selector and phase dataset");
-  const dotMs = 1200 / wpm;
+  const renderedWpm = await window.webContents.executeJavaScript(
+    `Number(document.querySelector(${JSON.stringify(screenSelector)})?.dataset.keyerWpm)`,
+    true,
+  );
+  const timingWpm = Number.isFinite(renderedWpm) && renderedWpm >= 5 && renderedWpm <= 60 ? renderedWpm : wpm;
+  const dotMs = 1200 / timingWpm;
   const tapHoldMs = dotMs * 0.12;
   const words = String(text).toUpperCase().trim().split(/\s+/);
   const expected = words.join(" ");
   const steps = [];
   for (let wordIndex = 0; wordIndex < words.length; wordIndex += 1) {
-    const characters = [...words[wordIndex]];
-    for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
-      const pattern = qaMorsePatternForCharacter(characters[characterIndex]);
-      if (!pattern) continue;
-      const lastCharacter = characterIndex === characters.length - 1;
-      const lastWord = wordIndex === words.length - 1;
-      steps.push({
-        character: characters[characterIndex],
+    const characters = [...words[wordIndex]].flatMap((character) => {
+      const pattern = qaMorsePatternForCharacter(character);
+      return pattern ? [{
+        character,
         keyCodes: [...pattern].map((symbol) => (symbol === "." ? "Z" : "X")),
-        gapMs: !lastCharacter ? automaticQaGapAfterElement("character", wpm)
-          : !lastWord ? automaticQaGapAfterElement("word", wpm) : 0,
-      });
-    }
+      }] : [];
+    });
+    if (!characters.length) continue;
+    steps.push({
+      word: words[wordIndex],
+      characters,
+      gapMs: wordIndex < words.length - 1 ? automaticQaGapAfterElement("word", timingWpm) : 0,
+    });
   }
   let result = { decoded: "", pulseCount: 0 };
   for (let stepIndex = 0; stepIndex < steps.length; stepIndex += 1) {
     const step = steps[stepIndex];
-    await focusQaWindow(window, `before ${label} character ${stepIndex + 1}/${steps.length} (${step.character})`);
+    await focusQaWindow(window, `before ${label} word ${stepIndex + 1}/${steps.length} (${step.word})`);
     result = await window.webContents.executeJavaScript(`(async () => {
       const screen = () => document.querySelector(${JSON.stringify(screenSelector)});
       const pulseCount = () => Number(screen()?.dataset.pulseCount || 0);
-      const keyCodes = ${JSON.stringify(step.keyCodes)};
+      const characters = ${JSON.stringify(step.characters)};
       const tapHoldMs = ${JSON.stringify(tapHoldMs)};
+      const characterGapMs = ${JSON.stringify(automaticQaGapAfterElement("character", timingWpm))};
       const channel = new MessageChannel();
       const waiters = [];
       channel.port1.onmessage = () => waiters.shift()?.();
@@ -1120,18 +1127,51 @@ async function sendAutomaticStructuredText(window, text, {
           }
         }, 20);
       });
-      const before = pulseCount();
+      await yieldTask();
+      let before = pulseCount();
       try {
-        for (const keyCode of keyCodes) {
-          const code = "Key" + keyCode;
-          window.dispatchEvent(new KeyboardEvent("keydown", { code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true }));
-          const started = performance.now();
-          while (performance.now() - started < tapHoldMs) {}
-          window.dispatchEvent(new KeyboardEvent("keyup", { code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true }));
-          await yieldTask();
+        for (let characterIndex = 0; characterIndex < characters.length; characterIndex += 1) {
+          const character = characters[characterIndex];
+          const heldCodes = new Set();
+          try {
+            try {
+              for (const keyCode of character.keyCodes) {
+                const code = "Key" + keyCode;
+                window.dispatchEvent(new KeyboardEvent("keydown", { code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true }));
+                heldCodes.add(code);
+                const started = performance.now();
+                while (performance.now() - started < tapHoldMs) {}
+                window.dispatchEvent(new KeyboardEvent("keyup", { code, key: keyCode.toLowerCase(), bubbles: true, cancelable: true }));
+                heldCodes.delete(code);
+              }
+            } finally {
+              for (const code of heldCodes) {
+                window.dispatchEvent(new KeyboardEvent("keyup", {
+                  code, key: code.slice(3).toLowerCase(), bubbles: true, cancelable: true,
+                }));
+              }
+            }
+            await waitUntil(
+              () => pulseCount() >= before + character.keyCodes.length,
+              ${JSON.stringify(label)} + " automatic-key character pulses were not observed",
+            );
+            await waitUntil(
+              () => screen()?.dataset[${JSON.stringify(keyingDataset)}] === "false",
+              ${JSON.stringify(label)} + " automatic keyer did not become idle",
+            );
+            before = pulseCount();
+            if (characterIndex < characters.length - 1) {
+              const gapStarted = performance.now();
+              while (performance.now() - gapStarted < characterGapMs) {}
+            }
+          } finally {
+            for (const code of heldCodes) {
+              window.dispatchEvent(new KeyboardEvent("keyup", {
+                code, key: code.slice(3).toLowerCase(), bubbles: true, cancelable: true,
+              }));
+            }
+          }
         }
-        await waitUntil(() => pulseCount() >= before + keyCodes.length, ${JSON.stringify(label)} + " automatic-key character pulses were not observed");
-        await waitUntil(() => screen()?.dataset[${JSON.stringify(keyingDataset)}] === "false", ${JSON.stringify(label)} + " automatic keyer did not become idle");
         return { decoded: screen()?.dataset.decoded ?? "", pulseCount: pulseCount() };
       } finally {
         channel.port1.close(); channel.port2.close();
@@ -1143,6 +1183,16 @@ async function sendAutomaticStructuredText(window, text, {
     throw new Error(`${label} automatic input decoded '${result.decoded}' instead of '${expected}'`);
   }
   return result;
+}
+
+async function sendAutomaticFirstPageText(window, text, wpm = 18) {
+  return sendAutomaticStructuredText(window, text, {
+    screenSelector: ".station-screen",
+    phaseDataset: "qsoPhase",
+    keyingDataset: "keying",
+    label: "First page",
+    wpm,
+  });
 }
 
 async function readContestQaWpm(window) {
@@ -1452,8 +1502,14 @@ async function waitForFocusedQsoState(window, selector, {
 
 async function startGuidedQaWatch(window) {
   await focusQaWindow(window, "before starting the guided QSO watch");
-  await click(window, '[data-action="start-guided-watch"]');
-  await waitForMissing(window, '[data-testid="qso-briefing-modal"]');
+  const briefingPresent = await window.webContents.executeJavaScript(
+    'Boolean(document.querySelector(\'[data-testid="qso-briefing-modal"]\'))',
+    true,
+  );
+  if (briefingPresent) {
+    await click(window, '[data-action="start-guided-watch"]');
+    await waitForMissing(window, '[data-testid="qso-briefing-modal"]');
+  }
   await waitFor(window, '[data-qso-phase="PLAYER_CQ"][data-receiver-active="true"]', 10000);
 }
 
@@ -2034,6 +2090,7 @@ async function runQslStoryQaScope(window, outputDir, shot, { qaRunId }) {
   await openQaActiveSave(window);
   await click(window, '[data-action="open-missions"]');
   await waitFor(window, '[data-mission-id="story-07"][data-mission-status="available"]');
+  await revealQaMissionForCapture(window, "story-07");
   await capture(window, outputDir, shot("qsl-mission-available"));
   await click(window, '[data-action="accept-mission"][data-mission-action-id="story-07"]');
   await waitFor(window, '[data-mission-id="story-07"][data-mission-status="active"]');
@@ -2110,6 +2167,7 @@ async function runServiceNetQaScope(window, outputDir, shot, { qaRunId }) {
   await openQaActiveSave(window);
   await click(window, '[data-action="open-missions"]');
   await waitFor(window, '[data-mission-id="story-08"][data-mission-status="available"]');
+  await revealQaMissionForCapture(window, "story-08");
   await capture(window, outputDir, shot("service-mission-available"));
   await click(window, '[data-action="accept-mission"][data-mission-action-id="story-08"]');
   await waitFor(window, '[data-mission-id="story-08"][data-mission-status="active"]');
@@ -2200,6 +2258,7 @@ async function runCoordinateRelayQaScope(window, outputDir, shot, { qaRunId }) {
   await openQaActiveSave(window);
   await click(window, '[data-action="open-missions"]');
   await waitFor(window, '[data-mission-id="story-09"][data-mission-status="available"]');
+  await revealQaMissionForCapture(window, "story-09");
   await capture(window, outputDir, shot("coordinate-mission-available"));
   await click(window, '[data-action="accept-mission"][data-mission-action-id="story-09"]');
   await waitFor(window, '[data-mission-id="story-09"][data-mission-status="active"]');
@@ -2328,6 +2387,7 @@ async function runContestQaScope(window, outputDir, shot, { qaRunId }) {
   await openQaActiveSave(window);
   await click(window, '[data-action="open-missions"]');
   await waitFor(window, '[data-mission-id="story-10"][data-mission-status="available"]');
+  await revealQaMissionForCapture(window, "story-10");
   await capture(window, outputDir, shot("contest-mission-available"));
   await click(window, '[data-action="accept-mission"][data-mission-action-id="story-10"]');
   await waitFor(window, '[data-mission-id="story-10"][data-mission-status="active"]');
@@ -2463,10 +2523,23 @@ async function submitFinalChapterText(window, text, {
   if (expectedSelector) await waitFor(window, expectedSelector, timeout);
 }
 
+async function revealQaMissionForCapture(window, missionId, status = "available") {
+  const selector = `[data-mission-id="${missionId}"][data-mission-status="${status}"]`;
+  const revealed = await window.webContents.executeJavaScript(`(() => {
+    const mission = document.querySelector(${JSON.stringify(selector)});
+    if (!mission) return false;
+    mission.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+    return true;
+  })()`, true);
+  if (revealed !== true) throw new Error(`Unable to reveal QA mission card: ${missionId}`);
+  return true;
+}
+
 async function runListeningQaScope(window, outputDir, shot, { qaRunId }) {
   await openQaActiveSave(window);
   await click(window, '[data-action="open-missions"]');
   await waitFor(window, '[data-mission-id="story-11"][data-mission-status="available"]');
+  await revealQaMissionForCapture(window, "story-11");
   await capture(window, outputDir, shot("listening-mission-available"));
   await click(window, '[data-action="accept-mission"][data-mission-action-id="story-11"]');
   await waitFor(window, '[data-mission-id="story-11"][data-mission-status="active"]');
@@ -2489,6 +2562,8 @@ async function runListeningQaScope(window, outputDir, shot, { qaRunId }) {
   await click(window, '[data-action="listening-submit"]');
   await waitFor(window, '[data-listening-phase="WAITING"]');
   await capture(window, outputDir, shot("listening-waiting"));
+  await focusQaWindow(window, "before listening wait completion");
+  await waitFor(window, '.listening-screen[data-listening-paused="false"]');
   await waitFor(window, '[data-listening-phase="DECISION"]', 10_000);
   await capture(window, outputDir, shot("listening-decision"));
   await click(window, '[data-action="listening-record-silence"]');
@@ -2536,6 +2611,7 @@ async function runStormRelayQaScope(window, outputDir, shot, { qaRunId }) {
   await openQaActiveSave(window);
   await click(window, '[data-action="open-missions"]');
   await waitFor(window, '[data-mission-id="story-12"][data-mission-status="available"]');
+  await revealQaMissionForCapture(window, "story-12");
   await capture(window, outputDir, shot("storm-mission-available"));
   await click(window, '[data-action="accept-mission"][data-mission-action-id="story-12"]');
   await click(window, '[data-action="launch-storm-relay"]');
@@ -2622,6 +2698,7 @@ async function runNightOperationsQaScope(window, outputDir, shot, { qaRunId }) {
   await openQaActiveSave(window);
   await click(window, '[data-action="open-missions"]');
   await waitFor(window, '[data-mission-id="story-13"][data-mission-status="available"]');
+  await revealQaMissionForCapture(window, "story-13");
   await capture(window, outputDir, shot("night-mission-available"));
   await click(window, '[data-action="accept-mission"][data-mission-action-id="story-13"]');
   await click(window, '[data-action="launch-night-operations"]');
@@ -2691,6 +2768,7 @@ async function runFinalPromiseQaScope(window, outputDir, shot, { qaRunId }) {
   await openQaActiveSave(window);
   await click(window, '[data-action="open-missions"]');
   await waitFor(window, '[data-mission-id="story-14"][data-mission-status="available"]');
+  await revealQaMissionForCapture(window, "story-14");
   await capture(window, outputDir, shot("final-promise-mission-available"));
   await click(window, '[data-action="accept-mission"][data-mission-action-id="story-14"]');
   await click(window, '[data-action="launch-final-promise"]');
@@ -2704,6 +2782,8 @@ async function runFinalPromiseQaScope(window, outputDir, shot, { qaRunId }) {
   await submitFinalChapterText(window, "WRONG DE WRONG K", { screenSelector: ".final-promise-screen", phaseDataset: "finalPromisePhase", label: "Final promise", submitSelector: '[data-action="final-promise-submit"]' });
   await waitFor(window, '[data-final-promise-phase="CALL"]');
   await capture(window, outputDir, shot("final-promise-call-error"));
+  await click(window, '[data-action="final-promise-clear"]');
+  await waitFor(window, '[data-testid="final-promise-screen"][data-decoded=""]');
   let expected = await window.webContents.executeJavaScript('document.querySelector(".final-promise-keyer code").textContent.trim()', true);
   await submitFinalChapterText(window, expected, { screenSelector: ".final-promise-screen", phaseDataset: "finalPromisePhase", label: "Final promise", submitSelector: '[data-action="final-promise-submit"]', expectedSelector: '[data-final-promise-phase="ACCOUNT"]' });
   await capture(window, outputDir, shot("final-promise-account"));
@@ -2719,6 +2799,8 @@ async function runFinalPromiseQaScope(window, outputDir, shot, { qaRunId }) {
   await submitFinalChapterText(window, "E", { screenSelector: ".final-promise-screen", phaseDataset: "finalPromisePhase", label: "Final promise", submitSelector: '[data-action="final-promise-submit"]' });
   await waitFor(window, '[data-final-promise-phase="FINAL_MESSAGE"]');
   await capture(window, outputDir, shot("final-promise-message-error"));
+  await click(window, '[data-action="final-promise-clear"]');
+  await waitFor(window, '[data-testid="final-promise-screen"][data-decoded=""]');
   expected = await window.webContents.executeJavaScript('document.querySelector(".final-promise-keyer code").textContent.trim()', true);
   await submitFinalChapterText(window, expected, { screenSelector: ".final-promise-screen", phaseDataset: "finalPromisePhase", label: "Final promise", submitSelector: '[data-action="final-promise-submit"]', expectedSelector: '[data-final-promise-phase="COMPLETED"]' });
   await capture(window, outputDir, shot("final-promise-result"));
@@ -2740,10 +2822,11 @@ async function runFinalPromiseQaScope(window, outputDir, shot, { qaRunId }) {
   await capture(window, outputDir, shot("final-promise-reloaded"));
   const facts = await finalChapterSaveFacts(window, `(() => {
     const chapter = save.storyContinuationState.chapter14; const record = chapter.archive.at(-1);
+    const summary = chapter.completedRuns.find((entry) => entry.runId === record.runId);
     const logs = save.qsoLogs.filter((log) => log.eventKind === "final-promise" && log.eventRunId === record.runId);
     return { recipientPersonId: record.personId, tone: record.tone, eventQsoCount: logs.length,
       relationshipCount: save.operatorRelationships.filter((entry) => entry.personId === record.personId).length,
-      qslLinked: save.qslRecords.some((entry) => entry.id === record.sourceQslId), accountRepeatVerified: record.recoveryActions.includes("AGN"),
+      qslLinked: save.qslRecords.some((entry) => entry.id === record.sourceQslId), accountRepeatVerified: Boolean(summary?.recoveryActions.includes("AGN")),
       missionClaimed: save.missionState.claimedMissionIds.includes("story-14"),
       reloadPersisted: chapter.settledRunIds.includes(record.runId) && chapter.taskTreeUnlocked === true,
       rawPlayerTextPersisted: JSON.stringify(chapter).includes(" DE BH1ABC ") };
@@ -2790,6 +2873,7 @@ async function runFirstPageQaScope(window, outputDir, shot, { qaRunId }) {
   })`);
   await click(window, '[data-action="open-missions"]');
   await waitFor(window, '[data-mission-id="story-15"][data-mission-status="available"]');
+  await revealQaMissionForCapture(window, "story-15");
   await capture(window, outputDir, shot("first-page-mission-available"));
   await click(window, '[data-action="accept-mission"][data-mission-action-id="story-15"]');
   await waitFor(window, '[data-mission-id="story-15"][data-mission-status="active"]');
@@ -2799,7 +2883,6 @@ async function runFirstPageQaScope(window, outputDir, shot, { qaRunId }) {
   await capture(window, outputDir, shot("first-page-mission-active"));
   await click(window, '[data-action="launch-first-page-qso"]');
   await waitFor(window, ".station-screen");
-  await waitFor(window, ".qso-briefing-modal");
   await startGuidedQaWatch(window);
   await waitForFocusedQsoState(window, '[data-qso-phase="PLAYER_CQ"][data-receiver-active="true"]', {
     context: "before the first-page ordinary QSO",
@@ -2811,7 +2894,7 @@ async function runFirstPageQaScope(window, outputDir, shot, { qaRunId }) {
   }))()`, true);
   if (!identity.player) throw new Error("First-page ordinary QSO has no player callsign");
   const compactCq = `CQCQDE${identity.player}${identity.player}PSEK`;
-  await sendAutomaticStationText(window, compactCq);
+  await sendAutomaticFirstPageText(window, compactCq);
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10_000);
   await click(window, '[data-action="submit-reply"]');
   await waitForFocusedQsoState(window, '[data-qso-phase="PLAYER_RST_AND_73"]', {
@@ -2822,13 +2905,13 @@ async function runFirstPageQaScope(window, outputDir, shot, { qaRunId }) {
   );
   if (!npc) throw new Error("First-page ordinary QSO has no NPC callsign");
   const report = `${npc} DE ${identity.player} RST 599 73 K`;
-  await sendAutomaticStationText(window, report);
+  await sendAutomaticFirstPageText(window, report);
   await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10_000);
   await click(window, '[data-action="submit-reply"]');
   const reportPhase = await waitForQsoSubmitDecision(window);
   if (reportPhase === "PLAYER_RST_AND_73") {
     await click(window, '[data-action="clear-input"]');
-    await sendAutomaticStationText(window, report);
+    await sendAutomaticFirstPageText(window, report);
     await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10_000);
     await click(window, '[data-action="submit-reply"]');
   }
@@ -2847,7 +2930,7 @@ async function runFirstPageQaScope(window, outputDir, shot, { qaRunId }) {
       age: "AGE 117 K",
     })[optionalQuestion];
     if (!optionalAnswer) throw new Error(`Unsupported first-page optional question: ${optionalQuestion}`);
-    await sendAutomaticStationText(window, optionalAnswer);
+    await sendAutomaticFirstPageText(window, optionalAnswer);
     await waitFor(window, '[data-action="submit-reply"]:not([disabled])', 10_000);
     await click(window, '[data-action="submit-reply"]');
     await waitForFocusedQsoState(window, ".qso-result-modal.success", {
@@ -2982,7 +3065,7 @@ async function runQaCapture(window) {
     'document.querySelector(".build-tag")?.textContent.trim() ?? ""',
     true,
   );
-  if (!buildTag.includes("v0.40.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
+  if (!buildTag.includes("v0.45.0")) throw new Error(`Unexpected title build tag: ${buildTag}`);
 
   const supportedLanguageIds = ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"];
   const languageStorageKey = "game-morse-adventurer.language.v1";
@@ -5130,11 +5213,12 @@ module.exports = {
   configureContestQaWpm,
   createQaStateEnvelope, exportQaStateFromRenderer, formatLightsWaitFailure, importQaStateIntoRenderer,
   focusQaWindow,
+  revealQaMissionForCapture,
   LIGHTS_QA_WPM, QA_INITIAL_STORY_MISSION_IDS, QA_QSO_LOG_VERSION, QA_STORAGE_KEYS, QA_SUPPORTED_SCOPES,
   runLightsQaCapture, runLightsQaSegment, runQaCapture,
   qaMorsePatternForCharacter,
   lightsKeyInputForSymbol, selectLightsCallerFromRuntimeSnapshot, startGuidedQaWatch,
-  sendAutomaticStationRun, sendAutomaticStationText,
+  sendAutomaticFirstPageText, sendAutomaticStationRun, sendAutomaticStationText, sendAutomaticStructuredText,
   sendAutomaticLightsText, validateExpeditionQaEvidence, validateLightsQaEvidence, validateQaStateEnvelope, validateStationEntryProbe,
   validateContestQaEvidence, validateCoordinateRelayQaEvidence, validateQslStoryQaEvidence, validateServiceNetQaEvidence,
   validateFinalPromiseQaEvidence, validateFirstPageQaEvidence, validateListeningQaEvidence,

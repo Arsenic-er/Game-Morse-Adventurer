@@ -21,6 +21,7 @@ test("Chapter 14 screen recalls fixed facts and transmits only through physical 
   assert.match(screen, /cwgameSystem\?\.interpretCwTraffic/);
   assert.match(screen, /data-action="final-promise-review"/);
   assert.match(screen, /data-action="final-promise-submit"/);
+  assert.match(screen, /data-action="final-promise-clear"/);
   assert.match(screen, /data-action="final-promise-tone"/);
   assert.match(screen, /data-action="final-promise-settle"/);
   assert.doesNotMatch(screen, /<input|<textarea/);

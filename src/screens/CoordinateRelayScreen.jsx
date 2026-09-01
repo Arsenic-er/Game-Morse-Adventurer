@@ -66,7 +66,7 @@ export function CoordinateRelayScreen({ language, save, inputBlocked = false, on
   function settle() { const result = onSettle(run); setSettlementAttempts((count) => count + 1); setSettlementReason(result?.reason ?? (result?.settled ? "SETTLED" : "REJECTED")); if (result?.settled || result?.reason === "ALREADY_SETTLED") setSettled(true); }
   return <main className="screen coordinate-relay-screen" data-testid="coordinate-relay-screen" data-simulation="fictional-pixel-grid"
     data-coordinate-phase={run.phase} data-packet-grid={run.packet.grid} data-packet-utc={run.packet.utc}
-    data-packet-check={run.packet.check} data-coordinate-paused={inputBlocked || !windowActive} data-portrait-visible="false" data-pulse-count={cw.analysis.pulseCount} data-decoded={cw.analysis.decoded} data-keying={cw.isKeying} data-settled={settled} data-settlement-attempts={settlementAttempts} data-settlement-reason={settlementReason}>
+    data-packet-check={run.packet.check} data-coordinate-paused={inputBlocked || !windowActive} data-portrait-visible="false" data-pulse-count={cw.analysis.pulseCount} data-decoded={cw.analysis.decoded} data-keying={cw.isKeying} data-keyer-wpm={save.automaticKeyWpm} data-settled={settled} data-settlement-attempts={settlementAttempts} data-settlement-reason={settlementReason}>
     <header className="coordinate-relay-topbar"><div><GridFour size={28} weight="fill" /><span>{t.kicker}</span><h1>{t.title}</h1></div><b>{save.callsign}</b><button onClick={requestLeave}><ArrowLeft />{t.leave}</button></header>
     <p className="coordinate-relay-simulation"><Warning weight="fill" />{t.simulationWarning}</p>
     {(inputBlocked || !windowActive) && <div className="coordinate-relay-paused" role="status">{t.paused}</div>}

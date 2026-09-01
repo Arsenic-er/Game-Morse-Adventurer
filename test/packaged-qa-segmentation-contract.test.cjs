@@ -18,9 +18,12 @@ const {
   createQaStateEnvelope,
   exportQaStateFromRenderer,
   importQaStateIntoRenderer,
+  revealQaMissionForCapture,
   runLightsQaSegment,
+  sendAutomaticFirstPageText,
   sendAutomaticStationRun,
   sendAutomaticStationText,
+  sendAutomaticStructuredText,
   qaMorsePatternForCharacter,
   validateContestQaEvidence,
   validateCoordinateRelayQaEvidence,
@@ -58,11 +61,48 @@ test("packaged CW input covers every character supported by the production Morse
   assert.equal(qaMorsePatternForCharacter("@"), null);
 });
 
-test("bootstrap QA expects the complete Chapter 1 through 10 mission board", () => {
+test("bootstrap QA expects the complete Chapter 1 through 15 mission board", () => {
   assert.deepEqual(QA_INITIAL_STORY_MISSION_IDS, [
     "story-01", "story-02", "story-03", "story-04", "story-05",
     "story-06", "story-07", "story-08", "story-09", "story-10",
+    "story-11", "story-12", "story-13", "story-14", "story-15",
   ]);
+});
+
+test("a chapter mission evidence capture reveals the intended available card", async () => {
+  const selectors = [];
+  const scrollOptions = [];
+  const window = {
+    webContents: {
+      async executeJavaScript(source) {
+        return vm.runInNewContext(source, {
+          document: {
+            querySelector(selector) {
+              selectors.push(selector);
+              return {
+                scrollIntoView(options) {
+                  scrollOptions.push({ ...options });
+                },
+              };
+            },
+          },
+        });
+      },
+    },
+  };
+
+  assert.equal(await revealQaMissionForCapture(window, "story-11"), true);
+  assert.deepEqual(selectors, ['[data-mission-id="story-11"][data-mission-status="available"]']);
+  assert.deepEqual(scrollOptions, [{ block: "center", inline: "nearest", behavior: "instant" }]);
+});
+
+test("every Chapter 7 through 15 availability capture reveals its exact mission card", async () => {
+  const source = await fs.readFile(path.join(__dirname, "../electron/qa-capture.cjs"), "utf8");
+  for (let chapter = 7; chapter <= 15; chapter += 1) {
+    const missionId = `story-${String(chapter).padStart(2, "0")}`;
+    const call = `revealQaMissionForCapture(window, "${missionId}");`;
+    assert.equal(source.split(call).length - 1, 1, missionId);
+  }
 });
 
 test("QSO QA waits for a delayed semantic submission to reach a stable DOM decision", async () => {
@@ -345,6 +385,7 @@ async function delayedStationRenderer({
   focusLossAfterPulseCount = null,
   ipcDelayMs = 180,
   projectionDelayMs = 80,
+  structuredTimerLagMs = 0,
   taskYieldLagMs = 0,
   wpm = 18,
 } = {}) {
@@ -411,11 +452,15 @@ async function delayedStationRenderer({
     visibilityState: "visible",
     hasFocus: () => rendererFocused,
     querySelector(selector) {
-      if (selector === ".station-screen") {
+      if (selector === ".station-screen" || selector === ".coordinate-relay-screen" || selector === ".storm-relay-screen") {
         return { dataset: {
           decoded: projectedDecoded,
           pulseCount: String(projectedPulseCount),
           qsoPhase: "PLAYER_CQ",
+          coordinatePhase: "PLAYER_READBACK",
+          stormPhase: "PLAYER_RELAY",
+          keyerWpm: String(wpm),
+          keying: String(keyerActive),
         } };
       }
       if (selector === '[data-action="submit-reply"]:not([disabled])') {
@@ -439,7 +484,12 @@ async function delayedStationRenderer({
   const context = {
     Boolean, Date, Error, JSON, KeyboardEvent: FakeKeyboardEvent, Number, Promise,
     clearInterval, clearTimeout, document, MessageChannel: RendererMessageChannel,
-    performance, setInterval, setTimeout, window: rendererWindow,
+    performance, setInterval,
+    setTimeout(callback, delay, ...args) {
+      const lag = structuredTimerLagMs > 0 && delay >= 100 ? structuredTimerLagMs : 0;
+      return setTimeout(callback, delay + lag, ...args);
+    },
+    window: rendererWindow,
   };
   return {
     decoded: () => projectedDecoded,
@@ -542,6 +592,102 @@ test("ordinary station QA releases a paddle before a renderer task delayed beyon
     await sendAutomaticStationText(renderer.window, "E", wpm);
     assert.equal(renderer.decoded(), "E");
     assert.equal(renderer.pulses().length, 1);
+  } finally {
+    renderer.cleanup();
+  }
+});
+
+test("structured chapter QA queues one whole character before a delayed renderer task can split H", async () => {
+  const wpm = 18;
+  const renderer = await delayedStationRenderer({
+    ipcDelayMs: 0,
+    projectionDelayMs: 0,
+    taskYieldLagMs: (1200 / wpm) * 4,
+    wpm,
+  });
+  try {
+    await sendAutomaticStructuredText(renderer.window, "H", {
+      screenSelector: ".coordinate-relay-screen",
+      phaseDataset: "coordinatePhase",
+      label: "Coordinate relay",
+      wpm,
+    });
+    assert.equal(renderer.decoded(), "H");
+    assert.equal(renderer.pulses().length, 4);
+  } finally {
+    renderer.cleanup();
+  }
+});
+
+test("structured chapter QA keeps each word atomic across delayed main-renderer IPC", async () => {
+  const renderer = await delayedStationRenderer({
+    ipcDelayMs: 180,
+    projectionDelayMs: 80,
+    wpm: 18,
+  });
+  try {
+    await sendAutomaticStructuredText(renderer.window, "WRONG CHECK IN K", {
+      screenSelector: ".coordinate-relay-screen",
+      phaseDataset: "coordinatePhase",
+      label: "Storm relay",
+      wpm: 18,
+    });
+    assert.equal(renderer.decoded(), "WRONG CHECK IN K");
+  } finally {
+    renderer.cleanup();
+  }
+});
+
+test("structured chapter QA derives character spacing from the live 22 WPM keyer", async () => {
+  const renderer = await delayedStationRenderer({
+    ipcDelayMs: 0,
+    projectionDelayMs: 0,
+    structuredTimerLagMs: 60,
+    wpm: 22,
+  });
+  try {
+    await sendAutomaticStructuredText(renderer.window, "CHECK", {
+      screenSelector: ".storm-relay-screen",
+      phaseDataset: "stormPhase",
+      label: "Storm relay",
+      wpm: 12,
+    });
+    assert.equal(renderer.decoded(), "CHECK");
+  } finally {
+    renderer.cleanup();
+  }
+});
+
+test("structured chapter QA does not oversleep a character gap into a word gap", async () => {
+  const renderer = await delayedStationRenderer({
+    ipcDelayMs: 0,
+    projectionDelayMs: 0,
+    structuredTimerLagMs: 150,
+    wpm: 22,
+  });
+  try {
+    await sendAutomaticStructuredText(renderer.window, "SIMF3CC", {
+      screenSelector: ".storm-relay-screen",
+      phaseDataset: "stormPhase",
+      label: "Contest",
+      wpm: 22,
+    });
+    assert.equal(renderer.decoded(), "SIMF3CC");
+  } finally {
+    renderer.cleanup();
+  }
+});
+
+test("first-page ordinary QSO keeps its compact CQ atomic across delayed main-renderer IPC", async () => {
+  const renderer = await delayedStationRenderer({
+    ipcDelayMs: 180,
+    projectionDelayMs: 80,
+    wpm: 18,
+  });
+  try {
+    const cq = "CQCQDEBH1ABCXBH1ABCXPSEK";
+    await sendAutomaticFirstPageText(renderer.window, cq, 18);
+    assert.equal(renderer.decoded(), cq);
   } finally {
     renderer.cleanup();
   }

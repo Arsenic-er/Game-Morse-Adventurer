@@ -88,7 +88,7 @@ export function NightOperationsScreen({ language, save, inputBlocked = false, on
   function requestLeave() { nightOperationsLeaveRisk(run, settled) === "none" ? onBack() : setLeaveOpen(true); }
   async function settle() { const result = await onSettle(run); setSettlementReason(result?.reason ?? (result?.settled ? "SETTLED" : "REJECTED")); if (result?.settled || result?.reason === "ALREADY_SETTLED") setSettled(true); }
   return <main className="screen night-operations-screen" data-testid="night-operations-screen" data-night-phase={run.phase}
-    data-night-paused={inputBlocked || !windowActive} data-pulse-count={cw.analysis.pulseCount} data-decoded={cw.analysis.decoded}
+    data-night-paused={inputBlocked || !windowActive} data-pulse-count={cw.analysis.pulseCount} data-decoded={cw.analysis.decoded} data-keying={cw.isKeying} data-keyer-wpm={save.automaticKeyWpm}
     data-portrait-visible="false" data-settled={settled} data-settlement-reason={settlementReason}>
     <header className="night-operations-topbar"><div><Moon size={30} weight="fill" /><span>{t.kicker}</span><h1>{t.title}</h1></div><b>{save.callsign}</b><button onClick={requestLeave}><ArrowLeft />{t.leave}</button></header>
     <p className="night-operations-warning"><Warning weight="fill" />{t.simulationWarning}</p>
@@ -101,7 +101,7 @@ export function NightOperationsScreen({ language, save, inputBlocked = false, on
         </article>; })}
       </div></section>
       <aside className="night-operations-status"><Clock /><strong>{Math.ceil(run.activeMilliseconds / 1000)}s</strong><span>{t[run.phase]}</span><span>{t.contacts}: {run.contacts.length}/3</span><span>{t.missed}: {run.missedWindowIds.length}/2</span></aside>
-      {canTransmit && <section className="night-operations-keyer"><Radio size={32} /><h2>{run.phase === NIGHT_OPERATIONS_PHASES.CALL ? t.call : t.exchange}</h2><code>{expectedText(run)}</code><small>{save.keyType === "automatic" ? t.keyAuto : t.keyManual}</small><strong>{cw.analysis.decoded || "_"}</strong><div><button onClick={cw.clearInput}>{t.clear}</button><button data-action="night-submit" disabled={!cw.analysis.pulseCount || semanticBusy || inputBlocked} onClick={() => transmit()}>{t.transmit}</button></div></section>}
+      {canTransmit && <section className="night-operations-keyer"><Radio size={32} /><h2>{run.phase === NIGHT_OPERATIONS_PHASES.CALL ? t.call : t.exchange}</h2><code>{expectedText(run)}</code><small>{save.keyType === "automatic" ? t.keyAuto : t.keyManual}</small><strong>{cw.analysis.decoded || "_"}</strong><div><button onClick={cw.clearInput}>{t.clear}</button><button data-action="night-submit" disabled={!cw.analysis.pulseCount || cw.isKeying || semanticBusy || inputBlocked} onClick={() => transmit()}>{t.transmit}</button></div></section>}
       {run.phase === NIGHT_OPERATIONS_PHASES.COMPLETED && <section className="night-operations-result"><CheckCircle size={48} /><h2>{t.completed}</h2>{settled && <p role="status">{t.settled}</p>}<button data-action="night-settle" onClick={settle}>{t.settle}</button></section>}
       {run.phase === NIGHT_OPERATIONS_PHASES.FAILED && <section className="night-operations-result failed"><Warning size={48} /><h2>{t.failed}</h2><p>{t[run.failureReason] ?? run.failureReason}</p><button data-action="night-retry" onClick={retry}>{t.retry}</button></section>}
     </section>

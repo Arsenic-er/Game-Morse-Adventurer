@@ -36,6 +36,7 @@ test("mission entry routes through the ordinary station and Home opens the fixed
   const mission = read("src/screens/MissionCenterModal.jsx");
   const css = read("src/pixel-theme.css");
   assert.match(app, /settleFirstPageForActiveSave/);
+  assert.match(app, /className={`screen station-screen[\s\S]*data-keying={cw\.isKeying}/);
   assert.match(home, /data-action="open-first-page"/);
   assert.match(home, /<FirstPageModal/);
   assert.match(mission, /mission\.id === "story-15" && active/);

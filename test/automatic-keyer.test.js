@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AutomaticKeyer, normalizeAutomaticKeyWpm } from "../src/cw/automaticKeyer.js";
+import { analyzeKeying } from "../src/cw/inputAnalyzer.js";
 
 function fakeClock() {
   let currentTime = 0;
@@ -26,6 +27,14 @@ function fakeClock() {
         next[1].callback();
       }
       currentTime = end;
+    },
+    runNextLate(lateMs) {
+      const next = [...tasks.entries()].sort((left, right) => left[1].due - right[1].due)[0];
+      if (!next) return false;
+      currentTime = next[1].due + lateMs;
+      tasks.delete(next[0]);
+      next[1].callback();
+      return true;
     },
     pending: () => tasks.size,
   };
@@ -125,4 +134,19 @@ test("quick taps queue exactly one complete element each", () => {
   fixture.clock.tick(360);
   assert.deepEqual(fixture.pulses.map((pulse) => pulse.symbol), [".", "-"]);
   assert.deepEqual(fixture.pulses.map((pulse) => pulse.upAt - pulse.downAt), [60, 180]);
+});
+
+test("queued automatic elements keep nominal Morse spacing when timer callbacks drift", () => {
+  const fixture = keyerFixture(20);
+  for (const symbol of ".--.") fixture.keyer.tap(symbol);
+  for (let index = 0; fixture.clock.pending() && index < 20; index += 1) {
+    fixture.clock.runNextLate(90);
+  }
+
+  assert.equal(fixture.keyer.isBusy(), false);
+  assert.deepEqual(
+    fixture.pulses.map(({ downAt, upAt }) => [downAt, upAt]),
+    [[0, 60], [120, 300], [360, 540], [600, 660]],
+  );
+  assert.equal(analyzeKeying(fixture.pulses, { fallbackWpm: 20 }).decoded, "P");
 });

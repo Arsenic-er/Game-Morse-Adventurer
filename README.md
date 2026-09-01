@@ -8,7 +8,7 @@
 
 [**Semantic model and training data**](https://github.com/Arsenic-er/cwformer)
 
-**v0.40.0**: Chapters 5–10 are implemented. Chapter 5 completes the NOVA–SORA–MORSE lights event and archive; Chapter 6 delivers the playable hilltop expedition. Chapter 7 QSL investigation preserves both accounts and a final stance through a verified SORA contact. Chapter 8 fictional service net orders and acknowledges three bounded public-service exercise messages. Chapter 9 Pixel Grid coordinate relay verifies a fictional grid, UTC time, people count, and checksum without storing free text. Chapter 10 RUN / S&P contest completes a five-minute offline sprint with six unique contacts, deterministic scoring, recovery, replay, and personal-best persistence. Chapters 11–15 remain planned and are not playable; no real emergency traffic, organization, frequency, or online ranking is represented.
+**v0.45.0**: Chapters 5–15 and the initial Open Station dashboard are implemented. Chapter 11 listening watch makes silence a bounded operating decision; Chapter 12 storm relay verifies one revision-two fictional drill packet; Chapter 13 night operations completes three scheduled contacts; Chapter 14 final promise closes SORA's fixed account without storing player prose; Chapter 15 ordinary QSO seals the first page and unlocks Open Station goals. All play remains offline and fictional; no real emergency traffic, organization, frequency, free chat, or online ranking is represented.
 
 
 [![Windows portable](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml/badge.svg)](https://github.com/Arsenic-er/Game-Morse-Adventurer/actions/workflows/windows-portable.yml)

@@ -10,8 +10,12 @@ export const OPEN_STATION_GOALS = Object.freeze([
 
 function own(value, key) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && Object.hasOwn(descriptor, "value") ? descriptor.value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function normalizeOpenStationGoal(value) {

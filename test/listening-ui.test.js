@@ -33,6 +33,22 @@ test("Chapter 11 screen uses physical CW and records bounded silence without a p
   assert.doesNotMatch(screen, /<img[^>]+portrait/i);
 });
 
+test("Chapter 11 decision timer survives active-clock run updates", () => {
+  const screen = read("src/screens/ListeningScreen.jsx");
+  assert.match(
+    screen,
+    /setRun\(\(current\) => \{[\s\S]*finishListeningWait\(current, nowIso\(\)\)[\s\S]*onRunChangeRef\.current\(next\)[\s\S]*return next;/,
+  );
+  assert.match(
+    screen,
+    /\}, \[inputBlocked, run\.phase, windowActive\]\);/,
+  );
+  assert.doesNotMatch(
+    screen,
+    /finishListeningWait\(run, nowIso\(\)\)[\s\S]*\[inputBlocked, run, update, windowActive\]/,
+  );
+});
+
 test("Chapter 11 copy is nonempty and shape-identical in all seven languages", () => {
   const keys = Object.keys(LISTENING_TEXT.en);
   assert.deepEqual(Object.keys(LISTENING_TEXT), ["zh-CN", "zh-TW", "ja", "en", "es", "de", "ru"]);

@@ -90,6 +90,10 @@ test("packaged QA refocuses the real renderer before starting a guided QSO watch
           assert.equal(focused, true);
           return true;
         }
+        if (source.includes('Boolean(document.querySelector') && source.includes('qso-briefing-modal')) {
+          calls.push("briefing-present-check");
+          return true;
+        }
         if (source.includes('data-testid=\\"qso-briefing-modal\\"')) return true;
         if (source.includes('data-qso-phase=\\"PLAYER_CQ\\"')) return true;
         throw new Error(`Unexpected QA script: ${source}`);
@@ -100,8 +104,39 @@ test("packaged QA refocuses the real renderer before starting a guided QSO watch
   await startGuidedQaWatch(qaWindow);
 
   assert.deepEqual(calls, [
-    "renderer-focus-precheck", "restore", "show", "window-focus", "renderer-focus", "renderer-focus-check", "guided-watch-click",
+    "renderer-focus-precheck", "restore", "show", "window-focus", "renderer-focus", "renderer-focus-check",
+    "briefing-present-check", "guided-watch-click",
   ]);
+});
+
+test("packaged QA resumes an already briefed QSO without requiring the one-time modal", async () => {
+  const calls = [];
+  const qaWindow = {
+    isMinimized: () => false,
+    show() { calls.push("show"); },
+    focus() { calls.push("window-focus"); },
+    webContents: {
+      focus() { calls.push("renderer-focus"); },
+      async executeJavaScript(source) {
+        if (source.trim().startsWith("({ hasFocus:")) return { hasFocus: true, visibilityState: "visible" };
+        if (source.includes('Boolean(document.querySelector') && source.includes('qso-briefing-modal')) {
+          calls.push("briefing-present-check");
+          return false;
+        }
+        if (source.includes('data-action=\\"start-guided-watch\\"')) {
+          throw new Error("The guided-watch button must not be clicked when its modal is absent");
+        }
+        if (source.includes('data-qso-phase=\\"PLAYER_CQ\\"')) {
+          calls.push("player-cq-wait");
+          return true;
+        }
+        throw new Error(`Unexpected QA script: ${source}`);
+      },
+    },
+  };
+
+  await startGuidedQaWatch(qaWindow);
+  assert.deepEqual(calls, ["briefing-present-check", "player-cq-wait"]);
 });
 
 test("focusQaWindow is idempotent while the real renderer remains focused", async () => {
