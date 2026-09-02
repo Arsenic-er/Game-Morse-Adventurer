@@ -46,6 +46,11 @@ test("the release gate audits production dependencies at high severity", () => {
   assert.match(build, /pnpm audit --prod --audit-level high/);
 });
 
+test("the validated ONNX runtime uses the patched ZIP dependency", () => {
+  assert.equal(packageJson.dependencies["onnxruntime-node"], "1.27.0");
+  assert.equal(packageJson.pnpm.overrides["onnxruntime-node@1.27.0>adm-zip"], "0.6.0");
+});
+
 test("every third-party action is pinned to an immutable full commit SHA", () => {
   const actionRefs = [...workflow.matchAll(/^\s*uses:\s*([^\s#]+).*$/gm)].map((match) => match[1]);
   assert.ok(actionRefs.length >= 4);
