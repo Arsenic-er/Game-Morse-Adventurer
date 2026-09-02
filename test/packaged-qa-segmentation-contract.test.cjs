@@ -19,6 +19,7 @@ const {
   exportQaStateFromRenderer,
   importQaStateIntoRenderer,
   revealQaMissionForCapture,
+  sampleQaCssAnimation,
   runLightsQaSegment,
   sendAutomaticFirstPageText,
   sendAutomaticStationRun,
@@ -165,6 +166,42 @@ test("focus-sensitive QSO waits restore the real renderer before NPC playback ca
     "show", "window-focus", "renderer-focus",
     'wait:[data-qso-phase="PLAYER_CQ"]:10000',
   ]);
+});
+
+test("home motion QA pins distinct animation frames instead of racing wall-clock timing", async () => {
+  const scripts = [];
+  const samples = [
+    { animationName: "lantern-flicker", currentTime: 0, styleSignature: ".18|brightness(1.08)|matrix-a" },
+    { animationName: "lantern-flicker", currentTime: 900, styleSignature: ".52|brightness(1.6)|matrix-b" },
+  ];
+  const window = {
+    webContents: {
+      async executeJavaScript(source) {
+        scripts.push(source);
+        return samples.shift();
+      },
+    },
+  };
+
+  const first = await sampleQaCssAnimation(window, {
+    selector: ".home-lantern-flicker", animationName: "lantern-flicker", currentTimeMs: 0,
+  });
+  const second = await sampleQaCssAnimation(window, {
+    selector: ".home-lantern-flicker", animationName: "lantern-flicker", currentTimeMs: 900,
+  });
+  assert.notEqual(first.styleSignature, second.styleSignature);
+  assert.match(scripts[0], /animation\.pause\(\);[\s\S]*animation\.currentTime = 0;/);
+  assert.match(scripts[1], /animation\.pause\(\);[\s\S]*animation\.currentTime = 900;/);
+
+  const qaSource = await fs.readFile(path.join(__dirname, "../electron/qa-capture.cjs"), "utf8");
+  assert.match(
+    qaSource,
+    /currentTimeMs: 0,[\s\S]*shot\("home-motion-a"\)[\s\S]*currentTimeMs: 900,[\s\S]*styleSignature[\s\S]*shot\("home-motion-b"\)/,
+  );
+  assert.doesNotMatch(
+    qaSource,
+    /shot\("home-motion-a"\)[\s\S]{0,120}setTimeout\([\s\S]{0,120}shot\("home-motion-b"\)/,
+  );
 });
 
 function pngChunk(type, data = Buffer.alloc(0)) {

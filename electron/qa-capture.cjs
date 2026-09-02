@@ -1487,6 +1487,36 @@ async function focusQaWindow(window, context) {
   }
 }
 
+async function sampleQaCssAnimation(window, { selector, animationName, currentTimeMs }) {
+  if (typeof selector !== "string" || !selector
+    || typeof animationName !== "string" || !animationName
+    || !Number.isFinite(currentTimeMs) || currentTimeMs < 0) {
+    throw new Error("QA animation sampling requires a selector, animation name, and non-negative time");
+  }
+  const sample = await window.webContents.executeJavaScript(`new Promise((resolve) => {
+    const element = document.querySelector(${JSON.stringify(selector)});
+    if (!element) { resolve({ error: "missing-element" }); return; }
+    const animation = element.getAnimations().find((candidate) => candidate.animationName === ${JSON.stringify(animationName)});
+    if (!animation) { resolve({ error: "missing-animation" }); return; }
+    animation.pause();
+    animation.currentTime = ${currentTimeMs};
+    element.getBoundingClientRect();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const style = getComputedStyle(element);
+      resolve({
+        animationName: animation.animationName,
+        currentTime: animation.currentTime,
+        styleSignature: [style.opacity, style.filter, style.transform].join("|"),
+      });
+    }));
+  })`, true);
+  if (sample?.error || sample?.animationName !== animationName
+    || !Number.isFinite(sample?.currentTime) || !sample?.styleSignature) {
+    throw new Error(`QA could not sample ${animationName} at ${currentTimeMs}ms: ${JSON.stringify(sample)}`);
+  }
+  return sample;
+}
+
 async function waitForFocusedQsoState(window, selector, {
   context = "before waiting for focused QSO state",
   timeout = 10_000,
@@ -3337,8 +3367,16 @@ async function runQaCapture(window) {
     key: "Escape", code: "Escape", bubbles: true, cancelable: true,
   }))`, true);
   await waitForMissing(window, ".settings-modal");
+  const homeMotionA = await sampleQaCssAnimation(window, {
+    selector: ".home-lantern-flicker", animationName: "lantern-flicker", currentTimeMs: 0,
+  });
   await capture(window, outputDir, shot("home-motion-a"));
-  await new Promise((resolve) => setTimeout(resolve, 1400));
+  const homeMotionB = await sampleQaCssAnimation(window, {
+    selector: ".home-lantern-flicker", animationName: "lantern-flicker", currentTimeMs: 900,
+  });
+  if (homeMotionA.styleSignature === homeMotionB.styleSignature) {
+    throw new Error(`Home lantern animation samples were not visually distinct: ${JSON.stringify({ homeMotionA, homeMotionB })}`);
+  }
   await capture(window, outputDir, shot("home-motion-b"));
   await clearHover(window);
   await click(window, '[data-action="open-missions"]');
@@ -5213,6 +5251,7 @@ module.exports = {
   configureContestQaWpm,
   createQaStateEnvelope, exportQaStateFromRenderer, formatLightsWaitFailure, importQaStateIntoRenderer,
   focusQaWindow,
+  sampleQaCssAnimation,
   revealQaMissionForCapture,
   LIGHTS_QA_WPM, QA_INITIAL_STORY_MISSION_IDS, QA_QSO_LOG_VERSION, QA_STORAGE_KEYS, QA_SUPPORTED_SCOPES,
   runLightsQaCapture, runLightsQaSegment, runQaCapture,
