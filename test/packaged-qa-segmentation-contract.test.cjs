@@ -1038,6 +1038,16 @@ test("pixel-hash duplicate policy rejects copied, unapproved, and over-broad scr
     { path: "segments/inventory/home-log-empty-copy-1439x912.png", pixelHash: "same-pixels" },
   ], { suffix: "1439x912" }), /duplicate|allowlist|member/i);
 
+  const ownedRadioWarmup = [
+    { path: "segments/equipment/store-radio-owned-warmup-1439x912.png", pixelHash: "same-pixels" },
+    { path: "segments/equipment/store-radio-owned-1439x912.png", pixelHash: "same-pixels" },
+  ];
+  assert.doesNotThrow(() => validatePixelHashGroups(ownedRadioWarmup, { suffix: "1439x912" }));
+  assert.throws(() => validatePixelHashGroups([
+    ...ownedRadioWarmup,
+    { path: "segments/equipment/store-radio-owned-copy-1439x912.png", pixelHash: "same-pixels" },
+  ], { suffix: "1439x912" }), /duplicate|allowlist|member/i);
+
   const chapterHandoff = [
     { path: "segments/qsl-story/qsl-reloaded-1439x912.png", pixelHash: "same-pixels" },
     { path: "segments/service-net/service-mission-available-1439x912.png", pixelHash: "same-pixels" },

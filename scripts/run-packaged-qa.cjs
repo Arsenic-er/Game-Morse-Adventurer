@@ -274,6 +274,10 @@ const ALLOWED_PIXEL_DUPLICATE_STEMS = Object.freeze([
     "segments/equipment/store-radio-available",
   ]),
   Object.freeze([
+    "segments/equipment/store-radio-owned-warmup",
+    "segments/equipment/store-radio-owned",
+  ]),
+  Object.freeze([
     "segments/practice/practice-weak-cleared",
     "segments/practice/practice-weak-cleared-reloaded",
   ]),
