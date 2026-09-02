@@ -1,7 +1,9 @@
 # Chapters 11–15 and Open Station Mode Design
 
-**Date:** 2026-08-31  
-**Target release:** v0.45.0  
+**Date:** 2026-08-31
+
+**Target release:** v0.45.0
+
 **Base:** v0.40.0, commit `0d8294e81e4b61c1a6e4cca34f586287cfe3cf55`
 
 ## 1. Outcome
@@ -227,6 +229,5 @@ The result JSONs must prove the real failure/recovery path, completion proof, ev
 - `pnpm build` passes and every owned JS chunk is at most 512,000 bytes.
 - Offline semantic model hashes and real CPU-provider smoke remain unchanged.
 - Windows desktop package remains unsigned and includes the two complete OFL texts.
-- Fresh packaged QA produces exactly 197 valid screenshots, twelve segment sentinels, zero failure/timeout markers, zero console errors, and all chapter validators passing.
+- Fresh packaged QA produces exactly 197 valid screenshots, sixteen segment sentinels, zero failure/timeout markers, zero console errors, and all chapter validators passing.
 - Release metadata and seven localized READMEs identify Chapters 5–15 as implemented and describe Open Station’s exact initial depth without claiming online or real-emergency features.
-

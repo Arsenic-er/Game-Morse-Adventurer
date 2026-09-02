@@ -33,6 +33,19 @@ test("tag builds publish the portable executable and checksum to a durable GitHu
   assert.match(workflow, /unsigned prototype build/i);
 });
 
+test("the Windows build timeout leaves room for packaged QA and artifact upload", () => {
+  const build = jobBlock("build");
+  const timeout = /^\s+timeout-minutes:\s*(\d+)\s*$/m.exec(build);
+  assert.ok(timeout, "build job must declare an explicit timeout");
+  assert.ok(Number(timeout[1]) >= 60, "build timeout must allow the full packaged QA gate to finish");
+  assert.match(build, /name:\s*Smoke-test packaged game[\s\S]*name:\s*Upload portable artifact/);
+});
+
+test("the release gate audits production dependencies at high severity", () => {
+  const build = jobBlock("build");
+  assert.match(build, /pnpm audit --prod --audit-level high/);
+});
+
 test("every third-party action is pinned to an immutable full commit SHA", () => {
   const actionRefs = [...workflow.matchAll(/^\s*uses:\s*([^\s#]+).*$/gm)].map((match) => match[1]);
   assert.ok(actionRefs.length >= 4);
