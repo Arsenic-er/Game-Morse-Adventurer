@@ -46,13 +46,71 @@ button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
   background-size: cover;
 }
 
-.chapter-media-stage { width: 100%; min-height: 100vh; background: #02080d; }
+.chapter-media-stage { position: relative; width: 100%; min-height: 100vh; overflow: hidden; background: #02080d; }
 .chapter-media-stage.has-chapter-media > .screen {
-  background-image: linear-gradient(rgba(2, 10, 15, .62), rgba(2, 9, 14, .82)), var(--chapter-scene) !important;
-  background-position: center !important;
-  background-size: cover !important;
+  z-index: 1;
+  background-color: transparent !important;
+  background-image: none !important;
 }
+.chapter-scene-motion { position: absolute; z-index: 0; inset: 0; width: 100vw; height: 100vh; overflow: hidden; background: #02080d; pointer-events: none; }
+.chapter-scene-layer { position: absolute; inset: -1%; pointer-events: none; will-change: transform, opacity, filter; }
+.chapter-scene-base,
+.chapter-scene-far,
+.chapter-scene-clouds,
+.chapter-scene-water { background-image: var(--chapter-scene); background-position: center; background-size: cover; image-rendering: pixelated; }
+.chapter-scene-base { inset: 0; }
+.chapter-scene-far { clip-path: var(--chapter-far-clip); opacity: .18; mix-blend-mode: screen; animation: chapter-far-parallax 24s steps(10, end) infinite alternate; }
+.chapter-scene-clouds { clip-path: var(--chapter-sky-clip); opacity: .2; mix-blend-mode: screen; animation: chapter-cloud-drift 31s steps(12, end) infinite alternate; }
+.chapter-scene-mist { clip-path: var(--chapter-far-clip); opacity: .23; background: repeating-linear-gradient(0deg, transparent 0 8px, rgba(165, 204, 213, .16) 9px 11px, transparent 12px 23px); mix-blend-mode: screen; animation: chapter-mist-drift 18s steps(9, end) infinite alternate; }
+.chapter-scene-water { clip-path: var(--chapter-water-clip); opacity: .34; filter: contrast(1.07) brightness(1.12); mix-blend-mode: soft-light; animation: chapter-water-shimmer 5.8s steps(7, end) infinite alternate; }
+.chapter-scene-stars { clip-path: var(--chapter-sky-clip); opacity: .2; background-image: radial-gradient(circle at 13% 21%, #d9f4ff 0 1px, transparent 2px), radial-gradient(circle at 47% 13%, #fff1bf 0 1px, transparent 2px), radial-gradient(circle at 79% 31%, #d9f4ff 0 1px, transparent 2px), radial-gradient(circle at 64% 8%, #fff 0 1px, transparent 2px); background-size: 137px 103px, 173px 151px, 211px 129px, 251px 191px; mix-blend-mode: screen; animation: chapter-star-twinkle 3.8s steps(4, end) infinite alternate; }
+.chapter-scene-rain { clip-path: var(--chapter-sky-clip); opacity: var(--chapter-weather-opacity); background-image: repeating-linear-gradient(104deg, transparent 0 13px, rgba(184, 222, 235, .52) 14px, transparent 16px 28px); background-size: 180px 210px; mix-blend-mode: screen; animation: chapter-rain-fall .72s steps(5, end) infinite; }
+.chapter-scene-shade { inset: 0; background: linear-gradient(rgba(2, 10, 15, .59), rgba(2, 9, 14, .82)); }
+.chapter-scene-lights { inset: 0; opacity: .78; background: var(--chapter-light-glows); mix-blend-mode: screen; animation: chapter-light-breathe 2.8s steps(5, end) infinite alternate; }
+.chapter-scene-sun { inset: 0; opacity: .48; background: radial-gradient(circle 15vw at var(--chapter-sun-x, 84%) var(--chapter-sun-y, 24%), rgba(255, 224, 156, .36), rgba(255, 181, 75, .12) 34%, transparent 70%); mix-blend-mode: screen; animation: chapter-sun-breathe 7s steps(7, end) infinite alternate; }
+.chapter-media-stage[data-chapter-media="6"] { --chapter-sun-x: 88%; --chapter-sun-y: 31%; }
+.chapter-media-stage[data-chapter-media="15"] { --chapter-sun-x: 48%; --chapter-sun-y: 22%; }
+.chapter-scene-beacon { inset: 0; opacity: 0; background: radial-gradient(circle 2.8vw at var(--chapter-beacon-x, 50%) var(--chapter-beacon-y, 14%), rgba(255, 54, 46, .55), transparent 70%); mix-blend-mode: screen; animation: chapter-beacon-blink 2.4s steps(1, end) infinite; }
+.chapter-media-stage[data-chapter-media="7"] { --chapter-beacon-x: 56%; --chapter-beacon-y: 7%; }
+.chapter-media-stage[data-chapter-media="9"] { --chapter-beacon-x: 50%; --chapter-beacon-y: 16%; }
+.chapter-media-stage[data-chapter-media="10"] { --chapter-beacon-x: 49%; --chapter-beacon-y: 12%; }
+.chapter-scene-lighthouse { inset: auto; left: var(--chapter-lighthouse-x); top: var(--chapter-lighthouse-y); width: 42vw; height: 3.2vw; opacity: .25; transform-origin: 0 50%; background: linear-gradient(90deg, rgba(255, 229, 166, .62), rgba(255, 222, 139, .13) 45%, transparent 100%); clip-path: polygon(0 38%, 100% 0, 100% 100%, 0 62%); mix-blend-mode: screen; animation: chapter-lighthouse-sweep var(--chapter-lighthouse-duration) linear infinite; }
+.chapter-scene-lightning { inset: 0; clip-path: var(--chapter-sky-clip); opacity: 0; background: radial-gradient(ellipse 42% 36% at 52% 12%, rgba(226, 244, 255, .78), rgba(140, 198, 236, .24) 28%, transparent 74%); mix-blend-mode: screen; }
+.chapter-scene-lightning.is-flashing { animation: chapter-lightning-flash .72s steps(1, end) both; }
+.chapter-media-stage[data-scene-active="false"] .chapter-scene-layer { animation-play-state: paused; }
+.chapter-media-stage[data-scene-active="false"] .chapter-scene-lightning { opacity: 0 !important; }
 .chapter-audio { display: none; }
+
+@keyframes chapter-far-parallax {
+  from { transform: translate3d(-.32%, -.06%, 0) scale(1.006); }
+  to { transform: translate3d(.32%, .06%, 0) scale(1.012); }
+}
+@keyframes chapter-cloud-drift {
+  from { transform: translate3d(-.55%, 0, 0) scale(1.01); opacity: .12; }
+  to { transform: translate3d(.55%, -.08%, 0) scale(1.016); opacity: .24; }
+}
+@keyframes chapter-mist-drift {
+  from { transform: translate3d(-1.2%, .1%, 0); opacity: .13; }
+  to { transform: translate3d(1.2%, -.1%, 0); opacity: .27; }
+}
+@keyframes chapter-water-shimmer {
+  from { transform: translate3d(-.38%, 0, 0) scaleY(.998); opacity: .22; }
+  55% { transform: translate3d(.16%, .08%, 0) scaleY(1.006); opacity: .4; }
+  to { transform: translate3d(.38%, -.04%, 0) scaleY(1.002); opacity: .3; }
+}
+@keyframes chapter-star-twinkle { from { opacity: .1; filter: brightness(.85); } to { opacity: .3; filter: brightness(1.35); } }
+@keyframes chapter-rain-fall { from { transform: translate3d(-1.5%, -5%, 0); } to { transform: translate3d(1.5%, 5%, 0); } }
+@keyframes chapter-light-breathe { from { opacity: .44; filter: brightness(.9); } to { opacity: .84; filter: brightness(1.22); } }
+@keyframes chapter-sun-breathe { from { opacity: .35; filter: saturate(.9); } to { opacity: .58; filter: saturate(1.2); } }
+@keyframes chapter-beacon-blink { 0%, 88% { opacity: 0; } 89%, 94% { opacity: .72; } 95%, 100% { opacity: .08; } }
+@keyframes chapter-lighthouse-sweep { from { transform: rotate(-28deg); opacity: .08; } 50% { opacity: .34; } to { transform: rotate(208deg); opacity: .08; } }
+@keyframes chapter-lightning-flash { 0%, 13%, 31%, 100% { opacity: 0; } 5% { opacity: .78; } 19% { opacity: .44; } 38% { opacity: .12; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .chapter-scene-layer { animation: none !important; }
+  .chapter-scene-far, .chapter-scene-clouds, .chapter-scene-mist, .chapter-scene-water, .chapter-scene-stars, .chapter-scene-lights, .chapter-scene-sun { opacity: .14; }
+  .chapter-scene-rain, .chapter-scene-beacon, .chapter-scene-lighthouse, .chapter-scene-lightning { display: none; }
+}
 
 .screen::after {
   content: none;

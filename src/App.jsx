@@ -402,13 +402,13 @@ function StartScreen({ language, setLanguage, onStart, onPractice, onSettings, o
 }
 
 const MEDIA_SETTINGS_TEXT = {
-  "zh-CN": { title: "章节声音", enabled: "启用章节音乐与环境声", music: "章节配乐", ambience: "环境声音", hint: "声音会在首次操作后播放；电台失焦或设置打开时自动暂停。" },
-  "zh-TW": { title: "章節聲音", enabled: "啟用章節音樂與環境聲", music: "章節配樂", ambience: "環境聲音", hint: "聲音會在首次操作後播放；電臺失焦或設定開啟時自動暫停。" },
-  ja: { title: "チャプター音響", enabled: "音楽と環境音を有効にする", music: "チャプター音楽", ambience: "環境音", hint: "最初の操作後に再生され、画面が非アクティブまたは設定中は一時停止します。" },
-  en: { title: "Chapter sound", enabled: "Enable chapter music and ambience", music: "Chapter music", ambience: "Ambience", hint: "Audio begins after the first interaction and pauses while unfocused or in settings." },
-  es: { title: "Sonido del capítulo", enabled: "Activar música y ambiente", music: "Música del capítulo", ambience: "Sonido ambiente", hint: "El audio comienza tras la primera interacción y se pausa sin foco o en ajustes." },
-  de: { title: "Kapitelklang", enabled: "Kapitelmusik und Atmosphäre aktivieren", music: "Kapitelmusik", ambience: "Umgebung", hint: "Audio startet nach der ersten Eingabe und pausiert ohne Fokus oder in den Einstellungen." },
-  ru: { title: "Звук главы", enabled: "Включить музыку и атмосферу главы", music: "Музыка главы", ambience: "Окружение", hint: "Звук запускается после первого действия и приостанавливается без фокуса или в настройках." },
+  "zh-CN": { title: "章节声景", enabled: "启用章节配乐与场景音效", music: "章节配乐", ambience: "场景音效", hint: "雨、波浪和雷声会与场景联动；首次操作后播放，失焦或打开设置时自动暂停。" },
+  "zh-TW": { title: "章節聲景", enabled: "啟用章節配樂與場景音效", music: "章節配樂", ambience: "場景音效", hint: "雨、波浪與雷聲會和場景聯動；首次操作後播放，失焦或開啟設定時自動暫停。" },
+  ja: { title: "チャプター音響", enabled: "音楽とシーン効果音を有効にする", music: "チャプター音楽", ambience: "シーン効果音", hint: "雨、波、雷鳴は場面と連動し、非アクティブ時や設定中は一時停止します。" },
+  en: { title: "Chapter soundscape", enabled: "Enable music and scene effects", music: "Chapter music", ambience: "Scene effects", hint: "Rain, waves, and thunder follow the scene; audio pauses while unfocused or in settings." },
+  es: { title: "Paisaje sonoro", enabled: "Activar música y efectos de escena", music: "Música del capítulo", ambience: "Efectos de escena", hint: "La lluvia, las olas y los truenos siguen la escena; el audio se pausa sin foco o en ajustes." },
+  de: { title: "Kapitelklang", enabled: "Musik und Szeneneffekte aktivieren", music: "Kapitelmusik", ambience: "Szeneneffekte", hint: "Regen, Wellen und Donner folgen der Szene; ohne Fokus oder in den Einstellungen pausiert der Ton." },
+  ru: { title: "Звуковая сцена", enabled: "Включить музыку и звуки сцены", music: "Музыка главы", ambience: "Звуки сцены", hint: "Дождь, волны и гром связаны со сценой; без фокуса и в настройках звук приостанавливается." },
 };
 
 function SettingsModal({ language, keyType, automaticKeyWpm, qsoGuidance, mediaSettings, onApply, onClose }) {

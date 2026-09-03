@@ -20,7 +20,10 @@ SAMPLE_RATE = 16_000
 DURATION_SECONDS = 12
 FRAME_COUNT = SAMPLE_RATE * DURATION_SECONDS
 TAU = math.tau
-ROOT = Path(__file__).resolve().parents[1] / "public" / "assets" / "chapters"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+ASSET_ROOT = PROJECT_ROOT / "public" / "assets" if (PROJECT_ROOT / "public").is_dir() else PROJECT_ROOT / "assets"
+ROOT = ASSET_ROOT / "chapters"
+SCENE_SFX_ROOT = ROOT.parent / "scene-sfx"
 
 
 CHAPTERS = [
@@ -145,6 +148,12 @@ def generate_ambience(chapter: int, profile: str) -> list[float]:
     rain = profile in {"rain-window", "coastal-storm"}
     wind = profile in {"hill-wind", "coastal-storm", "night-windows"}
     electrical = profile in {"three-receivers", "memorial-lights", "blackout-net", "relay-grid", "contest-room"}
+    water_gain = {
+        "dawn-room": 0.008, "paper-room": 0.007, "three-receivers": 0.008,
+        "rain-window": 0.025, "memorial-lights": 0.008, "contest-room": 0.006,
+        "silent-watch": 0.014, "coastal-storm": 0.105, "night-windows": 0.012,
+        "old-log": 0.009, "sunrise-room": 0.014,
+    }.get(profile, 0.0)
 
     for index in range(FRAME_COUNT):
         time = index / SAMPLE_RATE
@@ -160,6 +169,9 @@ def generate_ambience(chapter: int, profile: str) -> list[float]:
             value += (0.14 if profile == "coastal-storm" else 0.065) * low * max(0.1, gust)
         if electrical:
             value += 0.008 * math.sin(TAU * (92 + chapter * 3) * time)
+        if water_gain:
+            surge = 0.38 + 0.32 * math.sin(TAU * 0.125 * time + chapter) + 0.18 * math.sin(TAU * 0.25 * time)
+            value += water_gain * max(0.06, surge) * (0.72 * medium + 0.28 * low)
         samples[index] = value * profile_gain
 
     events: dict[str, list[tuple[float, float, float, float]]] = {
@@ -186,6 +198,33 @@ def generate_ambience(chapter: int, profile: str) -> list[float]:
     return samples
 
 
+def generate_thunder() -> list[float]:
+    """Create a four-second thunder strike for the synchronized lightning layer."""
+    duration = 4.0
+    frame_count = int(SAMPLE_RATE * duration)
+    rng = random.Random(0x7A11D3)
+    samples = [0.0] * frame_count
+    low = 0.0
+    sub = 0.0
+    for index in range(frame_count):
+        time = index / SAMPLE_RATE
+        white = rng.uniform(-1.0, 1.0)
+        low += 0.0075 * (white - low)
+        sub += 0.0012 * (white - sub)
+        crack = math.exp(-34 * time) * (0.55 * white + 0.2 * math.sin(TAU * 83 * time))
+        body = math.exp(-0.82 * time) * (0.74 * low + 0.62 * sub)
+        echoes = 0.0
+        for start, weight, frequency in ((0.18, .32, 49), (0.48, .22, 41), (1.05, .14, 36)):
+            if time >= start:
+                age = time - start
+                echoes += weight * math.exp(-1.15 * age) * math.sin(TAU * frequency * age + 2.4 * sub)
+        samples[index] = crack + body + echoes
+    tail = int(SAMPLE_RATE * 0.7)
+    for index in range(tail):
+        samples[-1 - index] *= math.sin((index / tail) * math.pi / 2) ** 2
+    return samples
+
+
 def main() -> None:
     for chapter, (root_note, bpm, profile) in enumerate(CHAPTERS, start=1):
         chapter_dir = ROOT / f"{chapter:02d}"
@@ -193,12 +232,24 @@ def main() -> None:
         write_wav(chapter_dir / "music.wav", generate_music(chapter, root_note, bpm))
         print(f"chapter {chapter:02d}: {profile}, {bpm} BPM")
 
+    thunder_path = SCENE_SFX_ROOT / "thunder.wav"
+    write_wav(thunder_path, generate_thunder())
+    print("scene sfx: synchronized thunder")
+
     manifest = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "visualProvenance": "Original AI-assisted artwork generated for CWGame",
         "audioProvenance": "Original deterministic synthesis from scripts/generate_chapter_audio.py",
         "audioFormat": {"codec": "PCM", "channels": 1, "sampleRate": SAMPLE_RATE, "bitsPerSample": 16, "durationSeconds": DURATION_SECONDS},
+        "sceneSfxFormat": {"codec": "PCM", "channels": 1, "sampleRate": SAMPLE_RATE, "bitsPerSample": 16},
+        "sharedAssets": {},
         "chapters": [],
+    }
+    thunder_content = thunder_path.read_bytes()
+    manifest["sharedAssets"]["thunder"] = {
+        "path": "./assets/scene-sfx/thunder.wav",
+        "bytes": len(thunder_content),
+        "sha256": hashlib.sha256(thunder_content).hexdigest(),
     }
     for chapter in range(1, 16):
         assets = {}

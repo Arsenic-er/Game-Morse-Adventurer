@@ -5,6 +5,9 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { activeStoryChapter, CHAPTER_MEDIA, chapterForScreen, chapterMedia } from "../src/media/chapterMediaCatalog.js";
 import {
+  CHAPTER_SCENE_EFFECTS, chapterSceneEffects, chapterSceneStyle, nextSceneEventDelay,
+} from "../src/media/chapterSceneEffects.js";
+import {
   CHAPTER_MEDIA_SETTINGS_KEY, DEFAULT_CHAPTER_MEDIA_SETTINGS, loadChapterMediaSettings,
   normalizeChapterMediaSettings, persistChapterMediaSettings,
 } from "../src/media/chapterMediaSettings.js";
@@ -47,7 +50,7 @@ test("all fifteen chapters ship a distinct complete five-part media set", () => 
 
 test("the public audit manifest matches every catalogued asset", () => {
   const manifest = JSON.parse(readFileSync(`${root}public\\assets\\chapters\\manifest.json`, "utf8"));
-  assert.equal(manifest.schemaVersion, 1);
+  assert.equal(manifest.schemaVersion, 2);
   assert.equal(manifest.chapters.length, 15);
   for (const media of CHAPTER_MEDIA) {
     const entry = manifest.chapters[media.chapter - 1];
@@ -59,6 +62,42 @@ test("the public audit manifest matches every catalogued asset", () => {
       assert.equal(entry.assets[kind].sha256, hash(buffer));
     }
   }
+  const thunder = assetBuffer(manifest.sharedAssets.thunder.path);
+  assert.equal(manifest.sharedAssets.thunder.bytes, thunder.length);
+  assert.equal(manifest.sharedAssets.thunder.sha256, hash(thunder));
+  assert.equal(thunder.subarray(0, 4).toString("ascii"), "RIFF");
+  assert.equal(thunder.readUInt16LE(22), 1);
+  assert.equal(thunder.readUInt32LE(24), 16_000);
+});
+
+test("all chapter scenes define bounded motion layers and matching environmental audio cues", () => {
+  assert.equal(CHAPTER_SCENE_EFFECTS.length, 15);
+  for (const effect of CHAPTER_SCENE_EFFECTS) {
+    assert.equal(effect.chapter, CHAPTER_SCENE_EFFECTS.indexOf(effect) + 1);
+    assert.ok(effect.layers.includes("far"));
+    assert.ok(effect.layers.includes("lights"));
+    assert.ok(effect.audioCues.length >= 3);
+    assert.match(effect.farClip, /^(?:polygon|inset)\(/);
+    assert.equal(chapterSceneEffects(effect.chapter), effect);
+    assert.equal(typeof chapterSceneStyle(effect)["--chapter-light-glows"], "string");
+  }
+  assert.deepEqual(CHAPTER_SCENE_EFFECTS.filter(({ layers }) => layers.includes("lightning")).map(({ chapter }) => chapter), [4, 12]);
+  assert.deepEqual(CHAPTER_SCENE_EFFECTS.filter(({ layers }) => layers.includes("rain")).map(({ chapter }) => chapter), [4, 12]);
+  assert.deepEqual(CHAPTER_SCENE_EFFECTS.filter(({ layers }) => layers.includes("water")).map(({ chapter }) => chapter), [1, 2, 3, 4, 5, 11, 12, 13, 14, 15]);
+  assert.deepEqual(CHAPTER_SCENE_EFFECTS.filter(({ layers }) => layers.includes("lighthouse")).map(({ chapter }) => chapter), [12]);
+  assert.equal(chapterSceneEffects(16), null);
+});
+
+test("lightning timing is deterministic, delayed, and linked to the thunder asset", () => {
+  for (const chapter of [4, 12]) {
+    const lightning = chapterSceneEffects(chapter).lightning;
+    assert.equal(lightning.sound, "./assets/scene-sfx/thunder.wav");
+    assert.ok(lightning.thunderDelayMs >= 500);
+    assert.ok(nextSceneEventDelay(lightning, 0) >= 1000);
+    assert.ok(nextSceneEventDelay(lightning, 1) >= 1000);
+    assert.equal(nextSceneEventDelay(lightning, 3), nextSceneEventDelay(lightning, 3));
+  }
+  assert.equal(nextSceneEventDelay(null), null);
 });
 
 test("screen and active-story routing select the intended chapter", () => {

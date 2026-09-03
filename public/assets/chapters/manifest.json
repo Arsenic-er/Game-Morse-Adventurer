@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "visualProvenance": "Original AI-assisted artwork generated for CWGame",
   "audioProvenance": "Original deterministic synthesis from scripts/generate_chapter_audio.py",
   "audioFormat": {
@@ -8,6 +8,19 @@
     "sampleRate": 16000,
     "bitsPerSample": 16,
     "durationSeconds": 12
+  },
+  "sceneSfxFormat": {
+    "codec": "PCM",
+    "channels": 1,
+    "sampleRate": 16000,
+    "bitsPerSample": 16
+  },
+  "sharedAssets": {
+    "thunder": {
+      "path": "./assets/scene-sfx/thunder.wav",
+      "bytes": 128044,
+      "sha256": "483a14e067dfa852d8217987f6d5f039afe626b82da91e11caf1212627b746dc"
+    }
   },
   "chapters": [
     {
@@ -31,7 +44,7 @@
         "ambience": {
           "path": "./assets/chapters/01/ambience.wav",
           "bytes": 384044,
-          "sha256": "3185a589065fdfca21e00426a65eb08055989202ad6e80e3c943c987110dc387"
+          "sha256": "184758209fdb546ad4356ccf94c3e90ad99792e3653e9cad28dd6b857dcae06b"
         },
         "music": {
           "path": "./assets/chapters/01/music.wav",
@@ -61,7 +74,7 @@
         "ambience": {
           "path": "./assets/chapters/02/ambience.wav",
           "bytes": 384044,
-          "sha256": "ab8c57e7076fd27bcfc7d17db7180dfab21f377fe856bf1510e9f45b3f71a814"
+          "sha256": "d975563fed95a17c9a9c4bb144990fd35a553484e3ce94765eaad7d003d726fa"
         },
         "music": {
           "path": "./assets/chapters/02/music.wav",
@@ -91,7 +104,7 @@
         "ambience": {
           "path": "./assets/chapters/03/ambience.wav",
           "bytes": 384044,
-          "sha256": "f80a5c1449eb9fd9e42c2fbf12dea12417dd91945c91b44038895d4129fc1223"
+          "sha256": "06bb335ab8e02ba78d327dee30fcf8c5d8c77e8231e0c28a7203dbf9e780014a"
         },
         "music": {
           "path": "./assets/chapters/03/music.wav",
@@ -121,7 +134,7 @@
         "ambience": {
           "path": "./assets/chapters/04/ambience.wav",
           "bytes": 384044,
-          "sha256": "3e560723d5832ef21e5ed38e2ec4a0ac49be48c42086590e6e25c0fca6840d8c"
+          "sha256": "f2e1f9e3abefe964e672241042afdcca64915bcbd87e27d695117913afefedd9"
         },
         "music": {
           "path": "./assets/chapters/04/music.wav",
@@ -151,7 +164,7 @@
         "ambience": {
           "path": "./assets/chapters/05/ambience.wav",
           "bytes": 384044,
-          "sha256": "322ffa7b9be77346329eef06b7bf2890ea650aff07a8d84d359835c4a395b814"
+          "sha256": "667a1e9eef0dc55547f3ff6e2b0cc170e472773109351dafc56e29a23c4f3558"
         },
         "music": {
           "path": "./assets/chapters/05/music.wav",
@@ -301,7 +314,7 @@
         "ambience": {
           "path": "./assets/chapters/10/ambience.wav",
           "bytes": 384044,
-          "sha256": "bddd1f80bfd0a04c9d44eec0a24905bb2d8709ceb7421fb5de6c57dde6c47b24"
+          "sha256": "269ab02a4fb5730a772d1e32e30e0d87662126c345180f831b5060a7af7a4da0"
         },
         "music": {
           "path": "./assets/chapters/10/music.wav",
@@ -331,7 +344,7 @@
         "ambience": {
           "path": "./assets/chapters/11/ambience.wav",
           "bytes": 384044,
-          "sha256": "7169f310921cb4177dc83082626a33c3ae59ef30c0a0f8195da096eb33c3a042"
+          "sha256": "1b732d59ce483e1587f99f1dacab170bd6a21cc5908d776abdcdfa6014ff68d6"
         },
         "music": {
           "path": "./assets/chapters/11/music.wav",
@@ -361,7 +374,7 @@
         "ambience": {
           "path": "./assets/chapters/12/ambience.wav",
           "bytes": 384044,
-          "sha256": "bed662e9502b9d2e7f1a53c88ec34b97ce59c7071d5820f96638d11d8d23ff9b"
+          "sha256": "2000c28bc77ba6028995aabd8159e63c479af4bad35b25c0c0da9704b7f03342"
         },
         "music": {
           "path": "./assets/chapters/12/music.wav",
@@ -391,7 +404,7 @@
         "ambience": {
           "path": "./assets/chapters/13/ambience.wav",
           "bytes": 384044,
-          "sha256": "9033b23ee8d6641ddc7df303480f3db6c3c43a06110ecd48a060d1fced886d53"
+          "sha256": "545b78f5828b1fc1667e86f423b00f4ab2b390a2b12bf940ff568aedf727243e"
         },
         "music": {
           "path": "./assets/chapters/13/music.wav",
@@ -421,7 +434,7 @@
         "ambience": {
           "path": "./assets/chapters/14/ambience.wav",
           "bytes": 384044,
-          "sha256": "878f629873449a05ac46e6296c9c1f8fe561e15ed9a9fa38efbcb07d22ad8dd4"
+          "sha256": "a7a61725535dbff0a80d47e8707d3ff0de9652865151f5addec2e77639ac019d"
         },
         "music": {
           "path": "./assets/chapters/14/music.wav",
@@ -451,7 +464,7 @@
         "ambience": {
           "path": "./assets/chapters/15/ambience.wav",
           "bytes": 384044,
-          "sha256": "fedcbd199dc490f6319a682d18a411e8bece7ca4d447e5385c2f601211c58f19"
+          "sha256": "a86ed685c7bd69870fd14a5d9f365d0a4f732e521833c31ce050bb2d425c897d"
         },
         "music": {
           "path": "./assets/chapters/15/music.wav",
