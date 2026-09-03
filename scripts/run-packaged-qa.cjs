@@ -278,6 +278,10 @@ const ALLOWED_PIXEL_DUPLICATE_STEMS = Object.freeze([
     "segments/equipment/store-radio-owned",
   ]),
   Object.freeze([
+    "segments/equipment/home-log-populated-warmup",
+    "segments/equipment/home-log-populated",
+  ]),
+  Object.freeze([
     "segments/practice/practice-weak-cleared",
     "segments/practice/practice-weak-cleared-reloaded",
   ]),
@@ -290,6 +294,15 @@ const ALLOWED_PIXEL_DUPLICATE_STEMS = Object.freeze([
     "segments/qso/qso-result-unsaved",
   ]),
   Object.freeze([
+    "segments/qso/home-log-after-qso-warmup",
+    "segments/qso/home-log-after-qso",
+    "segments/qso/home-log-operation-review",
+  ]),
+  Object.freeze([
+    "segments/expedition/expedition-choice-confirmed",
+    "segments/expedition/expedition-choice-reloaded",
+  ]),
+  Object.freeze([
     "segments/qsl-story/qsl-reloaded",
     "segments/service-net/service-mission-available",
   ]),
@@ -300,6 +313,14 @@ const ALLOWED_PIXEL_DUPLICATE_STEMS = Object.freeze([
   Object.freeze([
     "segments/coordinate-relay/coordinate-reloaded",
     "segments/contest/contest-mission-available",
+  ]),
+  Object.freeze([
+    "segments/night-operations/night-result",
+    "segments/night-operations/night-settled",
+  ]),
+  Object.freeze([
+    "segments/final-promise/final-promise-result",
+    "segments/final-promise/final-promise-settled",
   ]),
 ]);
 

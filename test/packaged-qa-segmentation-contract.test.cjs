@@ -1085,6 +1085,43 @@ test("pixel-hash duplicate policy rejects copied, unapproved, and over-broad scr
     { path: "segments/equipment/store-radio-owned-copy-1439x912.png", pixelHash: "same-pixels" },
   ], { suffix: "1439x912" }), /duplicate|allowlist|member/i);
 
+  for (const durablePair of [
+    [
+      "segments/equipment/home-log-populated-warmup",
+      "segments/equipment/home-log-populated",
+    ],
+    [
+      "segments/expedition/expedition-choice-confirmed",
+      "segments/expedition/expedition-choice-reloaded",
+    ],
+    [
+      "segments/night-operations/night-result",
+      "segments/night-operations/night-settled",
+    ],
+    [
+      "segments/final-promise/final-promise-result",
+      "segments/final-promise/final-promise-settled",
+    ],
+  ]) {
+    const pair = durablePair.map((stem) => ({ path: `${stem}-1439x912.png`, pixelHash: "same-pixels" }));
+    assert.doesNotThrow(() => validatePixelHashGroups(pair, { suffix: "1439x912" }));
+    assert.throws(() => validatePixelHashGroups([
+      ...pair,
+      { path: `${durablePair[1]}-copy-1439x912.png`, pixelHash: "same-pixels" },
+    ], { suffix: "1439x912" }), /duplicate|allowlist|member/i);
+  }
+
+  const homeLogReview = [
+    "segments/qso/home-log-after-qso-warmup",
+    "segments/qso/home-log-after-qso",
+    "segments/qso/home-log-operation-review",
+  ].map((stem) => ({ path: `${stem}-1439x912.png`, pixelHash: "same-pixels" }));
+  assert.doesNotThrow(() => validatePixelHashGroups(homeLogReview, { suffix: "1439x912" }));
+  assert.throws(() => validatePixelHashGroups([
+    ...homeLogReview,
+    { path: "segments/qso/home-log-operation-review-copy-1439x912.png", pixelHash: "same-pixels" },
+  ], { suffix: "1439x912" }), /duplicate|allowlist|member/i);
+
   const chapterHandoff = [
     { path: "segments/qsl-story/qsl-reloaded-1439x912.png", pixelHash: "same-pixels" },
     { path: "segments/service-net/service-mission-available-1439x912.png", pixelHash: "same-pixels" },
