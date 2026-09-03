@@ -16,6 +16,17 @@ import { lightsEntryModes } from "../game/lightsEventCatalog.js";
 import { lightsNarrativeBeat } from "../game/lightsNarrative.js";
 import { lightsText } from "./lightsEventText.js";
 import { OPEN_STATION_TEXT } from "./openStationText.js";
+import { chapterMedia } from "../media/chapterMediaCatalog.js";
+
+const MEDIA_TEXT = {
+  "zh-CN": { open: "查看章节素材", close: "收起章节素材", scene: "章节场景", portrait: "人物像", illustration: "剧情插画" },
+  "zh-TW": { open: "查看章節素材", close: "收起章節素材", scene: "章節場景", portrait: "人物像", illustration: "劇情插畫" },
+  ja: { open: "チャプター素材を見る", close: "チャプター素材を閉じる", scene: "チャプター場面", portrait: "人物ポートレート", illustration: "物語イラスト" },
+  en: { open: "View chapter media", close: "Close chapter media", scene: "Chapter scene", portrait: "Character portrait", illustration: "Story illustration" },
+  es: { open: "Ver recursos del capítulo", close: "Cerrar recursos", scene: "Escena del capítulo", portrait: "Retrato", illustration: "Ilustración narrativa" },
+  de: { open: "Kapitelmedien ansehen", close: "Kapitelmedien schließen", scene: "Kapitelszene", portrait: "Porträt", illustration: "Storyillustration" },
+  ru: { open: "Открыть материалы главы", close: "Закрыть материалы", scene: "Сцена главы", portrait: "Портрет", illustration: "Сюжетная иллюстрация" },
+};
 
 const TEXT = {
   "zh-CN": {
@@ -310,7 +321,7 @@ function missionContractClues(mission, t) {
   ].filter(Boolean);
 }
 
-function MissionCard({ mission, t, lightsCopy, openStationTitle, dailyLimitReached, lightsModes, expeditionReplay, serviceNetReplay, coordinateRelayReplay, contestReplay, listeningReplay, stormRelayReplay, nightOperationsReplay, finalPromiseReplay, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onLaunchNightOperations, onLaunchFinalPromise, onLaunchFirstPageQso, onOpenStation }) {
+function MissionCard({ mission, t, mediaText, lightsCopy, openStationTitle, dailyLimitReached, lightsModes, expeditionReplay, serviceNetReplay, coordinateRelayReplay, contestReplay, listeningReplay, stormRelayReplay, nightOperationsReplay, finalPromiseReplay, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onLaunchNightOperations, onLaunchFinalPromise, onLaunchFirstPageQso, onOpenStation, onOpenMedia }) {
   const ready = mission.status === "ready";
   const active = mission.status === "active";
   const available = mission.status === "available";
@@ -320,6 +331,7 @@ function MissionCard({ mission, t, lightsCopy, openStationTitle, dailyLimitReach
   const contractClues = missionContractClues(mission, t);
   const completedQsos = Math.max(0, Math.floor(Number(mission.relationship?.completedQsos) || 0));
   const weakSignalRecoveries = Math.max(0, Math.floor(Number(mission.relationship?.weakSignalRecoveries) || 0));
+  const media = mission.type === "story" ? chapterMedia(mission.chapter) : null;
   return (
     <article className={`mission-card mission-${mission.status}`} data-mission-id={mission.id} data-mission-status={mission.status}>
       <div className="mission-card-code">
@@ -330,6 +342,11 @@ function MissionCard({ mission, t, lightsCopy, openStationTitle, dailyLimitReach
         {mission.status === "locked" ? <LockKey size={24} weight="fill" /> : mission.type === "story" ? <BookOpenText size={24} weight="fill" /> : <Crosshair size={24} weight="duotone" />}
         <div><h3>{t[mission.titleKey]}</h3></div>
       </div>
+      {media && <button type="button" className="mission-media-preview" onClick={() => onOpenMedia(mission)} disabled={mission.status === "locked"} aria-label={`${mediaText.open}: ${t[mission.titleKey]}`}>
+        <img className="mission-media-scene" src={media.scene} loading="lazy" alt="" />
+        <img className="mission-media-portrait" src={media.portrait} loading="lazy" alt="" />
+        <span>{mediaText.open}</span>
+      </button>}
       <div className="mission-narrative" data-mission-narrative={narrative.kind}>
         <b>{narrative.label}</b><p>{narrative.text}</p>
       </div>
@@ -383,9 +400,11 @@ function MissionCard({ mission, t, lightsCopy, openStationTitle, dailyLimitReach
 
 export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onLaunchNightOperations, onLaunchFinalPromise, onLaunchFirstPageQso, onOpenStation, onClose }) {
   const t = TEXT[language] ?? TEXT.en;
+  const mediaText = MEDIA_TEXT[language] ?? MEDIA_TEXT.en;
   const lightsCopy = lightsText(language);
   const openStationTitle = (OPEN_STATION_TEXT[language] ?? OPEN_STATION_TEXT.en).title;
   const [tab, setTab] = useState("story");
+  const [selectedMediaMission, setSelectedMediaMission] = useState(null);
   const board = useMemo(() => missionBoard(save), [save]);
   const summary = useMemo(() => missionSummary(save), [save]);
   const lightsModes = useMemo(() => lightsEntryModes(save, new Date()), [save]);
@@ -401,10 +420,16 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
   const missions = tab === "story" ? board.story : board.daily;
 
   useEffect(() => {
-    function handleKeyDown(event) { if (event.key === "Escape") onClose(); }
+    function handleKeyDown(event) {
+      if (event.key !== "Escape") return;
+      if (selectedMediaMission) setSelectedMediaMission(null);
+      else onClose();
+    }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, [onClose, selectedMediaMission]);
+
+  const selectedMedia = chapterMedia(selectedMediaMission?.chapter);
 
   return (
     <div className="modal-backdrop mission-center-backdrop" data-testid="mission-center-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -416,13 +441,19 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
           <button className="icon-button" data-action="close-missions" onClick={onClose} aria-label={t.close}><X size={22} weight="bold" /></button>
         </header>
         <nav className="mission-center-tabs" aria-label={t.title}>
-          <button className={tab === "story" ? "selected" : ""} data-mission-tab="story" onClick={() => setTab("story")}><BookOpenText size={20} weight="fill" />{t.story}</button>
-          <button className={tab === "daily" ? "selected" : ""} data-mission-tab="daily" onClick={() => setTab("daily")}><CalendarDots size={20} weight="fill" />{t.daily}<span>{activeDaily}/{MAX_ACTIVE_DAILY_MISSIONS}</span></button>
+          <button className={tab === "story" ? "selected" : ""} data-mission-tab="story" onClick={() => { setTab("story"); setSelectedMediaMission(null); }}><BookOpenText size={20} weight="fill" />{t.story}</button>
+          <button className={tab === "daily" ? "selected" : ""} data-mission-tab="daily" onClick={() => { setTab("daily"); setSelectedMediaMission(null); }}><CalendarDots size={20} weight="fill" />{t.daily}<span>{activeDaily}/{MAX_ACTIVE_DAILY_MISSIONS}</span></button>
         </nav>
         <div className="mission-center-body">
           {tab === "daily" && <p className="mission-daily-note">{t.dailyNote}</p>}
+          {selectedMedia && <section className="chapter-media-viewer" data-chapter-media-viewer={selectedMedia.chapter} aria-label={`${mediaText.open}: ${t[selectedMediaMission.titleKey]}`}>
+            <header><div><span>{t.chapter} {String(selectedMedia.chapter).padStart(2, "0")}</span><h3>{t[selectedMediaMission.titleKey]}</h3></div><button type="button" onClick={() => setSelectedMediaMission(null)} aria-label={mediaText.close}><X size={18} weight="bold" />{mediaText.close}</button></header>
+            <figure className="chapter-media-illustration"><img src={selectedMedia.illustration} alt={`${t[selectedMediaMission.titleKey]} — ${mediaText.illustration}`} /><figcaption>{mediaText.illustration}</figcaption></figure>
+            <figure><img src={selectedMedia.scene} alt={`${t[selectedMediaMission.titleKey]} — ${mediaText.scene}`} /><figcaption>{mediaText.scene}</figcaption></figure>
+            <figure><img src={selectedMedia.portrait} alt={`${t[selectedMediaMission.titleKey]} — ${mediaText.portrait}`} /><figcaption>{mediaText.portrait}</figcaption></figure>
+          </section>}
           <div className="mission-list">
-            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} lightsCopy={lightsCopy} openStationTitle={openStationTitle} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} expeditionReplay={expeditionReplay} serviceNetReplay={serviceNetReplay} coordinateRelayReplay={coordinateRelayReplay} contestReplay={contestReplay} listeningReplay={listeningReplay} stormRelayReplay={stormRelayReplay} nightOperationsReplay={nightOperationsReplay} finalPromiseReplay={finalPromiseReplay} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} onLaunchQslStory={onLaunchQslStory} onLaunchServiceNet={onLaunchServiceNet} onLaunchCoordinateRelay={onLaunchCoordinateRelay} onLaunchContest={onLaunchContest} onLaunchListening={onLaunchListening} onLaunchStormRelay={onLaunchStormRelay} onLaunchNightOperations={onLaunchNightOperations} onLaunchFinalPromise={onLaunchFinalPromise} onLaunchFirstPageQso={onLaunchFirstPageQso} onOpenStation={onOpenStation} />)}
+            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} mediaText={mediaText} lightsCopy={lightsCopy} openStationTitle={openStationTitle} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} expeditionReplay={expeditionReplay} serviceNetReplay={serviceNetReplay} coordinateRelayReplay={coordinateRelayReplay} contestReplay={contestReplay} listeningReplay={listeningReplay} stormRelayReplay={stormRelayReplay} nightOperationsReplay={nightOperationsReplay} finalPromiseReplay={finalPromiseReplay} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} onLaunchQslStory={onLaunchQslStory} onLaunchServiceNet={onLaunchServiceNet} onLaunchCoordinateRelay={onLaunchCoordinateRelay} onLaunchContest={onLaunchContest} onLaunchListening={onLaunchListening} onLaunchStormRelay={onLaunchStormRelay} onLaunchNightOperations={onLaunchNightOperations} onLaunchFinalPromise={onLaunchFinalPromise} onLaunchFirstPageQso={onLaunchFirstPageQso} onOpenStation={onOpenStation} onOpenMedia={setSelectedMediaMission} />)}
           </div>
         </div>
         <footer><span>{save.callsign} // {summary.ready} {t.ready}</span><button data-action="close-missions-footer" onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.close}</button></footer>

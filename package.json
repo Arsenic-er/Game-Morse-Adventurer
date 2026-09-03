@@ -20,6 +20,7 @@
     "qso:simulate:poor": "node scripts/simulate-poor-qso.mjs",
     "qso:calibrate": "node scripts/calibrate-operators.mjs",
     "mission:economy": "node scripts/simulate-mission-economy.mjs",
+    "media:generate": "python scripts/generate_chapter_audio.py",
     "semantic:model:sync": "node scripts/sync-semantic-model.mjs",
     "semantic:model:update": "node scripts/sync-semantic-model.mjs --update",
     "desktop:dev": "pnpm semantic:model:sync && vite build && electron .",

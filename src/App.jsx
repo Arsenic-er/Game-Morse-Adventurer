@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowCounterClockwise, ArrowLeft, BookOpenText, Broadcast, Check, FloppyDisk, GearSix,
-  GlobeHemisphereWest, GridFour, Lightning, MapTrifold, Play,
-  Power, Question, Radio, Translate, X,
+  GlobeHemisphereWest, GridFour, Lightning, MapTrifold, MusicNotes, Play,
+  Power, Question, Radio, SpeakerHigh, SpeakerSlash, Translate, X,
 } from "@phosphor-icons/react";
 import { NetworkIndicator } from "./components/NetworkIndicator.jsx";
 import {
@@ -75,6 +75,11 @@ import { QSO_EXIT_RISKS, qsoExitRisk } from "./qso/qsoExitGuard.js";
 import { QsoLeaveConfirmModal } from "./screens/QsoLeaveConfirmModal.jsx";
 import { QsoResultModal } from "./screens/QsoResultModal.jsx";
 import { LANGUAGES, loadLanguagePreference, persistLanguagePreference } from "./i18n/languageRegistry.js";
+import { ChapterMediaStage } from "./media/ChapterMediaStage.jsx";
+import { chapterForScreen } from "./media/chapterMediaCatalog.js";
+import {
+  loadChapterMediaSettings, normalizeChapterMediaSettings, persistChapterMediaSettings,
+} from "./media/chapterMediaSettings.js";
 
 const PracticeScreen = lazy(() => import("./practice/PracticeScreen.jsx")
   .then(({ PracticeScreen: component }) => ({ default: component })));
@@ -396,18 +401,31 @@ function StartScreen({ language, setLanguage, onStart, onPractice, onSettings, o
   );
 }
 
-function SettingsModal({ language, keyType, automaticKeyWpm, qsoGuidance, onApply, onClose }) {
+const MEDIA_SETTINGS_TEXT = {
+  "zh-CN": { title: "章节声音", enabled: "启用章节音乐与环境声", music: "章节配乐", ambience: "环境声音", hint: "声音会在首次操作后播放；电台失焦或设置打开时自动暂停。" },
+  "zh-TW": { title: "章節聲音", enabled: "啟用章節音樂與環境聲", music: "章節配樂", ambience: "環境聲音", hint: "聲音會在首次操作後播放；電臺失焦或設定開啟時自動暫停。" },
+  ja: { title: "チャプター音響", enabled: "音楽と環境音を有効にする", music: "チャプター音楽", ambience: "環境音", hint: "最初の操作後に再生され、画面が非アクティブまたは設定中は一時停止します。" },
+  en: { title: "Chapter sound", enabled: "Enable chapter music and ambience", music: "Chapter music", ambience: "Ambience", hint: "Audio begins after the first interaction and pauses while unfocused or in settings." },
+  es: { title: "Sonido del capítulo", enabled: "Activar música y ambiente", music: "Música del capítulo", ambience: "Sonido ambiente", hint: "El audio comienza tras la primera interacción y se pausa sin foco o en ajustes." },
+  de: { title: "Kapitelklang", enabled: "Kapitelmusik und Atmosphäre aktivieren", music: "Kapitelmusik", ambience: "Umgebung", hint: "Audio startet nach der ersten Eingabe und pausiert ohne Fokus oder in den Einstellungen." },
+  ru: { title: "Звук главы", enabled: "Включить музыку и атмосферу главы", music: "Музыка главы", ambience: "Окружение", hint: "Звук запускается после первого действия и приостанавливается без фокуса или в настройках." },
+};
+
+function SettingsModal({ language, keyType, automaticKeyWpm, qsoGuidance, mediaSettings, onApply, onClose }) {
   const t = COPY[language];
   const [draftKey, setDraftKey] = useState(keyType);
   const [draftLanguage, setDraftLanguage] = useState(language);
+  const mediaText = MEDIA_SETTINGS_TEXT[draftLanguage] ?? MEDIA_SETTINGS_TEXT.en;
   const [draftWpm, setDraftWpm] = useState(() => normalizeAutomaticKeyWpm(automaticKeyWpm));
   const [draftGuidance, setDraftGuidance] = useState(() => normalizeQsoGuidance(qsoGuidance));
+  const [draftMedia, setDraftMedia] = useState(() => normalizeChapterMediaSettings(mediaSettings));
   function apply() {
     onApply({
       language: draftLanguage,
       keyType: draftKey,
       automaticKeyWpm: normalizeAutomaticKeyWpm(draftWpm),
       qsoGuidance: normalizeQsoGuidance(draftGuidance),
+      mediaSettings: normalizeChapterMediaSettings(draftMedia),
     });
     onClose();
   }
@@ -459,6 +477,29 @@ function SettingsModal({ language, keyType, automaticKeyWpm, qsoGuidance, onAppl
           <section className="settings-guidance">
             <h3><Question size={20} />{qsoCoachText(draftLanguage).guidance}</h3>
             <GuidanceChoices language={draftLanguage} value={draftGuidance} onChange={setDraftGuidance} />
+          </section>
+          <section className="settings-audio">
+            <h3><MusicNotes size={20} />{mediaText.title}</h3>
+            <button
+              type="button"
+              className={`chapter-audio-toggle ${draftMedia.enabled ? "selected" : ""}`}
+              aria-pressed={draftMedia.enabled}
+              onClick={() => setDraftMedia((current) => ({ ...current, enabled: !current.enabled }))}
+            >
+              {draftMedia.enabled ? <SpeakerHigh size={21} weight="fill" /> : <SpeakerSlash size={21} weight="fill" />}
+              <span>{mediaText.enabled}</span>
+            </button>
+            <label className="chapter-volume-setting">
+              <span>{mediaText.music}<output>{Math.round(draftMedia.musicVolume * 100)}%</output></span>
+              <input type="range" min="0" max="100" step="1" value={Math.round(draftMedia.musicVolume * 100)} disabled={!draftMedia.enabled}
+                onChange={(event) => setDraftMedia((current) => ({ ...current, musicVolume: Number(event.target.value) / 100 }))} />
+            </label>
+            <label className="chapter-volume-setting">
+              <span>{mediaText.ambience}<output>{Math.round(draftMedia.ambienceVolume * 100)}%</output></span>
+              <input type="range" min="0" max="100" step="1" value={Math.round(draftMedia.ambienceVolume * 100)} disabled={!draftMedia.enabled}
+                onChange={(event) => setDraftMedia((current) => ({ ...current, ambienceVolume: Number(event.target.value) / 100 }))} />
+            </label>
+            <small>{mediaText.hint}</small>
           </section>
         </div>
         <footer><span>{COPY[draftLanguage].fixedToneHint}</span><button className="primary-button" onClick={apply}><Check size={20} weight="bold" />{COPY[draftLanguage].apply}</button></footer>
@@ -1217,6 +1258,7 @@ export function App() {
   const [keyType, setKeyType] = useState("manual");
   const [automaticKeyWpm, setAutomaticKeyWpm] = useState(DEFAULT_AUTOMATIC_KEY_WPM);
   const [qsoGuidance, setQsoGuidance] = useState("full");
+  const [mediaSettings, setMediaSettings] = useState(loadChapterMediaSettings);
   const [screen, setScreen] = useState("start");
   const [practiceReturnScreen, setPracticeReturnScreen] = useState("start");
   const [lightsMode, setLightsMode] = useState("story");
@@ -1232,6 +1274,10 @@ export function App() {
     document.documentElement.lang = language;
     persistLanguagePreference(language);
   }, [language]);
+
+  useEffect(() => {
+    persistChapterMediaSettings(mediaSettings);
+  }, [mediaSettings]);
 
 
   useEffect(() => {
@@ -1723,6 +1769,7 @@ export function App() {
     setKeyType(next.keyType);
     setAutomaticKeyWpm(nextWpm);
     setQsoGuidance(normalizeQsoGuidance(next.qsoGuidance));
+    setMediaSettings(normalizeChapterMediaSettings(next.mediaSettings));
     if (activeSave && ["home", "station", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen)) {
       updateActiveSave({ keyType: next.keyType, automaticKeyWpm: nextWpm, qsoGuidance: normalizeQsoGuidance(next.qsoGuidance) });
     }
@@ -1880,9 +1927,12 @@ export function App() {
   />;
   else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onActivityRisk={setActivityRisk} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
   else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
+  const activeChapter = chapterForScreen(screen, activeSave);
   return <>
     <Suspense fallback={<main className="screen route-loading-screen" aria-busy="true" />}>
-      {currentScreen}
+      <ChapterMediaStage chapter={activeChapter} settings={mediaSettings} paused={settingsOpen}>
+        {currentScreen}
+      </ChapterMediaStage>
     </Suspense>
     <NetworkIndicator language={language} />
     <Suspense fallback={null}><AchievementNotification
@@ -1897,6 +1947,7 @@ export function App() {
       keyType={activeSave && ["home", "station", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen) ? activeSave.keyType : keyType}
       automaticKeyWpm={activeSave && ["home", "station", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen) ? activeSave.automaticKeyWpm : automaticKeyWpm}
       qsoGuidance={activeSave && ["home", "station", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen) ? activeSave.qsoGuidance : qsoGuidance}
+      mediaSettings={mediaSettings}
       onApply={applySettings}
       onClose={() => setSettingsOpen(false)}
     />}

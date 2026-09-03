@@ -1,0 +1,464 @@
+{
+  "schemaVersion": 1,
+  "visualProvenance": "Original AI-assisted artwork generated for CWGame",
+  "audioProvenance": "Original deterministic synthesis from scripts/generate_chapter_audio.py",
+  "audioFormat": {
+    "codec": "PCM",
+    "channels": 1,
+    "sampleRate": 16000,
+    "bitsPerSample": 16,
+    "durationSeconds": 12
+  },
+  "chapters": [
+    {
+      "chapter": 1,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/01/scene.png",
+          "bytes": 1984313,
+          "sha256": "9b637202e1b311beb854e22226713cedffdad8846a650cf879176158d7ad013d"
+        },
+        "portrait": {
+          "path": "./assets/chapters/01/portrait.png",
+          "bytes": 1470766,
+          "sha256": "f8354a1f037cad44b9bcde0d780d90fb25ccd9c020b69e25e9942093815fb0b5"
+        },
+        "illustration": {
+          "path": "./assets/chapters/01/illustration.png",
+          "bytes": 2066192,
+          "sha256": "73f02ba3242d8715930b3045c98b41fbda46e08a809cc5f925540373cae54b6e"
+        },
+        "ambience": {
+          "path": "./assets/chapters/01/ambience.wav",
+          "bytes": 384044,
+          "sha256": "3185a589065fdfca21e00426a65eb08055989202ad6e80e3c943c987110dc387"
+        },
+        "music": {
+          "path": "./assets/chapters/01/music.wav",
+          "bytes": 384044,
+          "sha256": "1a388b657b670b9346c6dc43f28a617ff15a25b1e29805010a1432ac2c250c5f"
+        }
+      }
+    },
+    {
+      "chapter": 2,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/02/scene.png",
+          "bytes": 2204481,
+          "sha256": "216ae2059c877e1eee49da4a424564057f237a45e5c6a2a50fbca9df36f9ae85"
+        },
+        "portrait": {
+          "path": "./assets/chapters/02/portrait.png",
+          "bytes": 2043592,
+          "sha256": "426f830fb711e1a1213b3ae937bd6cb8163d07a41b8613d6978a239e5266724f"
+        },
+        "illustration": {
+          "path": "./assets/chapters/02/illustration.png",
+          "bytes": 2410143,
+          "sha256": "ec89af94e1df02203ed58a22ed19cdf3e3838021389381eeab056baa980459b2"
+        },
+        "ambience": {
+          "path": "./assets/chapters/02/ambience.wav",
+          "bytes": 384044,
+          "sha256": "ab8c57e7076fd27bcfc7d17db7180dfab21f377fe856bf1510e9f45b3f71a814"
+        },
+        "music": {
+          "path": "./assets/chapters/02/music.wav",
+          "bytes": 384044,
+          "sha256": "6e3bf83bec3523cc3e05ffe935fb938461838af60d458c52a2828c729b917395"
+        }
+      }
+    },
+    {
+      "chapter": 3,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/03/scene.png",
+          "bytes": 2164289,
+          "sha256": "7b9e95fca7db1dd62868499587d21d442ac0ba798f5114d67110206ab836132f"
+        },
+        "portrait": {
+          "path": "./assets/chapters/03/portrait.png",
+          "bytes": 2187592,
+          "sha256": "217ebaec24bc323525ef0f1bf9c31bf346098ee598ea5aeb78bab1cbed31988e"
+        },
+        "illustration": {
+          "path": "./assets/chapters/03/illustration.png",
+          "bytes": 2434303,
+          "sha256": "4e002ed64754d5dc08428b56b4593f76fa8e670da41052ec1a55042ecf943612"
+        },
+        "ambience": {
+          "path": "./assets/chapters/03/ambience.wav",
+          "bytes": 384044,
+          "sha256": "f80a5c1449eb9fd9e42c2fbf12dea12417dd91945c91b44038895d4129fc1223"
+        },
+        "music": {
+          "path": "./assets/chapters/03/music.wav",
+          "bytes": 384044,
+          "sha256": "75322215bb549c9ef7af82db64cb94af4f93cf3857c43f54f84dcadb72a9478e"
+        }
+      }
+    },
+    {
+      "chapter": 4,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/04/scene.png",
+          "bytes": 2269298,
+          "sha256": "949518a3746280e94c5f0d54c5fdbb6d04fc4d865491ce39a98cc2c6224f2ec5"
+        },
+        "portrait": {
+          "path": "./assets/chapters/04/portrait.png",
+          "bytes": 1838300,
+          "sha256": "7cc9c721ffdc4dfff67bf933fa289a7bcb37ba26d147929c6e90a10a307d4b0a"
+        },
+        "illustration": {
+          "path": "./assets/chapters/04/illustration.png",
+          "bytes": 2273250,
+          "sha256": "eb07687089167ce9c8ac905c4664120aed03f50a3fc62b394df709669e300e2f"
+        },
+        "ambience": {
+          "path": "./assets/chapters/04/ambience.wav",
+          "bytes": 384044,
+          "sha256": "3e560723d5832ef21e5ed38e2ec4a0ac49be48c42086590e6e25c0fca6840d8c"
+        },
+        "music": {
+          "path": "./assets/chapters/04/music.wav",
+          "bytes": 384044,
+          "sha256": "636daff5f1ed9a2e134478230d0a2fb98acf7be63c344784fea046b82ae70d82"
+        }
+      }
+    },
+    {
+      "chapter": 5,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/05/scene.png",
+          "bytes": 2144838,
+          "sha256": "6de5f53842d734678b988a3ac8c7d1015f94379721b11ff342b148dba4b98824"
+        },
+        "portrait": {
+          "path": "./assets/chapters/05/portrait.png",
+          "bytes": 1940527,
+          "sha256": "04b0c825c7dd8031e5dfca58c168728a195e421355202697574c1c094efeb02f"
+        },
+        "illustration": {
+          "path": "./assets/chapters/05/illustration.png",
+          "bytes": 2278639,
+          "sha256": "4a9137976fffc996745480614d0cbc56696f673c39d929f6bf0a7d25eef30d41"
+        },
+        "ambience": {
+          "path": "./assets/chapters/05/ambience.wav",
+          "bytes": 384044,
+          "sha256": "322ffa7b9be77346329eef06b7bf2890ea650aff07a8d84d359835c4a395b814"
+        },
+        "music": {
+          "path": "./assets/chapters/05/music.wav",
+          "bytes": 384044,
+          "sha256": "f8c2a6fdd7c9049768556294e3226216d00cdc8075ef5a0237f22ef9b1f4d9a9"
+        }
+      }
+    },
+    {
+      "chapter": 6,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/06/scene.png",
+          "bytes": 2503750,
+          "sha256": "a07e9276d2c9bab221fd9456cb22e77de00a976de73f453c60025e3ae05fe7f6"
+        },
+        "portrait": {
+          "path": "./assets/chapters/06/portrait.png",
+          "bytes": 2065826,
+          "sha256": "6e9d7b2133261d91bf840ce99117e980c10b775068d63229708fcb54c96e45c2"
+        },
+        "illustration": {
+          "path": "./assets/chapters/06/illustration.png",
+          "bytes": 2439455,
+          "sha256": "37dfde5be4ee92b6a589a04a0d80404554a5496ada71e5aa8b63d4bae5b04ba3"
+        },
+        "ambience": {
+          "path": "./assets/chapters/06/ambience.wav",
+          "bytes": 384044,
+          "sha256": "05ddfa5d5ee2cfe9051ea63080e5e0666ea87413da7412898bf837a6d1c74d3b"
+        },
+        "music": {
+          "path": "./assets/chapters/06/music.wav",
+          "bytes": 384044,
+          "sha256": "f7b2a457dabd414dcff2e245e478726145df4817c854e1cdbb23e11ad2cc5ded"
+        }
+      }
+    },
+    {
+      "chapter": 7,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/07/scene.png",
+          "bytes": 2256200,
+          "sha256": "97fbc708ece958a359ccd15d6c39c51a7dfe03c402b27da1fdf8d390f8fc837e"
+        },
+        "portrait": {
+          "path": "./assets/chapters/07/portrait.png",
+          "bytes": 2120744,
+          "sha256": "cbef157bf9f0359eecfe58ed5a5722a67fb0fec5ae6aeff6c1f474f9def6ac25"
+        },
+        "illustration": {
+          "path": "./assets/chapters/07/illustration.png",
+          "bytes": 2471456,
+          "sha256": "61c64b18a6dd2db0704fd57c542907f81590f0b18c6b72c131b29e163240d688"
+        },
+        "ambience": {
+          "path": "./assets/chapters/07/ambience.wav",
+          "bytes": 384044,
+          "sha256": "8280bc3b57f1a2ca576d498d9bcddb13ec6b209e8d4f38e6ee3fa11aa7cc7755"
+        },
+        "music": {
+          "path": "./assets/chapters/07/music.wav",
+          "bytes": 384044,
+          "sha256": "21aea95c80383c3413c73a325945582f8f8e878308647bb4edd0ad2528f2a536"
+        }
+      }
+    },
+    {
+      "chapter": 8,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/08/scene.png",
+          "bytes": 2104431,
+          "sha256": "8336c83594689f338a1f19615e77709a9a216b49d83b468af04018bdf04c8945"
+        },
+        "portrait": {
+          "path": "./assets/chapters/08/portrait.png",
+          "bytes": 1535660,
+          "sha256": "d3ded127fcf9b6d3eb95c690a711bd926cb8891d561d48432af3c20cc07a650d"
+        },
+        "illustration": {
+          "path": "./assets/chapters/08/illustration.png",
+          "bytes": 1987213,
+          "sha256": "917dfc434ae31f8b6c9a2d5f82220eac41aff2cb49942a0086bb824b5845b70d"
+        },
+        "ambience": {
+          "path": "./assets/chapters/08/ambience.wav",
+          "bytes": 384044,
+          "sha256": "1a8af9e5b1c6aab66434d01d94b1fd21cb8f0320f7199724abc5d9767898699c"
+        },
+        "music": {
+          "path": "./assets/chapters/08/music.wav",
+          "bytes": 384044,
+          "sha256": "29f20998f035317df1390eeeed9b89017d0fd2cb90eeda2a2712ce107a4b7b73"
+        }
+      }
+    },
+    {
+      "chapter": 9,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/09/scene.png",
+          "bytes": 1980316,
+          "sha256": "8af30b4c0e45dcbc746b8f8a7c920fff245d3167b4be16686e01d0ab231cd9f8"
+        },
+        "portrait": {
+          "path": "./assets/chapters/09/portrait.png",
+          "bytes": 2389778,
+          "sha256": "332527a7967a30916c1bc6267c9b529d757fa68380170924195590902936cb9f"
+        },
+        "illustration": {
+          "path": "./assets/chapters/09/illustration.png",
+          "bytes": 2240383,
+          "sha256": "2a2aff3c644230b0c5c81c2582befaf8daecf256ce5acac47ad8c750b547ae8e"
+        },
+        "ambience": {
+          "path": "./assets/chapters/09/ambience.wav",
+          "bytes": 384044,
+          "sha256": "d18f8ca330374618f3cdd9598d84e2595366fd4961800bac5f19c7ea6cef8e28"
+        },
+        "music": {
+          "path": "./assets/chapters/09/music.wav",
+          "bytes": 384044,
+          "sha256": "852514bac76a36a9b8a919f991b52cc1576b6ce0a744953d7a0d6553096e53ab"
+        }
+      }
+    },
+    {
+      "chapter": 10,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/10/scene.png",
+          "bytes": 2120025,
+          "sha256": "22950aca4dc7160b273937472d9af319ba45843b77ab58ee2a56cce6365b1a99"
+        },
+        "portrait": {
+          "path": "./assets/chapters/10/portrait.png",
+          "bytes": 1970428,
+          "sha256": "e1b03eaa53028f93b9472acf5a730f1e5670e5e7b88d155991d409124bf56839"
+        },
+        "illustration": {
+          "path": "./assets/chapters/10/illustration.png",
+          "bytes": 2258455,
+          "sha256": "41c65aa33464f01585d4f585ad86a31a188845fb1f1c41fed2f0075d40a97055"
+        },
+        "ambience": {
+          "path": "./assets/chapters/10/ambience.wav",
+          "bytes": 384044,
+          "sha256": "bddd1f80bfd0a04c9d44eec0a24905bb2d8709ceb7421fb5de6c57dde6c47b24"
+        },
+        "music": {
+          "path": "./assets/chapters/10/music.wav",
+          "bytes": 384044,
+          "sha256": "883af5d68256ac71a1458034a827fc565d132197bff9780f102352b9f8a0bfd3"
+        }
+      }
+    },
+    {
+      "chapter": 11,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/11/scene.png",
+          "bytes": 2295226,
+          "sha256": "cadaf4c2e6539f8cc1e560709f88a0db19cf57cb88bcfbe470b096ca7b7e5d59"
+        },
+        "portrait": {
+          "path": "./assets/chapters/11/portrait.png",
+          "bytes": 1900700,
+          "sha256": "7de4242f3ac369dd342e295b26dcd1a6f155f2ff1ce6666a7527b27c8c09ef0b"
+        },
+        "illustration": {
+          "path": "./assets/chapters/11/illustration.png",
+          "bytes": 2349118,
+          "sha256": "afe5c30427c12df77fdde9ad101e78df2c0ce61b819fb68dab5859a4bc4ac975"
+        },
+        "ambience": {
+          "path": "./assets/chapters/11/ambience.wav",
+          "bytes": 384044,
+          "sha256": "7169f310921cb4177dc83082626a33c3ae59ef30c0a0f8195da096eb33c3a042"
+        },
+        "music": {
+          "path": "./assets/chapters/11/music.wav",
+          "bytes": 384044,
+          "sha256": "b6d5efc90246ebfc81651dfcc0a50faf02351b1ba238037d564f32442ac2f846"
+        }
+      }
+    },
+    {
+      "chapter": 12,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/12/scene.png",
+          "bytes": 2287366,
+          "sha256": "9aa63c7f8fc754f2c85178da4ecc49e8fd5ac985bbe848184dd295af9c48ed3b"
+        },
+        "portrait": {
+          "path": "./assets/chapters/12/portrait.png",
+          "bytes": 2407376,
+          "sha256": "6160da636deb3ef97babaa95046d8127d0e732b3b2a478dadaefdec35adbaf5f"
+        },
+        "illustration": {
+          "path": "./assets/chapters/12/illustration.png",
+          "bytes": 2457857,
+          "sha256": "7fab769092357dbe3f8b794ee5a05d43983556386735360c3c330f301613cb12"
+        },
+        "ambience": {
+          "path": "./assets/chapters/12/ambience.wav",
+          "bytes": 384044,
+          "sha256": "bed662e9502b9d2e7f1a53c88ec34b97ce59c7071d5820f96638d11d8d23ff9b"
+        },
+        "music": {
+          "path": "./assets/chapters/12/music.wav",
+          "bytes": 384044,
+          "sha256": "ddd24515d9f80a32dee90216a3c108518de34209e94a386352868523566e67b5"
+        }
+      }
+    },
+    {
+      "chapter": 13,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/13/scene.png",
+          "bytes": 2052740,
+          "sha256": "94cbf601a71cbd35a5bfebfd87f226faef7f002f86cf9aa29463a089ffd30025"
+        },
+        "portrait": {
+          "path": "./assets/chapters/13/portrait.png",
+          "bytes": 2134061,
+          "sha256": "a959e0c5e420d66bc5417440beed8098ef7f63f2602fbf1e696cd93af49518d4"
+        },
+        "illustration": {
+          "path": "./assets/chapters/13/illustration.png",
+          "bytes": 2379723,
+          "sha256": "5d84bc27920230539c912a757f65f3dcdde138b4c08b49cd101e38d60b6c5a23"
+        },
+        "ambience": {
+          "path": "./assets/chapters/13/ambience.wav",
+          "bytes": 384044,
+          "sha256": "9033b23ee8d6641ddc7df303480f3db6c3c43a06110ecd48a060d1fced886d53"
+        },
+        "music": {
+          "path": "./assets/chapters/13/music.wav",
+          "bytes": 384044,
+          "sha256": "79f8505d8f630503ec78f7282eba3efb983e2d13f05b6f9bf0580c3e5f429273"
+        }
+      }
+    },
+    {
+      "chapter": 14,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/14/scene.png",
+          "bytes": 2139203,
+          "sha256": "d033e763be3f450b30f5e61b3a0b143db175382e3e22b1219702e69ec1b5b505"
+        },
+        "portrait": {
+          "path": "./assets/chapters/14/portrait.png",
+          "bytes": 2198504,
+          "sha256": "68164f8d34f422677adbcfda7184f3a2b676e6565cc780144a3c9ad74f3190ac"
+        },
+        "illustration": {
+          "path": "./assets/chapters/14/illustration.png",
+          "bytes": 2315941,
+          "sha256": "a0f7c69361d6e26c8edf6e46b3cdac5151bf55d690b3d41944a0aed04a419e0a"
+        },
+        "ambience": {
+          "path": "./assets/chapters/14/ambience.wav",
+          "bytes": 384044,
+          "sha256": "878f629873449a05ac46e6296c9c1f8fe561e15ed9a9fa38efbcb07d22ad8dd4"
+        },
+        "music": {
+          "path": "./assets/chapters/14/music.wav",
+          "bytes": 384044,
+          "sha256": "4f13498fbfc384ec4d5697e8497a1e70dbaae51ffd5a2740ecd2f3d2c1d10427"
+        }
+      }
+    },
+    {
+      "chapter": 15,
+      "assets": {
+        "scene": {
+          "path": "./assets/chapters/15/scene.png",
+          "bytes": 2355128,
+          "sha256": "7aecfdb0802eda53448addbf3592c46c50477976b01b020f89022d0ce78fed3e"
+        },
+        "portrait": {
+          "path": "./assets/chapters/15/portrait.png",
+          "bytes": 2373194,
+          "sha256": "aae9aa54ad12c5f7fb50f13ae56e1eaf395f104d3aa0296332f06ed00090556e"
+        },
+        "illustration": {
+          "path": "./assets/chapters/15/illustration.png",
+          "bytes": 2285057,
+          "sha256": "85ba68a58a775a20c98db5b2532e2ecc84e282a04d7edd62322789b85f02d3fb"
+        },
+        "ambience": {
+          "path": "./assets/chapters/15/ambience.wav",
+          "bytes": 384044,
+          "sha256": "fedcbd199dc490f6319a682d18a411e8bece7ca4d447e5385c2f601211c58f19"
+        },
+        "music": {
+          "path": "./assets/chapters/15/music.wav",
+          "bytes": 384044,
+          "sha256": "4c9414bd87295bb1c84a5f068d3209e8057e7ce1b6efc5bcea284a6ef3b81ac7"
+        }
+      }
+    }
+  ]
+}
