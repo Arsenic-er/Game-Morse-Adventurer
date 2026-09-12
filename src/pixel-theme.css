@@ -1040,6 +1040,7 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .save-actions-bar button:disabled { opacity: .45; cursor: not-allowed; }
 
 .home-screen { min-height: 0; background: #090604; }
+.home-room-scene { position: absolute; left: 50%; top: 50%; width: max(100vw, calc(100vh * 1672 / 941)); height: max(100vh, calc(100vw * 941 / 1672)); transform: translate(-50%, -50%); }
 .home-window-slot { position: absolute; z-index: 0; left: 30.25%; top: 9.8%; width: 45.2%; height: 44.35%; overflow: hidden; background: #061016; }
 .home-window-artwork { width: 100%; height: 100%; }
 .home-window-artwork .outdoor-antenna { right: -1%; bottom: -9%; width: 62%; height: 98%; }
@@ -1052,26 +1053,26 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .home-topbar > span { display: flex; align-items: center; gap: 8px; color: #7eb8b7; font-size: 10px; }
 .home-topbar > b { justify-self: center; color: var(--pixel-amber); letter-spacing: .13em; }
 .home-topbar button { height: 100%; border: 0; border-left: 2px solid #295e66; color: var(--pixel-cyan); background: #061b23; }
-.home-hotspot { position: absolute; z-index: 6; border: 0; outline: 0; background: transparent; box-shadow: none; --hotspot-tint: rgba(66, 224, 211, .18); --hotspot-filter: brightness(1.3) saturate(1.7) contrast(1.05); }
-.home-hotspot::before { content: ""; position: absolute; z-index: 0; inset: 0; pointer-events: none; clip-path: var(--hotspot-shape); background: var(--hotspot-tint); -webkit-backdrop-filter: var(--hotspot-filter); backdrop-filter: var(--hotspot-filter); opacity: 0; transition: opacity 80ms steps(2, end); }
+.home-hotspot { position: absolute; z-index: 6; padding: 0; border: 0; outline: 0; background: transparent; box-shadow: none; --hotspot-glow: #61eee0; --hotspot-edge: #d4fff5; }
+.home-hotspot-outline { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; fill: none; stroke-linejoin: round; shape-rendering: geometricPrecision; opacity: 0; transition: opacity 140ms ease-out; }
+.home-hotspot-halo { stroke: var(--hotspot-glow); stroke-width: 5; opacity: .8; filter: blur(3px) drop-shadow(0 0 7px var(--hotspot-glow)); }
+.home-hotspot-edge { stroke: var(--hotspot-edge); stroke-width: 1.5; filter: drop-shadow(0 0 2px var(--hotspot-glow)); }
 .home-hotspot > span { position: absolute; z-index: 1; left: 50%; bottom: 8px; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border: 2px solid var(--pixel-line); color: var(--pixel-cyan); background: #04171f; box-shadow: 4px 4px 0 rgba(0, 0, 0, .72); opacity: 0; transform: translateX(-50%); white-space: nowrap; font-size: 11px; }
-.home-hotspot:hover, .home-hotspot:focus-visible { transform: none !important; background: transparent; box-shadow: none !important; }
-.home-hotspot:hover::before, .home-hotspot:focus-visible::before { opacity: 1; }
+.home-hotspot:hover, .home-hotspot:focus-visible { z-index: 8; transform: none !important; background: transparent; box-shadow: none !important; }
+.home-hotspot:hover .home-hotspot-outline, .home-hotspot:focus-visible .home-hotspot-outline { opacity: 1; }
 .home-hotspot:hover > span, .home-hotspot:focus-visible > span { opacity: 1; }
-.hotspot-warehouse { left: 0; top: 9%; width: 19.6%; height: 60%; --hotspot-shape: polygon(0 0, 86% 0, 100% 8%, 100% 100%, 0 100%); }
-.hotspot-station { left: 33.5%; top: 58.5%; width: 31%; height: 33%; --hotspot-tint: rgba(255, 194, 62, .2); --hotspot-filter: brightness(1.34) saturate(1.8) contrast(1.06); --hotspot-shape: polygon(8% 8%, 88% 5%, 96% 20%, 100% 84%, 91% 96%, 14% 100%, 3% 88%, 0 31%); }
+.hotspot-station, .hotspot-practice { --hotspot-glow: #ffc457; --hotspot-edge: #fff1c9; }
 .hotspot-station > span { color: #ffe29a; border-color: #d49a27; background: #4f3205; }
-.hotspot-store { left: 66.5%; top: 43.5%; width: 25%; height: 36%; --hotspot-shape: polygon(22% 0, 91% 5%, 96% 52%, 86% 60%, 100% 88%, 91% 100%, 9% 91%, 0 76%, 14% 59%); }
-.hotspot-practice { left: 0; top: 67%; width: 17%; height: 17%; --hotspot-tint: rgba(255, 194, 62, .18); --hotspot-filter: brightness(1.38) saturate(1.55) contrast(1.08); --hotspot-shape: polygon(0 5%, 71% 0, 100% 16%, 98% 86%, 18% 100%, 0 83%); }
 .hotspot-practice > span { left: 57%; color: #ffe29a; border-color: #b88128; background: #3d2a0b; }
+@media (prefers-reduced-motion: reduce) {
+  .home-hotspot-outline { transition: none; }
+}
 .home-practice-progress { position: absolute; z-index: 1; left: 13%; top: 9px; width: 68%; height: 6px; border: 1px solid rgba(184, 129, 40, .72); background: rgba(23, 15, 4, .82); box-shadow: 2px 2px 0 rgba(0, 0, 0, .55); pointer-events: none; }
 .home-practice-progress::after { content: ""; display: block; width: var(--practice-progress, 0%); height: 100%; background: #e5ae38; box-shadow: inset 0 -2px 0 #8d5f18; }
 .hotspot-practice > .home-practice-label { align-items: center; min-width: 210px; padding: 8px 10px; }
 .home-practice-label > span { display: grid; gap: 4px; text-align: left; }
 .home-practice-label strong { color: #ffe29a; font-size: 10px; font-weight: 700; }
 .home-practice-label small { color: #d9b761; font-size: 8px; letter-spacing: .04em; }
-.hotspot-log { left: 2.8%; top: 84%; width: 22%; height: 16%; --hotspot-shape: polygon(0 10%, 69% 0, 100% 67%, 88% 100%, 12% 94%); }
-.hotspot-achievements { left: 69.5%; top: 81.5%; width: 18.5%; height: 16.8%; --hotspot-shape: polygon(10% 13%, 78% 0, 100% 36%, 91% 78%, 77% 100%, 7% 81%, 0 42%); }
 .home-newspaper-callsign { position: absolute; z-index: 5; left: 72.5%; top: 84.1%; width: 12%; overflow: hidden; color: #162431; font-size: clamp(11px, 1.5vw, 23px); letter-spacing: .12em; text-align: center; text-overflow: ellipsis; white-space: nowrap; transform: rotate(7deg); transform-origin: center; text-shadow: 1px 1px 0 rgba(255, 243, 206, .65); }
 .home-location-label { position: absolute; z-index: 5; left: 31%; top: 50%; display: flex; align-items: center; gap: 7px; padding: 6px 9px; border: 2px solid rgba(82, 156, 159, .68); color: #c7e5dc; background: rgba(4, 17, 22, .82); font-size: 9px; }
 .home-modal-backdrop { z-index: 260; }

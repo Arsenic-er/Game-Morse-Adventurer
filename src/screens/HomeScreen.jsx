@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { HomeHotspot } from "../components/HomeHotspot.jsx";
 import {
   ArrowLeft, BookOpenText, Books, Broadcast, Check, ClipboardText, Coins, FileMagnifyingGlass, GearSix, GridFour, Laptop, MapPin, Notebook,
   Package, Radio, Storefront, TreeStructure, Trophy, Users, Warehouse, Wrench, X,
@@ -570,16 +571,16 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
   const localTime = clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: location.timeZone });
   return (
     <main className="screen home-screen">
+      <div className="home-room-scene">
       <div className="home-window-slot"><LocationArtwork location={location} antennaId={save.antennaId} clock={clock} className="home-window-artwork" animated /></div>
       <img className="home-room-overlay" src="./assets/home-room-overlay.png" alt="" />
       <span className="home-lantern-flicker" aria-hidden="true" />
-      <header className="home-topbar"><h1>{t.title}</h1><span><Radio size={18} weight="fill" />21.060 MHz · CW</span><b>{save.callsign}</b><span>{t.local} {localTime}</span><button className="home-mission-button" data-action="open-missions" onClick={() => setPanel("missions")} aria-label={t.missions}><ClipboardText size={21} /></button><button onClick={onBack} aria-label={t.back}><ArrowLeft size={21} /></button><button onClick={onSettings} aria-label={t.settings}><GearSix size={21} /></button></header>
 
-      <button className="home-hotspot hotspot-warehouse" aria-label={t.warehouse} onClick={() => setPanel("warehouse")}><span><Warehouse size={22} weight="fill" />{t.warehouse}</span></button>
-      <button className="home-hotspot hotspot-station" aria-label={t.station} onClick={onEnterStation}><span><Radio size={22} weight="fill" />{t.station}</span></button>
-      <button className="home-hotspot hotspot-store" data-action="open-store" aria-label={t.store} onClick={() => setPanel("store")}><span><Laptop size={22} weight="fill" />{t.store}</span></button>
-      <button
-        className="home-hotspot hotspot-practice"
+      <HomeHotspot target="warehouse" aria-label={t.warehouse} onClick={() => setPanel("warehouse")}><span><Warehouse size={22} weight="fill" />{t.warehouse}</span></HomeHotspot>
+      <HomeHotspot target="station" aria-label={t.station} onClick={onEnterStation}><span><Radio size={22} weight="fill" />{t.station}</span></HomeHotspot>
+      <HomeHotspot target="store" data-action="open-store" aria-label={t.store} onClick={() => setPanel("store")}><span><Laptop size={22} weight="fill" />{t.store}</span></HomeHotspot>
+      <HomeHotspot
+        target="practice"
         data-action="enter-practice"
         data-testid="home-practice-hotspot"
         data-practice-completed={practiceProgress.completedLessons}
@@ -598,9 +599,13 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
           aria-hidden="true"
         />
         <span className="home-practice-label"><Books size={22} weight="fill" /><span><strong>{t.practice}</strong><small>{practiceProgressLabel}</small></span></span>
-      </button>
-      <button className="home-hotspot hotspot-log" aria-label={t.log} onClick={() => setPanel("log")}><span><Notebook size={22} weight="fill" />{t.log}</span></button>
-      <button className="home-hotspot hotspot-achievements" aria-label={t.achievements} onClick={() => setPanel("achievements")}><span><Trophy size={22} weight="fill" />{t.achievements}</span></button>
+      </HomeHotspot>
+      <HomeHotspot target="log" aria-label={t.log} onClick={() => setPanel("log")}><span><Notebook size={22} weight="fill" />{t.log}</span></HomeHotspot>
+      <HomeHotspot target="achievements" aria-label={t.achievements} onClick={() => setPanel("achievements")}><span><Trophy size={22} weight="fill" />{t.achievements}</span></HomeHotspot>
+      <span className="home-newspaper-callsign" aria-hidden="true">{save.callsign}</span>
+      <span className="home-location-label"><Radio size={15} />{locationName(location, language)}</span>
+      </div>
+      <header className="home-topbar"><h1>{t.title}</h1><span><Radio size={18} weight="fill" />21.060 MHz · CW</span><b>{save.callsign}</b><span>{t.local} {localTime}</span><button className="home-mission-button" data-action="open-missions" onClick={() => setPanel("missions")} aria-label={t.missions}><ClipboardText size={21} /></button><button onClick={onBack} aria-label={t.back}><ArrowLeft size={21} /></button><button onClick={onSettings} aria-label={t.settings}><GearSix size={21} /></button></header>
       <button className="home-people-qsl-button" data-action="open-people-qsl" aria-label={t.peopleQsl} onClick={() => setPanel("people-qsl")}><Users size={20} weight="fill" />{t.peopleQsl}</button>
       {expeditionReplay && <button className="home-expedition-button" data-action="enter-expedition-home" aria-label={t.expedition} onClick={onEnterExpedition}><Broadcast size={20} weight="fill" />{t.expedition}</button>}
       {qslStoryReplay && <button className="home-qsl-story-button" data-action="enter-qsl-story-home" aria-label={t.qslStory} onClick={onEnterQslStory}><FileMagnifyingGlass size={20} weight="fill" />{t.qslStory}</button>}
@@ -615,8 +620,6 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
       {openStationUnlocked && <button className="home-open-station-button" data-action="open-open-station" aria-label={openStationText.title} onClick={() => setPanel("open-station")}><Radio size={20} weight="fill" />{openStationText.title}</button>}
       {nightState.taskTreeUnlocked && <button className="home-station-operations-button" data-action="open-station-operations" aria-label={nightText.board} onClick={() => setPanel("station-operations")}><ClipboardText size={20} weight="fill" />{nightText.board}</button>}
       {coordinateState.toolUnlocked && <button className="home-structured-message-button" data-action="open-structured-messages" aria-label={t.structuredMessages} onClick={() => setPanel("structured-messages")}><ClipboardText size={20} weight="fill" />{t.structuredMessages}</button>}
-      <span className="home-newspaper-callsign" aria-hidden="true">{save.callsign}</span>
-      <span className="home-location-label"><Radio size={15} />{locationName(location, language)}</span>
       {panel === "warehouse" && <WarehouseModal language={language} save={save} onEquipItem={onEquipItem} onUnlockTechnology={onUnlockTechnology} onClose={() => setPanel(null)} />}
       {panel === "store" && <StoreModal language={language} save={save} onPurchase={onPurchase} onClose={() => setPanel(null)} />}
       {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
