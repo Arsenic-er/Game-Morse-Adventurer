@@ -105,6 +105,8 @@ const NightOperationsScreen = lazy(() => import("./screens/NightOperationsScreen
   .then(({ NightOperationsScreen: component }) => ({ default: component })));
 const FinalPromiseScreen = lazy(() => import("./screens/FinalPromiseScreen.jsx")
   .then(({ FinalPromiseScreen: component }) => ({ default: component })));
+const ChapterOneReviewScreen = lazy(() => import("./screens/ChapterOneReviewScreen.jsx")
+  .then(({ ChapterOneReviewScreen: component }) => ({ default: component })));
 const SaveSelectScreen = lazy(() => import("./screens/SaveSelectScreen.jsx")
   .then(({ SaveSelectScreen: component }) => ({ default: component })));
 const StationManualModal = lazy(() => import("./screens/StationManualModal.jsx")
@@ -1253,13 +1255,23 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
   );
 }
 
+function initialScreenFromUrl() {
+  try {
+    return new URLSearchParams(window.location.search).get("review") === "chapter-1"
+      ? "chapter-one-review"
+      : "start";
+  } catch {
+    return "start";
+  }
+}
+
 export function App() {
   const [language, setLanguage] = useState(loadLanguagePreference);
   const [keyType, setKeyType] = useState("manual");
   const [automaticKeyWpm, setAutomaticKeyWpm] = useState(DEFAULT_AUTOMATIC_KEY_WPM);
   const [qsoGuidance, setQsoGuidance] = useState("full");
   const [mediaSettings, setMediaSettings] = useState(loadChapterMediaSettings);
-  const [screen, setScreen] = useState("start");
+  const [screen, setScreen] = useState(initialScreenFromUrl);
   const [practiceReturnScreen, setPracticeReturnScreen] = useState("start");
   const [lightsMode, setLightsMode] = useState("story");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1800,8 +1812,21 @@ export function App() {
     setScreen("lights");
   }
 
+  function leaveChapterOneReview() {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("review");
+      url.searchParams.delete("beat");
+      window.history.replaceState({}, "", url);
+    } catch {
+      // The review still returns to the title when history APIs are unavailable.
+    }
+    setScreen("start");
+  }
+
   let currentScreen;
-  if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => enterPractice("start")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
+  if (screen === "chapter-one-review") currentScreen = <ChapterOneReviewScreen language={language} onBack={leaveChapterOneReview} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => enterPractice("start")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
   else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onAcceptMission={acceptMissionForActiveSave} onClaimMission={claimMissionForActiveSave} onAbandonMission={abandonMissionForActiveSave} onEnterLights={enterLights} onEnterExpedition={() => setScreen("expedition")} onEnterQslStory={() => setScreen("qsl-story")} onEnterServiceNet={() => setScreen("service-net")} onEnterCoordinateRelay={() => setScreen("coordinate-relay")} onEnterContest={() => setScreen("contest")} onEnterListening={() => setScreen("listening")} onEnterStormRelay={() => setScreen("storm-relay")} onEnterNightOperations={() => setScreen("night-operations")} onEnterFinalPromise={() => setScreen("final-promise")} onSettleFirstPage={settleFirstPageForActiveSave} onUpdateOpenStationGoal={updateOpenStationGoalForActiveSave} onConfirmQslChoice={confirmQslChoiceForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") {
@@ -1927,14 +1952,14 @@ export function App() {
   />;
   else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onActivityRisk={setActivityRisk} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
   else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  const activeChapter = chapterForScreen(screen, activeSave);
+  const activeChapter = screen === "chapter-one-review" ? 1 : chapterForScreen(screen, activeSave);
   return <>
     <Suspense fallback={<main className="screen route-loading-screen" aria-busy="true" />}>
       <ChapterMediaStage chapter={activeChapter} settings={mediaSettings} paused={settingsOpen}>
         {currentScreen}
       </ChapterMediaStage>
     </Suspense>
-    <NetworkIndicator language={language} />
+    {screen !== "chapter-one-review" && <NetworkIndicator language={language} />}
     <Suspense fallback={null}><AchievementNotification
         language={language}
         activeAchievement={achievementQueue[0] ?? null}
