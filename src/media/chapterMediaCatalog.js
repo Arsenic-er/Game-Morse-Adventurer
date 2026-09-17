@@ -13,6 +13,7 @@ export const CHAPTER_MEDIA = Object.freeze(Array.from({ length: 15 }, (_, index)
 }));
 
 const SCREEN_CHAPTERS = Object.freeze({
+  "chapter-one": 1,
   lights: 5,
   expedition: 6,
   "qsl-story": 7,

@@ -1,3 +1,4 @@
+import { normalizeChapterOnePresentation } from "./chapterOneStory.js";
 import { ANTENNAS } from "./antennaCatalog.js";
 import { ACCESSORIES } from "./accessoryCatalog.js";
 import { KEY_OPTIONS, TRANSMITTERS } from "./equipmentCatalog.js";
@@ -99,6 +100,7 @@ export function createSave({
     technologyTreeVersion: TECHNOLOGY_TREE_VERSION,
     missionStateVersion: MISSION_STATE_VERSION,
     missionState: emptyMissionState(),
+    chapterOnePresentation: normalizeChapterOnePresentation(null),
     worldCalendarVersion: WORLD_CALENDAR_VERSION,
     worldCalendarState: emptyWorldCalendarState(),
     lightsEventStateVersion: LIGHTS_EVENT_STATE_VERSION,
@@ -202,6 +204,7 @@ export function normalizeSave(save) {
       .map((value) => String(value ?? "").trim().slice(0, 80)).filter(Boolean))].slice(0, 1000),
     missionStateVersion: MISSION_STATE_VERSION,
     missionState: normalizeMissionState(save?.missionState),
+    chapterOnePresentation: normalizeChapterOnePresentation(Object.getOwnPropertyDescriptor(save, "chapterOnePresentation")?.value),
     worldCalendarVersion: WORLD_CALENDAR_VERSION,
     worldCalendarState: normalizeWorldCalendarState(save?.worldCalendarState),
     lightsEventStateVersion: LIGHTS_EVENT_STATE_VERSION,

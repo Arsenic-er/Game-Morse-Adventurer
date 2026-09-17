@@ -1,0 +1,25 @@
+.review-incoming-caption {
+  position: fixed; z-index: 35; top: 84px; right: 22px;
+  width: min(420px, calc(100vw - 44px)); color: #f2ecdc;
+  border: 1px solid #a3956a; border-radius: 6px;
+  background: rgba(16, 27, 30, .97); box-shadow: 0 12px 32px #0008;
+  font: 14px/1.6 system-ui, sans-serif; text-align: left;
+}
+.review-incoming-caption header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 14px; border-bottom: 1px solid #bfb58b38; }
+.review-incoming-caption header strong { font-size: 13px; letter-spacing: .04em; }
+.review-incoming-caption button { min-width: 52px; min-height: 34px; color: #ffe4a0; background: transparent; border: 1px solid #a3956a80; border-radius: 3px; cursor: pointer; }
+.review-incoming-caption button:focus-visible { outline: 2px solid #ffe4a0; outline-offset: 3px; }
+.review-incoming-body { max-height: min(42dvh, 380px); overflow-y: auto; padding: 12px 16px 14px; }
+.review-incoming-caption p { margin: 8px 0 12px; }
+.review-incoming-status { color: #9ad6ce; font-size: 12px; }
+.review-incoming-caption[data-status="receiving"] .review-incoming-status::before { content: "● "; }
+.review-incoming-text { font: 600 17px/1.7 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; padding: 10px 12px; background: #071316; border-left: 2px solid #92c5bd; }
+.review-incoming-label, .review-incoming-caption small { font-size: 11px; color: #b9b7a8; }
+.review-incoming-caption ul { margin: 6px 0 12px; padding-left: 19px; }
+.review-incoming-caption li { margin: 3px 0; }
+@media (max-width: 800px) {
+  .review-incoming-caption { top: 78px; right: 12px; width: min(380px, calc(100vw - 24px)); font-size: 12px; }
+  .review-incoming-body { max-height: 25dvh; padding: 8px 12px; }
+  .review-incoming-caption header { padding: 5px 10px; }
+  .review-incoming-text { font-size: 15px; }
+}

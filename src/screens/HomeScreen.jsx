@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { chapterOneStoryLabels } from "./chapterOneStoryLabels.js";
 import { HomeHotspot } from "../components/HomeHotspot.jsx";
 import {
   ArrowLeft, BookOpenText, Books, Broadcast, Check, ClipboardText, Coins, FileMagnifyingGlass, GearSix, GridFour, Laptop, MapPin, Notebook,
@@ -539,7 +540,7 @@ function WarehouseModal({ language, save, onEquipItem, onUnlockTechnology, onClo
   );
 }
 
-export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onAcceptMission, onClaimMission, onAbandonMission, onEnterLights, onEnterExpedition, onEnterQslStory, onEnterServiceNet, onEnterCoordinateRelay, onEnterContest, onEnterListening, onEnterStormRelay, onEnterNightOperations, onEnterFinalPromise, onSettleFirstPage, onUpdateOpenStationGoal, onConfirmQslChoice, onEnterStation, onEnterPractice, onBack, onSettings }) {
+export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTechnology, onAcceptMission, onClaimMission, onAbandonMission, onEnterChapterOne, onEnterLights, onEnterExpedition, onEnterQslStory, onEnterServiceNet, onEnterCoordinateRelay, onEnterContest, onEnterListening, onEnterStormRelay, onEnterNightOperations, onEnterFinalPromise, onSettleFirstPage, onUpdateOpenStationGoal, onConfirmQslChoice, onEnterStation, onEnterPractice, onBack, onSettings }) {
   const t = TEXT[language] ?? TEXT.en;
   const openStationText = OPEN_STATION_TEXT[language] ?? OPEN_STATION_TEXT.en;
   const location = getLocation(save.locationId);
@@ -606,6 +607,7 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
       <span className="home-location-label"><Radio size={15} />{locationName(location, language)}</span>
       </div>
       <header className="home-topbar"><h1>{t.title}</h1><span><Radio size={18} weight="fill" />21.060 MHz · CW</span><b>{save.callsign}</b><span>{t.local} {localTime}</span><button className="home-mission-button" data-action="open-missions" onClick={() => setPanel("missions")} aria-label={t.missions}><ClipboardText size={21} /></button><button onClick={onBack} aria-label={t.back}><ArrowLeft size={21} /></button><button onClick={onSettings} aria-label={t.settings}><GearSix size={21} /></button></header>
+      {onEnterChapterOne && !save.missionState?.claimedMissionIds?.includes("story-01") && <button className="home-chapter-one-button" data-action="enter-chapter-one-home" onClick={onEnterChapterOne}><BookOpenText size={20} />{chapterOneStoryLabels(language).entry}</button>}
       <button className="home-people-qsl-button" data-action="open-people-qsl" aria-label={t.peopleQsl} onClick={() => setPanel("people-qsl")}><Users size={20} weight="fill" />{t.peopleQsl}</button>
       {expeditionReplay && <button className="home-expedition-button" data-action="enter-expedition-home" aria-label={t.expedition} onClick={onEnterExpedition}><Broadcast size={20} weight="fill" />{t.expedition}</button>}
       {qslStoryReplay && <button className="home-qsl-story-button" data-action="enter-qsl-story-home" aria-label={t.qslStory} onClick={onEnterQslStory}><FileMagnifyingGlass size={20} weight="fill" />{t.qslStory}</button>}
@@ -624,7 +626,7 @@ export function HomeScreen({ language, save, onPurchase, onEquipItem, onUnlockTe
       {panel === "store" && <StoreModal language={language} save={save} onPurchase={onPurchase} onClose={() => setPanel(null)} />}
       {panel === "log" && <QsoLogModal language={language} save={save} onClose={() => setPanel(null)} />}
       {panel === "achievements" && <AchievementsModal language={language} save={save} onClose={() => setPanel(null)} />}
-      {panel === "missions" && <MissionCenterModal language={language} save={save} onAccept={onAcceptMission} onClaim={onClaimMission} onAbandon={onAbandonMission} onLaunchLights={onEnterLights} onLaunchExpedition={onEnterExpedition} onLaunchQslStory={onEnterQslStory} onLaunchServiceNet={onEnterServiceNet} onLaunchCoordinateRelay={onEnterCoordinateRelay} onLaunchContest={onEnterContest} onLaunchListening={onEnterListening} onLaunchStormRelay={onEnterStormRelay} onLaunchNightOperations={onEnterNightOperations} onLaunchFinalPromise={onEnterFinalPromise} onLaunchFirstPageQso={onEnterStation} onOpenStation={() => setPanel("open-station")} onClose={() => setPanel(null)} />}
+      {panel === "missions" && <MissionCenterModal language={language} save={save} onAccept={onAcceptMission} onClaim={onClaimMission} onAbandon={onAbandonMission} onLaunchChapterOne={onEnterChapterOne} onLaunchLights={onEnterLights} onLaunchExpedition={onEnterExpedition} onLaunchQslStory={onEnterQslStory} onLaunchServiceNet={onEnterServiceNet} onLaunchCoordinateRelay={onEnterCoordinateRelay} onLaunchContest={onEnterContest} onLaunchListening={onEnterListening} onLaunchStormRelay={onEnterStormRelay} onLaunchNightOperations={onEnterNightOperations} onLaunchFinalPromise={onEnterFinalPromise} onLaunchFirstPageQso={onEnterStation} onOpenStation={() => setPanel("open-station")} onClose={() => setPanel(null)} />}
       {panel === "first-page" && <FirstPageModal language={language} save={save} onSettle={onSettleFirstPage} onClose={() => setPanel(null)} />}
       {panel === "open-station" && <OpenStationModal language={language} save={save} onUpdateGoal={onUpdateOpenStationGoal} onClose={() => setPanel(null)} />}
       {panel === "people-qsl" && <PeopleAndQslModal language={language} save={save} onConfirmChoice={onConfirmQslChoice} onClose={() => setPanel(null)} />}

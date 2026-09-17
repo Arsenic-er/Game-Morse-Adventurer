@@ -12,6 +12,7 @@ const { createSemanticRuntime, sanitizeSemanticPayload } = require("./semantic-r
 const lightsQaCaptureMode = process.argv.includes("--qa-lights-capture");
 const qaCaptureMode = process.argv.includes("--qa-capture") || lightsQaCaptureMode;
 const semanticSmokeMode = process.argv.includes("--semantic-smoke");
+const chapterOneLocalReviewMode = process.argv.includes("--chapter-one-local-review");
 const qaWidth = Math.max(1280, Number(process.env.CWGAME_QA_WIDTH) || 1672);
 const qaHeight = Math.max(720, Number(process.env.CWGAME_QA_HEIGHT) || 941);
 
@@ -114,7 +115,7 @@ if (!gotLock) {
       show: false,
       autoHideMenuBar: true,
       backgroundColor: "#02090e",
-      title: "CWGame",
+      title: chapterOneLocalReviewMode ? "第一章 · 本地审阅" : "CWGame",
       icon: path.join(__dirname, "..", "build", "icon.ico"),
       webPreferences: {
         backgroundThrottling: !qaCaptureMode,
@@ -122,6 +123,7 @@ if (!gotLock) {
         nodeIntegration: false,
         sandbox: true,
         preload: path.join(__dirname, "preload.cjs"),
+        additionalArguments: chapterOneLocalReviewMode ? ["--chapter-one-local-review"] : [],
       },
     });
 

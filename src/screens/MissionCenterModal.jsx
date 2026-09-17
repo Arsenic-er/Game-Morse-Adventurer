@@ -321,7 +321,7 @@ function missionContractClues(mission, t) {
   ].filter(Boolean);
 }
 
-function MissionCard({ mission, t, mediaText, lightsCopy, openStationTitle, dailyLimitReached, lightsModes, expeditionReplay, serviceNetReplay, coordinateRelayReplay, contestReplay, listeningReplay, stormRelayReplay, nightOperationsReplay, finalPromiseReplay, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onLaunchNightOperations, onLaunchFinalPromise, onLaunchFirstPageQso, onOpenStation, onOpenMedia }) {
+function MissionCard({ mission, t, mediaText, lightsCopy, openStationTitle, dailyLimitReached, lightsModes, expeditionReplay, serviceNetReplay, coordinateRelayReplay, contestReplay, listeningReplay, stormRelayReplay, nightOperationsReplay, finalPromiseReplay, onAccept, onClaim, onAbandon, onLaunchChapterOne, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onLaunchNightOperations, onLaunchFinalPromise, onLaunchFirstPageQso, onOpenStation, onOpenMedia }) {
   const ready = mission.status === "ready";
   const active = mission.status === "active";
   const available = mission.status === "available";
@@ -374,6 +374,7 @@ function MissionCard({ mission, t, mediaText, lightsCopy, openStationTitle, dail
       <div className="mission-reward"><Coins size={17} weight="fill" /><span>+{mission.moneyReward} {t.money}</span>{mission.technologyPointsReward > 0 && <em>+{mission.technologyPointsReward} TP</em>}</div>
       <div className="mission-actions">
         {available && <button data-action="accept-mission" data-mission-action-id={mission.id} disabled={acceptDisabled} onClick={() => onAccept(mission.id)}><Play size={17} weight="fill" />{acceptDisabled ? t.limit : t.accept}</button>}
+        {mission.id === "story-01" && (active || ready) && onLaunchChapterOne && <button data-action="launch-chapter-one" onClick={onLaunchChapterOne}><BookOpenText size={17} />{t[mission.titleKey]}</button>}
         {mission.id === "story-05" && active && <button data-action="launch-lights-story" onClick={() => onLaunchLights("story")}><Play size={17} weight="fill" />{t.launchEvent}</button>}
         {mission.id === "story-06" && active && <button data-action="launch-expedition-story" onClick={onLaunchExpedition}><Play size={17} weight="fill" />{t.launchExpedition}</button>}
         {mission.id === "story-06" && expeditionReplay && !active && <button data-action="launch-expedition-replay" onClick={onLaunchExpedition}><Play size={17} weight="fill" />{t.launchExpedition}</button>}
@@ -398,7 +399,7 @@ function MissionCard({ mission, t, mediaText, lightsCopy, openStationTitle, dail
   );
 }
 
-export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onLaunchNightOperations, onLaunchFinalPromise, onLaunchFirstPageQso, onOpenStation, onClose }) {
+export function MissionCenterModal({ language, save, onAccept, onClaim, onAbandon, onLaunchChapterOne, onLaunchLights, onLaunchExpedition, onLaunchQslStory, onLaunchServiceNet, onLaunchCoordinateRelay, onLaunchContest, onLaunchListening, onLaunchStormRelay, onLaunchNightOperations, onLaunchFinalPromise, onLaunchFirstPageQso, onOpenStation, onClose }) {
   const t = TEXT[language] ?? TEXT.en;
   const mediaText = MEDIA_TEXT[language] ?? MEDIA_TEXT.en;
   const lightsCopy = lightsText(language);
@@ -453,7 +454,7 @@ export function MissionCenterModal({ language, save, onAccept, onClaim, onAbando
             <figure><img src={selectedMedia.portrait} alt={`${t[selectedMediaMission.titleKey]} — ${mediaText.portrait}`} /><figcaption>{mediaText.portrait}</figcaption></figure>
           </section>}
           <div className="mission-list">
-            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} mediaText={mediaText} lightsCopy={lightsCopy} openStationTitle={openStationTitle} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} expeditionReplay={expeditionReplay} serviceNetReplay={serviceNetReplay} coordinateRelayReplay={coordinateRelayReplay} contestReplay={contestReplay} listeningReplay={listeningReplay} stormRelayReplay={stormRelayReplay} nightOperationsReplay={nightOperationsReplay} finalPromiseReplay={finalPromiseReplay} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} onLaunchQslStory={onLaunchQslStory} onLaunchServiceNet={onLaunchServiceNet} onLaunchCoordinateRelay={onLaunchCoordinateRelay} onLaunchContest={onLaunchContest} onLaunchListening={onLaunchListening} onLaunchStormRelay={onLaunchStormRelay} onLaunchNightOperations={onLaunchNightOperations} onLaunchFinalPromise={onLaunchFinalPromise} onLaunchFirstPageQso={onLaunchFirstPageQso} onOpenStation={onOpenStation} onOpenMedia={setSelectedMediaMission} />)}
+            {missions.map((mission) => <MissionCard key={mission.id} mission={mission} t={t} mediaText={mediaText} lightsCopy={lightsCopy} openStationTitle={openStationTitle} dailyLimitReached={activeDaily >= MAX_ACTIVE_DAILY_MISSIONS} lightsModes={lightsModes} expeditionReplay={expeditionReplay} serviceNetReplay={serviceNetReplay} coordinateRelayReplay={coordinateRelayReplay} contestReplay={contestReplay} listeningReplay={listeningReplay} stormRelayReplay={stormRelayReplay} nightOperationsReplay={nightOperationsReplay} finalPromiseReplay={finalPromiseReplay} onAccept={onAccept} onClaim={onClaim} onAbandon={onAbandon} onLaunchChapterOne={onLaunchChapterOne} onLaunchLights={onLaunchLights} onLaunchExpedition={onLaunchExpedition} onLaunchQslStory={onLaunchQslStory} onLaunchServiceNet={onLaunchServiceNet} onLaunchCoordinateRelay={onLaunchCoordinateRelay} onLaunchContest={onLaunchContest} onLaunchListening={onLaunchListening} onLaunchStormRelay={onLaunchStormRelay} onLaunchNightOperations={onLaunchNightOperations} onLaunchFinalPromise={onLaunchFinalPromise} onLaunchFirstPageQso={onLaunchFirstPageQso} onOpenStation={onOpenStation} onOpenMedia={setSelectedMediaMission} />)}
           </div>
         </div>
         <footer><span>{save.callsign} // {summary.ready} {t.ready}</span><button data-action="close-missions-footer" onClick={onClose}><ArrowLeft size={19} weight="bold" />{t.close}</button></footer>

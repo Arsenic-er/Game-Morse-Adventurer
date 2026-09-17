@@ -4,6 +4,7 @@ const qaCapture = process.argv.includes("--qa-capture") || process.argv.includes
 const failedIncomingPhases = new Set();
 
 contextBridge.exposeInMainWorld("cwgameSystem", {
+  chapterOneLocalReview: process.argv.includes("--chapter-one-local-review"),
   getNetworkStatus: () => ipcRenderer.invoke("cwgame:network-status"),
   getSemanticStatus: () => ipcRenderer.invoke("cwgame:semantic-status"),
   interpretCwTraffic: (payload) => ipcRenderer.invoke("cwgame:interpret-cw-traffic", payload),

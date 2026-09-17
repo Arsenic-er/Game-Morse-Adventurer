@@ -13,6 +13,7 @@ runtime-models/*
 !runtime-models/qso-semanticformer-v0.4.int8.onnx
 !runtime-models/qso-semanticformer-v0.4.runtime-contract.json
 release/
+release-chapter-one/
 release-v*/
 design-references/
 qa-artifacts*/

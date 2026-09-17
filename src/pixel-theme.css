@@ -1040,6 +1040,10 @@ button:focus-visible { outline: 3px solid #e7d682; outline-offset: 2px; }
 .save-actions-bar button:disabled { opacity: .45; cursor: not-allowed; }
 
 .home-screen { min-height: 0; background: #090604; }
+.home-chapter-one-button { position: absolute; z-index: 7; left: 20px; top: 62px; display: inline-flex; align-items: center; gap: 9px; max-width: calc(100vw - 40px); padding: 12px 16px; border: 2px solid #cbab60; color: #ffe4a8; background: #211e12ee; box-shadow: 4px 4px #02090ecc; }
+.chapter-one-live-hint { display: flex; align-items: flex-start; gap: 12px; padding: 15px; color: #acd7d2; background: #05232bcc; border-left: 3px solid #65d6d5; line-height: 1.7; font-size: 12px; }
+.chapter-one-live-hint > svg { flex-shrink: 0; }
+.chapter-one-story-complete { display: flex; align-items: center; gap: 10px; color: #cbe996; line-height: 1.6; }
 .home-room-scene { position: absolute; left: 50%; top: 50%; width: max(100vw, calc(100vh * 1672 / 941)); height: max(100vh, calc(100vw * 941 / 1672)); transform: translate(-50%, -50%); }
 .home-window-slot { position: absolute; z-index: 0; left: 30.25%; top: 9.8%; width: 45.2%; height: 44.35%; overflow: hidden; background: #061016; }
 .home-window-artwork { width: 100%; height: 100%; }

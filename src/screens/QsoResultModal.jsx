@@ -1,5 +1,6 @@
+const STORY_CONTINUE_LABEL = { "zh-CN": "继续第一章", "zh-TW": "繼續第一章", en: "Continue Chapter One", ja: "第1章を続ける", es: "Continuar el capítulo uno", de: "Kapitel eins fortsetzen", ru: "Продолжить первую главу" };
 import {
-  ArrowClockwise, ArrowLeft, Broadcast, CheckCircle, Flask, FloppyDisk, Gauge, MapPin, Radio,
+  ArrowClockwise, ArrowLeft, BookOpenText, Broadcast, CheckCircle, Flask, FloppyDisk, Gauge, MapPin, Radio,
   Ruler, ShieldCheck, WarningCircle, X,
 } from "@phosphor-icons/react";
 import { QsoRewardBreakdown } from "../components/QsoRewardBreakdown.jsx";
@@ -186,7 +187,7 @@ function QsoAttemptHistory({ entry, language }) {
 export function QsoResultModal({
   language, failed = false, entry = null, moneyAwarded = 0, saved = false,
   technologyPointsAwarded = 0, completedResearchProjects = [],
-  rewardBreakdown = null, onSave, onRestart, onNext, onLeave, onClose,
+  rewardBreakdown = null, onSave, onRestart, onNext, onLeave, onClose, onContinueStory,
 }) {
   const t = TEXT[language] ?? TEXT.en;
   const reviewT = REVIEW_TEXT[language] ?? REVIEW_TEXT.en;
@@ -244,6 +245,7 @@ export function QsoResultModal({
         )}
 
         <footer>
+          {!failed && saved && onContinueStory && <button className="qso-result-primary" data-action="continue-chapter-one" onClick={onContinueStory}><BookOpenText size={21} />{STORY_CONTINUE_LABEL[language] ?? STORY_CONTINUE_LABEL.en}</button>}
           {failed ? (
             <button className="qso-result-primary" onClick={onRestart}><ArrowClockwise size={21} weight="bold" />{t.restart}</button>
           ) : !saved ? (

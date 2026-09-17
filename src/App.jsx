@@ -1,4 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { advanceChapterOnePresentation, chapterOneStoryModel } from "./game/chapterOneStory.js";
+import { bootstrapChapterOneLocalReview } from "./game/chapterOneLocalReview.js";
 import {
   ArrowCounterClockwise, ArrowLeft, BookOpenText, Broadcast, Check, FloppyDisk, GearSix,
   GlobeHemisphereWest, GridFour, Lightning, MapTrifold, MusicNotes, Play,
@@ -105,8 +107,14 @@ const NightOperationsScreen = lazy(() => import("./screens/NightOperationsScreen
   .then(({ NightOperationsScreen: component }) => ({ default: component })));
 const FinalPromiseScreen = lazy(() => import("./screens/FinalPromiseScreen.jsx")
   .then(({ FinalPromiseScreen: component }) => ({ default: component })));
+const ChapterOneStoryScreen = lazy(() => import("./screens/ChapterOneStoryScreen.jsx")
+  .then(({ ChapterOneStoryScreen: component }) => ({ default: component })));
+const ChapterOneLocalMenu = lazy(() => import("./screens/ChapterOneLocalMenu.jsx")
+  .then(({ ChapterOneLocalMenu: component }) => ({ default: component })));
 const ChapterOneReviewScreen = lazy(() => import("./screens/ChapterOneReviewScreen.jsx")
   .then(({ ChapterOneReviewScreen: component }) => ({ default: component })));
+const ReviewIncomingCaption = lazy(() => import("./components/ReviewIncomingCaption.jsx")
+  .then(({ ReviewIncomingCaption: component }) => ({ default: component })));
 const SaveSelectScreen = lazy(() => import("./screens/SaveSelectScreen.jsx")
   .then(({ SaveSelectScreen: component }) => ({ default: component })));
 const StationManualModal = lazy(() => import("./screens/StationManualModal.jsx")
@@ -536,7 +544,7 @@ function MapModal({ language, mapMode, setMapMode, propagationMap, onClose }) {
   );
 }
 
-function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, onSettings, onBack, inputBlocked = false }) {
+function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, onSettings, onBack, onContinueStory, inputBlocked = false, reviewAssist = false }) {
   const t = COPY[language];
   const flow = STATION_FLOW_COPY[language] ?? STATION_FLOW_COPY.en;
   const optionalFlow = OPTIONAL_EXCHANGE_COPY[language] ?? OPTIONAL_EXCHANGE_COPY.en;
@@ -571,6 +579,9 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
   const [qsoSerial, setQsoSerial] = useState(0);
   const [npcPlaybackRetry, setNpcPlaybackRetry] = useState(0);
   const [npcPlaybackRecovering, setNpcPlaybackRecovering] = useState(false);
+  const [reviewIncoming, setReviewIncoming] = useState("");
+  const [reviewCaptionExpanded, setReviewCaptionExpanded] = useState(true);
+  const reviewCaptionExpandedRef = useRef(true);
   const [exitRequest, setExitRequest] = useState(null);
   const [windowActive, setWindowActive] = useState(() => (
     document.visibilityState !== "hidden" && document.hasFocus()
@@ -744,6 +755,12 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
     const qaPlaybackDelay = qso.npcReplyDisposition === "query" ? 1600 : 60;
     qsoPlaybackLifecycle.requestPlayback(window.cwgameSystem?.qaCapture ? qaPlaybackDelay : 350, async () => {
       const forcedQaFailure = window.cwgameSystem?.consumeQaIncomingFailure?.(activePhase) ?? false;
+      // Capture only the message entering RX playback. No future response or
+      // expected player answer is exposed, and the normal game never enables this.
+      if (reviewAssist && !forcedQaFailure) {
+        setReviewIncoming(qso.npcMessage);
+        if (reviewCaptionExpandedRef.current) setQso(current => markQsoAssisted(current));
+      }
       const played = forcedQaFailure ? false : window.cwgameSystem?.qaCapture
         ? true
         : await cw.playIncoming(qso.npcMessage, qso.replyWpm ?? qso.npc.wpm, npcChannel);
@@ -770,7 +787,7 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
   }, [
     antennaReady, briefingOpen, cw.clearInput, cw.playIncoming, exitRequest, inputBlocked, npcChannel, powered,
     npcPlaybackRetry, qso.npc.wpm, qso.npcMessage, qso.npcReplyDisposition, qso.phase, qso.replyWpm,
-    qsoPlaybackLifecycle, windowActive,
+    qsoPlaybackLifecycle, windowActive, reviewAssist,
   ]);
 
   keyInputStateRef.current = {
@@ -965,6 +982,7 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
 
   function startNewQso() {
     if (qso.phase === QSO_PHASES.QSO_COMPLETE && !saved) return;
+    setReviewIncoming("");
     const nextSerial = qsoSerial + 1;
     const nextNpc = selectNpcForQso(propagationMap, { playerEquipmentBonus, seed: `${propagationKey}:${nextSerial}` });
     setQsoSerial(nextSerial);
@@ -1003,6 +1021,7 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
 
   function saveOrRestart() {
     if (qso.phase === QSO_PHASES.QSO_FAILED) {
+      setReviewIncoming("");
       setQso(restartQso(qso));
       setQsoMetrics({ samples: 0, wpm: 0, accuracy: 0, rhythm: 0 });
       setResultDismissed(false);
@@ -1115,6 +1134,8 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
     settledEntry: pendingSettlement.settledEntry,
   } : null);
   const displayedResultEntry = resultMeta?.settledEntry ?? resultEntry;
+  const storyCandidate = saved ? chapterOneStoryModel(save).candidate : null;
+  const continueStory = saved && storyCandidate?.id === displayedResultEntry?.id ? onContinueStory : null;
   const liveContactRevealed = qso.contactRevealed === true;
   const blindContact = !selectedLog && qso.hasContact && !liveContactRevealed;
   const contactVisible = Boolean(selectedLog || liveContactRevealed);
@@ -1174,6 +1195,15 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
       data-channel-decision-linked={npcChannel.decisionLinked}
       style={{ "--room": `url(${location.scene})` }}
     >
+      {reviewAssist && <Suspense fallback={null}><ReviewIncomingCaption language={language} text={reviewIncoming}
+        expanded={reviewCaptionExpanded} assisted={Boolean(reviewIncoming && qso.visualAssistUsed)}
+        status={npcPlaybackRecovering || !powered || inputBlocked || !windowActive || briefingOpen || exitRequest ? "paused" : cw.isPlaying && qsoNeedsNpcPlayback(qso) ? "receiving" : "received"}
+        onToggle={() => {
+          const expanded = !reviewCaptionExpandedRef.current;
+          reviewCaptionExpandedRef.current = expanded;
+          setReviewCaptionExpanded(expanded);
+          if (expanded && reviewIncoming) setQso(current => markQsoAssisted(current));
+        }} /></Suspense>}
       <header className="station-topbar">
         <div className="clock-group"><span>UTC <b>{utc}</b></span><i /><span>LOCAL <b>{local}</b></span></div>
         <div className="station-name"><Radio size={18} weight="fill" /> {save.callsign} · {t.station} · {t.money} {money}</div>
@@ -1237,6 +1267,7 @@ function StationScreen({ language, keyType, save, onActivityRisk, onSaveUpdate, 
       {!mapOpen && !briefingOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_FAILED && <QsoResultModal language={language} failed onRestart={saveOrRestart} />}
       {!mapOpen && !briefingOpen && !resultDismissed && qso.phase === QSO_PHASES.QSO_COMPLETE && <QsoResultModal
         language={language} entry={displayedResultEntry} moneyAwarded={resultMeta?.moneyAwarded ?? 0} saved={saved}
+        onContinueStory={continueStory}
         rewardBreakdown={resultMeta?.rewardBreakdown ?? null}
         technologyPointsAwarded={resultMeta?.technologyPointsAwarded ?? 0}
         completedResearchProjects={resultMeta?.completedResearchProjects ?? []}
@@ -1266,21 +1297,22 @@ function initialScreenFromUrl() {
 }
 
 export function App() {
+  const [localReviewBoot] = useState(() => window.cwgameSystem?.chapterOneLocalReview === true ? bootstrapChapterOneLocalReview() : null);
   const [language, setLanguage] = useState(loadLanguagePreference);
   const [keyType, setKeyType] = useState("manual");
   const [automaticKeyWpm, setAutomaticKeyWpm] = useState(DEFAULT_AUTOMATIC_KEY_WPM);
   const [qsoGuidance, setQsoGuidance] = useState("full");
   const [mediaSettings, setMediaSettings] = useState(loadChapterMediaSettings);
-  const [screen, setScreen] = useState(initialScreenFromUrl);
+  const [screen, setScreen] = useState(() => localReviewBoot?.screen ?? initialScreenFromUrl());
   const [practiceReturnScreen, setPracticeReturnScreen] = useState("start");
   const [lightsMode, setLightsMode] = useState("story");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activityRisk, setActivityRisk] = useState("none");
   const [manualOpen, setManualOpen] = useState(false);
   const [achievementQueue, setAchievementQueue] = useState([]);
-  const [saves, setSaves] = useState(() => loadSaves());
+  const [saves, setSaves] = useState(() => localReviewBoot?.saves ?? loadSaves());
   const savesRef = useRef(saves);
-  const [activeSaveId, setActiveSaveId] = useState(() => loadActiveSaveId());
+  const [activeSaveId, setActiveSaveId] = useState(() => localReviewBoot?.activeSaveId ?? loadActiveSaveId());
   const activeSave = saves.find((save) => save.id === activeSaveId) ?? null;
   useEffect(() => {
     document.documentElement.lang = language;
@@ -1782,7 +1814,7 @@ export function App() {
     setAutomaticKeyWpm(nextWpm);
     setQsoGuidance(normalizeQsoGuidance(next.qsoGuidance));
     setMediaSettings(normalizeChapterMediaSettings(next.mediaSettings));
-    if (activeSave && ["home", "station", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen)) {
+    if (activeSave && ["home", "station", "chapter-one", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen)) {
       updateActiveSave({ keyType: next.keyType, automaticKeyWpm: nextWpm, qsoGuidance: normalizeQsoGuidance(next.qsoGuidance) });
     }
   }
@@ -1824,11 +1856,47 @@ export function App() {
     setScreen("start");
   }
 
+  function enterChapterOne() {
+    const current = savesRef.current.find((item) => item.id === activeSaveId);
+    if (!current) return;
+    const model = chapterOneStoryModel(current);
+    if (model.status === "available") {
+      const accepted = acceptMissionForActiveSave("story-01");
+      if (!accepted?.accepted) return;
+    } else if (!model.playable) return;
+    setScreen("chapter-one");
+  }
+
+  function advanceChapterOne(beat) {
+    commitSaves((current) => current.map((save) => {
+      if (save.id !== activeSaveId) return save;
+      const result = advanceChapterOnePresentation(save, beat);
+      return result.updated ? { ...result.save, updatedAt: new Date().toISOString() } : save;
+    }));
+  }
+
+  function claimChapterOne() {
+    const current = savesRef.current.find((item) => item.id === activeSaveId);
+    const model = chapterOneStoryModel(current);
+    if (model.status !== "ready" || model.step !== 4 || !model.candidate) return;
+    claimMissionForActiveSave("story-01");
+  }
+
+  function enterHomeStation() {
+    const current = savesRef.current.find((item) => item.id === activeSaveId);
+    setScreen(chapterOneStoryModel(current).playable ? "chapter-one" : "station");
+  }
+
   let currentScreen;
-  if (screen === "chapter-one-review") currentScreen = <ChapterOneReviewScreen language={language} onBack={leaveChapterOneReview} onSettings={() => setSettingsOpen(true)} />;
+  if (screen === "chapter-one-review") currentScreen = <ChapterOneReviewScreen language={language} onBack={leaveChapterOneReview} onSettings={() => setSettingsOpen(true)} inputBlocked={settingsOpen} />;
+  else if (screen === "chapter-one" && activeSave) currentScreen = <ChapterOneStoryScreen
+    key={activeSave.id} language={language} save={activeSave} inputBlocked={settingsOpen}
+    onAdvance={advanceChapterOne} onEnterStation={() => setScreen("station")} onClaim={claimChapterOne}
+    onBack={() => setScreen("home")} onSettings={() => setSettingsOpen(true)}
+  />;
   else if (screen === "start") currentScreen = <StartScreen language={language} setLanguage={setLanguage} onStart={() => setScreen("saves")} onPractice={() => enterPractice("start")} onSettings={() => setSettingsOpen(true)} onManual={() => setManualOpen(true)} />;
   else if (screen === "saves") currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onAcceptMission={acceptMissionForActiveSave} onClaimMission={claimMissionForActiveSave} onAbandonMission={abandonMissionForActiveSave} onEnterLights={enterLights} onEnterExpedition={() => setScreen("expedition")} onEnterQslStory={() => setScreen("qsl-story")} onEnterServiceNet={() => setScreen("service-net")} onEnterCoordinateRelay={() => setScreen("coordinate-relay")} onEnterContest={() => setScreen("contest")} onEnterListening={() => setScreen("listening")} onEnterStormRelay={() => setScreen("storm-relay")} onEnterNightOperations={() => setScreen("night-operations")} onEnterFinalPromise={() => setScreen("final-promise")} onSettleFirstPage={settleFirstPageForActiveSave} onUpdateOpenStationGoal={updateOpenStationGoalForActiveSave} onConfirmQslChoice={confirmQslChoiceForActiveSave} onEnterStation={() => setScreen("station")} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
+  else if (screen === "home" && activeSave) currentScreen = <HomeScreen language={language} save={activeSave} onPurchase={purchaseForActiveSave} onEquipItem={equipForActiveSave} onUnlockTechnology={unlockTechnologyForActiveSave} onAcceptMission={acceptMissionForActiveSave} onClaimMission={claimMissionForActiveSave} onAbandonMission={abandonMissionForActiveSave} onEnterChapterOne={enterChapterOne} onEnterLights={enterLights} onEnterExpedition={() => setScreen("expedition")} onEnterQslStory={() => setScreen("qsl-story")} onEnterServiceNet={() => setScreen("service-net")} onEnterCoordinateRelay={() => setScreen("coordinate-relay")} onEnterContest={() => setScreen("contest")} onEnterListening={() => setScreen("listening")} onEnterStormRelay={() => setScreen("storm-relay")} onEnterNightOperations={() => setScreen("night-operations")} onEnterFinalPromise={() => setScreen("final-promise")} onSettleFirstPage={settleFirstPageForActiveSave} onUpdateOpenStationGoal={updateOpenStationGoalForActiveSave} onConfirmQslChoice={confirmQslChoiceForActiveSave} onEnterStation={enterHomeStation} onEnterPractice={() => enterPractice("home")} onBack={() => setScreen("saves")} onSettings={() => setSettingsOpen(true)} />;
   else if (screen === "practice") {
     const persistentStats = practiceStatsByMode(activeSave?.practiceRecords);
     if (activeSave?.practiceRecords) {
@@ -1950,16 +2018,27 @@ export function App() {
     onSettle={settleFinalPromiseForActiveSave}
     onBack={() => setScreen("home")}
   />;
-  else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onActivityRisk={setActivityRisk} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} />;
+  else if (activeSave) currentScreen = <StationScreen key={activeSave.id} language={language} keyType={activeSave.keyType ?? keyType} save={activeSave} onActivityRisk={setActivityRisk} onSaveUpdate={updateActiveSave} inputBlocked={settingsOpen} reviewAssist={Boolean(localReviewBoot)} onSettings={() => setSettingsOpen(true)} onBack={() => setScreen("home")} onContinueStory={enterChapterOne} />;
   else currentScreen = <SaveSelectScreen language={language} saves={saves} activeSaveId={activeSaveId} defaultKeyType={keyType} defaultAutomaticKeyWpm={automaticKeyWpm} defaultQsoGuidance={qsoGuidance} onLoad={selectSave} onCreate={createAndSelect} onDelete={deleteSave} onBack={() => setScreen("start")} />;
-  const activeChapter = screen === "chapter-one-review" ? 1 : chapterForScreen(screen, activeSave);
+  if (localReviewBoot && !["chapter-one", "chapter-one-review", "station"].includes(screen)) currentScreen = <ChapterOneLocalMenu
+    language={language} save={activeSave} inputBlocked={settingsOpen}
+    onContinue={enterChapterOne} onReview={() => setScreen("chapter-one-review")} onSettings={() => setSettingsOpen(true)}
+    onReset={() => {
+      const next = bootstrapChapterOneLocalReview(globalThis.localStorage, { reset: true });
+      commitSaves(next.saves);
+      setActiveSaveId(next.activeSaveId);
+      setAchievementQueue([]);
+      setScreen("chapter-one");
+    }}
+  />;
+  const activeChapter = localReviewBoot || screen === "chapter-one-review" ? 1 : chapterForScreen(screen, activeSave);
   return <>
     <Suspense fallback={<main className="screen route-loading-screen" aria-busy="true" />}>
       <ChapterMediaStage chapter={activeChapter} settings={mediaSettings} paused={settingsOpen}>
         {currentScreen}
       </ChapterMediaStage>
     </Suspense>
-    {screen !== "chapter-one-review" && <NetworkIndicator language={language} />}
+    {!localReviewBoot && !["chapter-one-review", "chapter-one"].includes(screen) && <NetworkIndicator language={language} />}
     <Suspense fallback={null}><AchievementNotification
         language={language}
         activeAchievement={achievementQueue[0] ?? null}
@@ -1969,9 +2048,9 @@ export function App() {
     {manualOpen && <Suspense fallback={null}><StationManualModal language={language} onClose={() => setManualOpen(false)} /></Suspense>}
     {settingsOpen && <SettingsModal
       language={language}
-      keyType={activeSave && ["home", "station", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen) ? activeSave.keyType : keyType}
-      automaticKeyWpm={activeSave && ["home", "station", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen) ? activeSave.automaticKeyWpm : automaticKeyWpm}
-      qsoGuidance={activeSave && ["home", "station", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen) ? activeSave.qsoGuidance : qsoGuidance}
+      keyType={activeSave && ["home", "station", "chapter-one", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen) ? activeSave.keyType : keyType}
+      automaticKeyWpm={activeSave && ["home", "station", "chapter-one", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen) ? activeSave.automaticKeyWpm : automaticKeyWpm}
+      qsoGuidance={activeSave && ["home", "station", "chapter-one", "lights", "expedition", "qsl-story", "service-net", "coordinate-relay", "contest", "listening", "storm-relay", "night-operations", "final-promise"].includes(screen) ? activeSave.qsoGuidance : qsoGuidance}
       mediaSettings={mediaSettings}
       onApply={applySettings}
       onClose={() => setSettingsOpen(false)}
