@@ -1,27 +1,53 @@
 name: Feature request
-description: Suggest a new capability or improvement.
-title: "[Feature]: "
+description: Suggest an improvement to Game-Morse-Adventurer.
+title: '[Feature]: '
 body:
-  - type: textarea
-    id: problem
-    attributes:
-      label: Problem or use case
-      description: Explain what you are trying to do and what is currently missing.
-    validations:
-      required: true
-  - type: textarea
-    id: proposal
-    attributes:
-      label: Proposed solution
-      description: Describe the behavior you would like.
-    validations:
-      required: true
-  - type: textarea
-    id: alternatives
-    attributes:
-      label: Alternatives considered
-  - type: textarea
-    id: context
-    attributes:
-      label: Additional context
-      description: Add examples, mockups, or related issues if useful.
+- type: dropdown
+  id: component
+  attributes:
+    label: Affected component
+    options:
+    - Chapter or mission progression
+    - CW input or audio
+    - QSO semantic understanding
+    - Save or load
+    - Interface or localization
+    - Desktop packaging
+    - Other / unsure
+  validations:
+    required: true
+- type: textarea
+  id: problem
+  attributes:
+    label: Problem or use case
+    placeholder: 'Example: I have trouble reviewing the most recent CW exchange during
+      a mission.'
+  validations:
+    required: true
+- type: textarea
+  id: proposal
+  attributes:
+    label: Proposed solution
+    placeholder: 'Example: Add an optional replay control for the last completed exchange.'
+  validations:
+    required: true
+- type: textarea
+  id: alternatives
+  attributes:
+    label: Alternatives considered
+    description: Describe other approaches or current workarounds, if any.
+- type: textarea
+  id: acceptance
+  attributes:
+    label: Acceptance criteria
+    placeholder: 'Replay does not grant duplicate progress or rewards.
+
+      The control works with the supported input methods.
+
+      Existing saves remain compatible.'
+- type: textarea
+  id: context
+  attributes:
+    label: Additional context
+    description: Add related issues, small examples, design sketches, or references
+      if useful.
